@@ -1,0 +1,28 @@
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+  model_config = SettingsConfigDict(
+    env_file=".env",
+    env_file_encoding="utf-8",
+    extra="ignore",
+  )
+
+  app_name: str = "Project Filum API"
+  app_env: str = "development"
+  app_version: str = "0.1.0"
+  api_v1_prefix: str = "/api/v1"
+  postgres_dsn: str = "postgresql+asyncpg://filum:filum@localhost:5432/filum"
+  redis_dsn: str = "redis://localhost:6379/0"
+  openai_api_key: str | None = None
+  openai_base_url: str | None = None
+  storage_provider: str = "local"
+  storage_bucket: str = "filum-dev"
+  storage_base_path: str = "./.storage"
+
+
+@lru_cache
+def get_settings() -> Settings:
+  return Settings()

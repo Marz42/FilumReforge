@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "filum-backend"
+version = "0.1.0"
+description = "Backend service for Project Filum"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "alembic>=1.16,<2.0",
+  "asyncpg>=0.30,<1.0",
+  "fastapi>=0.116,<0.117",
+  "openai>=2.6,<3.0",
+  "pydantic-settings>=2.10,<3.0",
+  "redis>=6.0,<7.0",
+  "sqlalchemy>=2.0.44,<3.0",
+  "uvicorn>=0.35,<0.36",
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<0.29",
+  "pytest>=8.4,<9.0",
+  "pytest-asyncio>=1.2,<2.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
