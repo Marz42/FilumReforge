@@ -21,3 +21,14 @@ class ObjectStorageService:
 
   async def delete(self, *, object_key: str) -> None:
     await self._adapter.delete(object_key=object_key)
+
+  async def generate_download_url(
+    self,
+    *,
+    object_key: str,
+    expires_in_seconds: int = 300,
+  ) -> str:
+    return await self._adapter.generate_download_url(
+      object_key=object_key,
+      expires_in_seconds=expires_in_seconds,
+    )

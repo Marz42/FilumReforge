@@ -5,10 +5,21 @@ import 'element-plus/dist/index.css'
 
 import App from './App.vue'
 import router from './router'
+import { setUnauthorizedHandler } from './api/session'
+import { useAuthStore } from './stores/auth'
 
 const app = createApp(App)
+const pinia = createPinia()
+const authStore = useAuthStore(pinia)
 
-app.use(createPinia())
+setUnauthorizedHandler(() => {
+  authStore.clearSession()
+  void router.push({ name: 'login' })
+})
+
+await authStore.restoreSession()
+
+app.use(pinia)
 app.use(ElementPlus)
 app.use(router)
 

@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.db_types import build_enum, build_json_type
+from app.core.enums import TaskPriority, TaskSourceType, TaskStatus
+from app.models.base import Base
+from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin, utc_now
+
+
+class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "tasks"
+  __table_args__ = (
+    Index("idx_tasks_assignee_status", "assignee_id", "status"),
+    Index("idx_tasks_department_status", "department_id", "status"),
+    Index("idx_tasks_due_date", "due_date"),
+  )
+
+  title: Mapped[str] = mapped_column(String(255), nullable=False)
+  description: Mapped[str | None] = mapped_column(nullable=True)
+  creator_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+  assignee_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+  department_id: Mapped[UUID | None] = mapped_column(ForeignKey("departments.id"), nullable=True)
+  status: Mapped[TaskStatus] = mapped_column(
+    build_enum(enum_cls=TaskStatus, name="task_status"),
+    default=TaskStatus.TODO,
+    nullable=False,
+  )
+  priority: Mapped[TaskPriority] = mapped_column(
+    build_enum(enum_cls=TaskPriority, name="task_priority"),
+    default=TaskPriority.MEDIUM,
+    nullable=False,
+  )
+  due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  parent_task_id: Mapped[UUID | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+  source_type: Mapped[TaskSourceType] = mapped_column(
+    build_enum(enum_cls=TaskSourceType, name="task_source_type"),
+    default=TaskSourceType.MANUAL,
+    nullable=False,
+  )
+  extra_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", build_json_type(), default=dict, nullable=False)
+
+  creator = relationship("User", back_populates="created_tasks", foreign_keys=[creator_id])
+  assignee = relationship("User", back_populates="assigned_tasks", foreign_keys=[assignee_id])
+  department = relationship("Department", back_populates="tasks")
+  parent_task = relationship("Task", remote_side="Task.id", back_populates="child_tasks")
+  child_tasks = relationship("Task", back_populates="parent_task")
+  dependencies = relationship(
+    "TaskDependency",
+    back_populates="task",
+    foreign_keys="TaskDependency.task_id",
+    cascade="all, delete-orphan",
+  )
+  blocked_by = relationship(
+    "TaskDependency",
+    back_populates="depends_on_task",
+    foreign_keys="TaskDependency.depends_on_task_id",
+    cascade="all, delete-orphan",
+  )
+
+
+class TaskDependency(Base):
+  __tablename__ = "task_dependencies"
+  __table_args__ = (
+    CheckConstraint("task_id <> depends_on_task_id", name="task_dependencies_self_reference"),
+    Index("idx_task_dependencies_depends_on_task_id", "depends_on_task_id"),
+  )
+
+  task_id: Mapped[UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), primary_key=True)
+  depends_on_task_id: Mapped[UUID] = mapped_column(
+    ForeignKey("tasks.id", ondelete="CASCADE"),
+    primary_key=True,
+  )
+  dependency_type: Mapped[str] = mapped_column(String(32), default="blocks", nullable=False)
+  created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+  task = relationship("Task", back_populates="dependencies", foreign_keys=[task_id])
+  depends_on_task = relationship("Task", back_populates="blocked_by", foreign_keys=[depends_on_task_id])

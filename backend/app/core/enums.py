@@ -1,0 +1,76 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class UserRole(StrEnum):
+  ADMIN = "admin"
+  HR = "hr"
+  EMPLOYEE = "employee"
+
+
+class UserStatus(StrEnum):
+  ACTIVE = "active"
+  INACTIVE = "inactive"
+  SUSPENDED = "suspended"
+  OFFBOARDED = "offboarded"
+
+
+class TaskStatus(StrEnum):
+  TODO = "todo"
+  DOING = "doing"
+  REVIEW = "review"
+  DONE = "done"
+
+
+class TaskPriority(StrEnum):
+  LOW = "low"
+  MEDIUM = "medium"
+  HIGH = "high"
+  URGENT = "urgent"
+
+
+class TaskSourceType(StrEnum):
+  MANUAL = "manual"
+  TEMPLATE = "template"
+  EVENT = "event"
+  AI = "ai"
+
+
+class AttachmentVisibility(StrEnum):
+  PRIVATE = "private"
+  INTERNAL = "internal"
+  PUBLIC = "public"
+
+
+class AttachmentStatus(StrEnum):
+  UPLOADED = "uploaded"
+  DELETED = "deleted"
+  QUARANTINED = "quarantined"
+
+
+class AttachmentTargetType(StrEnum):
+  TASK_COMMENT = "task_comment"
+  TASK = "task"
+  PROFILE = "profile"
+  DOCUMENT = "document"
+
+
+class NotificationChannel(StrEnum):
+  EMAIL = "email"
+  WEB_PUSH = "web_push"
+  WEBSOCKET = "websocket"
+
+
+class NotificationMessageStatus(StrEnum):
+  QUEUED = "queued"
+  PROCESSING = "processing"
+  COMPLETED = "completed"
+  FAILED = "failed"
+
+
+class NotificationDeliveryStatus(StrEnum):
+  PENDING = "pending"
+  SENT = "sent"
+  FAILED = "failed"
+  RETRYING = "retrying"

@@ -1,26 +1,51 @@
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import ElementPlus from 'element-plus'
 
-import App from '@/App.vue'
+import AppShell from '@/components/AppShell.vue'
 import router from '@/router'
+import { useAuthStore } from '@/stores/auth'
 
 describe('App shell', () => {
+  let pinia: ReturnType<typeof createPinia>
+
   beforeEach(async () => {
-    router.push('/')
+    window.localStorage.clear()
+    pinia = createPinia()
+    setActivePinia(pinia)
+
+    const authStore = useAuthStore()
+    authStore.initialized = true
+    authStore.accessToken = 'test-access-token'
+    authStore.refreshToken = 'test-refresh-token'
+    authStore.user = {
+      id: 'user-1',
+      email: 'admin@example.com',
+      role: 'admin',
+      status: 'active',
+      last_login_at: null,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    }
+
+    router.push('/dashboard')
     await router.isReady()
   })
 
-  it('renders the phase A dashboard shell', () => {
-    const wrapper = mount(App, {
+  it('renders the phase 1 shell navigation', () => {
+    const wrapper = mount(AppShell, {
       global: {
-        plugins: [createPinia(), router, ElementPlus],
+        plugins: [pinia, router, ElementPlus],
+        stubs: {
+          RouterView: true,
+        },
       },
     })
 
     expect(wrapper.text()).toContain('Project Filum')
-    expect(wrapper.text()).toContain('Phase A')
-    expect(wrapper.text()).toContain('工程骨架初始化中')
+    expect(wrapper.text()).toContain('Phase 1')
+    expect(wrapper.text()).toContain('部门管理')
+    expect(wrapper.text()).toContain('任务中心')
   })
 })
