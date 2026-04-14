@@ -1,8 +1,8 @@
 # Project Filum 架构基线
 
-**版本**: v1.1.0  
-**状态**: Phase 1 / Foundation 已实现并完成用户验测  
-**适用范围**: 当前仓库代码、数据库基线、本地开发方式、后续 Phase 2~4 演进
+**版本**: v1.2.0  
+**状态**: Phase 2 / Collaboration & Stats 已实现并完成用户基础验测  
+**适用范围**: 当前仓库代码、数据库基线、本地开发方式、后续 Phase 3~4 演进
 
 ## 1. 架构目标
 
@@ -17,18 +17,18 @@ Project Filum 面向 50-100 人规模企业，采用**模块化单体**实现统
 
 ## 2. 系统边界与模块划分
 
-| 模块               | 责任                                           | 当前状态                                 |
-| ------------------ | ---------------------------------------------- | ---------------------------------------- |
-| IAM                | 用户鉴权、JWT access/refresh、用户状态校验     | Phase 1 已实现                           |
-| Organization       | 部门树、负责人、组织范围查询                   | Phase 1 已实现                           |
-| HR Profiles        | 员工档案、动态字段、基础生命周期信息           | Phase 1 已实现                           |
-| Workflow           | 任务创建、指派、依赖关系、截止时间维护         | Phase 1 已实现（严格状态机留待 Phase 2） |
-| Task Collaboration | `task_comments`、任务内沟通留痕、日志          | Phase 2 预留                             |
-| Notification Bus   | 统一消息模型、异步入队、渠道投递记录           | Phase 1 已实现基础链路                   |
-| File Storage       | 附件元数据、对象存储适配、业务绑定             | Phase 1 已实现                           |
-| Knowledge Base     | Markdown 文档、向量切块、RAG 检索              | Phase 3 预留                             |
-| AI Router          | `@系统` / `/` 指令入口、Tool Calling、权限注入 | Phase 4 预留                             |
-| Platform Tools     | 可插拔工具页与后端工具路由                     | Phase 4 预留                             |
+| 模块               | 责任                                           | 当前状态                                                         |
+| ------------------ | ---------------------------------------------- | ---------------------------------------------------------------- |
+| IAM                | 用户鉴权、JWT access/refresh、用户状态校验     | Phase 1 已实现；字段级权限与代理授权待后续                       |
+| Organization       | 部门树、负责人、组织范围查询                   | Phase 1 已实现；多岗位 / 虚线汇报关系待后续                      |
+| HR Profiles        | 员工档案、动态字段、基础生命周期信息           | Phase 1 已实现一人一档与动态字段；全生命周期与敏感字段权限待后续 |
+| Workflow           | 任务创建、指派、依赖关系、截止时间维护         | Phase 2 已实现状态机、依赖建模与统计；模板 / 审批流 / 多视图待后续 |
+| Task Collaboration | `task_comments`、任务内沟通留痕、日志          | Phase 2 已实现                                                   |
+| Notification Bus   | 统一消息模型、异步入队、渠道投递记录           | Phase 2 已实现消息落库、ARQ 入队与提醒扫描；真实渠道适配器待后续 |
+| File Storage       | 附件元数据、对象存储适配、业务绑定             | Phase 1 已实现，Phase 2 已扩展到评论附件                         |
+| Knowledge Base     | Markdown 文档、向量切块、RAG 检索              | Phase 3 预留                                                     |
+| AI Router          | `@系统` / `/` 指令入口、Tool Calling、权限注入 | Phase 3~4 预留                                                   |
+| Platform Tools     | 可插拔工具页与后端工具路由                     | Phase 4 预留                                                     |
 
 ## 3. 运行时拓扑
 
@@ -45,8 +45,15 @@ Project Filum 面向 50-100 人规模企业，采用**模块化单体**实现统
     |-- app.integrations
     |
     +--> PostgreSQL
-    +--> Redis
+    +--> Redis / ARQ Queue
     +--> Object Storage Adapter (local now, S3-compatible later)
+
+[ ARQ Worker ]
+    |-- app.workers.arq_worker
+    |-- app.workers.jobs
+    |
+    +--> PostgreSQL
+    +--> Redis / ARQ Queue
 ```
 
 ### 3.1 当前本地开发路径
@@ -57,12 +64,14 @@ Project Filum 面向 50-100 人规模企业，采用**模块化单体**实现统
    - `postgres`
    - `redis`
    - `backend`
+   - `worker`
    - `frontend`
    - `nginx`
-   - `backend` 容器启动时会自动执行 `alembic upgrade head`
+   - `backend` 与 `worker` 容器启动时都会自动执行 `alembic upgrade head`
 
 2. **本地直启路径**
    - `backend/.env.example` 默认指向 `localhost`
+   - 可通过 `backend/scripts/start-worker.sh` 直接启动 ARQ worker
    - `frontend` 开发模式默认请求同主机 `:8000/api/v1`
    - 如需要，也可以通过 `VITE_DEV_API_PROXY_TARGET` 使用 Vite 代理
 
@@ -148,9 +157,10 @@ memory-bank/
 | `backend/app/models/department.py`                          | 部门树模型                           |
 | `backend/app/models/profile.py`                             | 员工档案模型                         |
 | `backend/app/models/attachment.py`                          | 附件元数据与附件绑定模型             |
-| `backend/app/models/task.py`                                | 任务与任务依赖模型                   |
+| `backend/app/models/task.py`                                | 任务、任务依赖、任务日志与任务评论模型 |
 | `backend/app/models/notification.py`                        | 通知消息与渠道投递模型               |
 | `backend/alembic/versions/20260413_01_phase1_foundation.py` | Phase 1 首个业务迁移                 |
+| `backend/alembic/versions/20260414_01_phase2_collaboration.py` | Phase 2 协同与留痕迁移            |
 
 ### 5.4 backend 服务与集成
 
@@ -160,14 +170,17 @@ memory-bank/
 | `backend/app/services/user_service.py`            | 用户管理服务                                       |
 | `backend/app/services/department_service.py`      | 部门 CRUD、组织树构建                              |
 | `backend/app/services/profile_service.py`         | 员工档案 CRUD                                      |
-| `backend/app/services/task_service.py`            | 任务创建、查询、改派，并联动通知                   |
+| `backend/app/services/task_service.py`            | 任务创建、状态流转、评论、活动流、统计与逾期查询   |
 | `backend/app/services/attachment_service.py`      | 附件上传、查询、删除与业务绑定                     |
-| `backend/app/services/notification_service.py`    | 通知消息落库、投递记录创建、Redis 入队             |
+| `backend/app/services/notification_service.py`    | 通知消息落库、投递记录创建、ARQ 入队               |
 | `backend/app/services/object_storage_service.py`  | 存储适配器统一入口                                 |
 | `backend/app/services/access_control.py`          | 活跃账号、管理权限、组织范围、可指派范围校验       |
 | `backend/app/integrations/storage/local.py`       | 本地文件系统对象存储适配器                         |
-| `backend/app/integrations/notifications/queue.py` | Redis 队列发布器                                   |
+| `backend/app/integrations/notifications/queue.py` | ARQ 队列发布器，负责把消息投递任务入 Redis         |
+| `backend/app/workers/jobs.py`                     | 通知消费与逾期提醒扫描的可测试业务入口             |
+| `backend/app/workers/arq_worker.py`               | ARQ worker 运行时入口与 cron 配置                  |
 | `backend/scripts/start-dev.sh`                    | Compose / 容器开发环境的启动脚本，先迁移再启动 API |
+| `backend/scripts/start-worker.sh`                 | 本地或容器内 worker 启动脚本，先迁移再启动 ARQ     |
 
 ### 5.5 backend API schema 与路由
 
@@ -177,13 +190,13 @@ memory-bank/
 | `backend/app/api/routes/users.py`       | 用户查询、创建、更新接口                  |
 | `backend/app/api/routes/departments.py` | 部门列表、树、创建、更新接口              |
 | `backend/app/api/routes/profiles.py`    | 档案列表、详情、创建、更新接口            |
-| `backend/app/api/routes/tasks.py`       | 任务列表、详情、创建、更新接口            |
+| `backend/app/api/routes/tasks.py`       | 任务列表、详情、创建、更新、状态流转、评论、活动流与统计接口 |
 | `backend/app/api/routes/attachments.py` | 附件上传、查询、删除接口                  |
 | `backend/app/schemas/auth.py`           | 认证请求/响应 schema                      |
 | `backend/app/schemas/users.py`          | 用户协议模型                              |
 | `backend/app/schemas/departments.py`    | 部门协议模型                              |
 | `backend/app/schemas/profiles.py`       | 档案协议模型                              |
-| `backend/app/schemas/tasks.py`          | 任务协议模型                              |
+| `backend/app/schemas/tasks.py`          | 任务、任务评论、活动流与统计协议模型      |
 | `backend/app/schemas/attachments.py`    | 附件协议模型                              |
 | `backend/app/schemas/messages.py`       | 通知消息 schema                           |
 | `backend/app/schemas/storage.py`        | 对象存储描述模型                          |
@@ -196,6 +209,7 @@ memory-bank/
 | `frontend/src/router/index.ts`           | 路由声明、登录守卫、角色守卫                                |
 | `frontend/src/router/meta.d.ts`          | 路由元信息类型声明                                          |
 | `frontend/src/api/http.ts`               | Axios 实例、token 注入、自动 refresh、开发态 API 地址解析   |
+| `frontend/src/api/tasks.ts`              | 任务、状态流转、评论、活动流与统计 API Client               |
 | `frontend/src/api/session.ts`            | token 持久化与未授权通知                                    |
 | `frontend/src/stores/auth.ts`            | 登录态、用户信息、会话恢复                                  |
 | `frontend/src/stores/app.ts`             | 应用标题与阶段状态                                          |
@@ -204,16 +218,17 @@ memory-bank/
 | `frontend/src/views/HomeView.vue`        | Phase 1 仪表盘                                              |
 | `frontend/src/views/DepartmentsView.vue` | 部门管理页                                                  |
 | `frontend/src/views/ProfilesView.vue`    | 档案管理页                                                  |
-| `frontend/src/views/TasksView.vue`       | 任务中心与任务附件上传                                      |
+| `frontend/src/views/TasksView.vue`       | 协同任务中心：任务列表、详情、状态流转、评论、时间线、统计   |
 | `frontend/src/types/api.ts`              | 前端共享 API 类型                                           |
 | `frontend/src/utils/errors.ts`           | 前端统一错误文案提取                                        |
 | `frontend/src/utils/formatters.ts`       | 时间格式化工具                                              |
+| `frontend/tests/TasksView.spec.ts`       | 任务协同页渲染与交互回归测试                                |
 
 ### 5.7 infra
 
 | 路径                              | 作用                                                             |
 | --------------------------------- | ---------------------------------------------------------------- |
-| `infra/docker/docker-compose.yml` | 本地开发编排，包含 postgres / redis / backend / frontend / nginx |
+| `infra/docker/docker-compose.yml` | 本地开发编排，包含 postgres / redis / backend / worker / frontend / nginx |
 | `infra/docker/.env.example`       | Compose 端口与数据库账号模板                                     |
 | `infra/docker/README.md`          | Compose 启动说明与本地直启说明                                   |
 | `infra/nginx/default.conf`        | 统一入口代理：`/api/` 到 backend，其余流量到 frontend            |
@@ -233,25 +248,35 @@ memory-bank/
 1. 业务服务生成统一 `NotificationMessage` schema。
 2. `NotificationService.send()` 将消息写入 `notification_messages`。
 3. 为每个渠道生成 `notification_deliveries` 记录。
-4. 将消息元数据推入 Redis 队列。
-5. 后续 worker 可按 delivery 逐个投递并回写结果。
+4. `RedisNotificationQueuePublisher` 通过 ARQ `enqueue_job()` 将消息元数据推入 Redis。
+5. `app.workers.arq_worker` 消费 `process_notification_message` 任务并回写 delivery / message 状态。
+6. 逾期任务扫描通过 cron 任务定时调用 `enqueue_overdue_task_reminders()`。
+7. 当前真实 Email / WebPush / WebSocket 渠道适配器仍未接通，worker 主要负责异步消费与状态回写。
 
-### 6.3 附件上传与绑定
+### 6.3 任务协同与留痕
+
+1. 创建任务时，`TaskService` 会自动写入 `created` / `assigned` 两类 `task_logs`。
+2. 状态流转统一经过服务层校验，只允许 `Todo -> Doing -> Review -> Done`。
+3. 评论通过 `multipart/form-data` 创建，评论附件绑定到 `attachment_links(target_type = task_comment)`。
+4. 任务活动流由 `task_comments` 与 `task_logs` 聚合按时间排序返回。
+5. 统计接口直接基于 `tasks`、`task_logs` 与部门信息做查询型聚合，不额外维护汇总表。
+
+### 6.4 附件上传与绑定
 
 1. 前端上传文件到 `/api/v1/attachments`。
 2. `AttachmentService` 通过 `ObjectStorageService` 写入对象存储。
 3. 存储成功后写入 `attachments` 元数据。
 4. 通过 `attachment_links` 将附件绑定到任务、档案等业务对象。
-5. 未来 Phase 2 中，任务协同附件应优先绑定到 `task_comments`。
+5. 与任务协同相关的评论附件已绑定到 `task_comments`；任务级附件仍保留用于基础资料。
 
-### 6.4 前端与后端联调链路
+### 6.5 前端与后端联调链路
 
 1. Compose 模式下，浏览器访问 `nginx`，再转发到 backend / frontend。
 2. 前端开发模式下，优先使用 `VITE_API_BASE_URL`；未配置时默认解析到同主机 `:8000/api/v1`。
 3. 如启用 Vite 代理，可通过 `VITE_DEV_API_PROXY_TARGET` 指向 backend。
 4. 开发态后端开启 CORS，防止本地直连时被浏览器拦截。
 
-### 6.5 AI Router（预留）
+### 6.6 AI Router（预留）
 
 1. 前端拦截 `@系统` 或 `/` 指令。
 2. 后端构造工具列表，工具 schema 由 Pydantic v2 模型生成。
@@ -265,9 +290,9 @@ memory-bank/
 | ------- | ------------------------------------------------------------ |
 | Phase A | 文档基线、前后端脚手架、基础编排                             |
 | Phase 1 | 用户、部门、档案、附件、任务、通知总线、JWT 会话、前端后台壳 |
-| Phase 2 | 任务状态机强化、`task_comments`、`task_logs`、超时提醒、BI   |
+| Phase 2 | 严格状态机、`task_comments`、`task_logs`、ARQ 超时提醒、任务统计与协同页 |
 | Phase 3 | 知识库、嵌入、RAG                                            |
-| Phase 4 | AI Router 深化、工具注册表、PWA                              |
+| Phase 4 | AI Router 深化、工具注册表、PWA / Web Push                   |
 
 ## 8. 数据库设计原则
 
@@ -277,7 +302,7 @@ memory-bank/
 - 附件采用**元数据表 + 绑定表**。
 - 通知采用**消息表 + 渠道投递表**。
 - 泛型绑定（如 `attachment_links.target_id`）由服务层保证完整性。
-- 当前代码已实现到 `notification_deliveries` 为止；其余表属于后续阶段预留。
+- 当前代码已实现到 `task_logs` / `task_comments` / `notification_deliveries`；知识库相关表仍属于后续阶段预留。
 
 ## 9. 枚举基线
 
@@ -285,7 +310,7 @@ memory-bank/
 | ------------------------------ | ------------------------------------------------------------------------------------------------------ | -------------------------------- |
 | `user_role`                    | `admin`, `hr`, `employee`                                                                              | 已实现                           |
 | `user_status`                  | `active`, `inactive`, `suspended`, `offboarded`                                                        | 已实现                           |
-| `task_status`                  | `todo`, `doing`, `review`, `done`                                                                      | 已实现（完整状态机留待 Phase 2） |
+| `task_status`                  | `todo`, `doing`, `review`, `done`                                                                      | 已实现（服务层严格状态机已落地） |
 | `task_priority`                | `low`, `medium`, `high`, `urgent`                                                                      | 已实现                           |
 | `task_source_type`             | `manual`, `template`, `event`, `ai`                                                                    | 已实现                           |
 | `attachment_visibility`        | `private`, `internal`, `public`                                                                        | 已实现                           |
@@ -294,8 +319,8 @@ memory-bank/
 | `notification_channel`         | `email`, `web_push`, `websocket`                                                                       | 已实现                           |
 | `notification_message_status`  | `queued`, `processing`, `completed`, `failed`                                                          | 已实现                           |
 | `notification_delivery_status` | `pending`, `sent`, `failed`, `retrying`                                                                | 已实现                           |
-| `task_action_type`             | `created`, `assigned`, `status_changed`, `commented`, `attachment_added`, `due_date_changed`, `closed` | 预留                             |
-| `comment_format`               | `plain_text`, `markdown`                                                                               | 预留                             |
+| `task_action_type`             | `created`, `assigned`, `status_changed`, `commented`, `attachment_added`, `due_date_changed`, `closed` | 已实现                           |
+| `comment_format`               | `plain_text`, `markdown`                                                                               | 已实现                           |
 | `document_category`            | `policy`, `sop`, `announcement`, `faq`, `other`                                                        | 预留                             |
 | `document_status`              | `draft`, `published`, `archived`                                                                       | 预留                             |
 
@@ -480,6 +505,11 @@ memory-bank/
 - CHECK `task_id <> depends_on_task_id`
 - `idx_task_dependencies_depends_on_task_id (depends_on_task_id)`
 
+**设计说明**
+
+- 当前已支持前置依赖关系建模，并在创建任务时校验依赖任务存在。
+- 尚未实现“前置任务完成后自动触发后置任务”的自动调度。
+
 ### 10.9 `notification_messages`
 
 **实现状态**: Phase 1 已实现
@@ -532,7 +562,7 @@ memory-bank/
 
 ### 10.11 `task_logs`
 
-**实现状态**: Phase 2 预留，当前未实现
+**实现状态**: Phase 2 已实现
 
 | 字段          | 类型               | 约束                            | 说明     |
 | ------------- | ------------------ | ------------------------------- | -------- |
@@ -550,9 +580,13 @@ memory-bank/
 - `idx_task_logs_task_id_created_at (task_id, created_at DESC)`
 - `idx_task_logs_operator_id (operator_id)`
 
+**设计说明**
+
+- `task_logs` 只由服务层自动写入，用于记录创建、指派、状态变更、评论、附件与截止时间变更。
+
 ### 10.12 `task_comments`
 
-**实现状态**: Phase 2 预留，当前未实现
+**实现状态**: Phase 2 已实现
 
 | 字段             | 类型             | 约束                         | 说明         |
 | ---------------- | ---------------- | ---------------------------- | ------------ |
@@ -569,6 +603,11 @@ memory-bank/
 
 - `idx_task_comments_task_id_created_at (task_id, created_at ASC)`
 - `idx_task_comments_user_id (user_id)`
+
+**设计说明**
+
+- 评论支持 `plain_text` / `markdown` 两种格式。
+- 评论附件通过 `attachment_links(target_type = task_comment)` 关联。
 
 ### 10.13 `documents`
 
@@ -622,28 +661,28 @@ memory-bank/
 - `tasks N:N tasks` 通过 `task_dependencies`
 - `attachments N:N 业务对象` 通过 `attachment_links`
 - `notification_messages 1:N notification_deliveries`
-- `tasks 1:N task_comments`（Phase 2 预留）
-- `tasks 1:N task_logs`（Phase 2 预留）
+- `tasks 1:N task_comments`
+- `tasks 1:N task_logs`
 - `documents 1:N document_embeddings`（Phase 3 预留）
 
 ## 12. 当前验证基线
 
-截至 Phase 1 文档收尾，当前仓库至少具备如下验证能力：
+截至 Phase 2 文档收尾，当前仓库至少具备如下验证能力：
 
 - backend：
-  - `pytest`
+  - `pytest`（覆盖 models / migrations / services / api / workers）
   - `python -m compileall app`
 - frontend：
   - `npm run test:unit -- --run`
   - `npm run type-check`
   - `npm run build`
   - `npm run lint`
-- 联调：
-  - Vite 代理链路已验证
-  - 用户实际点击“初始化管理员”和“登录”已验证通过
+- 用户验测：
+  - Phase 1 的“初始化管理员”和“登录”已实际点击验证通过
+  - Phase 2 的任务协同页已完成用户简单测试，确认“基本没有问题”
 - 编排：
-  - Compose 文件可做格式与配置级检查
-  - 在具备 Docker 的环境中，可通过 `docker compose up --build -d` 直接启动
+  - Compose 文件已包含 `worker` 服务，可做配置级检查
+  - 真实 Redis + ARQ worker 进程级 smoke test、以及完整 Compose 运行级验证，仍建议在具备 Docker 的环境中执行
 
 ## 13. 维护规则
 
