@@ -15,6 +15,7 @@ backend/.venv/
 backend/.pytest_cache/
 backend/*.egg-info/
 backend/.env
+backend/.storage/
 
 frontend/node_modules/
 frontend/dist/
