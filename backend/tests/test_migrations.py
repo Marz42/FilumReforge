@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from alembic import command
@@ -8,6 +9,26 @@ from sqlalchemy import create_engine, inspect
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+POSTGRES_IDENTIFIER_MAX_LENGTH = 63
+MIGRATION_IDENTIFIER_PATTERNS = (
+  re.compile(r'name="([^"]+)"'),
+  re.compile(r'create_index\(\s*"([^"]+)"'),
+  re.compile(r'drop_index\(\s*"([^"]+)"'),
+)
+
+
+def test_alembic_identifier_names_fit_postgresql_limit() -> None:
+  invalid_names: dict[str, int] = {}
+  versions_dir = BASE_DIR / "alembic" / "versions"
+
+  for revision_path in versions_dir.glob("*.py"):
+    content = revision_path.read_text(encoding="utf-8")
+    for pattern in MIGRATION_IDENTIFIER_PATTERNS:
+      for name in pattern.findall(content):
+        if len(name) > POSTGRES_IDENTIFIER_MAX_LENGTH:
+          invalid_names[f"{revision_path.name}:{name}"] = len(name)
+
+  assert invalid_names == {}
 
 
 def test_alembic_upgrade_and_downgrade(tmp_path, monkeypatch) -> None:

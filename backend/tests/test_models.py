@@ -45,6 +45,24 @@ from app.models import (
 )
 
 
+POSTGRES_IDENTIFIER_MAX_LENGTH = 63
+
+
+def test_metadata_identifier_names_fit_postgresql_limit() -> None:
+  invalid_names = {
+    name: len(name)
+    for table in Base.metadata.tables.values()
+    for name in (
+      [table.name]
+      + [constraint.name for constraint in table.constraints if constraint.name]
+      + [index.name for index in table.indexes if index.name]
+    )
+    if len(name) > POSTGRES_IDENTIFIER_MAX_LENGTH
+  }
+
+  assert invalid_names == {}
+
+
 @pytest.mark.asyncio
 async def test_phase1_models_create_schema_and_persist_core_entities() -> None:
   engine = create_async_engine(

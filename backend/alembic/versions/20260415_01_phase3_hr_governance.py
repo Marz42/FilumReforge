@@ -208,7 +208,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(
       ["field_definition_id"],
       ["profile_field_definitions.id"],
-      name="fk_profile_field_permissions_field_definition_id_profile_field_definitions",
+      name="fk_profile_field_permissions_definition",
       ondelete="CASCADE",
     ),
     sa.PrimaryKeyConstraint("id", name="pk_profile_field_permissions"),

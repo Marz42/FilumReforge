@@ -145,7 +145,11 @@ class ProfileFieldPermission(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   )
 
   field_definition_id: Mapped[UUID] = mapped_column(
-    ForeignKey("profile_field_definitions.id", ondelete="CASCADE"),
+    ForeignKey(
+      "profile_field_definitions.id",
+      name="fk_profile_field_permissions_definition",
+      ondelete="CASCADE",
+    ),
     nullable=False,
   )
   subject_type: Mapped[str] = mapped_column(String(32), nullable=False)
