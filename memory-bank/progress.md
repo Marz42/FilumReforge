@@ -190,8 +190,8 @@
 
 下一阶段优先级已经调整为：
 
-1. **开始 Phase 4 / Workflow & Messaging 设计与实施**
-2. **开始 Phase 4 / Workflow & Messaging**
+1. **开始 Phase 4 / Workflow & Messaging 设计**
+2. **优先落地模板、审批流与消息中心的模型 / 服务边界**
 3. **最后进入 Knowledge / AI / Push**
 
 当前已经确认 HR 治理基座可用，后续可以按计划进入模板、审批与消息中心。
