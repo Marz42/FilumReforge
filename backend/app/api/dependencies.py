@@ -100,8 +100,9 @@ def get_attachment_service(
 def get_task_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
   notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+  attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
 ) -> TaskService:
-  return TaskService(session, notification_service)
+  return TaskService(session, notification_service, attachment_service)
 
 
 async def get_current_user(

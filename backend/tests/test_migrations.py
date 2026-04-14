@@ -32,6 +32,8 @@ def test_alembic_upgrade_and_downgrade(tmp_path, monkeypatch) -> None:
     "attachment_links",
     "tasks",
     "task_dependencies",
+    "task_comments",
+    "task_logs",
     "notification_messages",
     "notification_deliveries",
   }.issubset(upgraded_tables)

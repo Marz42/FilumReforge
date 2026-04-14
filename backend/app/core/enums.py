@@ -37,6 +37,21 @@ class TaskSourceType(StrEnum):
   AI = "ai"
 
 
+class TaskActionType(StrEnum):
+  CREATED = "created"
+  ASSIGNED = "assigned"
+  STATUS_CHANGED = "status_changed"
+  COMMENTED = "commented"
+  ATTACHMENT_ADDED = "attachment_added"
+  DUE_DATE_CHANGED = "due_date_changed"
+  CLOSED = "closed"
+
+
+class CommentFormat(StrEnum):
+  PLAIN_TEXT = "plain_text"
+  MARKDOWN = "markdown"
+
+
 class AttachmentVisibility(StrEnum):
   PRIVATE = "private"
   INTERNAL = "internal"

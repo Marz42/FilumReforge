@@ -4,7 +4,7 @@ from app.models.base import Base
 from app.models.department import Department
 from app.models.notification import NotificationDelivery, NotificationMessage
 from app.models.profile import Profile
-from app.models.task import Task, TaskDependency
+from app.models.task import Task, TaskComment, TaskDependency, TaskLog
 from app.models.user import User
 
 __all__ = [
@@ -17,6 +17,8 @@ __all__ = [
   "Profile",
   "RefreshToken",
   "Task",
+  "TaskComment",
   "TaskDependency",
+  "TaskLog",
   "User",
 ]

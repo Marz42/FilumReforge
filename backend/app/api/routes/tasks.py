@@ -3,14 +3,104 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user, get_task_service
-from app.models import User
-from app.schemas.tasks import TaskCreateRequest, TaskRead, TaskUpdateRequest
-from app.services.task_service import TaskService
+from app.api.dependencies import get_current_user, get_object_storage_service, get_task_service
+from app.core.database import get_db_session
+from app.core.enums import AttachmentStatus, AttachmentTargetType, CommentFormat
+from app.models import Attachment, AttachmentLink, User
+from app.schemas.attachments import AttachmentRead
+from app.schemas.tasks import (
+  TaskActivityEntryRead,
+  TaskCommentRead,
+  TaskCreateRequest,
+  TaskLogRead,
+  TaskRead,
+  TaskStatsSummaryRead,
+  TaskStatusUpdateRequest,
+  TaskUpdateRequest,
+  TaskWorkloadEntryRead,
+)
+from app.services.object_storage_service import ObjectStorageService
+from app.services.task_service import CommentAttachmentInput, TaskActivityEntry, TaskService
 
 router = APIRouter(prefix="/tasks")
+
+
+async def _build_attachment_read(
+  attachment: Attachment,
+  object_storage_service: ObjectStorageService,
+) -> AttachmentRead:
+  download_url = None
+  if attachment.status != AttachmentStatus.DELETED:
+    download_url = await object_storage_service.generate_download_url(
+      object_key=attachment.object_key
+    )
+  return AttachmentRead.model_validate(attachment).model_copy(update={"download_url": download_url})
+
+
+async def _list_comment_attachments(
+  *,
+  session: AsyncSession,
+  comment_id: UUID,
+  object_storage_service: ObjectStorageService,
+) -> list[AttachmentRead]:
+  attachments = list(
+    await session.scalars(
+      select(Attachment)
+      .join(Attachment.links)
+      .where(
+        Attachment.status != AttachmentStatus.DELETED,
+        AttachmentLink.target_type == AttachmentTargetType.TASK_COMMENT,
+        AttachmentLink.target_id == comment_id,
+      )
+      .order_by(Attachment.created_at.asc())
+    )
+  )
+  result: list[AttachmentRead] = []
+  for attachment in attachments:
+    result.append(await _build_attachment_read(attachment, object_storage_service))
+  return result
+
+
+async def _build_task_comment_read(
+  *,
+  session: AsyncSession,
+  comment,
+  object_storage_service: ObjectStorageService,
+) -> TaskCommentRead:
+  attachments = await _list_comment_attachments(
+    session=session,
+    comment_id=comment.id,
+    object_storage_service=object_storage_service,
+  )
+  return TaskCommentRead.model_validate(comment).model_copy(update={"attachments": attachments})
+
+
+async def _build_task_activity_read(
+  *,
+  session: AsyncSession,
+  activity_entry: TaskActivityEntry,
+  object_storage_service: ObjectStorageService,
+) -> TaskActivityEntryRead:
+  comment = None
+  if activity_entry.comment is not None:
+    comment = await _build_task_comment_read(
+      session=session,
+      comment=activity_entry.comment,
+      object_storage_service=object_storage_service,
+    )
+  log = None
+  if activity_entry.log is not None:
+    log = TaskLogRead.model_validate(activity_entry.log)
+  return TaskActivityEntryRead(
+    entry_type=activity_entry.entry_type,
+    created_at=activity_entry.created_at,
+    comment=comment,
+    log=log,
+  )
 
 
 @router.get("", response_model=list[TaskRead])
@@ -51,6 +141,31 @@ async def create_task(
   return TaskRead.model_validate(task)
 
 
+@router.get("/stats/summary", response_model=TaskStatsSummaryRead)
+async def read_task_stats_summary(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskStatsSummaryRead:
+  summary = await task_service.get_task_stats_summary(actor=actor)
+  return TaskStatsSummaryRead(
+    total_tasks=summary.total_tasks,
+    completed_tasks=summary.completed_tasks,
+    completion_rate=summary.completion_rate,
+    overdue_tasks=summary.overdue_tasks,
+    overdue_rate=summary.overdue_rate,
+    tasks_by_status={status.value: count for status, count in summary.tasks_by_status.items()},
+  )
+
+
+@router.get("/stats/workload", response_model=list[TaskWorkloadEntryRead])
+async def read_task_workload(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> list[TaskWorkloadEntryRead]:
+  workload = await task_service.get_task_workload(actor=actor)
+  return [TaskWorkloadEntryRead.model_validate(row) for row in workload]
+
+
 @router.patch("/{task_id}", response_model=TaskRead)
 async def update_task(
   task_id: UUID,
@@ -69,3 +184,95 @@ async def update_task(
     priority=payload.priority,
   )
   return TaskRead.model_validate(task)
+
+
+@router.patch("/{task_id}/status", response_model=TaskRead)
+async def update_task_status(
+  task_id: UUID,
+  payload: TaskStatusUpdateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskRead:
+  task = await task_service.transition_task_status(
+    actor=actor,
+    task_id=task_id,
+    target_status=payload.status,
+  )
+  return TaskRead.model_validate(task)
+
+
+@router.get("/{task_id}/comments", response_model=list[TaskCommentRead])
+async def list_task_comments(
+  task_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
+) -> list[TaskCommentRead]:
+  comments = await task_service.list_task_comments(actor=actor, task_id=task_id)
+  result: list[TaskCommentRead] = []
+  for comment in comments:
+    result.append(
+      await _build_task_comment_read(
+        session=session,
+        comment=comment,
+        object_storage_service=object_storage_service,
+      )
+    )
+  return result
+
+
+@router.post("/{task_id}/comments", response_model=TaskCommentRead, status_code=status.HTTP_201_CREATED)
+async def create_task_comment(
+  task_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
+  content: Annotated[str, Form(...)],
+  content_format: Annotated[CommentFormat, Form()] = CommentFormat.MARKDOWN,
+  is_internal: Annotated[bool, Form()] = False,
+  files: Annotated[list[UploadFile] | None, File()] = None,
+) -> TaskCommentRead:
+  attachments = [
+    CommentAttachmentInput(
+      filename=file.filename or "upload.bin",
+      content_type=file.content_type or "application/octet-stream",
+      content=await file.read(),
+    )
+    for file in files or []
+  ]
+  comment = await task_service.create_task_comment(
+    actor=actor,
+    task_id=task_id,
+    content=content,
+    content_format=content_format,
+    is_internal=is_internal,
+    attachments=attachments or None,
+  )
+  return await _build_task_comment_read(
+    session=session,
+    comment=comment,
+    object_storage_service=object_storage_service,
+  )
+
+
+@router.get("/{task_id}/activity", response_model=list[TaskActivityEntryRead])
+async def list_task_activity(
+  task_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
+) -> list[TaskActivityEntryRead]:
+  activity = await task_service.list_task_activity(actor=actor, task_id=task_id)
+  result: list[TaskActivityEntryRead] = []
+  for activity_entry in activity:
+    result.append(
+      await _build_task_activity_read(
+        session=session,
+        activity_entry=activity_entry,
+        object_storage_service=object_storage_service,
+      )
+    )
+  return result

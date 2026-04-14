@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -7,12 +8,90 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import NotificationChannel, TaskPriority, TaskSourceType, UserRole
-from app.core.exceptions import AuthorizationError, NotFoundError
-from app.models import Department, Profile, Task, TaskDependency, User
+from app.core.enums import (
+  AttachmentTargetType,
+  AttachmentVisibility,
+  CommentFormat,
+  NotificationChannel,
+  TaskActionType,
+  TaskPriority,
+  TaskSourceType,
+  TaskStatus,
+)
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.models import Department, Profile, Task, TaskComment, TaskDependency, TaskLog, User
 from app.schemas.messages import NotificationMessage
-from app.services.access_control import can_manage_assignee, ensure_active_user, get_managed_department_ids
+from app.services.access_control import (
+  MANAGEMENT_ROLES,
+  can_manage_assignee,
+  ensure_active_user,
+  get_managed_department_ids,
+)
 from app.services.notification_service import NotificationService
+
+
+@dataclass(slots=True)
+class CommentAttachmentInput:
+  filename: str
+  content_type: str
+  content: bytes
+  visibility: AttachmentVisibility = AttachmentVisibility.PRIVATE
+
+
+@dataclass(slots=True)
+class TaskActivityEntry:
+  entry_type: str
+  created_at: datetime
+  comment: TaskComment | None = None
+  log: TaskLog | None = None
+
+
+@dataclass(slots=True)
+class TaskStatsSummary:
+  total_tasks: int
+  completed_tasks: int
+  completion_rate: float
+  overdue_tasks: int
+  overdue_rate: float
+  tasks_by_status: dict[TaskStatus, int]
+
+
+@dataclass(slots=True)
+class TaskWorkloadEntry:
+  assignee_id: UUID
+  assignee_email: str
+  department_id: UUID | None
+  department_name: str | None
+  total_tasks: int
+  open_tasks: int
+  completed_tasks: int
+  overdue_tasks: int
+
+
+ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
+  TaskStatus.TODO: {TaskStatus.DOING},
+  TaskStatus.DOING: {TaskStatus.REVIEW},
+  TaskStatus.REVIEW: {TaskStatus.DONE},
+  TaskStatus.DONE: set(),
+}
+
+
+def _serialize_datetime(value: datetime | None) -> str | None:
+  if value is None:
+    return None
+  return _normalize_datetime(value).isoformat()
+
+
+def _normalize_datetime(value: datetime) -> datetime:
+  if value.tzinfo is None:
+    return value.replace(tzinfo=UTC)
+  return value.astimezone(UTC)
+
+
+def _is_overdue(*, due_date: datetime | None, now: datetime) -> bool:
+  if due_date is None:
+    return False
+  return _normalize_datetime(due_date) < now
 
 
 class TaskService:
@@ -20,9 +99,70 @@ class TaskService:
     self,
     session: AsyncSession,
     notification_service: NotificationService | None = None,
+    attachment_service=None,  # noqa: ANN001
   ) -> None:
     self._session = session
     self._notification_service = notification_service
+    self._attachment_service = attachment_service
+
+  async def _build_visible_task_statement(self, *, actor: User):
+    statement = (
+      select(Task)
+      .options(
+        selectinload(Task.creator),
+        selectinload(Task.assignee),
+        selectinload(Task.department),
+      )
+      .order_by(Task.created_at.desc())
+    )
+    if actor.role in MANAGEMENT_ROLES:
+      return statement
+
+    managed_department_ids = await get_managed_department_ids(self._session, actor.id)
+    filters = [Task.creator_id == actor.id, Task.assignee_id == actor.id]
+    if managed_department_ids:
+      filters.append(Task.department_id.in_(managed_department_ids))
+    return statement.where(or_(*filters))
+
+  async def _create_task_log(
+    self,
+    *,
+    task_id: UUID,
+    operator_id: UUID,
+    action_type: TaskActionType,
+    from_status: TaskStatus | None = None,
+    to_status: TaskStatus | None = None,
+    detail: dict[str, object] | None = None,
+  ) -> TaskLog:
+    log = TaskLog(
+      task_id=task_id,
+      operator_id=operator_id,
+      action_type=action_type,
+      from_status=from_status,
+      to_status=to_status,
+      detail=detail or {},
+    )
+    self._session.add(log)
+    await self._session.flush()
+    return log
+
+  async def _load_task_comment(self, comment_id: UUID) -> TaskComment:
+    comment = await self._session.scalar(
+      select(TaskComment)
+      .options(selectinload(TaskComment.user))
+      .where(TaskComment.id == comment_id)
+    )
+    if comment is None:
+      raise NotFoundError("任务评论不存在。")
+    return comment
+
+  async def _can_operate_task(self, *, actor: User, task: Task) -> bool:
+    if actor.role in MANAGEMENT_ROLES or actor.id in {task.creator_id, task.assignee_id}:
+      return True
+    if task.department_id is None:
+      return False
+    managed_department_ids = await get_managed_department_ids(self._session, actor.id)
+    return task.department_id in managed_department_ids
 
   async def create_task(
     self,
@@ -77,6 +217,25 @@ class TaskService:
           )
         )
 
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.CREATED,
+      detail={
+        "assignee_id": str(assignee_id),
+        "priority": priority.value,
+        "dependency_ids": [str(dependency_id) for dependency_id in dependency_ids or []],
+      },
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.ASSIGNED,
+      detail={
+        "assignee_id": str(assignee_id),
+      },
+    )
+
     await self._session.commit()
     await self._session.refresh(task)
 
@@ -99,31 +258,18 @@ class TaskService:
   async def list_tasks(self, *, actor: User) -> list[Task]:
     ensure_active_user(actor)
 
-    statement = (
-      select(Task)
-      .options(
-        selectinload(Task.creator),
-        selectinload(Task.assignee),
-        selectinload(Task.department),
-      )
-      .order_by(Task.created_at.desc())
-    )
-    if actor.role not in {UserRole.ADMIN, UserRole.HR}:
-      managed_department_ids = await get_managed_department_ids(self._session, actor.id)
-      filters = [Task.creator_id == actor.id, Task.assignee_id == actor.id]
-      if managed_department_ids:
-        filters.append(Task.department_id.in_(managed_department_ids))
-      statement = statement.where(or_(*filters))
-
+    statement = await self._build_visible_task_statement(actor=actor)
     result = await self._session.scalars(statement)
     return list(result)
 
   async def get_task(self, *, actor: User, task_id: UUID) -> Task:
-    tasks = await self.list_tasks(actor=actor)
-    for task in tasks:
-      if task.id == task_id:
-        return task
-    raise NotFoundError("任务不存在。")
+    ensure_active_user(actor)
+
+    statement = (await self._build_visible_task_statement(actor=actor)).where(Task.id == task_id)
+    task = await self._session.scalar(statement)
+    if task is None:
+      raise NotFoundError("任务不存在。")
+    return task
 
   async def update_task(
     self,
@@ -140,6 +286,7 @@ class TaskService:
     task = await self.get_task(actor=actor, task_id=task_id)
 
     previous_assignee_id = task.assignee_id
+    previous_due_date = task.due_date
 
     if title is not None:
       task.title = title
@@ -163,6 +310,27 @@ class TaskService:
       task.priority = priority
 
     task.updated_at = datetime.now(UTC)
+    if assignee_id is not None and assignee_id != previous_assignee_id:
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.ASSIGNED,
+        detail={
+          "previous_assignee_id": str(previous_assignee_id),
+          "assignee_id": str(assignee_id),
+        },
+      )
+    if due_date is not None and due_date != previous_due_date:
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.DUE_DATE_CHANGED,
+        detail={
+          "previous_due_date": _serialize_datetime(previous_due_date),
+          "due_date": _serialize_datetime(due_date),
+        },
+      )
+
     await self._session.commit()
     await self._session.refresh(task)
 
@@ -183,3 +351,235 @@ class TaskService:
         )
 
     return task
+
+  async def transition_task_status(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    target_status: TaskStatus,
+  ) -> Task:
+    task = await self.get_task(actor=actor, task_id=task_id)
+
+    if not await self._can_operate_task(actor=actor, task=task):
+      raise AuthorizationError("当前账号不能变更该任务状态。")
+
+    if target_status == task.status:
+      raise ConflictError("任务已处于目标状态。")
+
+    allowed_statuses = ALLOWED_TASK_STATUS_TRANSITIONS[task.status]
+    if target_status not in allowed_statuses:
+      raise ConflictError("不支持的任务状态流转。")
+
+    previous_status = task.status
+    now = datetime.now(UTC)
+    task.status = target_status
+    task.updated_at = now
+    if target_status == TaskStatus.DOING and task.started_at is None:
+      task.started_at = now
+    if target_status == TaskStatus.DONE:
+      task.completed_at = now
+
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.STATUS_CHANGED,
+      from_status=previous_status,
+      to_status=target_status,
+      detail={
+        "previous_status": previous_status.value,
+        "status": target_status.value,
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(task)
+    return task
+
+  async def create_task_comment(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    content: str,
+    content_format: CommentFormat = CommentFormat.MARKDOWN,
+    is_internal: bool = False,
+    attachments: list[CommentAttachmentInput] | None = None,
+  ) -> TaskComment:
+    task = await self.get_task(actor=actor, task_id=task_id)
+
+    if not await self._can_operate_task(actor=actor, task=task):
+      raise AuthorizationError("当前账号不能在该任务下评论。")
+    if not content.strip():
+      raise ConflictError("评论内容不能为空。")
+    if is_internal and actor.role not in MANAGEMENT_ROLES:
+      raise AuthorizationError("当前账号不能创建内部备注。")
+    if attachments and self._attachment_service is None:
+      raise ConflictError("附件服务未配置，无法上传评论附件。")
+
+    comment = TaskComment(
+      task_id=task.id,
+      user_id=actor.id,
+      content=content,
+      content_format=content_format,
+      is_internal=is_internal,
+    )
+    self._session.add(comment)
+    await self._session.flush()
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.COMMENTED,
+      detail={
+        "comment_id": str(comment.id),
+        "content_format": content_format.value,
+        "is_internal": is_internal,
+      },
+    )
+
+    if not attachments:
+      await self._session.commit()
+      return await self._load_task_comment(comment.id)
+
+    for attachment_input in attachments:
+      attachment = await self._attachment_service.upload_attachment(
+        actor=actor,
+        filename=attachment_input.filename,
+        content_type=attachment_input.content_type,
+        content=attachment_input.content,
+        visibility=attachment_input.visibility,
+        target_type=AttachmentTargetType.TASK_COMMENT,
+        target_id=comment.id,
+        relation="comment_attachment",
+      )
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.ATTACHMENT_ADDED,
+        detail={
+          "comment_id": str(comment.id),
+          "attachment_id": str(attachment.id),
+          "filename": attachment.original_filename,
+        },
+      )
+      await self._session.commit()
+
+    return await self._load_task_comment(comment.id)
+
+  async def list_task_comments(self, *, actor: User, task_id: UUID) -> list[TaskComment]:
+    await self.get_task(actor=actor, task_id=task_id)
+
+    statement = (
+      select(TaskComment)
+      .options(selectinload(TaskComment.user))
+      .where(TaskComment.task_id == task_id)
+      .order_by(TaskComment.created_at.asc())
+    )
+    if actor.role not in MANAGEMENT_ROLES:
+      statement = statement.where(TaskComment.is_internal.is_(False))
+
+    result = await self._session.scalars(statement)
+    return list(result)
+
+  async def list_task_logs(self, *, actor: User, task_id: UUID) -> list[TaskLog]:
+    await self.get_task(actor=actor, task_id=task_id)
+
+    result = await self._session.scalars(
+      select(TaskLog)
+      .where(TaskLog.task_id == task_id)
+      .order_by(TaskLog.created_at.asc())
+    )
+    return list(result)
+
+  async def list_task_activity(self, *, actor: User, task_id: UUID) -> list[TaskActivityEntry]:
+    comments = await self.list_task_comments(actor=actor, task_id=task_id)
+    logs = await self.list_task_logs(actor=actor, task_id=task_id)
+
+    activity = [
+      *(
+        TaskActivityEntry(entry_type="comment", created_at=comment.created_at, comment=comment)
+        for comment in comments
+      ),
+      *(
+        TaskActivityEntry(entry_type="log", created_at=log.created_at, log=log)
+        for log in logs
+      ),
+    ]
+    activity.sort(key=lambda entry: (_normalize_datetime(entry.created_at), entry.entry_type))
+    return activity
+
+  async def list_overdue_tasks(self) -> list[Task]:
+    result = await self._session.scalars(
+      select(Task)
+      .options(
+        selectinload(Task.assignee),
+        selectinload(Task.department).selectinload(Department.manager),
+      )
+      .where(
+        Task.due_date.is_not(None),
+        Task.due_date < datetime.now(UTC),
+        Task.status != TaskStatus.DONE,
+      )
+      .order_by(Task.due_date.asc())
+    )
+    return list(result)
+
+  async def get_task_stats_summary(self, *, actor: User) -> TaskStatsSummary:
+    tasks = await self.list_tasks(actor=actor)
+    now = datetime.now(UTC)
+    total_tasks = len(tasks)
+    completed_tasks = sum(task.status == TaskStatus.DONE for task in tasks)
+    overdue_tasks = sum(
+      _is_overdue(due_date=task.due_date, now=now) and task.status != TaskStatus.DONE
+      for task in tasks
+    )
+    tasks_by_status = {status: 0 for status in TaskStatus}
+    for task in tasks:
+      tasks_by_status[task.status] += 1
+
+    completion_rate = round(completed_tasks / total_tasks, 4) if total_tasks else 0.0
+    overdue_rate = round(overdue_tasks / total_tasks, 4) if total_tasks else 0.0
+    return TaskStatsSummary(
+      total_tasks=total_tasks,
+      completed_tasks=completed_tasks,
+      completion_rate=completion_rate,
+      overdue_tasks=overdue_tasks,
+      overdue_rate=overdue_rate,
+      tasks_by_status=tasks_by_status,
+    )
+
+  async def get_task_workload(self, *, actor: User) -> list[TaskWorkloadEntry]:
+    tasks = await self.list_tasks(actor=actor)
+    now = datetime.now(UTC)
+
+    workload_map: dict[tuple[UUID, UUID | None], TaskWorkloadEntry] = {}
+    for task in tasks:
+      assignee = task.assignee
+      if assignee is None:
+        continue
+      key = (assignee.id, task.department_id)
+      workload = workload_map.get(key)
+      if workload is None:
+        workload = TaskWorkloadEntry(
+          assignee_id=assignee.id,
+          assignee_email=assignee.email,
+          department_id=task.department_id,
+          department_name=task.department.name if task.department is not None else None,
+          total_tasks=0,
+          open_tasks=0,
+          completed_tasks=0,
+          overdue_tasks=0,
+        )
+        workload_map[key] = workload
+
+      workload.total_tasks += 1
+      if task.status == TaskStatus.DONE:
+        workload.completed_tasks += 1
+      else:
+        workload.open_tasks += 1
+      if _is_overdue(due_date=task.due_date, now=now) and task.status != TaskStatus.DONE:
+        workload.overdue_tasks += 1
+
+    return sorted(
+      workload_map.values(),
+      key=lambda row: (row.department_name or "", row.assignee_email),
+    )

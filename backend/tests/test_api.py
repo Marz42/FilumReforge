@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -95,6 +96,19 @@ async def bootstrap_and_login(client: AsyncClient) -> tuple[dict[str, str], dict
   payload = login_response.json()
   headers = {"Authorization": f"Bearer {payload['access_token']}"}
   return headers, payload
+
+
+async def login(client: AsyncClient, *, email: str, password: str) -> dict[str, str]:
+  response = await client.post(
+    "/api/v1/auth/login",
+    json={
+      "email": email,
+      "password": password,
+    },
+  )
+  assert response.status_code == 200
+  payload = response.json()
+  return {"Authorization": f"Bearer {payload['access_token']}"}
 
 
 @pytest.mark.asyncio
@@ -250,3 +264,139 @@ async def test_department_profile_task_and_attachment_api_flow(api_client) -> No
 
   assert len(queue_publisher.payloads) == 1
   assert queue_publisher.payloads[0]["message_type"] == "task_assigned"
+
+
+@pytest.mark.asyncio
+async def test_task_collaboration_and_stats_api_flow(api_client) -> None:
+  client, queue_publisher = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+
+  create_department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "协同研发部",
+      "code": "collab-engineering",
+      "parent_id": root_department["id"],
+      "manager_id": employee_id,
+      "sort_order": 20,
+    },
+  )
+  assert create_department_response.status_code == 201
+  department_id = create_department_response.json()["id"]
+
+  profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": employee_id,
+      "employee_no": "EMP-COLLAB-001",
+      "real_name": "协同工程师",
+      "department_id": department_id,
+      "custom_fields": {"skills": ["fastapi"]},
+    },
+  )
+  assert profile_response.status_code == 201
+
+  overdue_task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "清理逾期任务",
+      "assignee_id": employee_id,
+      "department_id": department_id,
+      "due_date": (datetime.now(UTC) - timedelta(hours=2)).isoformat(),
+    },
+  )
+  assert overdue_task_response.status_code == 201
+
+  active_task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "推进评论流",
+      "assignee_id": employee_id,
+      "department_id": department_id,
+    },
+  )
+  assert active_task_response.status_code == 201
+  active_task_id = active_task_response.json()["id"]
+
+  employee_headers = await login(
+    client,
+    email="employee@example.com",
+    password="StrongPassword123!",
+  )
+  for next_status in ("doing", "review", "done"):
+    status_response = await client.patch(
+      f"/api/v1/tasks/{active_task_id}/status",
+      headers=employee_headers,
+      json={"status": next_status},
+    )
+    assert status_response.status_code == 200
+
+  comment_response = await client.post(
+    f"/api/v1/tasks/{active_task_id}/comments",
+    headers=headers,
+    data={
+      "content": "请补充评审结论。",
+      "content_format": "markdown",
+      "is_internal": "true",
+    },
+    files={"files": ("review.md", b"# review", "text/markdown")},
+  )
+  assert comment_response.status_code == 201
+  assert len(comment_response.json()["attachments"]) == 1
+
+  admin_comments_response = await client.get(
+    f"/api/v1/tasks/{active_task_id}/comments",
+    headers=headers,
+  )
+  assert admin_comments_response.status_code == 200
+  assert len(admin_comments_response.json()) == 1
+
+  employee_comments_response = await client.get(
+    f"/api/v1/tasks/{active_task_id}/comments",
+    headers=employee_headers,
+  )
+  assert employee_comments_response.status_code == 200
+  assert employee_comments_response.json() == []
+
+  activity_response = await client.get(
+    f"/api/v1/tasks/{active_task_id}/activity",
+    headers=headers,
+  )
+  assert activity_response.status_code == 200
+  assert any(item["entry_type"] == "comment" for item in activity_response.json())
+  assert any(item["entry_type"] == "log" for item in activity_response.json())
+
+  summary_response = await client.get("/api/v1/tasks/stats/summary", headers=headers)
+  assert summary_response.status_code == 200
+  assert summary_response.json()["total_tasks"] == 2
+  assert summary_response.json()["completed_tasks"] == 1
+  assert summary_response.json()["overdue_tasks"] == 1
+  assert summary_response.json()["tasks_by_status"]["done"] == 1
+
+  workload_response = await client.get("/api/v1/tasks/stats/workload", headers=headers)
+  assert workload_response.status_code == 200
+  assert len(workload_response.json()) == 1
+  assert workload_response.json()[0]["assignee_id"] == employee_id
+  assert workload_response.json()[0]["completed_tasks"] == 1
+
+  assert len(queue_publisher.payloads) == 2

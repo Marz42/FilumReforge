@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import TaskPriority, TaskSourceType, TaskStatus
+from app.core.enums import CommentFormat, TaskActionType, TaskPriority, TaskSourceType, TaskStatus
+from app.schemas.attachments import AttachmentRead
 
 
 class TaskRead(BaseModel):
@@ -47,3 +49,63 @@ class TaskUpdateRequest(BaseModel):
   department_id: UUID | None = None
   due_date: datetime | None = None
   priority: TaskPriority | None = None
+
+
+class TaskStatusUpdateRequest(BaseModel):
+  status: TaskStatus
+
+
+class TaskCommentRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  task_id: UUID
+  user_id: UUID
+  content: str
+  content_format: CommentFormat
+  is_internal: bool
+  created_at: datetime
+  updated_at: datetime
+  attachments: list[AttachmentRead] = Field(default_factory=list)
+
+
+class TaskLogRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  task_id: UUID
+  operator_id: UUID
+  action_type: TaskActionType
+  from_status: TaskStatus | None
+  to_status: TaskStatus | None
+  detail: dict[str, Any]
+  created_at: datetime
+
+
+class TaskActivityEntryRead(BaseModel):
+  entry_type: Literal["comment", "log"]
+  created_at: datetime
+  comment: TaskCommentRead | None = None
+  log: TaskLogRead | None = None
+
+
+class TaskStatsSummaryRead(BaseModel):
+  total_tasks: int
+  completed_tasks: int
+  completion_rate: float
+  overdue_tasks: int
+  overdue_rate: float
+  tasks_by_status: dict[str, int]
+
+
+class TaskWorkloadEntryRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  assignee_id: UUID
+  assignee_email: str
+  department_id: UUID | None
+  department_name: str | None
+  total_tasks: int
+  open_tasks: int
+  completed_tasks: int
+  overdue_tasks: int

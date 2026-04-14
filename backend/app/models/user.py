@@ -31,6 +31,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   managed_departments = relationship("Department", back_populates="manager")
   created_tasks = relationship("Task", back_populates="creator", foreign_keys="Task.creator_id")
   assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="Task.assignee_id")
+  task_comments = relationship("TaskComment", back_populates="user")
+  operated_task_logs = relationship("TaskLog", back_populates="operator")
   uploaded_attachments = relationship("Attachment", back_populates="uploader")
   refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
   notification_messages = relationship("NotificationMessage", back_populates="recipient_user")

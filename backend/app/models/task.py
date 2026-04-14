@@ -4,13 +4,13 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db_types import build_enum, build_json_type
-from app.core.enums import TaskPriority, TaskSourceType, TaskStatus
+from app.core.enums import CommentFormat, TaskActionType, TaskPriority, TaskSourceType, TaskStatus
 from app.models.base import Base
-from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin, utc_now
+from app.models.mixins import CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin, utc_now
 
 
 class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -64,6 +64,8 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     foreign_keys="TaskDependency.depends_on_task_id",
     cascade="all, delete-orphan",
   )
+  comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
+  logs = relationship("TaskLog", back_populates="task", cascade="all, delete-orphan")
 
 
 class TaskDependency(Base):
@@ -83,3 +85,52 @@ class TaskDependency(Base):
 
   task = relationship("Task", back_populates="dependencies", foreign_keys=[task_id])
   depends_on_task = relationship("Task", back_populates="blocked_by", foreign_keys=[depends_on_task_id])
+
+
+class TaskLog(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
+  __tablename__ = "task_logs"
+  __table_args__ = (
+    Index("idx_task_logs_task_id_created_at", "task_id", "created_at"),
+    Index("idx_task_logs_operator_id", "operator_id"),
+  )
+
+  task_id: Mapped[UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+  operator_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+  action_type: Mapped[TaskActionType] = mapped_column(
+    build_enum(enum_cls=TaskActionType, name="task_action_type"),
+    nullable=False,
+  )
+  from_status: Mapped[TaskStatus | None] = mapped_column(
+    build_enum(enum_cls=TaskStatus, name="task_status"),
+    nullable=True,
+  )
+  to_status: Mapped[TaskStatus | None] = mapped_column(
+    build_enum(enum_cls=TaskStatus, name="task_status"),
+    nullable=True,
+  )
+  detail: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+
+  task = relationship("Task", back_populates="logs")
+  operator = relationship("User", back_populates="operated_task_logs")
+
+
+class TaskComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "task_comments"
+  __table_args__ = (
+    CheckConstraint("length(trim(content)) > 0", name="task_comments_non_empty_content"),
+    Index("idx_task_comments_task_id_created_at", "task_id", "created_at"),
+    Index("idx_task_comments_user_id", "user_id"),
+  )
+
+  task_id: Mapped[UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+  user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+  content: Mapped[str] = mapped_column(Text, nullable=False)
+  content_format: Mapped[CommentFormat] = mapped_column(
+    build_enum(enum_cls=CommentFormat, name="comment_format"),
+    default=CommentFormat.MARKDOWN,
+    nullable=False,
+  )
+  is_internal: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+  task = relationship("Task", back_populates="comments")
+  user = relationship("User", back_populates="task_comments")

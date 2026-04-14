@@ -10,7 +10,9 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.enums import (
   AttachmentTargetType,
+  CommentFormat,
   NotificationChannel,
+  TaskActionType,
   UserRole,
   UserStatus,
 )
@@ -24,7 +26,9 @@ from app.models import (
   Profile,
   RefreshToken,
   Task,
+  TaskComment,
   TaskDependency,
+  TaskLog,
   User,
 )
 
@@ -152,5 +156,99 @@ async def test_phase1_models_create_schema_and_persist_core_entities() -> None:
     assert stored_task.title == "初始化基础任务"
     assert stored_message is not None
     assert stored_message.message_type == "task_assigned"
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phase2_models_persist_task_comments_and_logs() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  user_id = uuid4()
+  department_id = uuid4()
+  task_id = uuid4()
+  comment_id = uuid4()
+
+  async with session_factory() as session:
+    user = User(
+      id=user_id,
+      email="employee@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    department = Department(
+      id=department_id,
+      name="研发部",
+      code="engineering",
+      manager=user,
+    )
+    task = Task(
+      id=task_id,
+      title="完成协同模块设计",
+      creator=user,
+      assignee=user,
+      department=department,
+    )
+    comment = TaskComment(
+      id=comment_id,
+      task=task,
+      user=user,
+      content="已同步设计方案，等待评审。",
+      content_format=CommentFormat.MARKDOWN,
+      is_internal=True,
+    )
+    log = TaskLog(
+      task=task,
+      operator=user,
+      action_type=TaskActionType.COMMENTED,
+      detail={"comment_id": str(comment_id)},
+    )
+    attachment = Attachment(
+      storage_provider="local",
+      bucket="filum-dev",
+      object_key="tasks/task-2/comment-1/design.md",
+      original_filename="design.md",
+      mime_type="text/markdown",
+      size_bytes=256,
+      checksum_sha256="b" * 64,
+      uploader=user,
+    )
+    comment_attachment_link = AttachmentLink(
+      attachment=attachment,
+      target_type=AttachmentTargetType.TASK_COMMENT,
+      target_id=comment_id,
+      created_by=user_id,
+      relation="comment_attachment",
+    )
+
+    session.add_all([user, department, task, comment, log, attachment, comment_attachment_link])
+    await session.commit()
+
+    stored_comment = await session.scalar(select(TaskComment).where(TaskComment.id == comment_id))
+    stored_log = await session.scalar(select(TaskLog).where(TaskLog.task_id == task_id))
+    stored_comment_link = await session.scalar(
+      select(AttachmentLink).where(
+        AttachmentLink.target_type == AttachmentTargetType.TASK_COMMENT,
+        AttachmentLink.target_id == comment_id,
+      )
+    )
+
+    assert stored_comment is not None
+    assert stored_comment.content_format == CommentFormat.MARKDOWN
+    assert stored_comment.is_internal is True
+    assert stored_log is not None
+    assert stored_log.action_type == TaskActionType.COMMENTED
+    assert stored_log.detail["comment_id"] == str(comment_id)
+    assert stored_comment_link is not None
+    assert stored_comment_link.relation == "comment_attachment"
 
   await engine.dispose()
