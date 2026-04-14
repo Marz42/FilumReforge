@@ -7,7 +7,25 @@ type RetriableRequest = {
   _retry?: boolean
 }
 
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+function resolveBaseURL(): string {
+  const configuredBaseURL = import.meta.env.VITE_API_BASE_URL
+  if (configuredBaseURL) {
+    return configuredBaseURL
+  }
+
+  if (!import.meta.env.DEV) {
+    return '/api/v1'
+  }
+
+  const directApiURL = new URL(window.location.origin)
+  directApiURL.port = '8000'
+  directApiURL.pathname = '/api/v1'
+  directApiURL.search = ''
+  directApiURL.hash = ''
+  return directApiURL.toString().replace(/\/$/, '')
+}
+
+const baseURL = resolveBaseURL()
 
 export const rawHttp = axios.create({
   baseURL,
