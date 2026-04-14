@@ -1,331 +1,337 @@
 # Project Filum 实施计划
 
-## 1. 目标与理解确认
-
-基于最新 `copilot-instructions.md` 与现有设计文档，项目实施必须严格遵循以下约束：
-
-- 架构采用**模块化单体**，避免微服务拆分。
-- 前端固定为 **Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router**。
-- 后端固定为 **FastAPI + Pydantic v2 + SQLAlchemy 2.0 Async + Alembic**。
-- LLM 集成必须使用**官方 `openai` Python SDK**，并以 **Function Calling / Tool Calling** 作为核心机制，**禁止引入 LangChain**。
-- `profiles.custom_fields` 使用 **PostgreSQL JSONB** 承载动态档案字段。
-- 任务状态流转必须严格受控：`Todo -> Doing -> Review -> Done`。
-- 通知能力必须收敛到统一总线：业务层仅调用 `NotificationService.send(message_obj)`。
-- 所有工作沟通必须绑定 `Task`，通过 `task_comments` 落库，**不能实现独立聊天系统**。
-- 附件能力必须走**统一文件对象存储抽象**，数据库预留 `attachments` 表保存元数据与业务引用，二进制文件本体不直接写入业务表。
-- 权限模型必须同时覆盖**角色级 RBAC**与**组织树数据级隔离**。
-- 知识库能力基于 PostgreSQL + `pgvector`，为后续 RAG 检索服务。
-- Phase 1 的 Docker Compose 必须纳入 **Redis**，通知总线从第一阶段开始即走异步链路。
-- 实施方案中的**每一个步骤都必须包含测试与验证**，未通过测试的步骤不视为完成。
-- 扩展工具池与 `@系统` 指令路由应作为平台能力，在后续阶段演进。
-
-## 2. 当前阶段状态
-
-当前仓库仍处于从规划转向实施的起始阶段，现状如下：
-
-- `memory-bank/architecture.md` 已建立为正式架构记录文件，并补齐了模块边界、核心流程与全量数据库 schema。
-- `memory-bank/design-document.md` 已建立为标准设计文档入口；`design-document.md.md` 作为历史草稿保留。
-- 文档层基线已具备，但前后端工程脚手架、容器编排与测试运行基线仍待完成。
-
-因此，当前实施重点应转向工程骨架与验证链路建设。
-
-## 3. 实施原则
-
-1. **先文档、后脚手架、再功能**：先统一架构文档、数据库边界、目录结构，再进入模块实现。
-2. **按阶段顺序推进**：严格依照 Phase 1 至 Phase 4 逐步落地，不跨阶段提前实现高阶能力。
-3. **服务层承载业务逻辑**：FastAPI 路由保持轻量，规则与流程沉淀到 service 层。
-4. **数据库模式先行**：先确定领域模型、约束、枚举、索引和迁移策略，再实现接口。
-5. **平台能力统一收口**：通知、AI 路由、工具注册等能力必须通过统一抽象暴露，避免业务侧直接耦合底层实现。
-6. **附件统一存储抽象**：所有附件统一接入对象存储服务，关系库只保存 `attachments` 元数据、归属与权限控制信息。
-7. **测试与实施同步推进**：每一个实施步骤都必须定义并执行对应测试，覆盖单元、集成或冒烟验证之一或组合。
-
-## 4. 实施阶段拆解
-
-### 阶段 A：文档基线与仓库初始化
-
-**目标**：把规划文档转成可实施的工程基线，不改变原有产品四阶段定义。
-
-**主要工作**
-
-- 补齐并标准化文档：
-  - 创建 `memory-bank/architecture.md`
-  - 创建 `memory-bank/progress.md`
-  - 补齐完整数据库 schema、模块边界、核心交互流
-  - 将 `design-document.md.md` 整理为指令约定的标准入口文档
-- 初始化仓库结构：
-  - `frontend/`：Vue 3 应用
-  - `backend/`：FastAPI 应用
-  - `infra/`：Docker Compose、Nginx、环境模板
-  - `memory-bank/`：持续维护架构与设计文档
-- 建立基础工程规范：
-  - 前后端开发命令
-  - 环境变量分层
-  - Alembic 初始化
-  - 本地联调方式
-  - 测试基线与最小验证流程
-  - 文件对象存储抽象与 `attachments` 表设计原则
-
-**交付物**
-
-- 可追溯的架构主文档
-- 可持续更新的进度记录文件
-- 可运行的前后端脚手架
-- 首版数据库迁移基线
-
-**测试与验证**
-
-- 文档入口存在性检查：`architecture.md`、`progress.md`、实施计划与设计文档入口必须齐备。
-- 文档引用一致性检查：核心文档中的文件名、阶段名、模块名不能互相冲突。
-- 基础工程冒烟检查：脚手架命令、目录结构与本地启动说明必须可执行。
-
-### 阶段 1：Foundation
-
-**目标**：完成系统底座，支撑用户、组织、人事档案、任务基础流转与通知骨架。
-
-**范围**
-
-- 用户与认证基础：
-  - `users` 模型
-  - 登录鉴权与用户状态管理
-  - 基础角色枚举：Admin / HR / Employee
-- 组织架构：
-  - `departments` 树结构
-  - 负责人绑定与组织树查询
-- 人事档案：
-  - `profiles` 模型
-  - typed columns + `custom_fields JSONB`
-  - 人员与部门归属联动
-- 附件与文件存储基线：
-  - `attachments` 表
-  - `ObjectStorageService` / Storage Adapter 抽象
-  - 文件元数据、权限与业务引用策略
-- 任务基础能力：
-  - `tasks` 创建、指派、截止日期管理
-  - 基础列表查询与详情展示
-- 通知总线骨架：
-  - 统一 Message 对象
-  - `NotificationService.send(...)`
-  - Docker Compose 首版即纳入 Redis
-  - 基于 Redis Broker/Queue 的异步通知链路
-  - Email / Web 通知适配器接口预留
-
-**建议交付顺序**
-
-1. 数据模型与 Alembic 初版迁移
-2. 后端基础模块、对象存储抽象与 service 层骨架
-3. 前端登录、组织、人事、任务基础页面
-4. Docker Compose + Redis + 异步通知总线最小可用链路
-
-**测试与验证**
-
-- 数据库迁移测试：核心表、外键、索引与枚举可正确迁移与回滚。
-- 认证与权限测试：角色权限、登录流程与基础访问控制有效。
-- 组织与档案测试：部门树查询、`custom_fields JSONB` 读写正确。
-- 任务基础测试：创建、指派、截止日期更新与详情查询正确。
-- 附件基线测试：`attachments` 元数据写入、对象存储抽象上传/下载接口与授权校验正确。
-- 通知异步测试：消息可进入 Redis 队列并被 Worker/消费者正确处理。
-
-### 阶段 2：Collaboration & Stats
-
-**目标**：把任务真正变成协同中枢，补齐流程控制、留痕与统计。
-
-**范围**
-
-- 严格任务状态机：
-  - `Todo -> Doing -> Review -> Done`
-  - 服务端校验非法跳转
-- 工作留痕：
-  - `task_comments`
-  - `task_comments` 与 `attachments` 的关联关系
-  - 任务详情页内评论流
-- 审计追踪：
-  - `task_logs`
-  - 状态变化、指派变更、评论等事件记录
-- 超时提醒：
-  - Celery 或 ARQ 后台任务
-  - 基于通知总线发出提醒
-- BI 统计：
-  - 任务完成率
-  - 个人/部门负载
-  - 超时趋势
-
-**关键要求**
-
-- 不实现独立 IM/聊天模块。
-- 所有评论、沟通、附件都必须绑定任务上下文。
-
-**测试与验证**
-
-- 状态机测试：仅允许 `Todo -> Doing -> Review -> Done` 的合法流转。
-- 留痕测试：评论、附件关联、日志记录都能按任务完整追溯。
-- 提醒任务测试：超时扫描、入队、发送结果与失败重试链路可验证。
-- BI 测试：统计口径与基础样本数据结果一致。
-
-### 阶段 3：Knowledge & AI Brain
-
-**目标**：建立可检索的公司知识库，并让 AI 能安全调用内部工具。
-
-**范围**
-
-- 文档知识库：
-  - `documents` CRUD
-  - Markdown 存储
-  - 分类、作者、版本基础信息
-- 向量化能力：
-  - `document_embeddings`
-  - 文档切块、嵌入生成、相似度检索
-- AI Router 第一版：
-  - `@系统` / `/` 指令入口
-  - 基于 Pydantic v2 的工具 schema
-  - 工具注册与调用分发
-- 面向知识问答的 RAG：
-  - 优先召回内部制度/SOP
-  - 组织自然语言答案
-
-**关键要求**
-
-- AI 是“意图路由器”，不是自由聊天机器人。
-- 工具调用返回原始结构化数据，再由模型组织最终文本。
-
-**测试与验证**
-
-- 文档 CRUD 测试：Markdown 文档新增、修改、删除、分类正确。
-- 向量流程测试：切块、嵌入、入库与相似度检索结果可验证。
-- Tool Calling 合约测试：Pydantic schema、工具注册与调用返回结构稳定。
-- RAG 测试：问答结果能正确引用制度/SOP 检索来源。
-
-### 阶段 4：Platform & Tools Registry
-
-**目标**：把 AI 与工具体系平台化，并完善最终可用性。
-
-**范围**
-
-- 扩展工具池标准：
-  - 前端独立工具视图规范
-  - 后端专属 router/service 规范
-  - 注册到 LLM 工具目录
-- 深化 `@系统` 能力：
-  - 多工具协同
-  - 更细粒度权限校验
-  - 组织上下文与用户上下文注入
-- 体验完善：
-  - B 端后台 UI 打磨
-  - PWA 安装能力
-  - Web 推送完善
-- 部署完善：
-  - Docker Compose 集成全链路服务
-  - Nginx 反向代理与生产配置
-
-**测试与验证**
-
-- 工具注册测试：新增工具可被平台发现、鉴权并执行。
-- 多工具协同测试：`@系统` 场景下可完成跨工具路由与结果整合。
-- 前端体验测试：关键后台页面、PWA 安装与推送能力通过冒烟验证。
-- 部署冒烟测试：Docker Compose 全链路启动、Nginx 转发与关键健康检查通过。
-
-## 5. 数据库实施优先级
-
-建议按以下顺序沉淀数据库基线，并在 `architecture.md` 中维护完整 schema：
-
-1. `users`
-2. `departments`
-3. `profiles`
-4. `attachments`
-5. `tasks`
-6. `task_logs`
-7. `task_comments`
-8. `documents`
-9. `document_embeddings`
-
-配套补充内容：
-
-- 枚举：用户角色、用户状态、任务状态、通知渠道、文档分类
-- 约束：外键、唯一索引、组织树父子关系约束
-- 索引：任务查询、部门查询、文档检索、向量索引
-- 对象存储字段：`storage_provider`、`bucket`、`object_key`、`original_filename`、`mime_type`、`size_bytes`、`checksum`、`uploader_id`
-- 审计字段：`created_at`、`updated_at`、必要的 `created_by` / `updated_by`
-
-## 6. 工程目录建议
-
-```text
-frontend/
-  src/
-    api/
-    stores/
-    router/
-    views/
-    components/
-  tests/
-
-backend/
-  app/
-    api/
-    core/
-    models/
-    schemas/
-    services/
-    repositories/
-    workers/
-    integrations/
-  tests/
-
-infra/
-  docker/
-  nginx/
-
-memory-bank/
-  architecture.md
-  progress.md
-  design-document.md
-  implementation-plan.md
-```
-
-## 7. 跨阶段通用工作项
-
-- 鉴权、RBAC 与组织树数据隔离贯穿所有阶段。
-- 所有新里程碑完成后，同步更新 `memory-bank/architecture.md`。
-- 每完成一个实施步骤后，同步更新 `memory-bank/progress.md`。
-- 每个阶段结束后进行一次文档、迁移与接口边界回顾。
-- 每个实施步骤都必须保留对应测试结果或测试结论，作为推进下一步的前置条件。
-- 通知、AI、工具池能力都必须通过统一抽象层接入，避免后续返工。
-
-## 8. 建议的执行步骤（每步含测试）
-
-1. **标准化文档入口与记录文件**
-   - 实施内容：创建 `architecture.md`、`progress.md`，统一 `memory-bank` 的文档入口与命名规则，整理设计文档正式入口。
-   - 测试与验证：检查核心文件存在性、文档交叉引用与阶段命名一致性。
-
-2. **初始化工程脚手架与容器编排**
-   - 实施内容：建立 `frontend/`、`backend/`、`infra/` 基础目录与本地开发入口，首版 Docker Compose 纳入 PostgreSQL、Redis、API、Web。
-   - 测试与验证：容器编排冒烟检查、API 健康检查、Redis 连通性与前端基础访问验证。
-
-3. **落地数据库基线与迁移体系**
-   - 实施内容：设计并落地 `users`、`departments`、`profiles`、`attachments`、`tasks`、`task_logs`、`task_comments`、`documents`、`document_embeddings` 首版 schema 与 Alembic 基线。
-   - 测试与验证：迁移升降级测试、外键与唯一约束测试、`attachments` 元数据与业务引用样例验证。
-
-4. **完成 Phase 1 基础业务链路**
-   - 实施内容：实现登录鉴权、RBAC、组织树、人事档案 CRUD、任务创建/指派，以及基于 Redis 的异步通知总线。
-   - 测试与验证：认证权限测试、组织树范围测试、JSONB 档案测试、任务基础接口测试、通知入队/消费测试。
-
-5. **完成 Phase 2 协同与统计能力**
-   - 实施内容：实现严格状态机、任务评论留痕、附件绑定、审计日志、超时提醒与基础 BI。
-   - 测试与验证：状态流转测试、评论与附件追溯测试、提醒任务链路测试、统计结果校验。
-
-6. **完成 Phase 3 知识库与 AI Router**
-   - 实施内容：实现文档 CRUD、切块嵌入、向量检索、`@系统` 指令入口与 Tool Calling 路由。
-   - 测试与验证：知识库 CRUD 测试、嵌入检索测试、工具调用合约测试、RAG 检索结果验证。
-
-7. **完成 Phase 4 平台化与部署打磨**
-   - 实施内容：实现工具注册标准、深化 AI 路由、完善后台体验、PWA 能力与生产部署配置。
-   - 测试与验证：工具注册测试、多工具协同冒烟测试、PWA 功能测试、全链路部署冒烟测试。
-
-## 9. 完成标准
-
-该计划完成后，项目实施应满足以下标准：
-
-- 任一开发者可依据 `memory-bank` 文档直接开始分阶段编码。
-- 阶段边界、依赖顺序、核心约束与禁止事项均清晰可见。
-- 数据库、附件存储、通知、AI、任务协同五条主线在计划中已提前收口。
-- `progress.md` 可用于同步记录完成步骤，`architecture.md` 可用于持续沉淀架构基线。
-- 每一步都有明确的测试与验证出口。
-- 后续编码时不会偏离“模块化单体 + 统一抽象 + 分阶段交付”的总体方向。
+## 1. 计划定位
+
+本计划基于当前真实仓库状态编写：
+
+- **Phase A 已完成**
+- **Phase 1 / Foundation 已完成**
+- **Phase 2 / Collaboration & Stats 已完成**
+
+因此，本文件不再从“仓库初始化”开始叙述，而是从 **Phase 2 之后的真实开发起点** 出发，重排后续实施路线。
+
+## 2. 已确认约束
+
+- 架构固定为**模块化单体**
+- 前端固定为 **Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router**
+- 后端固定为 **FastAPI + Pydantic v2 + SQLAlchemy 2.0 Async + Alembic**
+- AI 集成固定为**官方 `openai` Python SDK**
+- 通知总线统一走 `NotificationService.send(message_obj)`
+- 缓存 / 队列使用 **Redis**
+- 异步 worker 选型固定为 **ARQ**
+- 任务相关沟通必须绑定 `task_comments`
+- 每一步都必须包含测试与验证
+
+## 3. 当前基线
+
+### 已实现
+
+- 认证与会话：JWT access / refresh、管理员初始化、基础角色
+- 组织结构：部门树、部门负责人、范围查询
+- 人事档案：一人一档、基础字段、`custom_fields JSONB`
+- 任务协同：任务、依赖、严格状态机、评论、日志、附件、统计
+- 通知骨架：消息落库、delivery 记录、ARQ 入队、逾期提醒扫描
+- 前端：登录、部门、档案、协同任务页
+
+### 未实现但已确认的关键缺口
+
+- HR 生命周期事件
+- 字段级权限与敏感字段隔离
+- 多岗位 / 兼职 / 虚线汇报
+- 代理 / 授权机制
+- 任务模板 / SOP
+- 审批流引擎
+- 抄送 / 定时任务 / 周期任务
+- 列表 / 看板 / 甘特图
+- 消息回执、消息附件、消息中心
+- 真实 Email / WebSocket / Web Push 渠道
+- 文档知识库、RAG、LLM Router、浏览器推送 / PWA
+
+## 4. 执行原则
+
+### 4.1 固定推进顺序
+
+后续每个阶段继续遵循：
+
+1. **模型先行**
+2. **服务层封装**
+3. **异步执行器 / 适配器补齐（如阶段需要）**
+4. **API 暴露**
+5. **前端对接**
+
+### 4.2 文档同步原则
+
+- 开始一个新阶段前，先更新 `memory-bank/architecture.md` 中对应的 schema 预案
+- 阶段完成且用户验测通过后，再更新 `memory-bank/progress.md`
+- 若阶段边界发生变化，先更新本文件，再开始编码
+
+### 4.3 验收闸门
+
+- 每个阶段结束后必须停下，等待用户验证
+- 用户未确认前，不进入下一阶段
+
+## 5. 路线总览
+
+| 阶段 | 状态 | 核心目标 |
+| --- | --- | --- |
+| Phase A | done | 文档与脚手架基线 |
+| Phase 1 / Foundation | done | 用户、组织、档案、附件、任务基础、异步通知骨架 |
+| Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、日志、提醒、统计、协同页 |
+| Phase 3 / HR Governance & Org Modeling | next | HR 生命周期、字段级权限、组织关系、代理授权 |
+| Phase 4 / Workflow Engine & Messaging | planned | 模板、审批流、自动触发、消息中心、多视图 |
+| Phase 5 / Knowledge, AI Router & Experience | planned | 知识库、RAG、`@系统` 路由、浏览器推送、PWA |
+
+## 6. Phase 3 / HR Governance & Org Modeling
+
+### 6.1 目标
+
+把当前“基础档案 CRUD”升级为可支撑真实企业管理的 HR 基座，重点解决：
+
+- 档案全生命周期
+- 字段级权限
+- 多岗位与汇报关系
+- 代理 / 授权
+
+### 6.2 范围
+
+#### 模型与迁移
+
+- 扩展 / 新增：
+  - `positions`
+  - `profile_positions`
+  - `reporting_lines`
+  - `profile_field_definitions`
+  - `profile_field_permissions`
+  - `employment_events`
+  - `delegations`
+- 继续保留 `profiles.custom_fields`，但由字段定义与策略表驱动权限与展示
+
+#### 服务层
+
+- `HRLifecycleService`
+  - 入职
+  - 转岗
+  - 晋升
+  - 奖惩
+  - 离职
+- `ProfileFieldPolicyService`
+  - 解析字段可见 / 可编辑权限
+- `OrganizationRelationService`
+  - 多岗位
+  - 直属 / 虚线汇报
+- `DelegationService`
+  - 创建、启用、失效临时授权
+
+#### API 层
+
+- 岗位、汇报线、生命周期事件、授权管理接口
+- 档案读取接口返回按当前 actor 过滤后的字段
+- HR 管理接口支持“离职标记”，不提供删除员工实体的标准流程
+
+#### 前端
+
+- 档案页重构为多 Tab：
+  - 基础信息
+  - 任职关系
+  - 生命周期事件
+  - 敏感字段区
+  - 授权与代理
+
+### 6.3 建议实现顺序
+
+1. **模型与 Alembic**
+2. **字段权限与组织关系服务**
+3. **生命周期 / 授权服务**
+4. **API**
+5. **前端**
+
+### 6.4 测试与验证
+
+- 迁移测试：新增表、索引、枚举、外键
+- 权限测试：self / leader / dotted leader / HR / admin / delegate 的字段可见性
+- 生命周期测试：入职、转岗、离职事件与状态流转
+- API 集成测试：按角色返回不同字段
+- 前端测试：敏感字段隐藏 / 展示、任职关系编辑、授权管理
+
+### 6.5 阶段闸门
+
+- 用户验证 Phase 3 后，才允许进入 Phase 4
+
+## 7. Phase 4 / Workflow Engine & Messaging
+
+### 7.1 目标
+
+把当前“任务协同中枢”升级为企业事务引擎，补齐：
+
+- 模板 / SOP
+- 审批流
+- 自动触发
+- 抄送 / 定时任务
+- 消息中心与回执
+- 多视图
+
+### 7.2 范围
+
+#### 模型与迁移
+
+- 新增：
+  - `task_templates`
+  - `task_template_steps`
+  - `task_template_step_dependencies`
+  - `workflow_definitions`
+  - `workflow_steps`
+  - `workflow_instances`
+  - `workflow_step_runs`
+  - `task_watchers`
+  - `task_schedules`
+  - `notification_receipts`
+- 视实现需要扩展 `attachment_links.target_type`，以支持消息附件
+
+#### 服务层
+
+- `TaskTemplateService`
+  - 模板 CRUD
+  - 实例化任务群
+- `WorkflowEngineService`
+  - 串行审批
+  - 会签 / 或签
+  - 驳回 / 打回重做
+- `TaskAutomationService`
+  - 前后置触发
+  - 周期任务生成
+- `MessageCenterService`
+  - 消息回执
+  - 收件箱聚合
+
+#### Worker / Adapter
+
+- 模板定时实例化
+- 审批超时提醒
+- 周期任务调度
+- Email / WebSocket 渠道适配器第一版
+
+#### API 层
+
+- 模板管理
+- 审批动作
+- 消息中心 / 回执
+- 任务多视图数据接口
+
+#### 前端
+
+- 模板管理页
+- 审批中心
+- 消息中心
+- 任务列表 / 看板 / 甘特图
+
+### 7.3 建议实现顺序
+
+1. **模型与 Alembic**
+2. **模板 / 审批 / 自动化服务**
+3. **worker 与 adapter**
+4. **API**
+5. **前端**
+
+### 7.4 测试与验证
+
+- 模板实例化测试
+- 审批路径测试：串行 / 会签 / 或签 / 驳回 / 打回
+- 自动触发与周期任务测试
+- 消息回执与收件箱聚合测试
+- Adapter 冒烟测试
+- 前端视图测试：列表 / 看板 / 甘特图渲染与交互
+
+### 7.5 阶段闸门
+
+- 用户验证 Phase 4 后，才允许进入 Phase 5
+
+## 8. Phase 5 / Knowledge, AI Router & Experience
+
+### 8.1 目标
+
+在 HR / Workflow 基座稳定之后，再引入知识库、AI 路由与浏览器推送体验。
+
+### 8.2 范围
+
+#### 模型与迁移
+
+- `documents`
+- `document_embeddings`
+- `push_subscriptions`
+
+#### 服务层
+
+- 文档管理与版本化
+- 文档切块 / 嵌入 / 检索
+- `LLMRouterService`
+  - `@系统`
+  - `/`
+  - Tool Calling
+- `BrowserPushService`
+  - 浏览器订阅管理
+  - Web Push 发送
+
+#### API 层
+
+- 文档 CRUD
+- 检索接口
+- AI Router 入口
+- 推送订阅管理
+
+#### 前端
+
+- 知识库页面
+- `@系统` / `/` 输入拦截
+- AI 执行结果展示
+- 浏览器推送授权与订阅
+- PWA 安装与体验打磨
+
+### 8.3 建议实现顺序
+
+1. **模型与 Alembic**
+2. **知识库与检索服务**
+3. **LLM Router 与 push 服务**
+4. **API**
+5. **前端**
+
+### 8.4 测试与验证
+
+- 文档 CRUD 测试
+- 嵌入与检索测试
+- Tool Calling 合约测试
+- `@系统` 路由集成测试
+- 浏览器推送订阅 / 回执测试
+- PWA 冒烟测试
+
+## 9. 未来数据库优先级
+
+建议按以下顺序补齐后续 schema：
+
+1. `positions`
+2. `profile_positions`
+3. `reporting_lines`
+4. `profile_field_definitions`
+5. `profile_field_permissions`
+6. `employment_events`
+7. `delegations`
+8. `task_templates`
+9. `task_template_steps`
+10. `task_template_step_dependencies`
+11. `workflow_definitions`
+12. `workflow_steps`
+13. `workflow_instances`
+14. `workflow_step_runs`
+15. `task_watchers`
+16. `task_schedules`
+17. `notification_receipts`
+18. `push_subscriptions`
+19. `documents`
+20. `document_embeddings`
+
+## 10. 跨阶段通用规则
+
+- `architecture.md` 必须持续维护完整 schema 与模块边界
+- `progress.md` 只在阶段验测通过后更新
+- 新功能优先复用现有附件、通知、权限抽象
+- 所有敏感流程必须由服务层兜底，前端只做辅助限制
+- 若后续需求再次改变阶段边界，先修改本文件，再开始编码
