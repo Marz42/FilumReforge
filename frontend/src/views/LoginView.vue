@@ -74,7 +74,7 @@ async function handleBootstrap(): Promise<void> {
       </template>
 
       <el-alert
-        title="第一次进入系统时，请先初始化管理员账号。初始化完成后直接使用登录页进入后台。"
+        title="第一次进入系统时，请先初始化管理员账号；在此之前，请确保后端服务和 PostgreSQL 已启动。"
         type="info"
         :closable="false"
         show-icon
