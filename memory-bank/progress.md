@@ -7,7 +7,7 @@
 | Phase A / 文档与工程基线 | done | 文档入口、脚手架、基础编排已完成 |
 | Phase 1 / Foundation | done | 用户、组织、档案、附件、任务基础、异步通知骨架已完成并通过用户点击验证 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、审计日志、ARQ 提醒 worker、统计与协同任务页已完成并通过用户简单测试 |
-| Phase 3 / HR Governance & Org Modeling | pending | 尚未开始，属于下一阶段重点 |
+| Phase 3 / HR Governance & Org Modeling | in_validation | 代码已实现并通过自动化检查，等待用户手动验测 |
 | Phase 4 / Workflow Engine & Messaging | pending | 尚未开始，依赖 Phase 3 先补齐权限与组织关系 |
 | Phase 5 / Knowledge, AI Router & Experience | pending | 尚未开始，排在 HR 与 Workflow 之后 |
 
@@ -93,6 +93,40 @@
 | 协同任务页 | done | 统计卡片、状态按钮、评论区、评论附件、活动时间线、负载概览 | 已执行 `test:unit`、`type-check`、`build`、`lint` |
 | 用户基础验测 | done | 用户进行了简单测试并确认“看上去基本没有问题” | 已完成阶段性文档收口 |
 
+### Phase 3 / HR Governance & Org Modeling（代码已实现，待用户手动验测）
+
+#### 1. 模型先行
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| HR 治理枚举与模型 | done | `positions`、`profile_positions`、`reporting_lines`、`profile_field_*`、`employment_events`、`delegations` | 已执行模型持久化测试 |
+| Alembic 迁移 | done | `20260415_01_phase3_hr_governance.py` | 已执行升级 / 回滚测试 |
+
+#### 2. 服务层封装
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| 组织关系与字段权限 | done | `OrganizationRelationService`、`ProfileFieldPolicyService`、扩展 `access_control.py` | 已执行权限矩阵与代理授权测试 |
+| 生命周期与授权 | done | `HRLifecycleService`、`DelegationService`、重构 `ProfileService` | 已执行生命周期事件与状态联动测试 |
+
+#### 3. API 暴露
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| 档案治理接口 | done | `profiles` 子资源接口、`hr_governance` 路由 | 已执行 API 集成测试 |
+
+#### 4. 前端对接
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| 档案治理工作台 | done | 多标签档案页、岗位 / 汇报线 / 生命周期 / 授权表单 | 已执行 `test:unit`、`type-check`、`build`、`lint` |
+
+#### 5. 当前阶段闸门
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| 用户手动验测 | pending | 等待用户确认 Phase 3 业务场景是否满足预期 | 自动化验证已通过，尚未收到用户验测结论 |
+
 ## 用户验测补记
 
 ### Phase 1 验测补记
@@ -112,12 +146,27 @@
 - 用户进行了简单功能测试，反馈“看上去基本上没有问题”。
 - 因此当前 `memory-bank` 已按 **Phase 2 已完成** 的事实收口。
 
+### Phase 3 验测补记
+
+- Phase 3 代码已经完成，自动化验证链路已全部通过。
+- 已完成的自动化验证包括：后端 `pytest`、后端 `compileall`、前端 `test:unit`、`type-check`、`build`、`lint`。
+- 当前仍需用户手动验测以下核心场景：
+  1. 不同身份查看同一档案时的字段裁剪
+  2. 多岗位 / 虚线汇报维护
+  3. 生命周期事件录入与档案联动
+  4. 代理授权生效 / 撤销 / 过期
+
 ## 当前可用能力
 
 - 管理员初始化、登录、JWT access / refresh 会话
 - 用户管理
 - 部门树与组织范围查询
 - 员工档案基础 CRUD（含 `custom_fields`）
+- 多岗位 / 兼职 / 虚线汇报维护
+- 档案字段级权限裁剪（self / leader / delegate / HR / admin）
+- 生命周期事件：入职、转岗、晋升、奖惩、离职、返聘
+- 代理授权创建、撤销与按时间窗生效
+- 档案治理工作台
 - 任务创建、重新指派、前置依赖建模
 - 严格任务状态机
 - 任务评论、内部备注、评论附件、活动时间线
@@ -129,7 +178,7 @@
 
 | 方向 | 仍未实现的关键能力 | 目标阶段 |
 | --- | --- | --- |
-| HR 治理 | 生命周期事件、敏感字段、字段级权限、多岗位、虚线汇报、代理授权 | Phase 3 |
+| HR 流程自动化 | 生命周期事件与任务模板 / 审批流联动、字段权限可视化管理增强 | Phase 4 |
 | Workflow 引擎 | 模板 / SOP、审批流、自动触发、抄送、周期任务 | Phase 4 |
 | 消息中心 | 真实渠道适配器、消息回执、消息附件、独立消息收件箱 | Phase 4 |
 | 前端体验 | 看板、甘特图、消息中心页面 | Phase 4 |
@@ -140,8 +189,8 @@
 
 下一阶段优先级已经调整为：
 
-1. **先补齐 HR 治理与权限模型**
+1. **先完成 Phase 3 用户手动验测与文档收口**
 2. **再补齐 Workflow / Messaging 引擎**
 3. **最后进入 Knowledge / AI / Push**
 
-这样可以避免在组织关系、字段权限、审批规则仍不稳定时，过早推进 AI 或知识库能力。
+这样可以先确认 HR 治理基座在真实业务场景下成立，再进入模板、审批与消息中心。

@@ -7,6 +7,7 @@
 - **Phase A 已完成**
 - **Phase 1 / Foundation 已完成**
 - **Phase 2 / Collaboration & Stats 已完成**
+- **Phase 3 / HR Governance & Org Modeling 已实现并进入用户验测闸门**
 
 因此，本文件不再从“仓库初始化”开始叙述，而是从 **Phase 2 之后的真实开发起点** 出发，重排后续实施路线。
 
@@ -29,16 +30,13 @@
 - 认证与会话：JWT access / refresh、管理员初始化、基础角色
 - 组织结构：部门树、部门负责人、范围查询
 - 人事档案：一人一档、基础字段、`custom_fields JSONB`
+- HR 治理：生命周期事件、字段级权限、多岗位、虚线汇报、代理授权
 - 任务协同：任务、依赖、严格状态机、评论、日志、附件、统计
 - 通知骨架：消息落库、delivery 记录、ARQ 入队、逾期提醒扫描
-- 前端：登录、部门、档案、协同任务页
+- 前端：登录、部门、档案治理页、协同任务页
 
 ### 未实现但已确认的关键缺口
 
-- HR 生命周期事件
-- 字段级权限与敏感字段隔离
-- 多岗位 / 兼职 / 虚线汇报
-- 代理 / 授权机制
 - 任务模板 / SOP
 - 审批流引擎
 - 抄送 / 定时任务 / 周期任务
@@ -77,11 +75,13 @@
 | Phase A | done | 文档与脚手架基线 |
 | Phase 1 / Foundation | done | 用户、组织、档案、附件、任务基础、异步通知骨架 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、日志、提醒、统计、协同页 |
-| Phase 3 / HR Governance & Org Modeling | next | HR 生命周期、字段级权限、组织关系、代理授权 |
+| Phase 3 / HR Governance & Org Modeling | in_validation | HR 生命周期、字段级权限、组织关系、代理授权 |
 | Phase 4 / Workflow Engine & Messaging | planned | 模板、审批流、自动触发、消息中心、多视图 |
 | Phase 5 / Knowledge, AI Router & Experience | planned | 知识库、RAG、`@系统` 路由、浏览器推送、PWA |
 
 ## 6. Phase 3 / HR Governance & Org Modeling
+
+**当前状态**：代码已完成，自动化测试已通过，等待用户手动验测。
 
 ### 6.1 目标
 
@@ -156,6 +156,7 @@
 ### 6.5 阶段闸门
 
 - 用户验证 Phase 3 后，才允许进入 Phase 4
+- 在用户确认前，Phase 3 相关文档只记录为 `in_validation`，不写成已验收通过
 
 ## 7. Phase 4 / Workflow Engine & Messaging
 

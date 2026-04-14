@@ -1,8 +1,8 @@
 # Project Filum 架构基线
 
-**版本**: v2.0.0  
-**状态**: Phase A / 1 / 2 已完成；后续路线已重排为 5 阶段  
-**适用范围**: 当前仓库代码、完整数据库 schema、未来 Phase 3 / 4 / 5 的工程扩展边界
+**版本**: v2.1.0  
+**状态**: Phase A / 1 / 2 已完成；Phase 3 代码已实现并等待用户手动验测  
+**适用范围**: 当前仓库代码、完整数据库 schema、Phase 3 实现基线，以及未来 Phase 4 / 5 的工程扩展边界
 
 ## 1. 文档定位
 
@@ -27,25 +27,28 @@
 - Phase A / 文档与工程基线
 - Phase 1 / Foundation
 - Phase 2 / Collaboration & Stats
+- Phase 3 / HR Governance & Org Modeling（代码已实现，待用户手动验测）
 
 ### 2.2 当前已实现能力
 
 - 用户、JWT access / refresh、管理员初始化
 - 部门树、部门负责人、组织范围查询
-- 员工档案基础 CRUD 与 `custom_fields JSONB`
+- 员工档案基础 CRUD、字段裁剪视图与 `custom_fields JSONB`
+- 岗位目录、多岗位关系、直属 / 虚线汇报线
+- 字段定义、字段级权限策略与代理授权生效判断
+- 生命周期事件：入职、转岗、晋升、奖惩、离职、返聘
+- 代理授权：创建、撤销、按时间窗自动生效 / 过期
 - 任务创建、重新指派、前置依赖建模
 - 严格任务状态机：`Todo -> Doing -> Review -> Done`
 - 任务评论、内部备注、审计日志、评论附件、活动时间线
 - ARQ worker、逾期提醒扫描、通知消息落库与异步入队
 - 任务完成率 / 逾期率 / 负载统计
-- 浏览器后台基础界面：登录、部门、档案、任务协同页
+- 浏览器后台界面：登录、部门、Phase 3 档案治理页、任务协同页
 
 ### 2.3 当前明确缺口
 
-- HR 生命周期事件
-- 档案敏感字段与字段级权限
-- 多岗位 / 兼职 / 虚线汇报
-- 代理 / 授权机制
+- 生命周期事件与任务模板 / 审批流的自动联动
+- HR 字段权限的可视化规则管理页仍偏基础
 - 模板 / SOP 与审批流引擎
 - 抄送 / 定时 / 周期任务
 - 消息中心、回执、消息附件
@@ -57,10 +60,10 @@
 
 | 模块 | 责任 | 当前状态 | 下一阶段重点 |
 | --- | --- | --- | --- |
-| IAM | 账号、JWT、基础 RBAC、会话安全 | 已实现基础版 | 字段级权限、代理授权、审批动作授权 |
-| Organization | 部门树、部门负责人、组织范围 | 已实现基础版 | 多岗位、兼职、虚线汇报、跨部门挂载 |
-| HR Profiles | 主档案、动态字段、基础资料 | 已实现基础版 | 生命周期事件、高敏字段、字段策略 |
-| HR Governance | 奖惩、晋升、离职、授权与关系模型 | 未实现 | Phase 3 |
+| IAM | 账号、JWT、基础 RBAC、会话安全 | 已实现 Phase 3 增强版 | 审批动作授权 |
+| Organization | 部门树、部门负责人、组织范围 | 已实现 Phase 3 增强版 | 被 Workflow / Messaging 消费 |
+| HR Profiles | 主档案、动态字段、基础资料 | 已实现 Phase 3 增强版 | 与模板 / 审批联动 |
+| HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现，待用户手动验测 | 事件与模板 / 审批联动 |
 | Workflow Core | 任务、依赖、状态机、统计 | 已实现 | Phase 4 扩展模板 / 审批 / 自动化 |
 | Task Collaboration | 评论、日志、评论附件、时间线 | 已实现 | 与模板 / 审批 / 多视图打通 |
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现骨架 | 真实渠道适配器、回执、浏览器推送 |
@@ -165,19 +168,26 @@
 | --- | --- |
 | `backend/app/main.py` | FastAPI 入口，注册路由、异常处理、开发态 CORS |
 | `backend/app/api/dependencies.py` | 数据库、认证、附件、通知等依赖注入 |
-| `backend/app/core/enums.py` | 当前已实现枚举定义 |
-| `backend/app/models/profile.py` | 员工档案模型 |
+| `backend/app/core/enums.py` | 当前已实现的基础枚举与 Phase 3 HR 治理枚举 |
+| `backend/app/models/profile.py` | 员工档案主模型 |
+| `backend/app/models/hr_governance.py` | 岗位、任职关系、汇报线、字段定义、字段权限、生命周期事件、代理授权模型 |
 | `backend/app/models/task.py` | 任务、依赖、日志、评论模型 |
 | `backend/app/models/notification.py` | 通知消息与 delivery 模型 |
-| `backend/app/services/access_control.py` | 活跃账号、管理权限、组织范围、可指派范围校验 |
-| `backend/app/services/profile_service.py` | 当前档案 CRUD 服务 |
+| `backend/app/services/access_control.py` | 活跃账号、管理权限、组织范围、代理授权与汇报关系解析 |
+| `backend/app/services/profile_service.py` | 档案聚合、字段裁剪、Phase 3 档案读写编排 |
+| `backend/app/services/organization_relation_service.py` | 岗位目录、任职关系、汇报线管理 |
+| `backend/app/services/profile_field_policy_service.py` | 字段定义初始化、字段权限解析与字段可见 / 可编辑判断 |
+| `backend/app/services/hr_lifecycle_service.py` | 生命周期事件登记与档案 / 任职关系联动 |
+| `backend/app/services/delegation_service.py` | 代理授权创建、撤销、状态刷新 |
 | `backend/app/services/task_service.py` | 当前任务状态机、评论、日志、统计与逾期查询 |
 | `backend/app/services/notification_service.py` | 消息落库、delivery 记录、队列入队 |
+| `backend/app/api/routes/hr_governance.py` | Phase 3 岗位、字段定义、字段权限、授权管理接口 |
 | `backend/app/integrations/notifications/queue.py` | ARQ 入队发布器 |
 | `backend/app/workers/jobs.py` | 通知消费与逾期提醒扫描逻辑 |
 | `backend/app/workers/arq_worker.py` | ARQ worker 运行时入口与 cron 配置 |
 | `backend/alembic/versions/20260413_01_phase1_foundation.py` | Phase 1 基线迁移 |
 | `backend/alembic/versions/20260414_01_phase2_collaboration.py` | Phase 2 协同迁移 |
+| `backend/alembic/versions/20260415_01_phase3_hr_governance.py` | Phase 3 HR 治理迁移 |
 
 ### 5.3 frontend 当前热点文件
 
@@ -186,10 +196,12 @@
 | `frontend/src/api/http.ts` | Axios 实例、token 注入、自动 refresh |
 | `frontend/src/stores/auth.ts` | 登录态与会话恢复 |
 | `frontend/src/views/LoginView.vue` | 登录与管理员初始化 |
-| `frontend/src/views/ProfilesView.vue` | 当前档案管理页 |
+| `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
+| `frontend/src/views/ProfilesView.vue` | Phase 3 档案治理工作台 |
 | `frontend/src/views/TasksView.vue` | 当前协同任务中心 |
 | `frontend/src/api/tasks.ts` | 任务、状态流转、评论、活动流、统计 API client |
 | `frontend/src/types/api.ts` | 前端共享 API 类型 |
+| `frontend/tests/ProfilesView.spec.ts` | Phase 3 档案治理页回归测试 |
 | `frontend/tests/TasksView.spec.ts` | 协同任务页交互回归测试 |
 
 ### 5.4 infra
@@ -232,21 +244,30 @@
 3. 写入 `attachments` 元数据。
 4. 使用 `attachment_links` 绑定到任务、档案、评论等业务对象。
 
-### 6.5 字段级权限解析链路（目标 / Phase 3）
+### 6.5 字段级权限解析链路（当前 / Phase 3）
 
 1. `profiles` 保存基础字段与 `custom_fields`。
 2. `profile_field_definitions` 定义字段元信息。
 3. `profile_field_permissions` 定义谁能看 / 改哪些字段。
-4. 服务层根据 actor 的角色、汇报线、授权关系过滤返回字段。
+4. `access_control.py` 解析部门范围、汇报线和代理授权。
+5. `ProfileFieldPolicyService` 结合角色、self、直属 / 虚线上级与代理关系裁剪字段。
+6. `ProfileService` 输出按 actor 过滤后的档案视图。
 
-### 6.6 审批流链路（目标 / Phase 4）
+### 6.6 HR 生命周期链路（当前 / Phase 3）
+
+1. 前端在档案治理页登记生命周期事件。
+2. `HRLifecycleService` 写入 `employment_events`。
+3. 事件按类型联动主岗位、汇报线、用户状态与档案摘要。
+4. 当前**不**自动生成任务模板或审批流实例。
+
+### 6.7 审批流链路（目标 / Phase 4）
 
 1. 前端创建或触发事务。
 2. 系统根据 `task_templates` / `workflow_definitions` 生成实例。
 3. `workflow_instances` 与 `workflow_step_runs` 驱动审批与回退。
 4. 结果回写任务、消息中心与通知总线。
 
-### 6.7 AI 路由链路（目标 / Phase 5）
+### 6.8 AI 路由链路（目标 / Phase 5）
 
 1. 前端拦截 `@系统` 或 `/`。
 2. 后端 `LLMRouterService` 构造工具清单。
@@ -261,7 +282,7 @@
 | Phase A | done | 文档入口、脚手架、基础编排 |
 | Phase 1 / Foundation | done | 用户、部门、档案、附件、任务基础、异步通知骨架 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、日志、ARQ 提醒、统计与协同页 |
-| Phase 3 / HR Governance & Org Modeling | planned | 生命周期、字段权限、多岗位、汇报线、代理授权 |
+| Phase 3 / HR Governance & Org Modeling | in_validation | 生命周期、字段权限、多岗位、汇报线、代理授权 |
 | Phase 4 / Workflow Engine & Messaging | planned | 模板、审批流、自动触发、消息中心、多视图 |
 | Phase 5 / Knowledge, AI Router & Experience | planned | 知识库、RAG、`@系统` 路由、Push、PWA |
 
@@ -294,11 +315,11 @@
 | `notification_channel` | `email`, `web_push`, `websocket` | 已实现枚举，真实适配器未全落地 |
 | `notification_message_status` | `queued`, `processing`, `completed`, `failed` | 已实现 |
 | `notification_delivery_status` | `pending`, `sent`, `failed`, `retrying` | 已实现 |
-| `position_assignment_type` | `primary`, `part_time`, `acting` | Phase 3 规划 |
-| `reporting_line_type` | `solid`, `dotted` | Phase 3 规划 |
-| `employment_event_type` | `onboard`, `transfer`, `promotion`, `reward`, `discipline`, `offboard`, `rehire` | Phase 3 规划 |
-| `delegation_scope_type` | `approval`, `task`, `data_access`, `all` | Phase 3 规划 |
-| `delegation_status` | `pending`, `active`, `expired`, `revoked` | Phase 3 规划 |
+| `position_assignment_type` | `primary`, `part_time`, `acting` | 已实现 |
+| `reporting_line_type` | `solid`, `dotted` | 已实现 |
+| `employment_event_type` | `onboard`, `transfer`, `promotion`, `reward`, `discipline`, `offboard`, `rehire` | 已实现 |
+| `delegation_scope_type` | `approval`, `task`, `data_access`, `all` | 已实现 |
+| `delegation_status` | `pending`, `active`, `expired`, `revoked` | 已实现 |
 | `workflow_definition_status` | `draft`, `active`, `archived` | Phase 4 规划 |
 | `workflow_step_type` | `task`, `approval`, `notify` | Phase 4 规划 |
 | `approval_mode` | `single`, `parallel_all`, `parallel_any` | Phase 4 规划 |
@@ -395,12 +416,12 @@
 
 **设计说明**
 
-- 当前只有“一人一档 + 一个主部门”的基础表达。
-- Phase 3 会通过 `profile_positions`、`reporting_lines`、`employment_events` 补齐复杂任职关系。
+- `profiles` 仍是“一人一档”的锚点表。
+- Phase 3 已通过 `profile_positions`、`reporting_lines`、`employment_events` 与 `delegations` 补齐复杂任职关系和授权关系。
 
 ### 10.5 `positions`
 
-**实现状态**: Phase 3 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -420,7 +441,7 @@
 
 ### 10.6 `profile_positions`
 
-**实现状态**: Phase 3 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -441,14 +462,16 @@
 - `idx_profile_positions_department_id (department_id)`
 - `idx_profile_positions_is_primary (user_id, is_primary)`
 
-**设计说明**
+**约束与说明**
 
+- `uq_profile_positions_assignment (user_id, position_id, department_id, starts_at)`
+- CHECK `ends_at IS NULL OR ends_at >= starts_at`
 - 一个用户可以拥有多个岗位关系。
 - “兼职 / 代理岗 / 多部门挂载”统一通过本表表达。
 
 ### 10.7 `reporting_lines`
 
-**实现状态**: Phase 3 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -465,13 +488,15 @@
 
 **约束与索引**
 
+- `uq_reporting_lines_relation (user_id, manager_user_id, line_type, department_id, starts_at)`
 - CHECK `user_id <> manager_user_id`
+- CHECK `ends_at IS NULL OR ends_at >= starts_at`
 - `idx_reporting_lines_user_id (user_id)`
 - `idx_reporting_lines_manager_user_id (manager_user_id)`
 
 ### 10.8 `profile_field_definitions`
 
-**实现状态**: Phase 3 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -493,7 +518,7 @@
 
 ### 10.9 `profile_field_permissions`
 
-**实现状态**: Phase 3 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -520,7 +545,7 @@
 
 ### 10.10 `employment_events`
 
-**实现状态**: Phase 3 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -536,12 +561,12 @@
 
 **索引**
 
-- `idx_employment_events_user_id_date (user_id, effective_date DESC)`
+- `idx_employment_events_user_id_date (user_id, effective_date)`
 - `idx_employment_events_type (event_type)`
 
 ### 10.11 `delegations`
 
-**实现状态**: Phase 3 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -561,6 +586,7 @@
 **约束与索引**
 
 - CHECK `delegator_user_id <> delegate_user_id`
+- CHECK `ends_at > starts_at`
 - `idx_delegations_delegator_status (delegator_user_id, status)`
 - `idx_delegations_delegate_status (delegate_user_id, status)`
 
