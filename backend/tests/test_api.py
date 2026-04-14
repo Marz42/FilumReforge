@@ -400,3 +400,221 @@ async def test_task_collaboration_and_stats_api_flow(api_client) -> None:
   assert workload_response.json()[0]["completed_tasks"] == 1
 
   assert len(queue_publisher.payloads) == 2
+
+
+@pytest.mark.asyncio
+async def test_phase3_hr_governance_api_flow(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  manager_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "manager@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert manager_response.status_code == 201
+  manager_id = manager_response.json()["id"]
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  delegate_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "delegate@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert delegate_response.status_code == 201
+  delegate_id = delegate_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "运营部",
+      "code": "operations",
+      "parent_id": root_department["id"],
+      "manager_id": manager_id,
+      "sort_order": 30,
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  manager_profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": manager_id,
+      "employee_no": "EMP-MANAGER-001",
+      "real_name": "直属主管",
+      "department_id": department_id,
+      "custom_fields": {},
+    },
+  )
+  assert manager_profile_response.status_code == 201
+
+  employee_profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": employee_id,
+      "employee_no": "EMP-OPS-001",
+      "real_name": "运营同学",
+      "department_id": department_id,
+      "custom_fields": {},
+    },
+  )
+  assert employee_profile_response.status_code == 201
+
+  position_response = await client.post(
+    "/api/v1/positions",
+    headers=headers,
+    json={
+      "code": "ops-specialist",
+      "name": "运营专员",
+      "level": "P4",
+      "extra_metadata": {"track": "ops"},
+      "is_active": True,
+    },
+  )
+  assert position_response.status_code == 201
+  position_id = position_response.json()["id"]
+
+  assign_position_response = await client.post(
+    f"/api/v1/profiles/{employee_id}/positions",
+    headers=headers,
+    json={
+      "position_id": position_id,
+      "department_id": department_id,
+      "assignment_type": "primary",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert assign_position_response.status_code == 201
+
+  reporting_line_response = await client.post(
+    f"/api/v1/profiles/{employee_id}/reporting-lines",
+    headers=headers,
+    json={
+      "manager_user_id": manager_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert reporting_line_response.status_code == 201
+
+  update_profile_response = await client.patch(
+    f"/api/v1/profiles/{employee_id}",
+    headers=headers,
+    json={
+      "custom_fields": {
+        "salary": 28000,
+        "performance": "A",
+        "hobby": "摄影",
+      }
+    },
+  )
+  assert update_profile_response.status_code == 200
+
+  manager_headers = await login(
+    client,
+    email="manager@example.com",
+    password="StrongPassword123!",
+  )
+  manager_view_response = await client.get(f"/api/v1/profiles/{employee_id}", headers=manager_headers)
+  assert manager_view_response.status_code == 200
+  manager_payload = manager_view_response.json()
+  assert manager_payload["custom_fields"]["performance"] == "A"
+  assert "salary" not in manager_payload["custom_fields"]
+
+  delegation_response = await client.post(
+    "/api/v1/delegations",
+    headers=manager_headers,
+    json={
+      "delegator_user_id": manager_id,
+      "delegate_user_id": delegate_id,
+      "scope_type": "data_access",
+      "starts_at": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+      "ends_at": (datetime.now(UTC) + timedelta(days=7)).isoformat(),
+    },
+  )
+  assert delegation_response.status_code == 201
+  delegation_id = delegation_response.json()["id"]
+
+  delegate_headers = await login(
+    client,
+    email="delegate@example.com",
+    password="StrongPassword123!",
+  )
+  delegate_view_response = await client.get(f"/api/v1/profiles/{employee_id}", headers=delegate_headers)
+  assert delegate_view_response.status_code == 200
+  delegate_payload = delegate_view_response.json()
+  assert delegate_payload["custom_fields"]["performance"] == "A"
+  assert "salary" not in delegate_payload["custom_fields"]
+
+  event_response = await client.post(
+    f"/api/v1/profiles/{employee_id}/events",
+    headers=headers,
+    json={
+      "event_type": "promotion",
+      "effective_date": "2025-02-01",
+      "title": "晋升为运营负责人",
+      "payload": {
+        "position_id": position_id,
+        "department_id": department_id,
+        "manager_user_id": manager_id,
+        "job_title": "运营负责人",
+        "assignment_type": "primary",
+        "is_primary": True,
+      },
+    },
+  )
+  assert event_response.status_code == 201
+  assert event_response.json()["event_type"] == "promotion"
+
+  field_definitions_response = await client.get("/api/v1/profile-field-definitions", headers=headers)
+  assert field_definitions_response.status_code == 200
+  definitions_payload = field_definitions_response.json()
+  assert any(item["field_key"] == "salary" for item in definitions_payload)
+  salary_definition = next(item for item in definitions_payload if item["field_key"] == "salary")
+
+  permissions_response = await client.get(
+    f"/api/v1/profile-field-definitions/{salary_definition['id']}/permissions",
+    headers=headers,
+  )
+  assert permissions_response.status_code == 200
+  assert len(permissions_response.json()) >= 1
+
+  delegation_update_response = await client.patch(
+    f"/api/v1/delegations/{delegation_id}",
+    headers=manager_headers,
+    json={"status": "revoked"},
+  )
+  assert delegation_update_response.status_code == 200
+  assert delegation_update_response.json()["status"] == "revoked"

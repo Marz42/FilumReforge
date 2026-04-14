@@ -20,8 +20,12 @@ from app.services.access_control import ensure_management_role
 from app.services.attachment_service import AttachmentService
 from app.services.auth_service import AuthService
 from app.services.department_service import DepartmentService
+from app.services.delegation_service import DelegationService
+from app.services.hr_lifecycle_service import HRLifecycleService
 from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
+from app.services.organization_relation_service import OrganizationRelationService
+from app.services.profile_field_policy_service import ProfileFieldPolicyService
 from app.services.profile_service import ProfileService
 from app.services.task_service import TaskService
 from app.services.user_service import UserService
@@ -78,6 +82,30 @@ def get_profile_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ProfileService:
   return ProfileService(session)
+
+
+def get_organization_relation_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> OrganizationRelationService:
+  return OrganizationRelationService(session)
+
+
+def get_hr_lifecycle_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> HRLifecycleService:
+  return HRLifecycleService(session)
+
+
+def get_delegation_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DelegationService:
+  return DelegationService(session)
+
+
+def get_profile_field_policy_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ProfileFieldPolicyService:
+  return ProfileFieldPolicyService(session)
 
 
 def get_notification_service(

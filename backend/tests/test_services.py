@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -12,19 +12,27 @@ from app.core.enums import (
   AttachmentStatus,
   AttachmentTargetType,
   CommentFormat,
+  DelegationScopeType,
+  EmploymentEventType,
   NotificationChannel,
+  PositionAssignmentType,
+  ReportingLineType,
   TaskActionType,
   TaskStatus,
   UserRole,
+  UserStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.models import AttachmentLink, TaskLog
 from app.integrations.storage.local import LocalStorageAdapter
 from app.services.attachment_service import AttachmentService
 from app.services.auth_service import AuthService
+from app.services.delegation_service import DelegationService
 from app.services.department_service import DepartmentService
+from app.services.hr_lifecycle_service import HRLifecycleService
 from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
+from app.services.organization_relation_service import OrganizationRelationService
 from app.services.profile_service import ProfileService
 from app.services.task_service import CommentAttachmentInput, TaskService
 from app.services.user_service import UserService
@@ -381,3 +389,233 @@ async def test_task_service_comments_attachments_and_stats(db_session) -> None:
         content="这是内部备注",
         is_internal=True,
       )
+
+
+@pytest.mark.asyncio
+async def test_phase3_services_filter_fields_for_manager_and_delegate(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  organization_relation_service = OrganizationRelationService(db_session)
+  delegation_service = DelegationService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  delegate = await user_service.create_user(
+    actor=admin,
+    email="delegate@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  department = await department_service.create_department(
+    actor=admin,
+    name="运营部",
+    code="operations",
+    manager_id=manager.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=manager.id,
+    employee_no="EMP-MANAGER-001",
+    real_name="直属主管",
+    department_id=department.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="普通员工",
+    department_id=department.id,
+  )
+
+  position = await organization_relation_service.create_position(
+    actor=admin,
+    code="ops-specialist",
+    name="运营专员",
+  )
+  await organization_relation_service.assign_position(
+    actor=admin,
+    user_id=employee.id,
+    position_id=position.id,
+    department_id=department.id,
+    assignment_type=PositionAssignmentType.PRIMARY,
+    is_primary=True,
+    starts_at=date(2025, 1, 1),
+  )
+  await organization_relation_service.create_reporting_line(
+    actor=admin,
+    user_id=employee.id,
+    manager_user_id=manager.id,
+    department_id=department.id,
+    line_type=ReportingLineType.SOLID,
+    is_primary=True,
+    starts_at=date(2025, 1, 1),
+  )
+
+  await profile_service.update_profile(
+    actor=admin,
+    user_id=employee.id,
+    custom_fields={
+      "salary": 32000,
+      "performance": "A",
+      "hobby": "摄影",
+    },
+  )
+
+  await delegation_service.create_delegation(
+    actor=manager,
+    delegator_user_id=manager.id,
+    delegate_user_id=delegate.id,
+    scope_type=DelegationScopeType.DATA_ACCESS,
+    starts_at=datetime.now(UTC) - timedelta(hours=1),
+    ends_at=datetime.now(UTC) + timedelta(days=7),
+  )
+
+  employee_view = await profile_service.get_profile_view(actor=employee, user_id=employee.id)
+  manager_view = await profile_service.get_profile_view(actor=manager, user_id=employee.id)
+  delegate_view = await profile_service.get_profile_view(actor=delegate, user_id=employee.id)
+
+  assert employee_view["employee_no"] == "EMP-001"
+  assert "hobby" in employee_view["custom_fields"]
+  assert "salary" not in employee_view["custom_fields"]
+  assert "performance" not in employee_view["custom_fields"]
+
+  assert manager_view["custom_fields"]["performance"] == "A"
+  assert "salary" not in manager_view["custom_fields"]
+  assert any(
+    field["field_key"] == "performance" and field["can_edit"] is True
+    for field in manager_view["visible_fields"]
+  )
+
+  assert delegate_view["custom_fields"]["performance"] == "A"
+  assert "salary" not in delegate_view["custom_fields"]
+
+
+@pytest.mark.asyncio
+async def test_phase3_services_apply_lifecycle_events(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  organization_relation_service = OrganizationRelationService(db_session)
+  lifecycle_service = HRLifecycleService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  department = await department_service.create_department(
+    actor=admin,
+    name="产品部",
+    code="product",
+    manager_id=manager.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-PRODUCT-001",
+    real_name="产品同学",
+    department_id=department.id,
+  )
+
+  specialist_position = await organization_relation_service.create_position(
+    actor=admin,
+    code="product-specialist",
+    name="产品专员",
+  )
+  lead_position = await organization_relation_service.create_position(
+    actor=admin,
+    code="product-lead",
+    name="产品负责人",
+  )
+
+  promotion_event = await lifecycle_service.create_event(
+    actor=admin,
+    user_id=employee.id,
+    event_type=EmploymentEventType.PROMOTION,
+    effective_date=date(2025, 2, 1),
+    title="晋升产品负责人",
+    payload={
+      "position_id": str(lead_position.id),
+      "department_id": str(department.id),
+      "manager_user_id": str(manager.id),
+      "job_title": "产品负责人",
+      "assignment_type": PositionAssignmentType.PRIMARY.value,
+      "is_primary": True,
+    },
+  )
+
+  offboard_event = await lifecycle_service.create_event(
+    actor=admin,
+    user_id=employee.id,
+    event_type=EmploymentEventType.OFFBOARD,
+    effective_date=date(2025, 3, 1),
+    title="办理离职",
+    payload={},
+  )
+
+  rehire_event = await lifecycle_service.create_event(
+    actor=admin,
+    user_id=employee.id,
+    event_type=EmploymentEventType.REHIRE,
+    effective_date=date(2025, 4, 1),
+    title="返聘为产品专员",
+    payload={
+      "position_id": str(specialist_position.id),
+      "department_id": str(department.id),
+      "assignment_type": PositionAssignmentType.PRIMARY.value,
+      "is_primary": True,
+    },
+  )
+
+  updated_profile = await profile_service.get_profile(actor=admin, user_id=employee.id)
+  positions = await organization_relation_service.list_profile_positions(user_id=employee.id)
+  events = await lifecycle_service.list_events(user_id=employee.id)
+  employee_row = await db_session.get(type(employee), employee.id)
+
+  assert promotion_event.event_type == EmploymentEventType.PROMOTION
+  assert offboard_event.event_type == EmploymentEventType.OFFBOARD
+  assert rehire_event.event_type == EmploymentEventType.REHIRE
+  assert updated_profile.job_title == "产品专员"
+  assert employee_row is not None
+  assert employee_row.status == UserStatus.ACTIVE
+  assert len(events) == 3
+  assert any(position.position_id == lead_position.id for position in positions)
+  assert any(position.position_id == specialist_position.id and position.is_primary for position in positions)

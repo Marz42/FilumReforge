@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -11,7 +11,12 @@ from sqlalchemy.pool import StaticPool
 from app.core.enums import (
   AttachmentTargetType,
   CommentFormat,
+  DelegationScopeType,
+  DelegationStatus,
+  EmploymentEventType,
   NotificationChannel,
+  PositionAssignmentType,
+  ReportingLineType,
   TaskActionType,
   UserRole,
   UserStatus,
@@ -20,11 +25,18 @@ from app.models import (
   Attachment,
   AttachmentLink,
   Base,
+  Delegation,
   Department,
+  EmploymentEvent,
   NotificationDelivery,
   NotificationMessage,
+  Position,
   Profile,
+  ProfileFieldDefinition,
+  ProfileFieldPermission,
+  ProfilePosition,
   RefreshToken,
+  ReportingLine,
   Task,
   TaskComment,
   TaskDependency,
@@ -250,5 +262,151 @@ async def test_phase2_models_persist_task_comments_and_logs() -> None:
     assert stored_log.detail["comment_id"] == str(comment_id)
     assert stored_comment_link is not None
     assert stored_comment_link.relation == "comment_attachment"
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phase3_models_persist_hr_governance_entities() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  manager_id = uuid4()
+  employee_id = uuid4()
+  delegate_id = uuid4()
+  department_id = uuid4()
+  position_id = uuid4()
+
+  async with session_factory() as session:
+    manager = User(
+      id=manager_id,
+      email="manager@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    employee = User(
+      id=employee_id,
+      email="employee@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    delegate = User(
+      id=delegate_id,
+      email="delegate@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    department = Department(
+      id=department_id,
+      name="运营部",
+      code="ops",
+      manager=manager,
+    )
+    profile = Profile(
+      user=employee,
+      employee_no="EMP-OPS-001",
+      real_name="运营同学",
+      department=department,
+      custom_fields={
+        "salary": 25000,
+        "performance": "A",
+      },
+    )
+    position = Position(
+      id=position_id,
+      code="ops-manager",
+      name="运营经理",
+      extra_metadata={"band": "P6"},
+    )
+    profile_position = ProfilePosition(
+      user=employee,
+      position=position,
+      department=department,
+      assignment_type=PositionAssignmentType.PRIMARY,
+      is_primary=True,
+      starts_at=date(2025, 1, 1),
+    )
+    reporting_line = ReportingLine(
+      user=employee,
+      manager=manager,
+      department=department,
+      line_type=ReportingLineType.SOLID,
+      is_primary=True,
+      starts_at=date(2025, 1, 1),
+    )
+    field_definition = ProfileFieldDefinition(
+      field_key="performance",
+      label="绩效评估",
+      field_type="text",
+      storage_target="custom",
+      is_sensitive=True,
+    )
+    field_permission = ProfileFieldPermission(
+      field_definition=field_definition,
+      subject_type="reporting_line",
+      subject_value=ReportingLineType.SOLID.value,
+      can_view=True,
+      can_edit=True,
+    )
+    employment_event = EmploymentEvent(
+      user=employee,
+      event_type=EmploymentEventType.PROMOTION,
+      effective_date=date(2025, 2, 1),
+      title="晋升为运营经理",
+      payload={"position_id": str(position_id)},
+      creator=manager,
+    )
+    delegation = Delegation(
+      delegator=manager,
+      delegate=delegate,
+      scope_type=DelegationScopeType.DATA_ACCESS,
+      status=DelegationStatus.ACTIVE,
+      starts_at=datetime.now(UTC),
+      ends_at=datetime.now(UTC) + timedelta(days=7),
+      creator=manager,
+    )
+
+    session.add_all(
+      [
+        manager,
+        employee,
+        delegate,
+        department,
+        profile,
+        position,
+        profile_position,
+        reporting_line,
+        field_definition,
+        field_permission,
+        employment_event,
+        delegation,
+      ]
+    )
+    await session.commit()
+
+    stored_position = await session.scalar(select(Position).where(Position.id == position_id))
+    stored_reporting_line = await session.scalar(
+      select(ReportingLine).where(ReportingLine.manager_user_id == manager_id)
+    )
+    stored_delegation = await session.scalar(
+      select(Delegation).where(Delegation.delegate_user_id == delegate_id)
+    )
+
+    assert stored_position is not None
+    assert stored_position.extra_metadata["band"] == "P6"
+    assert stored_reporting_line is not None
+    assert stored_reporting_line.line_type == ReportingLineType.SOLID
+    assert stored_delegation is not None
+    assert stored_delegation.scope_type == DelegationScopeType.DATA_ACCESS
 
   await engine.dispose()

@@ -27,4 +27,7 @@ class Department(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   children = relationship("Department", back_populates="parent")
   manager = relationship("User", back_populates="managed_departments")
   profiles = relationship("Profile", back_populates="department")
+  profile_positions = relationship("ProfilePosition", back_populates="department")
+  reporting_lines = relationship("ReportingLine", back_populates="department")
+  delegations = relationship("Delegation", back_populates="scope_department")
   tasks = relationship("Task", back_populates="department")

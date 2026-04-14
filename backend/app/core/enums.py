@@ -89,3 +89,38 @@ class NotificationDeliveryStatus(StrEnum):
   SENT = "sent"
   FAILED = "failed"
   RETRYING = "retrying"
+
+
+class PositionAssignmentType(StrEnum):
+  PRIMARY = "primary"
+  PART_TIME = "part_time"
+  ACTING = "acting"
+
+
+class ReportingLineType(StrEnum):
+  SOLID = "solid"
+  DOTTED = "dotted"
+
+
+class EmploymentEventType(StrEnum):
+  ONBOARD = "onboard"
+  TRANSFER = "transfer"
+  PROMOTION = "promotion"
+  REWARD = "reward"
+  DISCIPLINE = "discipline"
+  OFFBOARD = "offboard"
+  REHIRE = "rehire"
+
+
+class DelegationScopeType(StrEnum):
+  APPROVAL = "approval"
+  TASK = "task"
+  DATA_ACCESS = "data_access"
+  ALL = "all"
+
+
+class DelegationStatus(StrEnum):
+  PENDING = "pending"
+  ACTIVE = "active"
+  EXPIRED = "expired"
+  REVOKED = "revoked"

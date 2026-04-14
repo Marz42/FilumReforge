@@ -36,3 +36,39 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   uploaded_attachments = relationship("Attachment", back_populates="uploader")
   refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
   notification_messages = relationship("NotificationMessage", back_populates="recipient_user")
+  position_assignments = relationship("ProfilePosition", back_populates="user")
+  reporting_lines = relationship(
+    "ReportingLine",
+    foreign_keys="ReportingLine.user_id",
+    back_populates="user",
+  )
+  managed_reporting_lines = relationship(
+    "ReportingLine",
+    foreign_keys="ReportingLine.manager_user_id",
+    back_populates="manager",
+  )
+  employment_events = relationship(
+    "EmploymentEvent",
+    foreign_keys="EmploymentEvent.user_id",
+    back_populates="user",
+  )
+  created_employment_events = relationship(
+    "EmploymentEvent",
+    foreign_keys="EmploymentEvent.created_by",
+    back_populates="creator",
+  )
+  delegations_granted = relationship(
+    "Delegation",
+    foreign_keys="Delegation.delegator_user_id",
+    back_populates="delegator",
+  )
+  delegations_received = relationship(
+    "Delegation",
+    foreign_keys="Delegation.delegate_user_id",
+    back_populates="delegate",
+  )
+  created_delegations = relationship(
+    "Delegation",
+    foreign_keys="Delegation.created_by",
+    back_populates="creator",
+  )
