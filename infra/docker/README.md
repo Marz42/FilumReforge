@@ -4,7 +4,36 @@
 
 ```sh
 cp .env.example .env
-docker compose -f docker-compose.yml up --build
+docker compose -f docker-compose.yml up --build -d
+```
+
+启动后：
+
+- `backend` 容器会先自动执行 `alembic upgrade head`，再启动 FastAPI。
+- 统一入口为 `http://127.0.0.1:8080`
+- 如需查看日志：
+
+```sh
+docker compose -f docker-compose.yml logs -f backend frontend nginx
+```
+
+## 本地直启（不走 Docker）
+
+后端本地 `.env` 可直接从 `backend/.env.example` 复制，默认指向本机的 PostgreSQL 与 Redis：
+
+```sh
+cd backend
+cp .env.example .env
+. .venv/bin/activate
+alembic upgrade head
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+前端：
+
+```sh
+cd frontend
+npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
 ## 服务说明
