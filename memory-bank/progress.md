@@ -7,8 +7,8 @@
 | Phase A / 文档与工程基线 | done | 文档入口、脚手架、基础编排已完成 |
 | Phase 1 / Foundation | done | 用户、组织、档案、附件、任务基础、异步通知骨架已完成并通过用户点击验证 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、审计日志、ARQ 提醒 worker、统计与协同任务页已完成并通过用户简单测试 |
-| Phase 3 / HR Governance & Org Modeling | in_validation | 代码已实现并通过自动化检查，等待用户手动验测 |
-| Phase 4 / Workflow Engine & Messaging | pending | 尚未开始，依赖 Phase 3 先补齐权限与组织关系 |
+| Phase 3 / HR Governance & Org Modeling | done | 代码已实现、修复 PostgreSQL 迁移命名问题，并通过用户手动验测 |
+| Phase 4 / Workflow Engine & Messaging | next | 尚未开始，已可作为下一阶段推进 |
 | Phase 5 / Knowledge, AI Router & Experience | pending | 尚未开始，排在 HR 与 Workflow 之后 |
 
 ## 已完成里程碑
@@ -93,7 +93,7 @@
 | 协同任务页 | done | 统计卡片、状态按钮、评论区、评论附件、活动时间线、负载概览 | 已执行 `test:unit`、`type-check`、`build`、`lint` |
 | 用户基础验测 | done | 用户进行了简单测试并确认“看上去基本没有问题” | 已完成阶段性文档收口 |
 
-### Phase 3 / HR Governance & Org Modeling（代码已实现，待用户手动验测）
+### Phase 3 / HR Governance & Org Modeling
 
 #### 1. 模型先行
 
@@ -125,7 +125,7 @@
 
 | 步骤 | 状态 | 产出 | 验证 |
 | --- | --- | --- | --- |
-| 用户手动验测 | pending | 等待用户确认 Phase 3 业务场景是否满足预期 | 自动化验证已通过，尚未收到用户验测结论 |
+| 用户手动验测 | done | 用户已按复现路径重新验证迁移与 Compose 启动链路 | 已完成自动化验证与用户手动验测 |
 
 ## 用户验测补记
 
@@ -150,11 +150,12 @@
 
 - Phase 3 代码已经完成，自动化验证链路已全部通过。
 - 已完成的自动化验证包括：后端 `pytest`、后端 `compileall`、前端 `test:unit`、`type-check`、`build`、`lint`。
-- 当前仍需用户手动验测以下核心场景：
-  1. 不同身份查看同一档案时的字段裁剪
-  2. 多岗位 / 虚线汇报维护
-  3. 生命周期事件录入与档案联动
-  4. 代理授权生效 / 撤销 / 过期
+- 用户在首次手动验测时发现 PostgreSQL 外键名超长，导致 `alembic upgrade head` 与 Compose backend 启动失败。
+- 修复内容：
+  1. 缩短 `profile_field_permissions` 的外键名，满足 PostgreSQL 63 字符限制
+  2. 新增 metadata / Alembic identifier 长度回归测试
+  3. 在真实 PostgreSQL、backend 容器和 Compose backend 服务路径上完成复测
+- 用户已按原复现步骤重新验证，确认问题通过。
 
 ## 当前可用能力
 
@@ -189,8 +190,8 @@
 
 下一阶段优先级已经调整为：
 
-1. **先完成 Phase 3 用户手动验测与文档收口**
-2. **再补齐 Workflow / Messaging 引擎**
+1. **开始 Phase 4 / Workflow & Messaging 设计与实施**
+2. **开始 Phase 4 / Workflow & Messaging**
 3. **最后进入 Knowledge / AI / Push**
 
-这样可以先确认 HR 治理基座在真实业务场景下成立，再进入模板、审批与消息中心。
+当前已经确认 HR 治理基座可用，后续可以按计划进入模板、审批与消息中心。

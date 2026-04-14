@@ -1,8 +1,8 @@
 # Project Filum 架构基线
 
-**版本**: v2.1.0  
-**状态**: Phase A / 1 / 2 已完成；Phase 3 代码已实现并等待用户手动验测  
-**适用范围**: 当前仓库代码、完整数据库 schema、Phase 3 实现基线，以及未来 Phase 4 / 5 的工程扩展边界
+**版本**: v2.2.0  
+**状态**: Phase A / 1 / 2 / 3 已完成；下一阶段进入 Phase 4 准备  
+**适用范围**: 当前仓库代码、完整数据库 schema、Phase 3 已验收基线，以及未来 Phase 4 / 5 的工程扩展边界
 
 ## 1. 文档定位
 
@@ -27,7 +27,7 @@
 - Phase A / 文档与工程基线
 - Phase 1 / Foundation
 - Phase 2 / Collaboration & Stats
-- Phase 3 / HR Governance & Org Modeling（代码已实现，待用户手动验测）
+- Phase 3 / HR Governance & Org Modeling
 
 ### 2.2 当前已实现能力
 
@@ -63,7 +63,7 @@
 | IAM | 账号、JWT、基础 RBAC、会话安全 | 已实现 Phase 3 增强版 | 审批动作授权 |
 | Organization | 部门树、部门负责人、组织范围 | 已实现 Phase 3 增强版 | 被 Workflow / Messaging 消费 |
 | HR Profiles | 主档案、动态字段、基础资料 | 已实现 Phase 3 增强版 | 与模板 / 审批联动 |
-| HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现，待用户手动验测 | 事件与模板 / 审批联动 |
+| HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现 | 事件与模板 / 审批联动 |
 | Workflow Core | 任务、依赖、状态机、统计 | 已实现 | Phase 4 扩展模板 / 审批 / 自动化 |
 | Task Collaboration | 评论、日志、评论附件、时间线 | 已实现 | 与模板 / 审批 / 多视图打通 |
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现骨架 | 真实渠道适配器、回执、浏览器推送 |
@@ -282,8 +282,8 @@
 | Phase A | done | 文档入口、脚手架、基础编排 |
 | Phase 1 / Foundation | done | 用户、部门、档案、附件、任务基础、异步通知骨架 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、日志、ARQ 提醒、统计与协同页 |
-| Phase 3 / HR Governance & Org Modeling | in_validation | 生命周期、字段权限、多岗位、汇报线、代理授权 |
-| Phase 4 / Workflow Engine & Messaging | planned | 模板、审批流、自动触发、消息中心、多视图 |
+| Phase 3 / HR Governance & Org Modeling | done | 生命周期、字段权限、多岗位、汇报线、代理授权 |
+| Phase 4 / Workflow Engine & Messaging | next | 模板、审批流、自动触发、消息中心、多视图 |
 | Phase 5 / Knowledge, AI Router & Experience | planned | 知识库、RAG、`@系统` 路由、Push、PWA |
 
 ## 8. 数据库设计原则

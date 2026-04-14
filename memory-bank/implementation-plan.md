@@ -7,7 +7,7 @@
 - **Phase A 已完成**
 - **Phase 1 / Foundation 已完成**
 - **Phase 2 / Collaboration & Stats 已完成**
-- **Phase 3 / HR Governance & Org Modeling 已实现并进入用户验测闸门**
+- **Phase 3 / HR Governance & Org Modeling 已完成并通过用户验测**
 
 因此，本文件不再从“仓库初始化”开始叙述，而是从 **Phase 2 之后的真实开发起点** 出发，重排后续实施路线。
 
@@ -75,13 +75,13 @@
 | Phase A | done | 文档与脚手架基线 |
 | Phase 1 / Foundation | done | 用户、组织、档案、附件、任务基础、异步通知骨架 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、日志、提醒、统计、协同页 |
-| Phase 3 / HR Governance & Org Modeling | in_validation | HR 生命周期、字段级权限、组织关系、代理授权 |
-| Phase 4 / Workflow Engine & Messaging | planned | 模板、审批流、自动触发、消息中心、多视图 |
+| Phase 3 / HR Governance & Org Modeling | done | HR 生命周期、字段级权限、组织关系、代理授权 |
+| Phase 4 / Workflow Engine & Messaging | next | 模板、审批流、自动触发、消息中心、多视图 |
 | Phase 5 / Knowledge, AI Router & Experience | planned | 知识库、RAG、`@系统` 路由、浏览器推送、PWA |
 
 ## 6. Phase 3 / HR Governance & Org Modeling
 
-**当前状态**：代码已完成，自动化测试已通过，等待用户手动验测。
+**当前状态**：代码已完成，自动化测试与用户手动验测均已通过。
 
 ### 6.1 目标
 
@@ -155,8 +155,7 @@
 
 ### 6.5 阶段闸门
 
-- 用户验证 Phase 3 后，才允许进入 Phase 4
-- 在用户确认前，Phase 3 相关文档只记录为 `in_validation`，不写成已验收通过
+- Phase 3 已完成并满足进入 Phase 4 的前置条件
 
 ## 7. Phase 4 / Workflow Engine & Messaging
 
