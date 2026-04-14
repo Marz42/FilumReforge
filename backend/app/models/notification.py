@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, String
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db_types import build_enum, build_json_type
@@ -12,6 +12,7 @@ from app.core.enums import (
   NotificationChannel,
   NotificationDeliveryStatus,
   NotificationMessageStatus,
+  NotificationReceiptType,
 )
 from app.models.base import Base
 from app.models.mixins import CreatedAtMixin, UUIDPrimaryKeyMixin
@@ -44,6 +45,7 @@ class NotificationMessage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
 
   recipient_user = relationship("User", back_populates="notification_messages")
   deliveries = relationship("NotificationDelivery", back_populates="message", cascade="all, delete-orphan")
+  receipts = relationship("NotificationReceipt", back_populates="message", cascade="all, delete-orphan")
 
 
 class NotificationDelivery(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
@@ -74,3 +76,32 @@ class NotificationDelivery(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
   delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
   message = relationship("NotificationMessage", back_populates="deliveries")
+
+
+class NotificationReceipt(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
+  __tablename__ = "notification_receipts"
+  __table_args__ = (
+    UniqueConstraint("message_id", "user_id", "receipt_type", name="uq_notification_receipts_binding"),
+    Index("idx_notification_receipts_user_id_created_at", "user_id", "created_at"),
+  )
+
+  message_id: Mapped[UUID] = mapped_column(
+    ForeignKey(
+      "notification_messages.id",
+      name="fk_notification_receipts_message",
+      ondelete="CASCADE",
+    ),
+    nullable=False,
+  )
+  user_id: Mapped[UUID] = mapped_column(
+    ForeignKey("users.id", name="fk_notification_receipts_user"),
+    nullable=False,
+  )
+  receipt_type: Mapped[NotificationReceiptType] = mapped_column(
+    build_enum(enum_cls=NotificationReceiptType, name="notification_receipt_type"),
+    nullable=False,
+  )
+  note: Mapped[str | None] = mapped_column(nullable=True)
+
+  message = relationship("NotificationMessage", back_populates="receipts")
+  user = relationship("User", back_populates="notification_receipts")

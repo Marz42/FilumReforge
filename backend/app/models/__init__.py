@@ -11,9 +11,20 @@ from app.models.hr_governance import (
   ProfilePosition,
   ReportingLine,
 )
-from app.models.notification import NotificationDelivery, NotificationMessage
+from app.models.notification import NotificationDelivery, NotificationMessage, NotificationReceipt
 from app.models.profile import Profile
 from app.models.task import Task, TaskComment, TaskDependency, TaskLog
+from app.models.task_workflow import (
+  TaskSchedule,
+  TaskTemplate,
+  TaskTemplateStep,
+  TaskTemplateStepDependency,
+  TaskWatcher,
+  WorkflowDefinition,
+  WorkflowInstance,
+  WorkflowStep,
+  WorkflowStepRun,
+)
 from app.models.user import User
 
 __all__ = [
@@ -25,6 +36,7 @@ __all__ = [
   "EmploymentEvent",
   "NotificationDelivery",
   "NotificationMessage",
+  "NotificationReceipt",
   "Position",
   "Profile",
   "ProfileFieldDefinition",
@@ -36,5 +48,14 @@ __all__ = [
   "TaskComment",
   "TaskDependency",
   "TaskLog",
+  "TaskSchedule",
+  "TaskTemplate",
+  "TaskTemplateStep",
+  "TaskTemplateStepDependency",
+  "TaskWatcher",
   "User",
+  "WorkflowDefinition",
+  "WorkflowInstance",
+  "WorkflowStep",
+  "WorkflowStepRun",
 ]

@@ -36,7 +36,48 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   uploaded_attachments = relationship("Attachment", back_populates="uploader")
   refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
   notification_messages = relationship("NotificationMessage", back_populates="recipient_user")
+  notification_receipts = relationship("NotificationReceipt", back_populates="user")
   position_assignments = relationship("ProfilePosition", back_populates="user")
+  created_task_templates = relationship(
+    "TaskTemplate",
+    back_populates="creator",
+    foreign_keys="TaskTemplate.created_by",
+  )
+  workflow_definitions_created = relationship(
+    "WorkflowDefinition",
+    back_populates="creator",
+    foreign_keys="WorkflowDefinition.created_by",
+  )
+  workflow_instances_started = relationship(
+    "WorkflowInstance",
+    back_populates="initiator",
+    foreign_keys="WorkflowInstance.initiator_user_id",
+  )
+  workflow_step_runs_assigned = relationship(
+    "WorkflowStepRun",
+    back_populates="assignee",
+    foreign_keys="WorkflowStepRun.assignee_user_id",
+  )
+  workflow_step_runs_delegated = relationship(
+    "WorkflowStepRun",
+    back_populates="delegated_from",
+    foreign_keys="WorkflowStepRun.delegated_from_user_id",
+  )
+  task_watches = relationship(
+    "TaskWatcher",
+    back_populates="user",
+    foreign_keys="TaskWatcher.user_id",
+  )
+  created_task_watches = relationship(
+    "TaskWatcher",
+    back_populates="creator",
+    foreign_keys="TaskWatcher.created_by",
+  )
+  task_schedules = relationship(
+    "TaskSchedule",
+    back_populates="owner",
+    foreign_keys="TaskSchedule.owner_user_id",
+  )
   reporting_lines = relationship(
     "ReportingLine",
     foreign_keys="ReportingLine.user_id",

@@ -22,13 +22,17 @@ from app.services.auth_service import AuthService
 from app.services.department_service import DepartmentService
 from app.services.delegation_service import DelegationService
 from app.services.hr_lifecycle_service import HRLifecycleService
+from app.services.message_center_service import MessageCenterService
 from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.profile_field_policy_service import ProfileFieldPolicyService
 from app.services.profile_service import ProfileService
+from app.services.task_automation_service import TaskAutomationService
 from app.services.task_service import TaskService
+from app.services.task_template_service import TaskTemplateService
 from app.services.user_service import UserService
+from app.services.workflow_engine_service import WorkflowEngineService
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -131,6 +135,34 @@ def get_task_service(
   attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
 ) -> TaskService:
   return TaskService(session, notification_service, attachment_service)
+
+
+def get_task_template_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+) -> TaskTemplateService:
+  return TaskTemplateService(session, task_service, notification_service)
+
+
+def get_task_automation_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
+) -> TaskAutomationService:
+  return TaskAutomationService(session, task_template_service)
+
+
+def get_workflow_engine_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+) -> WorkflowEngineService:
+  return WorkflowEngineService(session, notification_service)
+
+
+def get_message_center_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MessageCenterService:
+  return MessageCenterService(session)
 
 
 async def get_current_user(

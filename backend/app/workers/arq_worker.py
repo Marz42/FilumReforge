@@ -9,9 +9,16 @@ from app.integrations.notifications.queue import (
   PROCESS_NOTIFICATION_MESSAGE_JOB,
   RedisNotificationQueuePublisher,
 )
-from app.workers.jobs import enqueue_overdue_task_reminders, process_notification_message_payload
+from app.workers.jobs import (
+  enqueue_overdue_task_reminders,
+  enqueue_pending_workflow_reminders,
+  process_notification_message_payload,
+  run_due_task_schedules,
+)
 
 OVERDUE_REMINDER_JOB = "enqueue_overdue_task_reminders"
+WORKFLOW_REMINDER_JOB = "enqueue_pending_workflow_reminders"
+TASK_SCHEDULE_JOB = "run_due_task_schedules"
 
 
 async def startup(ctx: dict[str, object]) -> None:
@@ -48,11 +55,44 @@ async def enqueue_overdue_task_reminders_job(ctx: dict[str, object]) -> int:
     )
 
 
+async def enqueue_pending_workflow_reminders_job(ctx: dict[str, object]) -> int:
+  settings: Settings = ctx["settings"]  # type: ignore[assignment]
+  session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
+  queue_publisher = RedisNotificationQueuePublisher(
+    redis_dsn=settings.redis_dsn,
+    queue_name=settings.redis_notification_queue,
+  )
+  async with session_factory() as session:
+    return await enqueue_pending_workflow_reminders(
+      session=session,
+      queue_publisher=queue_publisher,
+    )
+
+
+async def run_due_task_schedules_job(ctx: dict[str, object]) -> int:
+  settings: Settings = ctx["settings"]  # type: ignore[assignment]
+  session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
+  queue_publisher = RedisNotificationQueuePublisher(
+    redis_dsn=settings.redis_dsn,
+    queue_name=settings.redis_notification_queue,
+  )
+  async with session_factory() as session:
+    return await run_due_task_schedules(
+      session=session,
+      queue_publisher=queue_publisher,
+    )
+
+
 _settings = get_settings()
 
 
 class WorkerSettings:
-  functions = [process_notification_message, enqueue_overdue_task_reminders_job]
+  functions = [
+    process_notification_message,
+    enqueue_overdue_task_reminders_job,
+    enqueue_pending_workflow_reminders_job,
+    run_due_task_schedules_job,
+  ]
   cron_jobs = [
     cron(
       enqueue_overdue_task_reminders_job,
@@ -60,7 +100,21 @@ class WorkerSettings:
       minute={0, 15, 30, 45},
       run_at_startup=True,
       unique=True,
-    )
+    ),
+    cron(
+      enqueue_pending_workflow_reminders_job,
+      name=WORKFLOW_REMINDER_JOB,
+      minute={10, 40},
+      run_at_startup=True,
+      unique=True,
+    ),
+    cron(
+      run_due_task_schedules_job,
+      name=TASK_SCHEDULE_JOB,
+      minute={5, 20, 35, 50},
+      run_at_startup=True,
+      unique=True,
+    ),
   ]
   on_startup = startup
   on_shutdown = shutdown

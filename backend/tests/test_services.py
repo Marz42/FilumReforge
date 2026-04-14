@@ -15,27 +15,34 @@ from app.core.enums import (
   DelegationScopeType,
   EmploymentEventType,
   NotificationChannel,
+  NotificationReceiptType,
   PositionAssignmentType,
   ReportingLineType,
   TaskActionType,
   TaskStatus,
   UserRole,
   UserStatus,
+  WorkflowDefinitionStatus,
+  WorkflowInstanceStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError
-from app.models import AttachmentLink, TaskLog
+from app.models import AttachmentLink, TaskDependency, TaskLog
 from app.integrations.storage.local import LocalStorageAdapter
 from app.services.attachment_service import AttachmentService
 from app.services.auth_service import AuthService
 from app.services.delegation_service import DelegationService
 from app.services.department_service import DepartmentService
 from app.services.hr_lifecycle_service import HRLifecycleService
+from app.services.message_center_service import MessageCenterService
 from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.profile_service import ProfileService
+from app.services.task_automation_service import TaskAutomationService
 from app.services.task_service import CommentAttachmentInput, TaskService
+from app.services.task_template_service import TaskTemplateService
 from app.services.user_service import UserService
+from app.services.workflow_engine_service import WorkflowEngineService
 
 
 class InMemoryQueuePublisher:
@@ -619,3 +626,288 @@ async def test_phase3_services_apply_lifecycle_events(db_session) -> None:
   assert len(events) == 3
   assert any(position.position_id == lead_position.id for position in positions)
   assert any(position.position_id == specialist_position.id and position.is_primary for position in positions)
+
+
+@pytest.mark.asyncio
+async def test_phase4_template_automation_and_message_center_services(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.HR,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  watcher = await user_service.create_user(
+    actor=admin,
+    email="watcher@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="流程部",
+    code="workflow-dept",
+    manager_id=manager.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=manager.id,
+    employee_no="EMP-MGR-001",
+    real_name="部门负责人",
+    department_id=department.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=requester.id,
+    employee_no="EMP-REQ-001",
+    real_name="申请员工",
+    department_id=department.id,
+  )
+
+  notification_queue = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, notification_queue)
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+  task_automation_service = TaskAutomationService(db_session, task_template_service)
+  message_center_service = MessageCenterService(db_session)
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="onboard-sop",
+    name="入职 SOP",
+    category="hr",
+    steps=[
+      {
+        "step_key": "prepare",
+        "title": "提交资料",
+        "default_assignee_rule": {"type": "initiator"},
+      },
+      {
+        "step_key": "review",
+        "title": "经理复核",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["prepare"],
+      },
+    ],
+  )
+
+  tasks = await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=template.id,
+    watcher_user_ids=[watcher.id],
+    payload={"department_id": str(department.id)},
+  )
+  dependency_rows = list(
+    await db_session.scalars(
+      select(TaskDependency).where(TaskDependency.task_id == tasks[1].id)
+    )
+  )
+  watchers = await task_service.list_task_watchers(actor=admin, task_id=tasks[0].id)
+  watcher_messages = await message_center_service.list_messages(actor=watcher)
+  read_receipt = await message_center_service.create_receipt(
+    actor=watcher,
+    message_id=watcher_messages[0].id,
+    receipt_type=NotificationReceiptType.READ,
+  )
+  idempotent_receipt = await message_center_service.create_receipt(
+    actor=watcher,
+    message_id=watcher_messages[0].id,
+    receipt_type=NotificationReceiptType.READ,
+  )
+
+  schedule = await task_automation_service.create_schedule(
+    actor=admin,
+    template_id=template.id,
+    cron_expr="*/5 * * * *",
+    payload={"department_id": str(department.id)},
+  )
+  schedule.next_run_at = datetime.now(UTC) - timedelta(minutes=1)
+  await db_session.commit()
+  executed_count = await task_automation_service.run_due_schedules(now=datetime.now(UTC))
+  all_tasks = await task_service.list_tasks(actor=admin)
+
+  assert len(tasks) == 2
+  assert tasks[0].source_type.value == "template"
+  assert dependency_rows[0].depends_on_task_id == tasks[0].id
+  assert [watcher_binding.user_id for watcher_binding in watchers] == [watcher.id]
+  assert len([message for message in watcher_messages if message.message_type == "task_cc_added"]) == 2
+  assert read_receipt.id == idempotent_receipt.id
+  assert executed_count == 1
+  assert len(all_tasks) == 4
+  assert schedule.next_run_at is not None
+
+
+@pytest.mark.asyncio
+async def test_phase4_workflow_engine_supports_delegation_and_return_flow(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  delegation_service = DelegationService(db_session)
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.HR,
+  )
+  delegate = await user_service.create_user(
+    actor=admin,
+    email="delegate@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="审批部",
+    code="approval-dept",
+    manager_id=manager.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=manager.id,
+    employee_no="EMP-MGR-002",
+    real_name="审批经理",
+    department_id=department.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=requester.id,
+    employee_no="EMP-REQ-002",
+    real_name="申请人",
+    department_id=department.id,
+  )
+
+  await delegation_service.create_delegation(
+    actor=manager,
+    delegator_user_id=manager.id,
+    delegate_user_id=delegate.id,
+    scope_type=DelegationScopeType.APPROVAL,
+    scope_department_id=department.id,
+    starts_at=datetime.now(UTC) - timedelta(hours=1),
+    ends_at=datetime.now(UTC) + timedelta(days=2),
+  )
+
+  notification_queue = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, notification_queue)
+  workflow_engine_service = WorkflowEngineService(db_session, notification_service)
+
+  definition = await workflow_engine_service.create_definition(
+    actor=admin,
+    code="leave-approval",
+    name="请假审批",
+    scope_type="leave_request",
+    status=WorkflowDefinitionStatus.ACTIVE,
+    steps=[
+      {
+        "step_key": "draft",
+        "name": "申请提交",
+        "step_type": "task",
+        "assignee_rule": {"type": "initiator"},
+      },
+      {
+        "step_key": "approve",
+        "name": "经理审批",
+        "step_type": "approval",
+        "assignee_rule": {"type": "department_manager"},
+        "reject_target_step_key": "draft",
+      },
+    ],
+  )
+
+  instance = await workflow_engine_service.start_workflow(
+    actor=requester,
+    definition_id=definition.id,
+    source_type="leave_request",
+    payload={"department_id": str(department.id)},
+  )
+  draft_step_run = next(
+    step_run
+    for step_run in instance.step_runs
+    if step_run.step is not None and step_run.step.step_key == "draft" and step_run.status.value == "pending"
+  )
+  instance = await workflow_engine_service.act_step_run(
+    actor=requester,
+    step_run_id=draft_step_run.id,
+    action="approve",
+  )
+  delegated_step_run = next(
+    step_run
+    for step_run in instance.step_runs
+    if step_run.step is not None and step_run.step.step_key == "approve" and step_run.status.value == "pending"
+  )
+  assert delegated_step_run.assignee_user_id == delegate.id
+  assert delegated_step_run.delegated_from_user_id == manager.id
+
+  returned_instance = await workflow_engine_service.act_step_run(
+    actor=delegate,
+    step_run_id=delegated_step_run.id,
+    action="return",
+    comment="补充说明",
+  )
+  returned_draft_step_run = next(
+    step_run
+    for step_run in returned_instance.step_runs
+    if (
+      step_run.step is not None
+      and step_run.step.step_key == "draft"
+      and step_run.status.value == "pending"
+      and step_run.payload.get("iteration") == 2
+    )
+  )
+  assert returned_instance.status == WorkflowInstanceStatus.RETURNED
+
+  resubmitted_instance = await workflow_engine_service.act_step_run(
+    actor=requester,
+    step_run_id=returned_draft_step_run.id,
+    action="approve",
+  )
+  delegated_step_run = next(
+    step_run
+    for step_run in resubmitted_instance.step_runs
+    if (
+      step_run.step is not None
+      and step_run.step.step_key == "approve"
+      and step_run.status.value == "pending"
+      and step_run.payload.get("iteration") == 2
+    )
+  )
+  completed_instance = await workflow_engine_service.act_step_run(
+    actor=delegate,
+    step_run_id=delegated_step_run.id,
+    action="approve",
+  )
+
+  assert completed_instance.status == WorkflowInstanceStatus.APPROVED
+  assert any(payload["message_type"] == "workflow_action_required" for payload in notification_queue.payloads)
+  assert any(payload["message_type"] == "workflow_returned" for payload in notification_queue.payloads)

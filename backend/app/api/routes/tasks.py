@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,15 +14,19 @@ from app.models import Attachment, AttachmentLink, User
 from app.schemas.attachments import AttachmentRead
 from app.schemas.tasks import (
   TaskActivityEntryRead,
-  TaskCommentRead,
-  TaskCreateRequest,
-  TaskLogRead,
-  TaskRead,
-  TaskStatsSummaryRead,
-  TaskStatusUpdateRequest,
-  TaskUpdateRequest,
-  TaskWorkloadEntryRead,
-)
+    TaskCommentRead,
+    TaskCreateRequest,
+    TaskGanttEntryRead,
+    TaskLogRead,
+    TaskBoardColumnRead,
+    TaskRead,
+    TaskStatsSummaryRead,
+    TaskStatusUpdateRequest,
+    TaskUpdateRequest,
+    TaskWatcherBatchRequest,
+    TaskWatcherRead,
+    TaskWorkloadEntryRead,
+  )
 from app.services.object_storage_service import ObjectStorageService
 from app.services.task_service import CommentAttachmentInput, TaskActivityEntry, TaskService
 
@@ -166,6 +170,36 @@ async def read_task_workload(
   return [TaskWorkloadEntryRead.model_validate(row) for row in workload]
 
 
+@router.get("/views/board", response_model=list[TaskBoardColumnRead])
+async def read_task_board(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> list[TaskBoardColumnRead]:
+  board = await task_service.get_task_board(actor=actor)
+  return [
+    TaskBoardColumnRead(
+      status=column.status,
+      tasks=[TaskRead.model_validate(task) for task in column.tasks],
+    )
+    for column in board
+  ]
+
+
+@router.get("/views/gantt", response_model=list[TaskGanttEntryRead])
+async def read_task_gantt(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> list[TaskGanttEntryRead]:
+  gantt_entries = await task_service.get_task_gantt(actor=actor)
+  return [
+    TaskGanttEntryRead(
+      task=TaskRead.model_validate(entry.task),
+      dependency_ids=entry.dependency_ids,
+    )
+    for entry in gantt_entries
+  ]
+
+
 @router.patch("/{task_id}", response_model=TaskRead)
 async def update_task(
   task_id: UUID,
@@ -184,6 +218,46 @@ async def update_task(
     priority=payload.priority,
   )
   return TaskRead.model_validate(task)
+
+
+@router.get("/{task_id}/watchers", response_model=list[TaskWatcherRead])
+async def list_task_watchers(
+  task_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> list[TaskWatcherRead]:
+  watchers = await task_service.list_task_watchers(actor=actor, task_id=task_id)
+  return [TaskWatcherRead.model_validate(watcher) for watcher in watchers]
+
+
+@router.post("/{task_id}/watchers", response_model=list[TaskWatcherRead])
+async def add_task_watchers(
+  task_id: UUID,
+  payload: TaskWatcherBatchRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> list[TaskWatcherRead]:
+  watchers = await task_service.add_task_watchers(
+    actor=actor,
+    task_id=task_id,
+    watcher_user_ids=payload.user_ids,
+  )
+  return [TaskWatcherRead.model_validate(watcher) for watcher in watchers]
+
+
+@router.delete("/{task_id}/watchers/{watcher_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_watcher(
+  task_id: UUID,
+  watcher_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> Response:
+  await task_service.remove_task_watcher(
+    actor=actor,
+    task_id=task_id,
+    watcher_id=watcher_id,
+  )
+  return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/{task_id}/status", response_model=TaskRead)

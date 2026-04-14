@@ -8,8 +8,8 @@
 | Phase 1 / Foundation | done | 用户、组织、档案、附件、任务基础、异步通知骨架已完成并通过用户点击验证 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、审计日志、ARQ 提醒 worker、统计与协同任务页已完成并通过用户简单测试 |
 | Phase 3 / HR Governance & Org Modeling | done | 代码已实现、修复 PostgreSQL 迁移命名问题，并通过用户手动验测 |
-| Phase 4 / Workflow Engine & Messaging | next | 尚未开始，已可作为下一阶段推进 |
-| Phase 5 / Knowledge, AI Router & Experience | pending | 尚未开始，排在 HR 与 Workflow 之后 |
+| Phase 4 / Workflow Engine & Messaging | done | 模板、审批流、自动化、消息中心与多视图已完成，并通过用户手动验测 |
+| Phase 5 / Knowledge, AI Router & Experience | next | 作为下一阶段推进，重点转向 Knowledge / AI Router / Push |
 
 ## 已完成里程碑
 
@@ -127,6 +127,42 @@
 | --- | --- | --- | --- |
 | 用户手动验测 | done | 用户已按复现路径重新验证迁移与 Compose 启动链路 | 已完成自动化验证与用户手动验测 |
 
+### Phase 4 / Workflow Engine & Messaging
+
+#### 1. 模型先行
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| Workflow / Messaging 枚举与模型 | done | `task_templates`、`workflow_*`、`task_watchers`、`task_schedules`、`notification_receipts` | 已执行模型与 metadata 测试 |
+| Alembic 迁移 | done | `20260416_01_phase4_workflow_messaging.py` | 已执行升级 / 回滚与约束回归测试 |
+
+#### 2. 服务层封装
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| 模板 / 审批 / 自动化服务 | done | `TaskTemplateService`、`WorkflowEngineService`、`TaskAutomationService`、`workflow_rule_resolver.py` | 已执行服务测试 |
+| 消息中心与任务扩展 | done | `MessageCenterService`、`TaskService` watcher / board / gantt 扩展 | 已执行服务测试 |
+
+#### 3. Worker 与 API
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| Worker 调度与提醒 | done | 周期模板实例化、审批提醒扫描、ARQ cron 注册 | 已执行 worker 单元测试 |
+| 模板 / 审批 / 消息 API | done | `task_templates`、`workflows`、`messages` 路由及 `tasks` 多视图 / watcher 接口 | 已执行 API 集成测试 |
+
+#### 4. 前端对接
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| Workflow 工作台 | done | `TaskTemplatesView.vue`、`ApprovalsView.vue`、`MessagesView.vue` | 已执行前端单元测试 |
+| 任务中心多视图 | done | `TasksView.vue` 扩展列表 / 看板 / 甘特图与关注人 | 已执行 `test:unit`、`type-check`、`build`、`lint` |
+
+#### 5. 当前阶段闸门
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| 用户手动验测 | done | 用户已确认 Phase 4 通过，可进入下一阶段 | 已完成自动化验证与用户手动验测 |
+
 ## 用户验测补记
 
 ### Phase 1 验测补记
@@ -157,6 +193,17 @@
   3. 在真实 PostgreSQL、backend 容器和 Compose backend 服务路径上完成复测
 - 用户已按原复现步骤重新验证，确认问题通过。
 
+### Phase 4 验测补记
+
+- Phase 4 代码已经完成，自动化验证链路已全部通过。
+- 已完成的自动化验证包括：后端 `pytest`、后端 `compileall`、前端 `test:unit`、`type-check`、`build`、`lint`。
+- 本阶段新增的关键能力包括：
+  1. 任务模板与周期调度
+  2. 轻量审批流引擎（串行 / 会签 / 或签 / 打回 / 驳回 / 代理审批）
+  3. 消息中心与用户回执
+  4. 任务中心列表 / 看板 / 甘特图多视图与 watcher
+- 用户已确认 Phase 4 通过，因此当前文档状态已推进为 **Phase 4 done / Phase 5 next**。
+
 ## 当前可用能力
 
 - 管理员初始化、登录、JWT access / refresh 会话
@@ -172,17 +219,20 @@
 - 严格任务状态机
 - 任务评论、内部备注、评论附件、活动时间线
 - 任务完成率 / 逾期率 / 负载统计
+- 任务模板、模板实例化与周期任务调度
+- 审批流定义、审批实例、待办审批与代理审批
+- 任务 watcher / 抄送
+- 任务中心列表 / 看板 / 甘特图多视图
 - 通知消息落库、ARQ 入队、逾期提醒扫描与状态回写
+- 消息中心收件箱与消息回执
 - Compose 本地开发基线（postgres / redis / backend / worker / frontend / nginx）
 
 ## 当前明确缺口（非完成项）
 
 | 方向 | 仍未实现的关键能力 | 目标阶段 |
 | --- | --- | --- |
-| HR 流程自动化 | 生命周期事件与任务模板 / 审批流联动、字段权限可视化管理增强 | Phase 4 |
-| Workflow 引擎 | 模板 / SOP、审批流、自动触发、抄送、周期任务 | Phase 4 |
-| 消息中心 | 真实渠道适配器、消息回执、消息附件、独立消息收件箱 | Phase 4 |
-| 前端体验 | 看板、甘特图、消息中心页面 | Phase 4 |
+| HR 流程自动化 | 生命周期事件与任务模板 / 审批流联动、字段权限可视化管理增强 | 后续增强 |
+| 消息渠道深化 | 真实 Email / WebSocket / Web Push 适配器、消息附件 | Phase 5+ |
 | Knowledge / AI | 文档库、RAG、`@系统` / `/` 路由、Tool Calling | Phase 5 |
 | Push / PWA | 浏览器推送订阅、PWA 安装与体验打磨 | Phase 5 |
 
@@ -190,8 +240,8 @@
 
 下一阶段优先级已经调整为：
 
-1. **开始 Phase 4 / Workflow & Messaging 设计**
-2. **优先落地模板、审批流与消息中心的模型 / 服务边界**
-3. **最后进入 Knowledge / AI / Push**
+1. **开始 Phase 5 / Knowledge, AI Router & Experience 设计**
+2. **优先落地文档知识库、RAG 与 `@系统` / `/` 路由**
+3. **在此基础上进入浏览器推送与 PWA**
 
-当前已经确认 HR 治理基座可用，后续可以按计划进入模板、审批与消息中心。
+当前已经确认 Workflow & Messaging 基座可用，后续可以按计划进入 Knowledge / AI / Push。

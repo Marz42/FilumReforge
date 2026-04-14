@@ -21,6 +21,9 @@ const navigationItems = computed(() => {
   const items = [
     { label: '仪表盘', routeName: 'dashboard' },
     { label: '任务中心', routeName: 'tasks' },
+    { label: '模板中心', routeName: 'task-templates' },
+    { label: '审批中心', routeName: 'approvals' },
+    { label: '消息中心', routeName: 'messages' },
   ]
 
   if (authStore.isManagementRole) {
@@ -55,7 +58,7 @@ function handleLogout(): void {
     <el-aside width="240px" class="app-shell__aside">
       <div class="app-shell__brand">
         <h1>{{ appStore.projectName }}</h1>
-        <p>{{ appStore.currentPhase }} · Foundation</p>
+        <p>{{ appStore.currentPhase }} · Workflow & Messaging</p>
       </div>
 
       <el-menu

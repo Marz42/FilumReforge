@@ -19,7 +19,7 @@ from app.core.enums import (
   TaskStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
-from app.models import Department, Profile, Task, TaskComment, TaskDependency, TaskLog, User
+from app.models import Department, Profile, Task, TaskComment, TaskDependency, TaskLog, TaskWatcher, User
 from app.schemas.messages import NotificationMessage
 from app.services.access_control import (
   MANAGEMENT_ROLES,
@@ -68,6 +68,18 @@ class TaskWorkloadEntry:
   overdue_tasks: int
 
 
+@dataclass(slots=True)
+class TaskBoardColumn:
+  status: TaskStatus
+  tasks: list[Task]
+
+
+@dataclass(slots=True)
+class TaskGanttEntry:
+  task: Task
+  dependency_ids: list[UUID]
+
+
 ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
   TaskStatus.TODO: {TaskStatus.DOING},
   TaskStatus.DOING: {TaskStatus.REVIEW},
@@ -104,6 +116,134 @@ class TaskService:
     self._session = session
     self._notification_service = notification_service
     self._attachment_service = attachment_service
+
+  async def _resolve_assignee_for_task(
+    self,
+    *,
+    actor: User,
+    assignee_id: UUID,
+    skip_assignee_permission: bool = False,
+  ) -> User:
+    assignee = await self._session.get(User, assignee_id)
+    if assignee is None:
+      raise NotFoundError("执行人不存在。")
+    ensure_active_user(assignee)
+    if not skip_assignee_permission and not await can_manage_assignee(self._session, actor, assignee_id):
+      raise AuthorizationError("当前账号不能为该执行人创建任务。")
+    return assignee
+
+  async def _resolve_task_department_id(
+    self,
+    *,
+    assignee_id: UUID,
+    department_id: UUID | None,
+  ) -> UUID | None:
+    if department_id is None:
+      return await self._session.scalar(
+        select(Profile.department_id).where(Profile.user_id == assignee_id)
+      )
+
+    if await self._session.get(Department, department_id) is None:
+      raise NotFoundError("所属部门不存在。")
+    return department_id
+
+  async def _send_assignment_notification(self, *, task: Task, assignee: User) -> None:
+    if self._notification_service is None:
+      return
+
+    await self._notification_service.send(
+      NotificationMessage(
+        source_type="task",
+        source_id=task.id,
+        recipient_user_id=assignee.id,
+        recipient_email=assignee.email,
+        message_type="task_assigned",
+        title=f"收到新任务：{task.title}",
+        body_text=f"任务「{task.title}」已分配给你，请及时处理。",
+        channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+      )
+    )
+
+  async def create_task_record(
+    self,
+    *,
+    actor: User,
+    title: str,
+    assignee_id: UUID,
+    description: str | None = None,
+    department_id: UUID | None = None,
+    due_date: datetime | None = None,
+    priority: TaskPriority = TaskPriority.MEDIUM,
+    dependency_ids: list[UUID] | None = None,
+    source_type: TaskSourceType = TaskSourceType.MANUAL,
+    extra_metadata: dict[str, object] | None = None,
+    commit: bool = False,
+    skip_assignee_permission: bool = False,
+  ) -> tuple[Task, User]:
+    ensure_active_user(actor)
+
+    assignee = await self._resolve_assignee_for_task(
+      actor=actor,
+      assignee_id=assignee_id,
+      skip_assignee_permission=skip_assignee_permission,
+    )
+    resolved_department_id = await self._resolve_task_department_id(
+      assignee_id=assignee_id,
+      department_id=department_id,
+    )
+
+    task = Task(
+      title=title,
+      description=description,
+      creator_id=actor.id,
+      assignee_id=assignee_id,
+      department_id=resolved_department_id,
+      due_date=due_date,
+      priority=priority,
+      source_type=source_type,
+      extra_metadata=extra_metadata or {},
+    )
+    self._session.add(task)
+    await self._session.flush()
+
+    if dependency_ids:
+      dependency_task_ids = set(await self._session.scalars(select(Task.id).where(Task.id.in_(dependency_ids))))
+      if dependency_task_ids != set(dependency_ids):
+        raise NotFoundError("存在无效的前置任务。")
+      for dependency_id in dependency_ids:
+        self._session.add(
+          TaskDependency(
+            task_id=task.id,
+            depends_on_task_id=dependency_id,
+          )
+        )
+
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.CREATED,
+      detail={
+        "assignee_id": str(assignee_id),
+        "priority": priority.value,
+        "source_type": source_type.value,
+        "dependency_ids": [str(dependency_id) for dependency_id in dependency_ids or []],
+      },
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.ASSIGNED,
+      detail={
+        "assignee_id": str(assignee_id),
+      },
+    )
+
+    if commit:
+      await self._session.commit()
+      await self._session.refresh(task)
+      await self._send_assignment_notification(task=task, assignee=assignee)
+
+    return task, assignee
 
   async def _build_visible_task_statement(self, *, actor: User):
     statement = (
@@ -176,83 +316,18 @@ class TaskService:
     priority: TaskPriority = TaskPriority.MEDIUM,
     dependency_ids: list[UUID] | None = None,
   ) -> Task:
-    ensure_active_user(actor)
-
-    assignee = await self._session.get(User, assignee_id)
-    if assignee is None:
-      raise NotFoundError("执行人不存在。")
-
-    if not await can_manage_assignee(self._session, actor, assignee_id):
-      raise AuthorizationError("当前账号不能为该执行人创建任务。")
-
-    if department_id is None:
-      department_id = await self._session.scalar(
-        select(Profile.department_id).where(Profile.user_id == assignee_id)
-      )
-    elif await self._session.get(Department, department_id) is None:
-      raise NotFoundError("所属部门不存在。")
-
-    task = Task(
+    task, _ = await self.create_task_record(
+      actor=actor,
       title=title,
-      description=description,
-      creator_id=actor.id,
       assignee_id=assignee_id,
+      description=description,
       department_id=department_id,
       due_date=due_date,
       priority=priority,
+      dependency_ids=dependency_ids,
       source_type=TaskSourceType.MANUAL,
+      commit=True,
     )
-    self._session.add(task)
-    await self._session.flush()
-
-    if dependency_ids:
-      dependency_task_ids = set(await self._session.scalars(select(Task.id).where(Task.id.in_(dependency_ids))))
-      if dependency_task_ids != set(dependency_ids):
-        raise NotFoundError("存在无效的前置任务。")
-      for dependency_id in dependency_ids:
-        self._session.add(
-          TaskDependency(
-            task_id=task.id,
-            depends_on_task_id=dependency_id,
-          )
-        )
-
-    await self._create_task_log(
-      task_id=task.id,
-      operator_id=actor.id,
-      action_type=TaskActionType.CREATED,
-      detail={
-        "assignee_id": str(assignee_id),
-        "priority": priority.value,
-        "dependency_ids": [str(dependency_id) for dependency_id in dependency_ids or []],
-      },
-    )
-    await self._create_task_log(
-      task_id=task.id,
-      operator_id=actor.id,
-      action_type=TaskActionType.ASSIGNED,
-      detail={
-        "assignee_id": str(assignee_id),
-      },
-    )
-
-    await self._session.commit()
-    await self._session.refresh(task)
-
-    if self._notification_service is not None:
-      await self._notification_service.send(
-        NotificationMessage(
-          source_type="task",
-          source_id=task.id,
-          recipient_user_id=assignee.id,
-          recipient_email=assignee.email,
-          message_type="task_assigned",
-          title=f"收到新任务：{task.title}",
-          body_text=f"任务「{task.title}」已分配给你，请及时处理。",
-          channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
-        )
-      )
-
     return task
 
   async def list_tasks(self, *, actor: User) -> list[Task]:
@@ -507,6 +582,93 @@ class TaskService:
     activity.sort(key=lambda entry: (_normalize_datetime(entry.created_at), entry.entry_type))
     return activity
 
+  async def list_task_watchers(self, *, actor: User, task_id: UUID) -> list[TaskWatcher]:
+    task = await self.get_task(actor=actor, task_id=task_id)
+    if not await self._can_operate_task(actor=actor, task=task):
+      raise AuthorizationError("当前账号不能查看该任务关注人。")
+
+    result = await self._session.scalars(
+      select(TaskWatcher)
+      .options(selectinload(TaskWatcher.user), selectinload(TaskWatcher.creator))
+      .where(TaskWatcher.task_id == task_id)
+      .order_by(TaskWatcher.created_at.asc())
+    )
+    return list(result)
+
+  async def add_task_watchers(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    watcher_user_ids: list[UUID],
+    relation: str = "cc",
+  ) -> list[TaskWatcher]:
+    task = await self.get_task(actor=actor, task_id=task_id)
+    if not await self._can_operate_task(actor=actor, task=task):
+      raise AuthorizationError("当前账号不能为该任务添加关注人。")
+
+    unique_user_ids = list(dict.fromkeys(watcher_user_ids))
+    existing_bindings = {
+      watcher.user_id
+      for watcher in await self.list_task_watchers(actor=actor, task_id=task_id)
+      if watcher.relation == relation
+    }
+
+    added_watchers: list[tuple[TaskWatcher, User]] = []
+    for watcher_user_id in unique_user_ids:
+      if watcher_user_id in existing_bindings:
+        continue
+      watcher_user = await self._session.get(User, watcher_user_id)
+      if watcher_user is None:
+        raise NotFoundError("关注人不存在。")
+      ensure_active_user(watcher_user)
+      watcher = TaskWatcher(
+        task_id=task.id,
+        user_id=watcher_user_id,
+        relation=relation,
+        created_by=actor.id,
+      )
+      self._session.add(watcher)
+      added_watchers.append((watcher, watcher_user))
+
+    await self._session.commit()
+
+    if self._notification_service is not None:
+      for _, watcher_user in added_watchers:
+        if watcher_user.id == actor.id:
+          continue
+        await self._notification_service.send(
+          NotificationMessage(
+            source_type="task",
+            source_id=task.id,
+            recipient_user_id=watcher_user.id,
+            recipient_email=watcher_user.email,
+            message_type="task_cc_added",
+            title=f"你被加入任务关注：{task.title}",
+            body_text=f"任务「{task.title}」已将你加入关注列表。",
+            channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+          )
+        )
+
+    return await self.list_task_watchers(actor=actor, task_id=task_id)
+
+  async def remove_task_watcher(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    watcher_id: UUID,
+  ) -> None:
+    task = await self.get_task(actor=actor, task_id=task_id)
+    if not await self._can_operate_task(actor=actor, task=task):
+      raise AuthorizationError("当前账号不能移除该任务关注人。")
+
+    watcher = await self._session.get(TaskWatcher, watcher_id)
+    if watcher is None or watcher.task_id != task.id:
+      raise NotFoundError("关注关系不存在。")
+    await self._session.delete(watcher)
+    await self._session.commit()
+
   async def list_overdue_tasks(self) -> list[Task]:
     result = await self._session.scalars(
       select(Task)
@@ -583,3 +745,34 @@ class TaskService:
       workload_map.values(),
       key=lambda row: (row.department_name or "", row.assignee_email),
     )
+
+  async def get_task_board(self, *, actor: User) -> list[TaskBoardColumn]:
+    tasks = await self.list_tasks(actor=actor)
+    grouped: dict[TaskStatus, list[Task]] = {status: [] for status in TaskStatus}
+    for task in tasks:
+      grouped[task.status].append(task)
+    return [TaskBoardColumn(status=status, tasks=grouped[status]) for status in TaskStatus]
+
+  async def get_task_gantt(self, *, actor: User) -> list[TaskGanttEntry]:
+    tasks = await self.list_tasks(actor=actor)
+    task_ids = [task.id for task in tasks]
+    dependency_rows = list(
+      await self._session.scalars(
+        select(TaskDependency).where(TaskDependency.task_id.in_(task_ids))
+      )
+    ) if task_ids else []
+    dependency_map: dict[UUID, list[UUID]] = {task.id: [] for task in tasks}
+    for dependency in dependency_rows:
+      dependency_map.setdefault(dependency.task_id, []).append(dependency.depends_on_task_id)
+
+    sorted_tasks = sorted(
+      tasks,
+      key=lambda task: (
+        _normalize_datetime(task.due_date) if task.due_date is not None else datetime.max.replace(tzinfo=UTC),
+        _normalize_datetime(task.created_at),
+      ),
+    )
+    return [
+      TaskGanttEntry(task=task, dependency_ids=dependency_map.get(task.id, []))
+      for task in sorted_tasks
+    ]

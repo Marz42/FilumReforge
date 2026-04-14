@@ -7,18 +7,25 @@ import type {
   Department,
   Task,
   TaskActivityEntry,
+  TaskBoardColumn,
+  TaskGanttEntry,
   TaskStatsSummary,
+  TaskWatcher,
   TaskWorkloadRow,
   User,
 } from '@/types/api'
 
 vi.mock('@/api/tasks', () => ({
+  addTaskWatchers: vi.fn(),
   createTask: vi.fn(),
   createTaskComment: vi.fn(),
   getTaskStatsSummary: vi.fn(),
   getTaskWorkload: vi.fn(),
   listTaskActivity: vi.fn(),
+  listTaskBoard: vi.fn(),
+  listTaskGantt: vi.fn(),
   listTasks: vi.fn(),
+  listTaskWatchers: vi.fn(),
   updateTaskStatus: vi.fn(),
 }))
 
@@ -42,7 +49,10 @@ import {
   getTaskStatsSummary,
   getTaskWorkload,
   listTaskActivity,
+  listTaskBoard,
+  listTaskGantt,
   listTasks,
+  listTaskWatchers,
   updateTaskStatus,
 } from '@/api/tasks'
 import { listUsers } from '@/api/users'
@@ -80,6 +90,15 @@ const mockUsers: User[] = [
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
   },
+  {
+    id: 'user-3',
+    email: 'watcher@example.com',
+    role: 'employee',
+    status: 'active',
+    last_login_at: null,
+    created_at: '2025-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
+  },
 ]
 
 const mockTasks: Task[] = [
@@ -100,6 +119,43 @@ const mockTasks: Task[] = [
     extra_metadata: {},
     created_at: '2025-01-02T09:00:00Z',
     updated_at: '2025-01-02T09:00:00Z',
+  },
+]
+
+const mockBoard: TaskBoardColumn[] = [
+  {
+    status: 'todo',
+    tasks: mockTasks,
+  },
+  {
+    status: 'doing',
+    tasks: [],
+  },
+  {
+    status: 'review',
+    tasks: [],
+  },
+  {
+    status: 'done',
+    tasks: [],
+  },
+]
+
+const mockGantt: TaskGanttEntry[] = [
+  {
+    task: mockTasks[0]!,
+    dependency_ids: ['task-0'],
+  },
+]
+
+const mockWatchers: TaskWatcher[] = [
+  {
+    id: 'watcher-1',
+    task_id: 'task-1',
+    user_id: 'user-3',
+    relation: 'watcher',
+    created_by: 'user-1',
+    created_at: '2025-01-02T09:05:00Z',
   },
 ]
 
@@ -161,11 +217,14 @@ describe('Tasks view', () => {
     authStore.user = mockUsers[0] ?? null
 
     vi.mocked(listTasks).mockResolvedValue(mockTasks)
+    vi.mocked(listTaskBoard).mockResolvedValue(mockBoard)
+    vi.mocked(listTaskGantt).mockResolvedValue(mockGantt)
     vi.mocked(listDepartments).mockResolvedValue([mockDepartment])
     vi.mocked(listUsers).mockResolvedValue(mockUsers)
     vi.mocked(getTaskStatsSummary).mockResolvedValue(mockSummary)
     vi.mocked(getTaskWorkload).mockResolvedValue(mockWorkload)
     vi.mocked(listTaskActivity).mockResolvedValue(mockActivity)
+    vi.mocked(listTaskWatchers).mockResolvedValue(mockWatchers)
     vi.mocked(listAttachments).mockResolvedValue([])
     vi.mocked(updateTaskStatus).mockResolvedValue({
       ...mockTasks[0],
@@ -184,7 +243,7 @@ describe('Tasks view', () => {
     })
   })
 
-  it('renders summary cards and workload table', async () => {
+  it('renders summary cards and watcher details', async () => {
     const wrapper = mount(TasksView, {
       global: {
         plugins: [ElementPlus],
@@ -196,7 +255,9 @@ describe('Tasks view', () => {
     expect(wrapper.text()).toContain('任务总数')
     expect(wrapper.text()).toContain('负载概览')
     expect(wrapper.text()).toContain('研发部')
+    expect(wrapper.text()).toContain('watcher@example.com')
     expect(listTaskActivity).toHaveBeenCalledWith('task-1')
+    expect(listTaskWatchers).toHaveBeenCalledWith('task-1')
   })
 
   it('submits status transition and comment actions', async () => {
@@ -231,5 +292,30 @@ describe('Tasks view', () => {
       is_internal: false,
       files: [],
     })
+  })
+
+  it('switches between list, board, and gantt views', async () => {
+    const wrapper = mount(TasksView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    const boardButton = wrapper.findAll('button').find((node) => node.text().includes('看板'))
+    expect(boardButton).toBeTruthy()
+    await boardButton?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('推进评论流')
+    expect(wrapper.text()).toContain('待办')
+
+    const ganttButton = wrapper.findAll('button').find((node) => node.text().includes('甘特'))
+    expect(ganttButton).toBeTruthy()
+    await ganttButton?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('task-0')
   })
 })

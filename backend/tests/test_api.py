@@ -618,3 +618,290 @@ async def test_phase3_hr_governance_api_flow(api_client) -> None:
   )
   assert delegation_update_response.status_code == 200
   assert delegation_update_response.json()["status"] == "revoked"
+
+
+@pytest.mark.asyncio
+async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
+  client, queue_publisher = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  manager_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "manager@example.com",
+      "password": "StrongPassword123!",
+      "role": "hr",
+      "status": "active",
+    },
+  )
+  assert manager_response.status_code == 201
+  manager_id = manager_response.json()["id"]
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  watcher_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "watcher@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert watcher_response.status_code == 201
+  watcher_id = watcher_response.json()["id"]
+
+  delegate_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "delegate@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert delegate_response.status_code == 201
+  delegate_id = delegate_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "流程推进部",
+      "code": "phase4-workflow",
+      "parent_id": root_department["id"],
+      "manager_id": manager_id,
+      "sort_order": 40,
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  for user_id, employee_no, real_name in (
+    (manager_id, "EMP-MGR-004", "流程经理"),
+    (employee_id, "EMP-EMP-004", "流程员工"),
+  ):
+    profile_response = await client.post(
+      "/api/v1/profiles",
+      headers=headers,
+      json={
+        "user_id": user_id,
+        "employee_no": employee_no,
+        "real_name": real_name,
+        "department_id": department_id,
+        "custom_fields": {},
+      },
+    )
+    assert profile_response.status_code == 201
+
+  manager_headers = await login(
+    client,
+    email="manager@example.com",
+    password="StrongPassword123!",
+  )
+  employee_headers = await login(
+    client,
+    email="employee@example.com",
+    password="StrongPassword123!",
+  )
+  delegate_headers = await login(
+    client,
+    email="delegate@example.com",
+    password="StrongPassword123!",
+  )
+  watcher_headers = await login(
+    client,
+    email="watcher@example.com",
+    password="StrongPassword123!",
+  )
+
+  delegation_response = await client.post(
+    "/api/v1/delegations",
+    headers=manager_headers,
+    json={
+      "delegator_user_id": manager_id,
+      "delegate_user_id": delegate_id,
+      "scope_type": "approval",
+      "scope_department_id": department_id,
+      "starts_at": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+      "ends_at": (datetime.now(UTC) + timedelta(days=7)).isoformat(),
+    },
+  )
+  assert delegation_response.status_code == 201
+
+  template_response = await client.post(
+    "/api/v1/task-templates",
+    headers=headers,
+    json={
+      "code": "api-phase4-template",
+      "name": "API 模板",
+      "category": "ops",
+      "steps": [
+        {
+          "step_key": "draft",
+          "title": "员工提交",
+          "default_assignee_rule": {"type": "initiator"},
+        },
+        {
+          "step_key": "review",
+          "title": "经理复核",
+          "default_assignee_rule": {"type": "department_manager"},
+          "depends_on_step_keys": ["draft"],
+        },
+      ],
+    },
+  )
+  assert template_response.status_code == 201
+  template_id = template_response.json()["id"]
+
+  instantiate_response = await client.post(
+    f"/api/v1/task-templates/{template_id}/instantiate",
+    headers=employee_headers,
+    json={
+      "watcher_user_ids": [watcher_id],
+      "payload": {"department_id": department_id},
+    },
+  )
+  assert instantiate_response.status_code == 200
+  instantiated_tasks = instantiate_response.json()["tasks"]
+  assert len(instantiated_tasks) == 2
+  first_task_id = instantiated_tasks[0]["id"]
+
+  watcher_add_response = await client.post(
+    f"/api/v1/tasks/{first_task_id}/watchers",
+    headers=headers,
+    json={"user_ids": [manager_id]},
+  )
+  assert watcher_add_response.status_code == 200
+  assert len(watcher_add_response.json()) == 2
+
+  board_response = await client.get("/api/v1/tasks/views/board", headers=headers)
+  assert board_response.status_code == 200
+  assert any(column["tasks"] for column in board_response.json())
+
+  gantt_response = await client.get("/api/v1/tasks/views/gantt", headers=headers)
+  assert gantt_response.status_code == 200
+  assert len(gantt_response.json()) == 2
+
+  schedule_response = await client.post(
+    "/api/v1/task-templates/schedules",
+    headers=headers,
+    json={
+      "template_id": template_id,
+      "cron_expr": "*/5 * * * *",
+      "timezone": "UTC",
+      "payload": {"department_id": department_id},
+      "is_active": True,
+    },
+  )
+  assert schedule_response.status_code == 201
+
+  schedules_response = await client.get("/api/v1/task-templates/schedules/list", headers=headers)
+  assert schedules_response.status_code == 200
+  assert len(schedules_response.json()) == 1
+
+  workflow_definition_response = await client.post(
+    "/api/v1/workflows/definitions",
+    headers=headers,
+    json={
+      "code": "api-workflow",
+      "name": "API 审批",
+      "scope_type": "ops",
+      "status": "active",
+      "steps": [
+        {
+          "step_key": "draft",
+          "name": "发起申请",
+          "step_type": "task",
+          "assignee_rule": {"type": "initiator"},
+        },
+        {
+          "step_key": "approve",
+          "name": "经理审批",
+          "step_type": "approval",
+          "assignee_rule": {"type": "department_manager"},
+        },
+      ],
+    },
+  )
+  assert workflow_definition_response.status_code == 201
+  workflow_definition_id = workflow_definition_response.json()["id"]
+
+  workflow_instance_response = await client.post(
+    "/api/v1/workflows/instances/start",
+    headers=employee_headers,
+    json={
+      "definition_id": workflow_definition_id,
+      "source_type": "ops_request",
+      "payload": {"department_id": department_id},
+    },
+  )
+  assert workflow_instance_response.status_code == 201
+  draft_step_run = next(
+    item
+    for item in workflow_instance_response.json()["step_runs"]
+    if item["step"]["step_key"] == "draft" and item["status"] == "pending"
+  )
+
+  approve_draft_response = await client.post(
+    f"/api/v1/workflows/step-runs/{draft_step_run['id']}/actions",
+    headers=employee_headers,
+    json={"action": "approve"},
+  )
+  assert approve_draft_response.status_code == 200
+
+  delegate_pending_response = await client.get(
+    "/api/v1/workflows/step-runs/pending",
+    headers=delegate_headers,
+  )
+  assert delegate_pending_response.status_code == 200
+  delegate_step_run = next(
+    item for item in delegate_pending_response.json() if item["step"]["step_key"] == "approve"
+  )
+  assert delegate_step_run["delegated_from_user_id"] == manager_id
+
+  approve_response = await client.post(
+    f"/api/v1/workflows/step-runs/{delegate_step_run['id']}/actions",
+    headers=delegate_headers,
+    json={"action": "approve"},
+  )
+  assert approve_response.status_code == 200
+  assert approve_response.json()["status"] == "approved"
+
+  delegate_messages_response = await client.get("/api/v1/messages", headers=delegate_headers)
+  assert delegate_messages_response.status_code == 200
+  delegate_messages = delegate_messages_response.json()
+  workflow_message = next(
+    item for item in delegate_messages if item["message_type"] == "workflow_action_required"
+  )
+
+  receipt_response = await client.post(
+    f"/api/v1/messages/{workflow_message['id']}/receipts",
+    headers=delegate_headers,
+    json={"receipt_type": "read"},
+  )
+  assert receipt_response.status_code == 201
+  assert receipt_response.json()["receipt_type"] == "read"
+
+  watcher_messages_response = await client.get("/api/v1/messages", headers=watcher_headers)
+  assert watcher_messages_response.status_code == 200
+  assert len([item for item in watcher_messages_response.json() if item["message_type"] == "task_cc_added"]) == 2
+
+  assert any(payload["message_type"] == "workflow_action_required" for payload in queue_publisher.payloads)

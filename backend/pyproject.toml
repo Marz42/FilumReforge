@@ -12,6 +12,7 @@ dependencies = [
   "alembic>=1.16,<2.0",
   "arq>=0.27,<0.28",
   "asyncpg>=0.30,<1.0",
+  "croniter>=3.0,<4.0",
   "email-validator>=2.2,<3.0",
   "fastapi>=0.116,<0.117",
   "openai>=2.6,<3.0",

@@ -1,0 +1,120 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.tasks import TaskRead
+
+
+class TaskTemplateStepInput(BaseModel):
+  step_key: str = Field(min_length=1, max_length=64)
+  title: str = Field(min_length=1, max_length=255)
+  description: str | None = None
+  step_type: str = Field(default="task", min_length=1, max_length=32)
+  default_assignee_rule: dict[str, Any] = Field(default_factory=dict)
+  default_due_offset_hours: int | None = None
+  sort_order: int | None = None
+  config: dict[str, Any] = Field(default_factory=dict)
+  depends_on_step_keys: list[str] = Field(default_factory=list)
+
+
+class TaskScheduleRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  template_id: UUID
+  owner_user_id: UUID
+  cron_expr: str
+  timezone: str
+  next_run_at: datetime | None
+  is_active: bool
+  payload: dict[str, Any]
+  created_at: datetime
+  updated_at: datetime
+
+
+class TaskTemplateStepRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  template_id: UUID
+  step_key: str
+  title: str
+  description: str | None
+  step_type: str
+  default_assignee_rule: dict[str, Any]
+  default_due_offset_hours: int | None
+  sort_order: int
+  config: dict[str, Any]
+  created_at: datetime
+  updated_at: datetime
+  depends_on_step_keys: list[str] = Field(default_factory=list)
+
+
+class TaskTemplateRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  code: str
+  name: str
+  category: str
+  description: str | None
+  trigger_type: str
+  config: dict[str, Any]
+  is_active: bool
+  created_by: UUID
+  created_at: datetime
+  updated_at: datetime
+  steps: list[TaskTemplateStepRead] = Field(default_factory=list)
+  schedules: list[TaskScheduleRead] = Field(default_factory=list)
+
+
+class TaskTemplateCreateRequest(BaseModel):
+  code: str = Field(min_length=1, max_length=64)
+  name: str = Field(min_length=1, max_length=120)
+  category: str = Field(min_length=1, max_length=64)
+  description: str | None = None
+  trigger_type: str = Field(default="manual", min_length=1, max_length=32)
+  config: dict[str, Any] = Field(default_factory=dict)
+  is_active: bool = True
+  steps: list[TaskTemplateStepInput] = Field(default_factory=list)
+
+
+class TaskTemplateUpdateRequest(BaseModel):
+  code: str | None = Field(default=None, min_length=1, max_length=64)
+  name: str | None = Field(default=None, min_length=1, max_length=120)
+  category: str | None = Field(default=None, min_length=1, max_length=64)
+  description: str | None = None
+  trigger_type: str | None = Field(default=None, min_length=1, max_length=32)
+  config: dict[str, Any] | None = None
+  is_active: bool | None = None
+  steps: list[TaskTemplateStepInput] | None = None
+
+
+class TaskTemplateInstantiateRequest(BaseModel):
+  department_id: UUID | None = None
+  watcher_user_ids: list[UUID] = Field(default_factory=list)
+  payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class TaskScheduleCreateRequest(BaseModel):
+  template_id: UUID
+  cron_expr: str = Field(min_length=1, max_length=128)
+  timezone: str = Field(default="UTC", min_length=1, max_length=64)
+  payload: dict[str, Any] = Field(default_factory=dict)
+  is_active: bool = True
+
+
+class TaskScheduleUpdateRequest(BaseModel):
+  cron_expr: str | None = Field(default=None, min_length=1, max_length=128)
+  timezone: str | None = Field(default=None, min_length=1, max_length=64)
+  payload: dict[str, Any] | None = None
+  is_active: bool | None = None
+
+
+class TaskTemplateInstantiationRead(BaseModel):
+  template: TaskTemplateRead
+  tasks: list[TaskRead]

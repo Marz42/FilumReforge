@@ -91,6 +91,12 @@ class NotificationDeliveryStatus(StrEnum):
   RETRYING = "retrying"
 
 
+class NotificationReceiptType(StrEnum):
+  DELIVERED = "delivered"
+  READ = "read"
+  ACKNOWLEDGED = "acknowledged"
+
+
 class PositionAssignmentType(StrEnum):
   PRIMARY = "primary"
   PART_TIME = "part_time"
@@ -124,3 +130,40 @@ class DelegationStatus(StrEnum):
   ACTIVE = "active"
   EXPIRED = "expired"
   REVOKED = "revoked"
+
+
+class WorkflowDefinitionStatus(StrEnum):
+  DRAFT = "draft"
+  ACTIVE = "active"
+  ARCHIVED = "archived"
+
+
+class WorkflowStepType(StrEnum):
+  TASK = "task"
+  APPROVAL = "approval"
+  NOTIFY = "notify"
+
+
+class ApprovalMode(StrEnum):
+  SINGLE = "single"
+  PARALLEL_ALL = "parallel_all"
+  PARALLEL_ANY = "parallel_any"
+
+
+class WorkflowInstanceStatus(StrEnum):
+  PENDING = "pending"
+  IN_PROGRESS = "in_progress"
+  APPROVED = "approved"
+  REJECTED = "rejected"
+  RETURNED = "returned"
+  CANCELLED = "cancelled"
+  COMPLETED = "completed"
+
+
+class WorkflowStepRunStatus(StrEnum):
+  PENDING = "pending"
+  APPROVED = "approved"
+  REJECTED = "rejected"
+  RETURNED = "returned"
+  DELEGATED = "delegated"
+  SKIPPED = "skipped"

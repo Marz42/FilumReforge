@@ -66,6 +66,7 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   )
   comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
   logs = relationship("TaskLog", back_populates="task", cascade="all, delete-orphan")
+  watchers = relationship("TaskWatcher", back_populates="task", cascade="all, delete-orphan")
 
 
 class TaskDependency(Base):

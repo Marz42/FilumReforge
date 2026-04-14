@@ -8,8 +8,9 @@
 - **Phase 1 / Foundation 已完成**
 - **Phase 2 / Collaboration & Stats 已完成**
 - **Phase 3 / HR Governance & Org Modeling 已完成并通过用户验测**
+- **Phase 4 / Workflow Engine & Messaging 已完成并通过用户验测**
 
-因此，本文件不再从“仓库初始化”开始叙述，而是从 **Phase 2 之后的真实开发起点** 出发，重排后续实施路线。
+因此，本文件不再从“仓库初始化”开始叙述，而是从 **Phase 4 之后的真实开发起点** 出发，重排后续实施路线。
 
 ## 2. 已确认约束
 
@@ -33,15 +34,13 @@
 - HR 治理：生命周期事件、字段级权限、多岗位、虚线汇报、代理授权
 - 任务协同：任务、依赖、严格状态机、评论、日志、附件、统计
 - 通知骨架：消息落库、delivery 记录、ARQ 入队、逾期提醒扫描
-- 前端：登录、部门、档案治理页、协同任务页
+- Workflow & Messaging：模板、审批流、周期调度、消息中心、回执、watcher、多视图
+- 前端：登录、部门、档案治理页、模板中心、审批中心、消息中心、Phase 4 任务工作台
 
 ### 未实现但已确认的关键缺口
 
-- 任务模板 / SOP
-- 审批流引擎
-- 抄送 / 定时任务 / 周期任务
-- 列表 / 看板 / 甘特图
-- 消息回执、消息附件、消息中心
+- 生命周期事件与模板 / 审批流联动
+- 消息附件
 - 真实 Email / WebSocket / Web Push 渠道
 - 文档知识库、RAG、LLM Router、浏览器推送 / PWA
 
@@ -76,8 +75,8 @@
 | Phase 1 / Foundation | done | 用户、组织、档案、附件、任务基础、异步通知骨架 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、日志、提醒、统计、协同页 |
 | Phase 3 / HR Governance & Org Modeling | done | HR 生命周期、字段级权限、组织关系、代理授权 |
-| Phase 4 / Workflow Engine & Messaging | next | 模板、审批流、自动触发、消息中心、多视图 |
-| Phase 5 / Knowledge, AI Router & Experience | planned | 知识库、RAG、`@系统` 路由、浏览器推送、PWA |
+| Phase 4 / Workflow Engine & Messaging | done | 模板、审批流、自动触发、消息中心、多视图 |
+| Phase 5 / Knowledge, AI Router & Experience | next | 知识库、RAG、`@系统` 路由、浏览器推送、PWA |
 
 ## 6. Phase 3 / HR Governance & Org Modeling
 
@@ -158,6 +157,8 @@
 - Phase 3 已完成并满足进入 Phase 4 的前置条件
 
 ## 7. Phase 4 / Workflow Engine & Messaging
+
+**当前状态**：代码、自动化验证与用户手动验测均已通过。
 
 ### 7.1 目标
 
@@ -243,7 +244,7 @@
 
 ### 7.5 阶段闸门
 
-- 用户验证 Phase 4 后，才允许进入 Phase 5
+- 已完成用户验测，可以进入 Phase 5
 
 ## 8. Phase 5 / Knowledge, AI Router & Experience
 
@@ -307,26 +308,9 @@
 
 建议按以下顺序补齐后续 schema：
 
-1. `positions`
-2. `profile_positions`
-3. `reporting_lines`
-4. `profile_field_definitions`
-5. `profile_field_permissions`
-6. `employment_events`
-7. `delegations`
-8. `task_templates`
-9. `task_template_steps`
-10. `task_template_step_dependencies`
-11. `workflow_definitions`
-12. `workflow_steps`
-13. `workflow_instances`
-14. `workflow_step_runs`
-15. `task_watchers`
-16. `task_schedules`
-17. `notification_receipts`
-18. `push_subscriptions`
-19. `documents`
-20. `document_embeddings`
+1. `push_subscriptions`
+2. `documents`
+3. `document_embeddings`
 
 ## 10. 跨阶段通用规则
 

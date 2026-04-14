@@ -1,8 +1,8 @@
 # Project Filum 架构基线
 
-**版本**: v2.2.0  
-**状态**: Phase A / 1 / 2 / 3 已完成；下一阶段进入 Phase 4 准备  
-**适用范围**: 当前仓库代码、完整数据库 schema、Phase 3 已验收基线，以及未来 Phase 4 / 5 的工程扩展边界
+**版本**: v2.3.0  
+**状态**: Phase A / 1 / 2 / 3 / 4 已完成；下一阶段进入 Phase 5 准备  
+**适用范围**: 当前仓库代码、完整数据库 schema、Phase 4 已验收基线，以及未来 Phase 5 的工程扩展边界
 
 ## 1. 文档定位
 
@@ -28,6 +28,7 @@
 - Phase 1 / Foundation
 - Phase 2 / Collaboration & Stats
 - Phase 3 / HR Governance & Org Modeling
+- Phase 4 / Workflow Engine & Messaging
 
 ### 2.2 当前已实现能力
 
@@ -41,19 +42,20 @@
 - 任务创建、重新指派、前置依赖建模
 - 严格任务状态机：`Todo -> Doing -> Review -> Done`
 - 任务评论、内部备注、审计日志、评论附件、活动时间线
+- 任务模板、模板实例化、watcher / 抄送与周期调度
+- 轻量审批流引擎：流程定义、实例、步骤执行、代理审批、打回 / 驳回
 - ARQ worker、逾期提醒扫描、通知消息落库与异步入队
+- 消息中心收件箱、用户回执、审批提醒与系统消息聚合
+- 任务中心列表 / 看板 / 甘特图多视图
 - 任务完成率 / 逾期率 / 负载统计
-- 浏览器后台界面：登录、部门、Phase 3 档案治理页、任务协同页
+- 浏览器后台界面：登录、部门、Phase 3 档案治理页、模板中心、审批中心、消息中心、Phase 4 任务工作台
 
 ### 2.3 当前明确缺口
 
 - 生命周期事件与任务模板 / 审批流的自动联动
 - HR 字段权限的可视化规则管理页仍偏基础
-- 模板 / SOP 与审批流引擎
-- 抄送 / 定时 / 周期任务
-- 消息中心、回执、消息附件
+- 消息附件
 - 真实 Email / WebSocket / Web Push 渠道
-- 看板 / 甘特图
 - 文档知识库、RAG、LLM Router、浏览器推送 / PWA
 
 ## 3. 模块边界与状态映射
@@ -64,14 +66,15 @@
 | Organization | 部门树、部门负责人、组织范围 | 已实现 Phase 3 增强版 | 被 Workflow / Messaging 消费 |
 | HR Profiles | 主档案、动态字段、基础资料 | 已实现 Phase 3 增强版 | 与模板 / 审批联动 |
 | HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现 | 事件与模板 / 审批联动 |
-| Workflow Core | 任务、依赖、状态机、统计 | 已实现 | Phase 4 扩展模板 / 审批 / 自动化 |
-| Task Collaboration | 评论、日志、评论附件、时间线 | 已实现 | 与模板 / 审批 / 多视图打通 |
-| Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现骨架 | 真实渠道适配器、回执、浏览器推送 |
-| Messaging Center | 收件箱、消息附件、确认回执 | 未实现 | Phase 4 |
+| Workflow Core | 任务、依赖、状态机、统计 | 已实现 Phase 4 增强版 | 与 Knowledge / AI / 生命周期自动化联动 |
+| Workflow Engine | 模板、审批、自动触发、周期调度 | 已实现基础版 | 与 HR 生命周期 / AI 入口联动 |
+| Task Collaboration | 评论、日志、评论附件、时间线、watcher | 已实现 Phase 4 增强版 | 与消息中心、推送渠道打通 |
+| Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现 Phase 4 增强版 | 真实渠道适配器、浏览器推送 |
+| Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现基础版 | 消息附件、渠道融合、推送 |
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 未实现 | Phase 5 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 未实现 | Phase 5 |
-| Frontend Experience | 浏览器后台、任务协同页 | 已实现基础版 | 看板 / 甘特图 / 消息中心 / Push / PWA |
+| Frontend Experience | 浏览器后台、档案治理、模板 / 审批 / 消息 / 多视图任务页 | 已实现 Phase 4 工作台版 | AI 指令面板 / Push / PWA |
 | Platform Tools | 内置工具注册与暴露 | 未实现 | Phase 5 |
 
 ## 4. 运行时拓扑
@@ -88,6 +91,8 @@
 [ FastAPI ]
     |-- app.api
     |-- app.services
+    |-- Workflow Engine
+    |-- Message Center
     |-- app.integrations
     |
     +--> PostgreSQL
@@ -97,12 +102,13 @@
 [ ARQ Worker ]
     |-- app.workers.arq_worker
     |-- app.workers.jobs
+    |-- Scheduled Tasks / Approval Reminders
     |
     +--> PostgreSQL
     +--> Redis / ARQ Queue
 ```
 
-### 4.2 目标扩展运行时
+### 4.2 Phase 5 目标扩展运行时
 
 ```text
 [ Browser ]
@@ -168,26 +174,36 @@
 | --- | --- |
 | `backend/app/main.py` | FastAPI 入口，注册路由、异常处理、开发态 CORS |
 | `backend/app/api/dependencies.py` | 数据库、认证、附件、通知等依赖注入 |
-| `backend/app/core/enums.py` | 当前已实现的基础枚举与 Phase 3 HR 治理枚举 |
+| `backend/app/core/enums.py` | 当前已实现的基础枚举、HR 治理枚举与 Phase 4 workflow / receipt 枚举 |
 | `backend/app/models/profile.py` | 员工档案主模型 |
 | `backend/app/models/hr_governance.py` | 岗位、任职关系、汇报线、字段定义、字段权限、生命周期事件、代理授权模型 |
 | `backend/app/models/task.py` | 任务、依赖、日志、评论模型 |
-| `backend/app/models/notification.py` | 通知消息与 delivery 模型 |
+| `backend/app/models/task_workflow.py` | Phase 4 模板、审批流、watcher、schedule 数据模型 |
+| `backend/app/models/notification.py` | 通知消息、delivery 与 receipt 模型 |
 | `backend/app/services/access_control.py` | 活跃账号、管理权限、组织范围、代理授权与汇报关系解析 |
 | `backend/app/services/profile_service.py` | 档案聚合、字段裁剪、Phase 3 档案读写编排 |
 | `backend/app/services/organization_relation_service.py` | 岗位目录、任职关系、汇报线管理 |
 | `backend/app/services/profile_field_policy_service.py` | 字段定义初始化、字段权限解析与字段可见 / 可编辑判断 |
 | `backend/app/services/hr_lifecycle_service.py` | 生命周期事件登记与档案 / 任职关系联动 |
 | `backend/app/services/delegation_service.py` | 代理授权创建、撤销、状态刷新 |
-| `backend/app/services/task_service.py` | 当前任务状态机、评论、日志、统计与逾期查询 |
+| `backend/app/services/task_service.py` | 任务状态机、评论、日志、统计，以及 watcher / board / gantt 扩展 |
+| `backend/app/services/workflow_rule_resolver.py` | 模板与审批流共用的 assignee rule 解析器 |
+| `backend/app/services/task_template_service.py` | 模板 CRUD、步骤替换与模板实例化 |
+| `backend/app/services/workflow_engine_service.py` | 流程定义、流程实例、审批动作、打回 / 驳回 / 代理审批 |
+| `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
+| `backend/app/services/message_center_service.py` | 消息收件箱聚合、消息读取与回执写入 |
 | `backend/app/services/notification_service.py` | 消息落库、delivery 记录、队列入队 |
 | `backend/app/api/routes/hr_governance.py` | Phase 3 岗位、字段定义、字段权限、授权管理接口 |
+| `backend/app/api/routes/task_templates.py` | 模板、实例化与 schedule 接口 |
+| `backend/app/api/routes/workflows.py` | 流程定义、实例、待办审批与审批动作接口 |
+| `backend/app/api/routes/messages.py` | 收件箱与回执接口 |
 | `backend/app/integrations/notifications/queue.py` | ARQ 入队发布器 |
-| `backend/app/workers/jobs.py` | 通知消费与逾期提醒扫描逻辑 |
+| `backend/app/workers/jobs.py` | 通知消费、逾期提醒、周期模板实例化与审批提醒扫描 |
 | `backend/app/workers/arq_worker.py` | ARQ worker 运行时入口与 cron 配置 |
 | `backend/alembic/versions/20260413_01_phase1_foundation.py` | Phase 1 基线迁移 |
 | `backend/alembic/versions/20260414_01_phase2_collaboration.py` | Phase 2 协同迁移 |
 | `backend/alembic/versions/20260415_01_phase3_hr_governance.py` | Phase 3 HR 治理迁移 |
+| `backend/alembic/versions/20260416_01_phase4_workflow_messaging.py` | Phase 4 workflow / messaging 迁移 |
 
 ### 5.3 frontend 当前热点文件
 
@@ -195,14 +211,26 @@
 | --- | --- |
 | `frontend/src/api/http.ts` | Axios 实例、token 注入、自动 refresh |
 | `frontend/src/stores/auth.ts` | 登录态与会话恢复 |
+| `frontend/src/stores/app.ts` | 当前阶段标识与全局项目状态文案 |
 | `frontend/src/views/LoginView.vue` | 登录与管理员初始化 |
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
 | `frontend/src/views/ProfilesView.vue` | Phase 3 档案治理工作台 |
-| `frontend/src/views/TasksView.vue` | 当前协同任务中心 |
-| `frontend/src/api/tasks.ts` | 任务、状态流转、评论、活动流、统计 API client |
+| `frontend/src/views/TasksView.vue` | Phase 4 任务中心，支持列表 / 看板 / 甘特图与 watcher |
+| `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口 |
+| `frontend/src/views/ApprovalsView.vue` | 审批定义、待办审批与实例查看 |
+| `frontend/src/views/MessagesView.vue` | 消息收件箱与回执工作台 |
+| `frontend/src/components/AppShell.vue` | 全局导航，已接入模板 / 审批 / 消息中心入口 |
+| `frontend/src/router/index.ts` | 路由表，已注册 Phase 4 工作台页面 |
+| `frontend/src/api/tasks.ts` | 任务、状态流转、评论、活动流、统计、watcher、多视图 API client |
+| `frontend/src/api/task-templates.ts` | 模板、实例化与 schedule API client |
+| `frontend/src/api/workflows.ts` | 审批定义、流程实例与审批动作 API client |
+| `frontend/src/api/messages.ts` | 收件箱与回执 API client |
 | `frontend/src/types/api.ts` | 前端共享 API 类型 |
 | `frontend/tests/ProfilesView.spec.ts` | Phase 3 档案治理页回归测试 |
-| `frontend/tests/TasksView.spec.ts` | 协同任务页交互回归测试 |
+| `frontend/tests/TasksView.spec.ts` | Phase 4 任务多视图与 watcher 回归测试 |
+| `frontend/tests/TaskTemplatesView.spec.ts` | 模板工作台回归测试 |
+| `frontend/tests/ApprovalsView.spec.ts` | 审批中心回归测试 |
+| `frontend/tests/MessagesView.spec.ts` | 消息中心回归测试 |
 
 ### 5.4 infra
 
@@ -260,14 +288,20 @@
 3. 事件按类型联动主岗位、汇报线、用户状态与档案摘要。
 4. 当前**不**自动生成任务模板或审批流实例。
 
-### 6.7 审批流链路（目标 / Phase 4）
+### 6.7 审批流链路（当前 / Phase 4）
 
 1. 前端创建或触发事务。
 2. 系统根据 `task_templates` / `workflow_definitions` 生成实例。
 3. `workflow_instances` 与 `workflow_step_runs` 驱动审批与回退。
 4. 结果回写任务、消息中心与通知总线。
 
-### 6.8 AI 路由链路（目标 / Phase 5）
+### 6.8 消息中心链路（当前 / Phase 4）
+
+1. 业务消息继续写入 `notification_messages`。
+2. `MessageCenterService` 聚合消息、投递记录与回执记录。
+3. 前端消息中心读取收件箱，并通过 `notification_receipts` 写入 `read / acknowledged` 回执。
+
+### 6.9 AI 路由链路（目标 / Phase 5）
 
 1. 前端拦截 `@系统` 或 `/`。
 2. 后端 `LLMRouterService` 构造工具清单。
@@ -283,8 +317,8 @@
 | Phase 1 / Foundation | done | 用户、部门、档案、附件、任务基础、异步通知骨架 |
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、日志、ARQ 提醒、统计与协同页 |
 | Phase 3 / HR Governance & Org Modeling | done | 生命周期、字段权限、多岗位、汇报线、代理授权 |
-| Phase 4 / Workflow Engine & Messaging | next | 模板、审批流、自动触发、消息中心、多视图 |
-| Phase 5 / Knowledge, AI Router & Experience | planned | 知识库、RAG、`@系统` 路由、Push、PWA |
+| Phase 4 / Workflow Engine & Messaging | done | 模板、审批流、自动触发、消息中心、多视图 |
+| Phase 5 / Knowledge, AI Router & Experience | next | 知识库、RAG、`@系统` 路由、Push、PWA |
 
 ## 8. 数据库设计原则
 
@@ -320,12 +354,12 @@
 | `employment_event_type` | `onboard`, `transfer`, `promotion`, `reward`, `discipline`, `offboard`, `rehire` | 已实现 |
 | `delegation_scope_type` | `approval`, `task`, `data_access`, `all` | 已实现 |
 | `delegation_status` | `pending`, `active`, `expired`, `revoked` | 已实现 |
-| `workflow_definition_status` | `draft`, `active`, `archived` | Phase 4 规划 |
-| `workflow_step_type` | `task`, `approval`, `notify` | Phase 4 规划 |
-| `approval_mode` | `single`, `parallel_all`, `parallel_any` | Phase 4 规划 |
-| `workflow_instance_status` | `pending`, `in_progress`, `approved`, `rejected`, `returned`, `cancelled`, `completed` | Phase 4 规划 |
-| `workflow_step_run_status` | `pending`, `approved`, `rejected`, `returned`, `delegated`, `skipped` | Phase 4 规划 |
-| `notification_receipt_type` | `delivered`, `read`, `acknowledged` | Phase 4 规划 |
+| `workflow_definition_status` | `draft`, `active`, `archived` | 已实现 |
+| `workflow_step_type` | `task`, `approval`, `notify` | 已实现 |
+| `approval_mode` | `single`, `parallel_all`, `parallel_any` | 已实现 |
+| `workflow_instance_status` | `pending`, `in_progress`, `approved`, `rejected`, `returned`, `cancelled`, `completed` | 已实现 |
+| `workflow_step_run_status` | `pending`, `approved`, `rejected`, `returned`, `delegated`, `skipped` | 已实现 |
+| `notification_receipt_type` | `delivered`, `read`, `acknowledged` | 已实现 |
 | `push_subscription_status` | `active`, `expired`, `revoked` | Phase 5 规划 |
 | `document_category` | `policy`, `sop`, `announcement`, `faq`, `other` | Phase 5 规划 |
 | `document_status` | `draft`, `published`, `archived` | Phase 5 规划 |
@@ -694,7 +728,7 @@
 
 ### 10.16 `task_templates`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -717,7 +751,7 @@
 
 ### 10.17 `task_template_steps`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -741,7 +775,7 @@
 
 ### 10.18 `task_template_step_dependencies`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -754,10 +788,11 @@
 
 - 主键：`(step_id, depends_on_step_id)`
 - CHECK `step_id <> depends_on_step_id`
+- `idx_task_tpl_step_deps_depends_on (depends_on_step_id)`
 
 ### 10.19 `workflow_definitions`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -779,7 +814,7 @@
 
 ### 10.20 `workflow_steps`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -803,7 +838,7 @@
 
 ### 10.21 `workflow_instances`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -827,7 +862,7 @@
 
 ### 10.22 `workflow_step_runs`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -850,7 +885,7 @@
 
 ### 10.23 `task_watchers`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -868,7 +903,7 @@
 
 ### 10.24 `task_schedules`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -918,7 +953,7 @@
 **设计说明**
 
 - 当前用于异步通知总线。
-- Phase 4 会在此基础上扩展“消息中心 / 回执”能力，而不是再造一套平行消息表。
+- Phase 4 已在此基础上扩展“消息中心 / 回执”能力，而不是再造一套平行消息表。
 
 ### 10.26 `notification_deliveries`
 
@@ -945,7 +980,7 @@
 
 ### 10.27 `notification_receipts`
 
-**实现状态**: Phase 4 规划
+**实现状态**: 已实现
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -959,7 +994,7 @@
 **约束与索引**
 
 - `uq_notification_receipts_binding (message_id, user_id, receipt_type)`
-- `idx_notification_receipts_user_id (user_id, created_at DESC)`
+- `idx_notification_receipts_user_id_created_at (user_id, created_at)`
 
 ### 10.28 `push_subscriptions`
 

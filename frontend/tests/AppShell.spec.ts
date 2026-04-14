@@ -33,7 +33,7 @@ describe('App shell', () => {
     await router.isReady()
   })
 
-  it('renders the phase 1 shell navigation', () => {
+  it('renders the phase 4 shell navigation', () => {
     const wrapper = mount(AppShell, {
       global: {
         plugins: [pinia, router, ElementPlus],
@@ -44,8 +44,11 @@ describe('App shell', () => {
     })
 
     expect(wrapper.text()).toContain('Project Filum')
-    expect(wrapper.text()).toContain('Phase 1')
+    expect(wrapper.text()).toContain('Phase 4')
     expect(wrapper.text()).toContain('部门管理')
     expect(wrapper.text()).toContain('任务中心')
+    expect(wrapper.text()).toContain('模板中心')
+    expect(wrapper.text()).toContain('审批中心')
+    expect(wrapper.text()).toContain('消息中心')
   })
 })

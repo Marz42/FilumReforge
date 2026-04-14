@@ -5,12 +5,16 @@ import { ElMessage, type UploadFile } from 'element-plus'
 import { listAttachments, uploadAttachment } from '@/api/attachments'
 import { listDepartments } from '@/api/departments'
 import {
+  addTaskWatchers,
   createTask,
   createTaskComment,
   getTaskStatsSummary,
   getTaskWorkload,
+  listTaskBoard,
   listTaskActivity,
+  listTaskGantt,
   listTasks,
+  listTaskWatchers,
   updateTaskStatus,
 } from '@/api/tasks'
 import { listUsers } from '@/api/users'
@@ -20,9 +24,12 @@ import type {
   Department,
   Task,
   TaskActivityEntry,
+  TaskBoardColumn,
+  TaskGanttEntry,
   TaskPriority,
   TaskStatus,
   TaskStatsSummary,
+  TaskWatcher,
   TaskWorkloadRow,
   User,
 } from '@/types/api'
@@ -89,13 +96,19 @@ const commentSubmitting = ref(false)
 const statusSubmitting = ref(false)
 const dialogVisible = ref(false)
 const tasks = ref<Task[]>([])
+const taskBoard = ref<TaskBoardColumn[]>([])
+const taskGantt = ref<TaskGanttEntry[]>([])
 const taskAttachments = ref<Attachment[]>([])
 const taskActivity = ref<TaskActivityEntry[]>([])
+const taskWatchers = ref<TaskWatcher[]>([])
 const departments = ref<Department[]>([])
 const users = ref<User[]>([])
 const statsSummary = ref<TaskStatsSummary | null>(null)
 const workloadRows = ref<TaskWorkloadRow[]>([])
 const selectedTaskId = ref('')
+const viewMode = ref<'list' | 'board' | 'gantt'>('list')
+const watcherSubmitting = ref(false)
+const watcherUserId = ref('')
 const selectedTaskFile = ref<File | null>(null)
 const commentFiles = ref<File[]>([])
 
@@ -125,6 +138,13 @@ const assigneeOptions = computed(() => {
   return authStore.user ? [authStore.user] : []
 })
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value) ?? null)
+const watcherOptions = computed(() =>
+  users.value.filter(
+    (user) =>
+      user.status === 'active' &&
+      !taskWatchers.value.some((watcher) => watcher.user_id === user.id),
+  ),
+)
 const nextStatusAction = computed(() => {
   const task = selectedTask.value
   if (!task || task.status === 'done') {
@@ -211,30 +231,36 @@ function resetCommentForm(): void {
 }
 
 async function loadSelectedTaskDetails(taskId: string): Promise<void> {
-  const [attachments, activity] = await Promise.all([
+  const [attachments, activity, watchers] = await Promise.all([
     listAttachments({
       target_type: 'task',
       target_id: taskId,
     }),
     listTaskActivity(taskId),
+    listTaskWatchers(taskId),
   ])
 
   taskAttachments.value = attachments
   taskActivity.value = activity
+  taskWatchers.value = watchers
 }
 
 async function loadData(): Promise<void> {
   loading.value = true
 
   try {
-    const [taskList, departmentList, summary, workload] = await Promise.all([
+    const [taskList, boardColumns, ganttEntries, departmentList, summary, workload] = await Promise.all([
       listTasks(),
+      listTaskBoard(),
+      listTaskGantt(),
       listDepartments(),
       getTaskStatsSummary(),
       getTaskWorkload(),
     ])
 
     tasks.value = taskList
+    taskBoard.value = boardColumns
+    taskGantt.value = ganttEntries
     departments.value = departmentList
     statsSummary.value = summary
     workloadRows.value = workload
@@ -255,11 +281,30 @@ async function loadData(): Promise<void> {
     } else {
       taskAttachments.value = []
       taskActivity.value = []
+      taskWatchers.value = []
     }
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
   } finally {
     loading.value = false
+  }
+}
+
+async function handleAddWatcher(): Promise<void> {
+  if (!selectedTask.value || !watcherUserId.value) {
+    ElMessage.warning('请选择关注人')
+    return
+  }
+
+  watcherSubmitting.value = true
+  try {
+    taskWatchers.value = await addTaskWatchers(selectedTask.value.id, [watcherUserId.value])
+    watcherUserId.value = ''
+    ElMessage.success('关注人已更新')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    watcherSubmitting.value = false
   }
 }
 
@@ -436,43 +481,132 @@ onMounted(() => {
         <el-card shadow="never" v-loading="loading">
           <template #header>
             <div class="page__header">
-              <span>任务中心</span>
+              <el-space>
+                <span>任务中心</span>
+                <el-button-group>
+                  <el-button
+                    size="small"
+                    :type="viewMode === 'list' ? 'primary' : undefined"
+                    @click="viewMode = 'list'"
+                  >
+                    列表
+                  </el-button>
+                  <el-button
+                    size="small"
+                    :type="viewMode === 'board' ? 'primary' : undefined"
+                    @click="viewMode = 'board'"
+                  >
+                    看板
+                  </el-button>
+                  <el-button
+                    size="small"
+                    :type="viewMode === 'gantt' ? 'primary' : undefined"
+                    @click="viewMode = 'gantt'"
+                  >
+                    甘特
+                  </el-button>
+                </el-button-group>
+              </el-space>
               <el-button type="primary" @click="dialogVisible = true">新建任务</el-button>
             </div>
           </template>
 
-          <el-table :data="tasks" stripe highlight-current-row @row-click="handleTaskClick">
-            <el-table-column prop="title" label="任务标题" min-width="180" />
-            <el-table-column label="执行人" min-width="180">
-              <template #default="{ row }: { row: Task }">
-                {{ resolveUserLabel(row.assignee_id) }}
-              </template>
-            </el-table-column>
-            <el-table-column label="所属部门" min-width="160">
-              <template #default="{ row }: { row: Task }">
-                {{ resolveDepartmentName(row.department_id) }}
-              </template>
-            </el-table-column>
-            <el-table-column label="优先级" width="120">
-              <template #default="{ row }: { row: Task }">
-                <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
-                  {{ resolvePriorityLabel(row.priority) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="120">
-              <template #default="{ row }: { row: Task }">
-                <el-tag :type="STATUS_TAG_TYPES[row.status]" effect="plain">
-                  {{ resolveStatusLabel(row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="截止时间" min-width="180">
-              <template #default="{ row }: { row: Task }">
-                {{ formatDateTime(row.due_date) }}
-              </template>
-            </el-table-column>
-          </el-table>
+          <template v-if="viewMode === 'list'">
+            <el-table :data="tasks" stripe highlight-current-row @row-click="handleTaskClick">
+              <el-table-column prop="title" label="任务标题" min-width="180" />
+              <el-table-column label="执行人" min-width="180">
+                <template #default="{ row }: { row: Task }">
+                  {{ resolveUserLabel(row.assignee_id) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="所属部门" min-width="160">
+                <template #default="{ row }: { row: Task }">
+                  {{ resolveDepartmentName(row.department_id) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="优先级" width="120">
+                <template #default="{ row }: { row: Task }">
+                  <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
+                    {{ resolvePriorityLabel(row.priority) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="120">
+                <template #default="{ row }: { row: Task }">
+                  <el-tag :type="STATUS_TAG_TYPES[row.status]" effect="plain">
+                    {{ resolveStatusLabel(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="截止时间" min-width="180">
+                <template #default="{ row }: { row: Task }">
+                  {{ formatDateTime(row.due_date) }}
+                </template>
+              </el-table-column>
+            </el-table>
+          </template>
+
+          <template v-else-if="viewMode === 'board'">
+            <div class="page__board">
+              <el-card
+                v-for="column in taskBoard"
+                :key="column.status"
+                shadow="never"
+                class="page__board-column"
+              >
+                <template #header>
+                  <div class="page__board-header">
+                    <span>{{ resolveStatusLabel(column.status) }}</span>
+                    <el-tag effect="plain">{{ column.tasks.length }}</el-tag>
+                  </div>
+                </template>
+
+                <el-empty v-if="column.tasks.length === 0" description="暂无任务" />
+                <div v-else class="page__board-cards">
+                  <button
+                    v-for="task in column.tasks"
+                    :key="task.id"
+                    type="button"
+                    class="page__board-card"
+                    @click="handleTaskClick(task)"
+                  >
+                    <strong>{{ task.title }}</strong>
+                    <span>{{ resolveUserLabel(task.assignee_id) }}</span>
+                    <span>{{ formatDateTime(task.due_date) }}</span>
+                  </button>
+                </div>
+              </el-card>
+            </div>
+          </template>
+
+          <template v-else>
+            <el-table
+              :data="taskGantt"
+              stripe
+              @row-click="(row: TaskGanttEntry) => handleTaskClick(row.task)"
+            >
+              <el-table-column label="任务标题" min-width="180">
+                <template #default="{ row }: { row: TaskGanttEntry }">
+                  {{ row.task.title }}
+                </template>
+              </el-table-column>
+              <el-table-column label="执行人" min-width="180">
+                <template #default="{ row }: { row: TaskGanttEntry }">
+                  {{ resolveUserLabel(row.task.assignee_id) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="起止时间" min-width="280">
+                <template #default="{ row }: { row: TaskGanttEntry }">
+                  {{ formatDateTime(row.task.created_at) }} ~ {{ formatDateTime(row.task.due_date) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="依赖任务" min-width="220">
+                <template #default="{ row }: { row: TaskGanttEntry }">
+                  {{ row.dependency_ids.join(' / ') || '—' }}
+                </template>
+              </el-table-column>
+            </el-table>
+          </template>
         </el-card>
       </el-col>
 
@@ -520,6 +654,40 @@ onMounted(() => {
                 {{ selectedTask.description || '—' }}
               </el-descriptions-item>
             </el-descriptions>
+
+            <el-divider>关注人与抄送</el-divider>
+
+            <div class="page__watchers">
+              <el-space wrap>
+                <el-tag
+                  v-for="watcher in taskWatchers"
+                  :key="watcher.id"
+                  effect="plain"
+                  type="info"
+                >
+                  {{ resolveUserLabel(watcher.user_id) }}
+                </el-tag>
+              </el-space>
+
+              <div class="page__watcher-form">
+                <el-select
+                  v-model="watcherUserId"
+                  clearable
+                  placeholder="添加关注人"
+                  :disabled="watcherOptions.length === 0"
+                >
+                  <el-option
+                    v-for="user in watcherOptions"
+                    :key="user.id"
+                    :label="user.email"
+                    :value="user.id"
+                  />
+                </el-select>
+                <el-button type="primary" :loading="watcherSubmitting" @click="handleAddWatcher">
+                  添加
+                </el-button>
+              </div>
+            </div>
 
             <el-divider>任务资料附件</el-divider>
 
@@ -758,6 +926,52 @@ onMounted(() => {
 .page__detail,
 .page__workload {
   min-height: 100%;
+}
+
+.page__board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.page__board-column {
+  min-height: 320px;
+}
+
+.page__board-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page__board-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page__board-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.page__watchers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page__watcher-form {
+  display: flex;
+  gap: 12px;
 }
 
 .page__stat-text {

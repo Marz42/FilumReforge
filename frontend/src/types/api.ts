@@ -27,6 +27,22 @@ export type EmploymentEventType =
   | 'rehire'
 export type DelegationScopeType = 'approval' | 'task' | 'data_access' | 'all'
 export type DelegationStatus = 'pending' | 'active' | 'expired' | 'revoked'
+export type NotificationChannel = 'email' | 'web_push' | 'websocket'
+export type NotificationMessageStatus = 'queued' | 'processing' | 'completed' | 'failed'
+export type NotificationDeliveryStatus = 'pending' | 'sent' | 'failed' | 'retrying'
+export type NotificationReceiptType = 'delivered' | 'read' | 'acknowledged'
+export type WorkflowDefinitionStatus = 'draft' | 'active' | 'archived'
+export type WorkflowStepType = 'task' | 'approval' | 'notify'
+export type ApprovalMode = 'single' | 'parallel_all' | 'parallel_any'
+export type WorkflowInstanceStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'approved'
+  | 'rejected'
+  | 'returned'
+  | 'cancelled'
+  | 'completed'
+export type WorkflowStepRunStatus = 'pending' | 'approved' | 'rejected' | 'returned' | 'delegated' | 'skipped'
 
 export interface User {
   id: string
@@ -201,6 +217,25 @@ export interface Task {
   updated_at: string
 }
 
+export interface TaskWatcher {
+  id: string
+  task_id: string
+  user_id: string
+  relation: string
+  created_by: string
+  created_at: string
+}
+
+export interface TaskBoardColumn {
+  status: TaskStatus
+  tasks: Task[]
+}
+
+export interface TaskGanttEntry {
+  task: Task
+  dependency_ids: string[]
+}
+
 export interface Attachment {
   id: string
   original_filename: string
@@ -263,4 +298,158 @@ export interface TaskWorkloadRow {
   open_tasks: number
   completed_tasks: number
   overdue_tasks: number
+}
+
+export interface TaskSchedule {
+  id: string
+  template_id: string
+  owner_user_id: string
+  cron_expr: string
+  timezone: string
+  next_run_at: string | null
+  is_active: boolean
+  payload: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskTemplateStep {
+  id: string
+  template_id: string
+  step_key: string
+  title: string
+  description: string | null
+  step_type: string
+  default_assignee_rule: Record<string, unknown>
+  default_due_offset_hours: number | null
+  sort_order: number
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  depends_on_step_keys: string[]
+}
+
+export interface TaskTemplate {
+  id: string
+  code: string
+  name: string
+  category: string
+  description: string | null
+  trigger_type: string
+  config: Record<string, unknown>
+  is_active: boolean
+  created_by: string
+  created_at: string
+  updated_at: string
+  steps: TaskTemplateStep[]
+  schedules: TaskSchedule[]
+}
+
+export interface TaskTemplateInstantiation {
+  template: TaskTemplate
+  tasks: Task[]
+}
+
+export interface WorkflowStep {
+  id: string
+  definition_id: string
+  step_key: string
+  name: string
+  step_type: WorkflowStepType
+  approval_mode: ApprovalMode | null
+  assignee_rule: Record<string, unknown>
+  reject_target_step_key: string | null
+  sort_order: number
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkflowDefinition {
+  id: string
+  code: string
+  name: string
+  scope_type: string
+  status: WorkflowDefinitionStatus
+  version: number
+  config: Record<string, unknown>
+  created_by: string
+  created_at: string
+  updated_at: string
+  steps: WorkflowStep[]
+}
+
+export interface WorkflowStepRun {
+  id: string
+  instance_id: string
+  step_id: string
+  assignee_user_id: string
+  delegated_from_user_id: string | null
+  status: WorkflowStepRunStatus
+  acted_at: string | null
+  comment: string | null
+  payload: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  step: WorkflowStep | null
+}
+
+export interface WorkflowInstance {
+  id: string
+  definition_id: string
+  source_type: string
+  source_id: string | null
+  initiator_user_id: string
+  status: WorkflowInstanceStatus
+  current_step_key: string | null
+  payload: Record<string, unknown>
+  started_at: string
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+  step_runs: WorkflowStepRun[]
+  definition: WorkflowDefinition | null
+}
+
+export interface NotificationDelivery {
+  id: string
+  message_id: string
+  channel: NotificationChannel
+  adapter_name: string
+  status: NotificationDeliveryStatus
+  attempt_count: number
+  external_message_id: string | null
+  error_message: string | null
+  attempted_at: string | null
+  delivered_at: string | null
+  created_at: string
+}
+
+export interface NotificationReceipt {
+  id: string
+  message_id: string
+  user_id: string
+  receipt_type: NotificationReceiptType
+  note: string | null
+  created_at: string
+}
+
+export interface Message {
+  id: string
+  source_type: string
+  source_id: string | null
+  recipient_user_id: string | null
+  recipient_email: string | null
+  message_type: string
+  title: string
+  body_text: string
+  body_html: string | null
+  payload: Record<string, unknown>
+  status: NotificationMessageStatus
+  scheduled_at: string | null
+  enqueued_at: string | null
+  completed_at: string | null
+  created_at: string
+  deliveries: NotificationDelivery[]
+  receipts: NotificationReceipt[]
 }

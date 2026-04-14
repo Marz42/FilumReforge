@@ -32,6 +32,21 @@ class TaskRead(BaseModel):
   updated_at: datetime
 
 
+class TaskWatcherRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  task_id: UUID
+  user_id: UUID
+  relation: str
+  created_by: UUID
+  created_at: datetime
+
+
+class TaskWatcherBatchRequest(BaseModel):
+  user_ids: list[UUID] = Field(default_factory=list)
+
+
 class TaskCreateRequest(BaseModel):
   title: str = Field(min_length=1, max_length=255)
   assignee_id: UUID
@@ -109,3 +124,13 @@ class TaskWorkloadEntryRead(BaseModel):
   open_tasks: int
   completed_tasks: int
   overdue_tasks: int
+
+
+class TaskBoardColumnRead(BaseModel):
+  status: TaskStatus
+  tasks: list[TaskRead]
+
+
+class TaskGanttEntryRead(BaseModel):
+  task: TaskRead
+  dependency_ids: list[UUID]

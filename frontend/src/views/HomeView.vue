@@ -23,6 +23,7 @@ const architectureHighlights = [
   'JWT access / refresh 会话链路',
   'Redis 异步通知总线',
   '统一附件对象存储抽象',
+  '任务模板 / 审批流 / 消息中心',
 ]
 
 const summaryCards = computed(() => [
@@ -106,7 +107,7 @@ onMounted(() => {
               {{ formatDateTime(authStore.user?.last_login_at ?? null) }}
             </el-descriptions-item>
             <el-descriptions-item label="Foundation 范围">
-              用户、部门、档案、任务、附件与通知总线
+              用户、部门、档案、任务、模板、审批、消息与通知总线
             </el-descriptions-item>
           </el-descriptions>
         </el-card>
@@ -132,7 +133,7 @@ onMounted(() => {
 
         <el-card shadow="never" class="dashboard__section">
           <template #header>
-            <span>最新任务</span>
+            <span>最新任务与工作流</span>
           </template>
 
           <el-empty v-if="latestTaskTitles.length === 0" description="暂无任务" />

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import StaticPool
 
 from app.core.enums import (
+  ApprovalMode,
   AttachmentTargetType,
   CommentFormat,
   DelegationScopeType,
@@ -18,6 +19,10 @@ from app.core.enums import (
   PositionAssignmentType,
   ReportingLineType,
   TaskActionType,
+  WorkflowDefinitionStatus,
+  WorkflowInstanceStatus,
+  WorkflowStepRunStatus,
+  WorkflowStepType,
   UserRole,
   UserStatus,
 )
@@ -30,6 +35,7 @@ from app.models import (
   EmploymentEvent,
   NotificationDelivery,
   NotificationMessage,
+  NotificationReceipt,
   Position,
   Profile,
   ProfileFieldDefinition,
@@ -41,7 +47,16 @@ from app.models import (
   TaskComment,
   TaskDependency,
   TaskLog,
+  TaskSchedule,
+  TaskTemplate,
+  TaskTemplateStep,
+  TaskTemplateStepDependency,
+  TaskWatcher,
   User,
+  WorkflowDefinition,
+  WorkflowInstance,
+  WorkflowStep,
+  WorkflowStepRun,
 )
 
 
@@ -426,5 +441,176 @@ async def test_phase3_models_persist_hr_governance_entities() -> None:
     assert stored_reporting_line.line_type == ReportingLineType.SOLID
     assert stored_delegation is not None
     assert stored_delegation.scope_type == DelegationScopeType.DATA_ACCESS
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phase4_models_persist_workflow_and_messaging_entities() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  creator_id = uuid4()
+  approver_id = uuid4()
+  department_id = uuid4()
+
+  async with session_factory() as session:
+    creator = User(
+      id=creator_id,
+      email="creator@example.com",
+      password_hash="hashed-password",
+      role=UserRole.ADMIN,
+      status=UserStatus.ACTIVE,
+    )
+    approver = User(
+      id=approver_id,
+      email="approver@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    department = Department(
+      id=department_id,
+      name="流程部",
+      code="workflow",
+      manager=creator,
+    )
+    task = Task(
+      title="采购申请",
+      creator=creator,
+      assignee=approver,
+      department=department,
+    )
+    template = TaskTemplate(
+      code="procurement-template",
+      name="采购模板",
+      category="procurement",
+      created_by=creator_id,
+    )
+    template_step = TaskTemplateStep(
+      template=template,
+      step_key="submit",
+      title="提交申请",
+      default_assignee_rule={"type": "initiator"},
+      sort_order=1,
+    )
+    review_step = TaskTemplateStep(
+      template=template,
+      step_key="review",
+      title="主管审批",
+      step_type="approval",
+      default_assignee_rule={"type": "user", "user_ids": [str(approver_id)]},
+      default_due_offset_hours=24,
+      sort_order=2,
+    )
+    step_dependency = TaskTemplateStepDependency(
+      step=review_step,
+      depends_on_step=template_step,
+    )
+    workflow_definition = WorkflowDefinition(
+      code="procurement-approval",
+      name="采购审批流",
+      scope_type="procurement",
+      status=WorkflowDefinitionStatus.ACTIVE,
+      created_by=creator_id,
+    )
+    workflow_step = WorkflowStep(
+      definition=workflow_definition,
+      step_key="manager-approval",
+      name="主管审批",
+      step_type=WorkflowStepType.APPROVAL,
+      approval_mode=ApprovalMode.SINGLE,
+      assignee_rule={"type": "user_ids", "user_ids": [str(approver_id)]},
+      sort_order=1,
+    )
+    workflow_instance = WorkflowInstance(
+      definition=workflow_definition,
+      source_type="task",
+      source_id=task.id,
+      initiator_user_id=creator_id,
+      status=WorkflowInstanceStatus.IN_PROGRESS,
+      current_step_key=workflow_step.step_key,
+    )
+    workflow_step_run = WorkflowStepRun(
+      instance=workflow_instance,
+      step=workflow_step,
+      assignee_user_id=approver_id,
+      status=WorkflowStepRunStatus.PENDING,
+    )
+    task_watcher = TaskWatcher(
+      task=task,
+      user_id=creator_id,
+      relation="cc",
+      created_by=creator_id,
+    )
+    task_schedule = TaskSchedule(
+      template=template,
+      owner_user_id=creator_id,
+      cron_expr="0 9 * * 1",
+      payload={"department_id": str(department_id)},
+    )
+    message = NotificationMessage(
+      source_type="workflow",
+      source_id=workflow_instance.id,
+      recipient_user=approver,
+      message_type="workflow_action_required",
+      title="待审批",
+      body_text="你有一条待审批流程。",
+    )
+    delivery = NotificationDelivery(
+      message=message,
+      channel=NotificationChannel.WEBSOCKET,
+      adapter_name="websocket",
+    )
+    receipt = NotificationReceipt(
+      message=message,
+      user=approver,
+      receipt_type="read",
+    )
+
+    session.add_all(
+      [
+        creator,
+        approver,
+        department,
+        task,
+        template,
+        template_step,
+        review_step,
+        step_dependency,
+        workflow_definition,
+        workflow_step,
+        workflow_instance,
+        workflow_step_run,
+        task_watcher,
+        task_schedule,
+        message,
+        delivery,
+        receipt,
+      ]
+    )
+    await session.commit()
+
+    stored_template = await session.scalar(select(TaskTemplate).where(TaskTemplate.code == "procurement-template"))
+    stored_workflow_instance = await session.scalar(
+      select(WorkflowInstance).where(WorkflowInstance.current_step_key == "manager-approval")
+    )
+    stored_receipt = await session.scalar(
+      select(NotificationReceipt).where(NotificationReceipt.receipt_type == "read")
+    )
+
+    assert stored_template is not None
+    assert len(stored_template.steps) == 2
+    assert stored_workflow_instance is not None
+    assert stored_workflow_instance.status == WorkflowInstanceStatus.IN_PROGRESS
+    assert stored_receipt is not None
+    assert stored_receipt.user_id == approver_id
 
   await engine.dispose()

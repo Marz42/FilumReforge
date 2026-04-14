@@ -7,6 +7,9 @@ import LoginView from '@/views/LoginView.vue'
 import type { UserRole } from '@/types/api'
 import DepartmentsView from '@/views/DepartmentsView.vue'
 import ProfilesView from '@/views/ProfilesView.vue'
+import ApprovalsView from '@/views/ApprovalsView.vue'
+import MessagesView from '@/views/MessagesView.vue'
+import TaskTemplatesView from '@/views/TaskTemplatesView.vue'
 import TasksView from '@/views/TasksView.vue'
 
 const router = createRouter({
@@ -58,6 +61,21 @@ const router = createRouter({
           path: 'tasks',
           name: 'tasks',
           component: TasksView,
+        },
+        {
+          path: 'task-templates',
+          name: 'task-templates',
+          component: TaskTemplatesView,
+        },
+        {
+          path: 'approvals',
+          name: 'approvals',
+          component: ApprovalsView,
+        },
+        {
+          path: 'messages',
+          name: 'messages',
+          component: MessagesView,
         },
       ],
     },

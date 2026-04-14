@@ -10,16 +10,26 @@ from app.core.enums import (
   NotificationChannel,
   NotificationDeliveryStatus,
   NotificationMessageStatus,
+  WorkflowDefinitionStatus,
+  WorkflowStepRunStatus,
   UserRole,
 )
-from app.models import NotificationDelivery, NotificationMessage
+from app.models import NotificationDelivery, NotificationMessage, TaskSchedule
 from app.services.auth_service import AuthService
 from app.services.department_service import DepartmentService
 from app.services.notification_service import NotificationService
 from app.services.profile_service import ProfileService
+from app.services.task_automation_service import TaskAutomationService
 from app.services.task_service import TaskService
+from app.services.task_template_service import TaskTemplateService
 from app.services.user_service import UserService
-from app.workers.jobs import enqueue_overdue_task_reminders, process_notification_message_payload
+from app.services.workflow_engine_service import WorkflowEngineService
+from app.workers.jobs import (
+  enqueue_overdue_task_reminders,
+  enqueue_pending_workflow_reminders,
+  process_notification_message_payload,
+  run_due_task_schedules,
+)
 from app.schemas.messages import NotificationMessage as NotificationMessageSchema
 
 
@@ -141,3 +151,176 @@ async def test_enqueue_overdue_task_reminders_is_idempotent(db_session) -> None:
   assert second_created_count == 0
   assert reminder_count == 2
   assert len(queue_publisher.payloads) == 2
+
+
+@pytest.mark.asyncio
+async def test_run_due_task_schedules_creates_tasks_and_recomputes_next_run(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-SCHEDULE-001",
+    real_name="调度员工",
+    department_id=admin_profile.department_id,
+  )
+
+  queue_publisher = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, queue_publisher)
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+  task_automation_service = TaskAutomationService(db_session, task_template_service)
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="scheduled-template",
+    name="周期模板",
+    category="ops",
+    steps=[
+      {
+        "step_key": "scheduled-task",
+        "title": "执行巡检",
+        "default_assignee_rule": {"type": "user", "user_id": str(employee.id)},
+      }
+    ],
+  )
+  schedule = await task_automation_service.create_schedule(
+    actor=admin,
+    template_id=template.id,
+    cron_expr="*/5 * * * *",
+    payload={"department_id": str(admin_profile.department_id)},
+  )
+  schedule.next_run_at = datetime.now(UTC) - timedelta(minutes=1)
+  await db_session.commit()
+
+  executed_count = await run_due_task_schedules(
+    session=db_session,
+    queue_publisher=queue_publisher,
+  )
+  tasks = await task_service.list_tasks(actor=admin)
+  refreshed_schedule = await db_session.get(TaskSchedule, schedule.id)
+
+  assert executed_count == 1
+  assert len(tasks) == 1
+  assert tasks[0].source_type.value == "template"
+  assert refreshed_schedule is not None and refreshed_schedule.next_run_at is not None
+  assert len(queue_publisher.payloads) >= 1
+
+
+@pytest.mark.asyncio
+async def test_enqueue_pending_workflow_reminders_is_idempotent(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.HR,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="提醒部",
+    code="reminder-dept",
+    manager_id=manager.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=manager.id,
+    employee_no="EMP-MGR-003",
+    real_name="提醒经理",
+    department_id=department.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=requester.id,
+    employee_no="EMP-REQ-003",
+    real_name="提醒申请人",
+    department_id=department.id,
+  )
+
+  queue_publisher = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, queue_publisher)
+  workflow_engine_service = WorkflowEngineService(db_session, notification_service)
+  definition = await workflow_engine_service.create_definition(
+    actor=admin,
+    code="expense-approval",
+    name="报销审批",
+    scope_type="expense",
+    status=WorkflowDefinitionStatus.ACTIVE,
+    steps=[
+      {
+        "step_key": "approve",
+        "name": "经理审批",
+        "step_type": "approval",
+        "assignee_rule": {"type": "department_manager"},
+        "config": {"reminder_after_hours": 1},
+      }
+    ],
+  )
+  instance = await workflow_engine_service.start_workflow(
+    actor=requester,
+    definition_id=definition.id,
+    source_type="expense",
+    payload={"department_id": str(department.id)},
+  )
+  queue_publisher.payloads.clear()
+  pending_step_run = next(
+    step_run
+    for step_run in instance.step_runs
+    if step_run.status == WorkflowStepRunStatus.PENDING
+  )
+  pending_step_run.created_at = datetime.now(UTC) - timedelta(hours=2)
+  await db_session.commit()
+
+  first_created_count = await enqueue_pending_workflow_reminders(
+    session=db_session,
+    queue_publisher=queue_publisher,
+  )
+  second_created_count = await enqueue_pending_workflow_reminders(
+    session=db_session,
+    queue_publisher=queue_publisher,
+  )
+  reminder_count = await db_session.scalar(
+    select(func.count(NotificationMessage.id)).where(
+      NotificationMessage.source_type == "workflow_step_run",
+      NotificationMessage.source_id == pending_step_run.id,
+      NotificationMessage.message_type == "workflow_pending_reminder",
+    )
+  )
+
+  assert first_created_count == 1
+  assert second_created_count == 0
+  assert reminder_count == 1
+  assert len(queue_publisher.payloads) == 1

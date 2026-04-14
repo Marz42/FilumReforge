@@ -2,10 +2,13 @@ import type {
   CommentFormat,
   Task,
   TaskActivityEntry,
+  TaskBoardColumn,
   TaskComment,
+  TaskGanttEntry,
   TaskPriority,
   TaskStatsSummary,
   TaskStatus,
+  TaskWatcher,
   TaskWorkloadRow,
 } from '@/types/api'
 import { http } from './http'
@@ -29,6 +32,16 @@ export interface CreateTaskCommentPayload {
 
 export async function listTasks(): Promise<Task[]> {
   const { data } = await http.get<Task[]>('/tasks')
+  return data
+}
+
+export async function listTaskBoard(): Promise<TaskBoardColumn[]> {
+  const { data } = await http.get<TaskBoardColumn[]>('/tasks/views/board')
+  return data
+}
+
+export async function listTaskGantt(): Promise<TaskGanttEntry[]> {
+  const { data } = await http.get<TaskGanttEntry[]>('/tasks/views/gantt')
   return data
 }
 
@@ -75,5 +88,17 @@ export async function getTaskStatsSummary(): Promise<TaskStatsSummary> {
 
 export async function getTaskWorkload(): Promise<TaskWorkloadRow[]> {
   const { data } = await http.get<TaskWorkloadRow[]>('/tasks/stats/workload')
+  return data
+}
+
+export async function listTaskWatchers(taskId: string): Promise<TaskWatcher[]> {
+  const { data } = await http.get<TaskWatcher[]>(`/tasks/${taskId}/watchers`)
+  return data
+}
+
+export async function addTaskWatchers(taskId: string, userIds: string[]): Promise<TaskWatcher[]> {
+  const { data } = await http.post<TaskWatcher[]>(`/tasks/${taskId}/watchers`, {
+    user_ids: userIds,
+  })
   return data
 }
