@@ -34,6 +34,10 @@ export type NotificationReceiptType = 'delivered' | 'read' | 'acknowledged'
 export type PushSubscriptionStatus = 'active' | 'expired' | 'revoked'
 export type DocumentCategory = 'policy' | 'sop' | 'announcement' | 'faq' | 'other'
 export type DocumentStatus = 'draft' | 'published' | 'archived'
+export type DepartmentCapability =
+  | 'publish_announcement'
+  | 'publish_org_task'
+  | 'manage_templates'
 export type WorkflowDefinitionStatus = 'draft' | 'active' | 'archived'
 export type WorkflowStepType = 'task' | 'approval' | 'notify'
 export type ApprovalMode = 'single' | 'parallel_all' | 'parallel_any'
@@ -70,6 +74,7 @@ export interface Department {
   code: string
   parent_id: string | null
   manager_id: string | null
+  capabilities?: DepartmentCapability[]
   sort_order: number
   is_active: boolean
   created_at: string
@@ -314,6 +319,72 @@ export interface TaskSchedule {
   payload: Record<string, unknown>
   created_at: string
   updated_at: string
+}
+
+export interface OverviewScopeOption {
+  id: string
+  label: string
+}
+
+export interface OverviewBoardCard {
+  id: string
+  scope_department_id: string | null
+  scope_label: string
+  title: string
+  content_md: string
+  expires_at: string
+  author_user_id: string
+  author_name: string
+  created_at: string
+}
+
+export interface OverviewAnnouncement {
+  id: string
+  publisher_department_id: string
+  publisher_department_name: string
+  title: string
+  content_md: string
+  published_at: string
+  author_user_id: string
+  author_name: string
+}
+
+export interface OverviewTaskInboxEntry {
+  task_id: string
+  title: string
+  priority: TaskPriority
+  status: TaskStatus
+  due_date: string | null
+  department_name: string | null
+  current_stage_label: string
+  current_handler_label: string | null
+}
+
+export interface OverviewTaskTrackingEntry {
+  task_id: string
+  title: string
+  priority: TaskPriority
+  status: TaskStatus
+  due_date: string | null
+  department_name: string | null
+  relation_types: string[]
+  current_stage_label: string
+  current_handler_label: string | null
+}
+
+export interface OverviewPermissions {
+  board_scope_options: OverviewScopeOption[]
+  announcement_scope_options: OverviewScopeOption[]
+  can_publish_board: boolean
+  can_publish_announcement: boolean
+}
+
+export interface OverviewSnapshot {
+  board_cards: OverviewBoardCard[]
+  announcements: OverviewAnnouncement[]
+  task_inbox: OverviewTaskInboxEntry[]
+  task_tracking: OverviewTaskTrackingEntry[]
+  permissions: OverviewPermissions
 }
 
 export interface TaskTemplateStep {

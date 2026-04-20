@@ -269,6 +269,78 @@ async def test_auth_and_users_api_flow(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_overview_api_supports_board_cards_and_announcements(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  me_response = await client.get("/api/v1/auth/me", headers=headers)
+  assert me_response.status_code == 200
+  admin_user_id = me_response.json()["id"]
+
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "财务行政部",
+      "code": "finance-admin",
+      "capabilities": ["publish_announcement"],
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  board_response = await client.post(
+    "/api/v1/board-cards",
+    headers=headers,
+    json={
+      "scope_department_id": None,
+      "title": "公司值班提醒",
+      "content_md": "请查看本周值班安排。",
+    },
+  )
+  assert board_response.status_code == 201
+  assert board_response.json()["scope_label"] == "公司"
+
+  announcement_response = await client.post(
+    "/api/v1/announcements",
+    headers=headers,
+    json={
+      "publisher_department_id": department_id,
+      "title": "办公区维护通知",
+      "content_md": "今晚进行网络维护。",
+    },
+  )
+  assert announcement_response.status_code == 201
+  announcement_id = announcement_response.json()["id"]
+
+  task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "补齐总览首页",
+      "assignee_id": admin_user_id,
+      "priority": "high",
+    },
+  )
+  assert task_response.status_code == 201
+
+  overview_response = await client.get("/api/v1/overview", headers=headers)
+  assert overview_response.status_code == 200
+  payload = overview_response.json()
+  assert len(payload["board_cards"]) == 1
+  assert len(payload["announcements"]) == 1
+  assert len(payload["task_inbox"]) == 1
+  assert payload["permissions"]["can_publish_board"] is True
+  assert payload["permissions"]["can_publish_announcement"] is True
+
+  withdraw_response = await client.post(
+    f"/api/v1/announcements/{announcement_id}/withdraw",
+    headers=headers,
+  )
+  assert withdraw_response.status_code == 204
+
+
+@pytest.mark.asyncio
 async def test_department_profile_task_and_attachment_api_flow(api_client) -> None:
   client, queue_publisher = api_client
   headers, _ = await bootstrap_and_login(client)

@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.1.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / 壳层导航重构已完成，Step 2 / 总览模块待落地  
+**版本**: v3.2.0  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / 壳层导航重构与 Step 2 / 总览模块已完成，等待用户验测  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -51,7 +51,7 @@
 - 任务完成率 / 逾期率 / 负载统计
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
-- 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；当前入口包括总览、任务中心、知识库、汇报中心、消息中心、人员管理、部门管理
+- 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；总览页已落地看板、公告、待办事项、任务跟踪与任务中心快捷入口
 - 测试数据脚本：可重复生成 demo 组织、档案与账号
 
 ### 2.3 当前明确缺口
@@ -79,7 +79,7 @@
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
-| Frontend Experience | 浏览器后台、分组导航、人员管理聚合入口、任务中心聚合入口、知识库、消息中心、Push / PWA | 重构执行中（Step 1 已完成） | 总览模块、任务中心、汇报中心与消息联动细化 |
+| Frontend Experience | 浏览器后台、分组导航、总览模块、人员管理聚合入口、任务中心聚合入口、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 已完成） | 任务中心、汇报中心与消息联动细化 |
 | Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑
@@ -203,6 +203,11 @@
 | `backend/app/services/llm_router_service.py` | `@系统` / `/` 路由、Tool Calling 编排 |
 | `backend/app/services/browser_push_service.py` | Push 订阅管理与 Push payload 构造 |
 | `backend/app/services/sample_data_service.py` | demo 组织、用户、档案、汇报线与岗位测试数据生成 |
+| `backend/app/models/overview.py` | 总览相关模型：看板、看板归档、公告、公告归档 |
+| `backend/app/services/board_service.py` | 看板范围、发布限制、可见查询与自动归档 |
+| `backend/app/services/announcement_service.py` | 公告发布权限、活跃公告查询、撤下归档与通知广播 |
+| `backend/app/services/overview_service.py` | 总览聚合服务，整合看板、公告与任务投影 |
+| `backend/app/api/routes/overview.py` | 总览、看板、公告接口 |
 | `backend/app/api/routes/hr_governance.py` | Phase 3 岗位、字段定义、字段权限、授权管理接口 |
 | `backend/app/api/routes/task_templates.py` | 模板、实例化与 schedule 接口 |
 | `backend/app/api/routes/workflows.py` | 流程定义、实例、待办审批与审批动作接口 |
@@ -215,8 +220,8 @@
 | `backend/app/integrations/llm/openai_client.py` | OpenAI SDK 统一封装 |
 | `backend/app/integrations/notifications/factory.py` | 通知 adapter 构造与分发 |
 | `backend/app/integrations/notifications/web_push.py` | Web Push 发送实现 |
-| `backend/app/workers/jobs.py` | 通知消费、逾期提醒、周期模板实例化与审批提醒扫描 |
-| `backend/app/workers/arq_worker.py` | ARQ worker 运行时入口与 cron 配置 |
+| `backend/app/workers/jobs.py` | 通知消费、逾期提醒、周期模板实例化、审批提醒扫描与看板归档 |
+| `backend/app/workers/arq_worker.py` | ARQ worker 运行时入口与 cron 配置（含看板归档定时任务） |
 | `backend/alembic/versions/20260413_01_phase1_foundation.py` | Phase 1 基线迁移 |
 | `backend/alembic/versions/20260414_01_phase2_collaboration.py` | Phase 2 协同迁移 |
 | `backend/alembic/versions/20260415_01_phase3_hr_governance.py` | Phase 3 HR 治理迁移 |
@@ -232,7 +237,7 @@
 | `frontend/src/stores/auth.ts` | 登录态与会话恢复 |
 | `frontend/src/stores/app.ts` | 当前阶段标识与全局项目状态文案 |
 | `frontend/src/views/LoginView.vue` | 登录与管理员初始化 |
-| `frontend/src/views/HomeView.vue` | 当前总览承载页；Step 1 后已作为 `/overview` 入口，Step 2 将在此基础上替换旧仪表盘内容 |
+| `frontend/src/views/HomeView.vue` | 当前总览页；已承载看板、公告、待办事项、任务跟踪与快捷入口 |
 | `frontend/src/views/PeopleManagementView.vue` | Step 1 新增的人员管理聚合入口，承载用户账号 / 档案管理双标签 |
 | `frontend/src/views/UsersView.vue` | 用户管理工作台，当前由 `PeopleManagementView.vue` 聚合承载 |
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
@@ -243,10 +248,12 @@
 | `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口，当前由 `TaskCenterView.vue` 聚合承载 |
 | `frontend/src/views/ApprovalsView.vue` | 当前复用为“汇报中心”入口壳；底层仍承载审批定义、待办审批与实例查看 |
 | `frontend/src/views/MessagesView.vue` | 消息收件箱与回执工作台 |
+| `frontend/src/api/overview.ts` | 总览、看板、公告 API client |
 | `frontend/src/components/CommandBar.vue` | 全局命令入口，承载 `@系统` / `/` |
 | `frontend/src/components/PushSubscriptionCard.vue` | 浏览器 Push 订阅管理卡片 |
 | `frontend/src/components/AppShell.vue` | 全局壳层导航；Step 1 后改为“通用模块 / 特殊模块”分组结构 |
 | `frontend/src/router/index.ts` | 路由表；Step 1 后主入口改为 `/overview`、`/task-center`、`/reports`、`/people`，并保留旧地址兼容跳转 |
+| `frontend/tests/HomeView.spec.ts` | 总览展示与发布动作单测 |
 | `frontend/src/api/tasks.ts` | 任务、状态流转、评论、活动流、统计、watcher、多视图 API client |
 | `frontend/src/api/task-templates.ts` | 模板、实例化与 schedule API client |
 | `frontend/src/api/workflows.ts` | 审批定义、流程实例与审批动作 API client |
@@ -360,6 +367,14 @@
 3. 创建或更新 demo 部门、岗位、用户、档案、任职关系与汇报线。
 4. 输出可直接用于手工测试的账号清单。
 
+### 6.12 总览模块链路（当前 / 重构 Step 2）
+
+1. `HomeView.vue` 进入 `/overview` 后调用 `GET /overview`。
+2. `OverviewService` 聚合看板、公告、待办事项、任务跟踪与可发布范围。
+3. `BoardService` 根据当前用户的组织路径返回公司级 + 路径级看板，并限制每人最多 2 张活跃卡片。
+4. `AnnouncementService` 基于 `departments.capabilities` 控制公告发布权限，并在发布时向可见用户写入系统消息。
+5. ARQ worker 定时执行过期看板归档，把活跃卡片快照写入 `board_card_archives`。
+
 ## 7. 阶段映射
 
 | 阶段 | 状态 | 已落地或目标内容 |
@@ -465,6 +480,7 @@
 | `code` | `varchar(64)` | UNIQUE, NOT NULL | 稳定标识 |
 | `parent_id` | `uuid` | FK -> `departments.id`, NULL | 上级部门 |
 | `manager_id` | `uuid` | FK -> `users.id`, NULL | 部门负责人 |
+| `capabilities` | `jsonb` | NOT NULL, DEFAULT `[]` | 部门能力集合，如公告发布、组织任务发布、模板管理 |
 | `sort_order` | `int4` | NOT NULL, DEFAULT `0` | 排序 |
 | `is_active` | `bool` | NOT NULL, DEFAULT `true` | 是否启用 |
 | `created_at` | `timestamptz` | NOT NULL | 创建时间 |
@@ -1153,11 +1169,97 @@
 - `uq_document_embeddings_chunk (document_id, chunk_index)`
 - 向量索引：`ivfflat` 或 `hnsw`
 
+### 10.33 `board_cards`
+
+**实现状态**: 重构 Step 2 已实现
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 看板卡片主键 |
+| `scope_department_id` | `uuid` | FK -> `departments.id`, NULL | 可见范围部门，NULL 表示公司级 |
+| `author_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 发布人 |
+| `title` | `varchar(120)` | NOT NULL | 主题 |
+| `content_md` | `text` | NOT NULL | 内容 |
+| `expires_at` | `timestamptz` | NOT NULL | 到期时间 |
+| `created_at` | `timestamptz` | NOT NULL | 发布时间 |
+| `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
+
+**约束与索引**
+
+- `idx_board_cards_scope_department_id (scope_department_id)`
+- `idx_board_cards_author_user_id (author_user_id)`
+- `idx_board_cards_expires_at (expires_at)`
+
+### 10.34 `board_card_archives`
+
+**实现状态**: 重构 Step 2 已实现
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 归档主键 |
+| `original_card_id` | `uuid` | UNIQUE, NOT NULL | 原活跃卡片 ID |
+| `scope_department_id` | `uuid` | FK -> `departments.id`, NULL | 原范围部门 |
+| `author_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 原发布人 |
+| `title` | `varchar(120)` | NOT NULL | 主题快照 |
+| `content_md` | `text` | NOT NULL | 内容快照 |
+| `published_at` | `timestamptz` | NOT NULL | 原发布时间 |
+| `expires_at` | `timestamptz` | NOT NULL | 原到期时间 |
+| `archived_at` | `timestamptz` | NOT NULL | 归档时间 |
+
+**约束与索引**
+
+- `uq_board_card_archives_original_card_id`
+- `idx_board_card_archives_scope_department_id (scope_department_id)`
+- `idx_board_card_archives_archived_at (archived_at DESC)`
+
+### 10.35 `announcements`
+
+**实现状态**: 重构 Step 2 已实现
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 公告主键 |
+| `publisher_department_id` | `uuid` | FK -> `departments.id`, NOT NULL | 发布部门 |
+| `author_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 发布人 |
+| `title` | `varchar(160)` | NOT NULL | 公告标题 |
+| `content_md` | `text` | NOT NULL | 公告内容 |
+| `published_at` | `timestamptz` | NOT NULL | 发布时间 |
+| `created_at` | `timestamptz` | NOT NULL | 创建时间 |
+| `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
+
+**约束与索引**
+
+- `idx_announcements_publisher_department_id (publisher_department_id)`
+- `idx_announcements_published_at (published_at DESC)`
+
+### 10.36 `announcement_archives`
+
+**实现状态**: 重构 Step 2 已实现
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 归档主键 |
+| `original_announcement_id` | `uuid` | UNIQUE, NOT NULL | 原活跃公告 ID |
+| `publisher_department_id` | `uuid` | FK -> `departments.id`, NOT NULL | 原发布部门 |
+| `author_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 原发布人 |
+| `title` | `varchar(160)` | NOT NULL | 标题快照 |
+| `content_md` | `text` | NOT NULL | 内容快照 |
+| `published_at` | `timestamptz` | NOT NULL | 原发布时间 |
+| `archived_at` | `timestamptz` | NOT NULL | 撤下归档时间 |
+
+**约束与索引**
+
+- `uq_announcement_archives_original_announcement_id`
+- `idx_announcement_archives_publisher_department_id (publisher_department_id)`
+- `idx_announcement_archives_archived_at (archived_at DESC)`
+
 ## 11. 关系说明
 
 - `users 1:1 profiles`
 - `users 1:N refresh_tokens`
 - `departments 1:N profiles`
+- `departments 1:N board_cards`
+- `departments 1:N announcements`
 - `users N:N positions` 通过 `profile_positions`
 - `users N:N users` 通过 `reporting_lines`
 - `profiles 1:N employment_events`
@@ -1174,6 +1276,8 @@
 - `notification_messages 1:N notification_deliveries`
 - `notification_messages 1:N notification_receipts`
 - `documents 1:N document_embeddings`
+- `board_cards 1:1 board_card_archives`
+- `announcements 1:1 announcement_archives`
 - `attachments N:N 业务对象` 通过 `attachment_links`
 
 ## 12. 当前验证基线

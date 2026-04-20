@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from app.core.config import Settings
 from app.core.enums import (
   DEFAULT_USER_NOTIFICATION_CHANNELS,
+  DepartmentCapability,
   DocumentCategory,
   DocumentStatus,
   NotificationChannel,
@@ -18,7 +19,7 @@ from app.core.enums import (
   WorkflowStepRunStatus,
   UserRole,
 )
-from app.models import NotificationDelivery, NotificationMessage, TaskSchedule
+from app.models import BoardCard, BoardCardArchive, NotificationDelivery, NotificationMessage, TaskSchedule
 from app.models import DocumentEmbedding
 from app.integrations.notifications.web_push import WebPushNotificationAdapter
 from app.services.auth_service import AuthService
@@ -33,6 +34,7 @@ from app.services.task_template_service import TaskTemplateService
 from app.services.user_service import UserService
 from app.services.workflow_engine_service import WorkflowEngineService
 from app.workers.jobs import (
+  archive_expired_board_cards,
   enqueue_overdue_task_reminders,
   enqueue_pending_workflow_reminders,
   process_notification_message_payload,
@@ -304,6 +306,51 @@ async def test_run_due_task_schedules_creates_tasks_and_recomputes_next_run(db_s
   assert tasks[0].source_type.value == "template"
   assert refreshed_schedule is not None and refreshed_schedule.next_run_at is not None
   assert len(queue_publisher.payloads) >= 1
+
+
+@pytest.mark.asyncio
+async def test_archive_expired_board_cards_moves_cards_to_archive(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  department = await department_service.create_department(
+    actor=admin,
+    name="财务行政部",
+    code="finance-admin",
+    capabilities=[DepartmentCapability.PUBLISH_ANNOUNCEMENT],
+  )
+  await profile_service.update_profile(
+    actor=admin,
+    user_id=admin.id,
+    department_id=department.id,
+  )
+
+  card = BoardCard(
+    scope_department_id=department.id,
+    author_user_id=admin.id,
+    title="过期看板",
+    content_md="需要归档。",
+    expires_at=datetime.now(UTC) - timedelta(minutes=1),
+  )
+  db_session.add(card)
+  await db_session.commit()
+
+  archived_count = await archive_expired_board_cards(session=db_session)
+  remaining_cards = list(await db_session.scalars(select(BoardCard)))
+  archives = list(await db_session.scalars(select(BoardCardArchive)))
+
+  assert archived_count == 1
+  assert remaining_cards == []
+  assert len(archives) == 1
+  assert archives[0].title == "过期看板"
 
 
 @pytest.mark.asyncio

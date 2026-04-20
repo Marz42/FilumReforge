@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.db_types import build_json_type
 from app.models.base import Base
 from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -22,6 +23,7 @@ class Department(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   manager_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
   sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
   is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+  capabilities: Mapped[list[str]] = mapped_column(build_json_type(), default=list, nullable=False)
 
   parent = relationship("Department", remote_side="Department.id", back_populates="children")
   children = relationship("Department", back_populates="parent")

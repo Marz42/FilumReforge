@@ -17,9 +17,22 @@ from app.core.enums import (
   TaskPriority,
   TaskSourceType,
   TaskStatus,
+  WorkflowStepRunStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
-from app.models import Department, Profile, Task, TaskComment, TaskDependency, TaskLog, TaskWatcher, User
+from app.models import (
+  Department,
+  Profile,
+  Task,
+  TaskComment,
+  TaskDependency,
+  TaskLog,
+  TaskWatcher,
+  User,
+  WorkflowInstance,
+  WorkflowStep,
+  WorkflowStepRun,
+)
 from app.schemas.messages import NotificationMessage
 from app.services.access_control import (
   MANAGEMENT_ROLES,
@@ -80,6 +93,31 @@ class TaskGanttEntry:
   dependency_ids: list[UUID]
 
 
+@dataclass(slots=True)
+class TaskInboxEntry:
+  task_id: UUID
+  title: str
+  priority: TaskPriority
+  status: TaskStatus
+  due_date: datetime | None
+  department_name: str | None
+  current_stage_label: str
+  current_handler_label: str | None
+
+
+@dataclass(slots=True)
+class TaskTrackingEntry:
+  task_id: UUID
+  title: str
+  priority: TaskPriority
+  status: TaskStatus
+  due_date: datetime | None
+  department_name: str | None
+  relation_types: list[str]
+  current_stage_label: str
+  current_handler_label: str | None
+
+
 ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
   TaskStatus.TODO: {TaskStatus.DOING},
   TaskStatus.DOING: {TaskStatus.REVIEW},
@@ -104,6 +142,26 @@ def _is_overdue(*, due_date: datetime | None, now: datetime) -> bool:
   if due_date is None:
     return False
   return _normalize_datetime(due_date) < now
+
+
+def _task_priority_sort_value(priority: TaskPriority) -> int:
+  priority_order = {
+    TaskPriority.URGENT: 0,
+    TaskPriority.HIGH: 1,
+    TaskPriority.MEDIUM: 2,
+    TaskPriority.LOW: 3,
+  }
+  return priority_order[priority]
+
+
+def _task_status_label(status: TaskStatus) -> str:
+  labels = {
+    TaskStatus.TODO: "待办",
+    TaskStatus.DOING: "进行中",
+    TaskStatus.REVIEW: "评审中",
+    TaskStatus.DONE: "已完成",
+  }
+  return labels[status]
 
 
 class TaskService:
@@ -264,6 +322,107 @@ class TaskService:
       filters.append(Task.department_id.in_(managed_department_ids))
     return statement.where(or_(*filters))
 
+  async def _task_step_context_map(self, *, task_ids: list[UUID]) -> dict[UUID, tuple[str, str | None]]:
+    if not task_ids:
+      return {}
+
+    step_runs = list(
+      await self._session.scalars(
+        select(WorkflowStepRun)
+        .join(WorkflowStepRun.instance)
+        .join(WorkflowStepRun.step)
+        .options(
+          selectinload(WorkflowStepRun.assignee).selectinload(User.profile),
+          selectinload(WorkflowStepRun.step),
+          selectinload(WorkflowStepRun.instance),
+        )
+        .where(
+          WorkflowInstance.source_type == "task",
+          WorkflowInstance.source_id.in_(task_ids),
+          WorkflowStepRun.status == WorkflowStepRunStatus.PENDING,
+        )
+        .order_by(WorkflowInstance.source_id.asc(), WorkflowStepRun.created_at.asc())
+      )
+    )
+
+    context_map: dict[UUID, tuple[str, str | None]] = {}
+    pending_counts: dict[UUID, int] = {}
+    first_step_run_by_task: dict[UUID, WorkflowStepRun] = {}
+    for step_run in step_runs:
+      instance = step_run.instance
+      step = step_run.step
+      if instance is None or step is None or instance.source_id is None:
+        continue
+      task_id = instance.source_id
+      pending_counts[task_id] = pending_counts.get(task_id, 0) + 1
+      first_step_run_by_task.setdefault(task_id, step_run)
+
+    for task_id, step_run in first_step_run_by_task.items():
+      step = step_run.step
+      assignee = step_run.assignee
+      pending_count = pending_counts.get(task_id, 1)
+      if pending_count > 1:
+        current_handler_label = f"{pending_count} 人待处理"
+      elif assignee is not None:
+        current_handler_label = assignee.profile.real_name if assignee.profile and assignee.profile.real_name else assignee.email
+      else:
+        current_handler_label = None
+      context_map[task_id] = (
+        f"审批：{step.name}" if step is not None else "审批处理中",
+        current_handler_label,
+      )
+    return context_map
+
+  @staticmethod
+  def _build_inbox_entry(
+    *,
+    task: Task,
+    step_context_map: dict[UUID, tuple[str, str | None]],
+  ) -> TaskInboxEntry:
+    current_stage_label, current_handler_label = step_context_map.get(
+      task.id,
+      (
+        f"任务：{_task_status_label(task.status)}",
+        task.assignee.profile.real_name if task.assignee and task.assignee.profile and task.assignee.profile.real_name else task.assignee.email if task.assignee else None,
+      ),
+    )
+    return TaskInboxEntry(
+      task_id=task.id,
+      title=task.title,
+      priority=task.priority,
+      status=task.status,
+      due_date=task.due_date,
+      department_name=task.department.name if task.department is not None else None,
+      current_stage_label=current_stage_label,
+      current_handler_label=current_handler_label,
+    )
+
+  @staticmethod
+  def _build_tracking_entry(
+    *,
+    task: Task,
+    relation_types: list[str],
+    step_context_map: dict[UUID, tuple[str, str | None]],
+  ) -> TaskTrackingEntry:
+    current_stage_label, current_handler_label = step_context_map.get(
+      task.id,
+      (
+        f"任务：{_task_status_label(task.status)}",
+        task.assignee.profile.real_name if task.assignee and task.assignee.profile and task.assignee.profile.real_name else task.assignee.email if task.assignee else None,
+      ),
+    )
+    return TaskTrackingEntry(
+      task_id=task.id,
+      title=task.title,
+      priority=task.priority,
+      status=task.status,
+      due_date=task.due_date,
+      department_name=task.department.name if task.department is not None else None,
+      relation_types=relation_types,
+      current_stage_label=current_stage_label,
+      current_handler_label=current_handler_label,
+    )
+
   async def _create_task_log(
     self,
     *,
@@ -345,6 +504,135 @@ class TaskService:
     if task is None:
       raise NotFoundError("任务不存在。")
     return task
+
+  async def list_task_inbox(self, *, actor: User, limit: int = 10) -> list[TaskInboxEntry]:
+    ensure_active_user(actor)
+
+    pending_workflow_task_ids = list(
+      await self._session.scalars(
+        select(WorkflowInstance.source_id)
+        .join(WorkflowInstance.step_runs)
+        .where(
+          WorkflowInstance.source_type == "task",
+          WorkflowInstance.source_id.is_not(None),
+          WorkflowStepRun.assignee_user_id == actor.id,
+          WorkflowStepRun.status == WorkflowStepRunStatus.PENDING,
+        )
+      )
+    )
+    candidate_task_ids = {
+      task_id
+      for task_id in pending_workflow_task_ids
+      if task_id is not None
+    }
+    task_filters = [Task.assignee_id == actor.id]
+    if candidate_task_ids:
+      task_filters.append(Task.id.in_(candidate_task_ids))
+
+    tasks = list(
+      await self._session.scalars(
+        select(Task)
+        .options(
+          selectinload(Task.assignee).selectinload(User.profile),
+          selectinload(Task.department),
+        )
+        .where(
+          or_(*task_filters),
+          Task.status != TaskStatus.DONE,
+        )
+      )
+    )
+    step_context_map = await self._task_step_context_map(task_ids=[task.id for task in tasks])
+    sorted_tasks = sorted(
+      tasks,
+      key=lambda task: (
+        task.due_date is None,
+        _normalize_datetime(task.due_date) if task.due_date is not None else datetime.max.replace(tzinfo=UTC),
+        _task_priority_sort_value(task.priority),
+        -int(task.created_at.timestamp()),
+      ),
+    )
+    return [
+      self._build_inbox_entry(task=task, step_context_map=step_context_map)
+      for task in sorted_tasks[:limit]
+    ]
+
+  async def list_task_tracking(self, *, actor: User, limit: int = 10) -> list[TaskTrackingEntry]:
+    ensure_active_user(actor)
+
+    workflow_related_task_ids = {
+      task_id
+      for task_id in list(
+        await self._session.scalars(
+          select(WorkflowInstance.source_id)
+          .outerjoin(WorkflowInstance.step_runs)
+          .where(
+            WorkflowInstance.source_type == "task",
+            WorkflowInstance.source_id.is_not(None),
+            or_(
+              WorkflowInstance.initiator_user_id == actor.id,
+              WorkflowStepRun.assignee_user_id == actor.id,
+            ),
+          )
+        )
+      )
+      if task_id is not None
+    }
+
+    tracking_filters = [
+      Task.creator_id == actor.id,
+      Task.assignee_id == actor.id,
+      Task.watchers.any(TaskWatcher.user_id == actor.id),
+    ]
+    if workflow_related_task_ids:
+      tracking_filters.append(Task.id.in_(workflow_related_task_ids))
+
+    tasks = list(
+      await self._session.scalars(
+        select(Task)
+        .options(
+          selectinload(Task.assignee).selectinload(User.profile),
+          selectinload(Task.department),
+          selectinload(Task.watchers),
+        )
+        .where(or_(*tracking_filters))
+        .order_by(Task.updated_at.desc())
+      )
+    )
+
+    step_context_map = await self._task_step_context_map(task_ids=[task.id for task in tasks])
+    tracking_entries: list[TaskTrackingEntry] = []
+    inbox_task_ids = {entry.task_id for entry in await self.list_task_inbox(actor=actor, limit=limit * 2)}
+    for task in tasks:
+      if task.id in inbox_task_ids:
+        continue
+      relation_types: list[str] = []
+      if task.creator_id == actor.id:
+        relation_types.append("发起")
+      if task.assignee_id == actor.id:
+        relation_types.append("执行")
+      if any(watcher.user_id == actor.id for watcher in task.watchers):
+        relation_types.append("关注")
+      if task.id in workflow_related_task_ids:
+        relation_types.append("流程")
+      tracking_entries.append(
+        self._build_tracking_entry(
+          task=task,
+          relation_types=relation_types or ["相关"],
+          step_context_map=step_context_map,
+        )
+      )
+
+    sorted_entries = sorted(
+      tracking_entries,
+      key=lambda item: (
+        item.status == TaskStatus.DONE,
+        item.due_date is None,
+        _normalize_datetime(item.due_date) if item.due_date is not None else datetime.max.replace(tzinfo=UTC),
+        _task_priority_sort_value(item.priority),
+      ),
+    )
+    return sorted_entries[:limit]
 
   async def update_task(
     self,

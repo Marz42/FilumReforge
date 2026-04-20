@@ -19,6 +19,7 @@ from app.core.enums import (
 )
 from app.models import NotificationMessage as NotificationMessageModel
 from app.models import Document, WorkflowInstance, WorkflowStepRun
+from app.services.board_service import BoardService
 from app.integrations.llm.openai_client import OpenAIClient
 from app.integrations.notifications.base import NotificationAdapter
 from app.integrations.notifications.factory import build_notification_adapters
@@ -306,3 +307,11 @@ async def rebuild_all_document_embeddings(
     await retrieval_service.rebuild_document_embeddings(document_id=document_id)
     rebuilt_count += 1
   return rebuilt_count
+
+
+async def archive_expired_board_cards(
+  *,
+  session: AsyncSession,
+) -> int:
+  board_service = BoardService(session)
+  return await board_service.archive_expired_cards()

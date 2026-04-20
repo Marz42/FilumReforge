@@ -77,6 +77,10 @@ def test_alembic_upgrade_and_downgrade(tmp_path, monkeypatch) -> None:
     "documents",
     "document_embeddings",
     "push_subscriptions",
+    "board_cards",
+    "board_card_archives",
+    "announcements",
+    "announcement_archives",
   }.issubset(upgraded_tables)
 
   command.downgrade(alembic_config, "base")

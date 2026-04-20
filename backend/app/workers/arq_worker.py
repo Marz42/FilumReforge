@@ -10,6 +10,7 @@ from app.integrations.notifications.queue import (
   RedisNotificationQueuePublisher,
 )
 from app.workers.jobs import (
+  archive_expired_board_cards,
   enqueue_overdue_task_reminders,
   enqueue_pending_workflow_reminders,
   process_notification_message_payload,
@@ -21,6 +22,7 @@ from app.workers.jobs import (
 OVERDUE_REMINDER_JOB = "enqueue_overdue_task_reminders"
 WORKFLOW_REMINDER_JOB = "enqueue_pending_workflow_reminders"
 TASK_SCHEDULE_JOB = "run_due_task_schedules"
+BOARD_ARCHIVE_JOB = "archive_expired_board_cards"
 REBUILD_DOCUMENT_EMBEDDINGS_JOB = "rebuild_document_embeddings_job"
 REBUILD_ALL_DOCUMENT_EMBEDDINGS_JOB = "rebuild_all_document_embeddings_job"
 
@@ -92,6 +94,12 @@ async def run_due_task_schedules_job(ctx: dict[str, object]) -> int:
     )
 
 
+async def archive_expired_board_cards_job(ctx: dict[str, object]) -> int:
+  session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
+  async with session_factory() as session:
+    return await archive_expired_board_cards(session=session)
+
+
 async def rebuild_document_embeddings_job(ctx: dict[str, object], document_id: str) -> int:
   settings: Settings = ctx["settings"]  # type: ignore[assignment]
   session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
@@ -122,6 +130,7 @@ class WorkerSettings:
     enqueue_overdue_task_reminders_job,
     enqueue_pending_workflow_reminders_job,
     run_due_task_schedules_job,
+    archive_expired_board_cards_job,
     rebuild_document_embeddings_job,
     rebuild_all_document_embeddings_job,
   ]
@@ -144,6 +153,13 @@ class WorkerSettings:
       run_due_task_schedules_job,
       name=TASK_SCHEDULE_JOB,
       minute={5, 20, 35, 50},
+      run_at_startup=True,
+      unique=True,
+    ),
+    cron(
+      archive_expired_board_cards_job,
+      name=BOARD_ARCHIVE_JOB,
+      minute={12, 42},
       run_at_startup=True,
       unique=True,
     ),

@@ -16,7 +16,7 @@
 | 步骤 | 状态 | 结论 |
 | --- | --- | --- |
 | Step 1 / 壳层导航重构 | done | 用户已确认通过，已完成分组导航、主入口改名、旧路由兼容跳转与聚合入口壳层 |
-| Step 2 / 总览模块 | pending | 待开始实现看板、公告、当前任务投影与总览聚合 |
+| Step 2 / 总览模块 | done | 已完成看板、公告、当前任务投影、总览聚合接口、总览页前端、归档 cron 与自动化回归，等待用户验测 |
 
 ## 已完成里程碑
 
@@ -221,6 +221,16 @@
 
 - 用户进行了简单功能测试，反馈“看上去基本上没有问题”。
 - 因此当前 `memory-bank` 已按 **Phase 2 已完成** 的事实收口。
+
+## 重构执行补记
+
+### Step 2 / 总览模块
+
+- 已新增部门能力字段 `departments.capabilities`，用于公告发布等能力控制。
+- 已新增 `board_cards`、`board_card_archives`、`announcements`、`announcement_archives`。
+- 已新增总览聚合接口、看板发布 / 归档、公告发布 / 撤下，以及待办 / 跟踪任务投影。
+- 已重写 `HomeView.vue`，首页现在显示看板、公告、待办事项、任务跟踪和任务中心快捷入口。
+- 已补齐后端 `pytest`、`compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 回归。
 
 ### Phase 3 验测补记
 

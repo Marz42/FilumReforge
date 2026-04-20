@@ -41,6 +41,26 @@ async def get_actor_department_id(session: AsyncSession, actor_id: UUID) -> UUID
   return await session.scalar(select(Profile.department_id).where(Profile.user_id == actor_id))
 
 
+async def get_actor_department_path_ids(session: AsyncSession, actor_id: UUID) -> list[UUID]:
+  actor_department_id = await get_actor_department_id(session, actor_id)
+  if actor_department_id is None:
+    return []
+
+  departments = await _list_departments(session)
+  department_map = {department.id: department for department in departments}
+  path_ids: list[UUID] = []
+  current_id: UUID | None = actor_department_id
+  while current_id is not None:
+    department = department_map.get(current_id)
+    if department is None:
+      break
+    path_ids.append(department.id)
+    current_id = department.parent_id
+
+  path_ids.reverse()
+  return path_ids
+
+
 async def _list_departments(session: AsyncSession) -> list[Department]:
   return list(await session.scalars(select(Department)))
 

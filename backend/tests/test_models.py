@@ -30,9 +30,13 @@ from app.core.enums import (
   UserStatus,
 )
 from app.models import (
+  Announcement,
+  AnnouncementArchive,
   Attachment,
   AttachmentLink,
   Base,
+  BoardCard,
+  BoardCardArchive,
   Delegation,
   Department,
   Document,
@@ -207,6 +211,89 @@ async def test_phase1_models_create_schema_and_persist_core_entities() -> None:
     assert stored_task.title == "初始化基础任务"
     assert stored_message is not None
     assert stored_message.message_type == "task_assigned"
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_overview_models_persist_board_cards_and_announcements() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  async with session_factory() as session:
+    user = User(
+      email="admin@example.com",
+      password_hash="hashed-password",
+      role=UserRole.ADMIN,
+      status=UserStatus.ACTIVE,
+    )
+    department = Department(
+      name="财务行政部",
+      code="finance-admin",
+      capabilities=["publish_announcement"],
+    )
+    session.add_all([user, department])
+    await session.flush()
+
+    board_card = BoardCard(
+      scope_department_id=department.id,
+      author_user_id=user.id,
+      title="本周值班安排",
+      content_md="请查看本周值班表。",
+      expires_at=datetime.now(UTC) + timedelta(days=7),
+    )
+    announcement = Announcement(
+      publisher_department_id=department.id,
+      author_user_id=user.id,
+      title="节假日安排",
+      content_md="下周一全员放假。",
+      published_at=datetime.now(UTC),
+    )
+    session.add_all([board_card, announcement])
+    await session.flush()
+
+    board_archive = BoardCardArchive(
+      original_card_id=board_card.id,
+      scope_department_id=department.id,
+      author_user_id=user.id,
+      title=board_card.title,
+      content_md=board_card.content_md,
+      published_at=board_card.created_at,
+      expires_at=board_card.expires_at,
+      archived_at=datetime.now(UTC),
+    )
+    announcement_archive = AnnouncementArchive(
+      original_announcement_id=announcement.id,
+      publisher_department_id=department.id,
+      author_user_id=user.id,
+      title=announcement.title,
+      content_md=announcement.content_md,
+      published_at=announcement.published_at,
+      archived_at=datetime.now(UTC),
+    )
+    session.add_all([board_archive, announcement_archive])
+    await session.commit()
+
+    stored_board = await session.scalar(select(BoardCard).where(BoardCard.title == "本周值班安排"))
+    stored_announcement = await session.scalar(select(Announcement).where(Announcement.title == "节假日安排"))
+    stored_board_archive = await session.scalar(
+      select(BoardCardArchive).where(BoardCardArchive.original_card_id == board_card.id)
+    )
+    stored_announcement_archive = await session.scalar(
+      select(AnnouncementArchive).where(AnnouncementArchive.original_announcement_id == announcement.id)
+    )
+
+    assert stored_board is not None
+    assert stored_announcement is not None
+    assert stored_board_archive is not None
+    assert stored_announcement_archive is not None
 
   await engine.dispose()
 

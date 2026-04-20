@@ -20,7 +20,9 @@ from app.integrations.storage.local import LocalStorageAdapter
 from app.models import User
 from app.services.access_control import ensure_management_role
 from app.services.attachment_service import AttachmentService
+from app.services.announcement_service import AnnouncementService
 from app.services.auth_service import AuthService
+from app.services.board_service import BoardService
 from app.services.browser_push_service import BrowserPushService
 from app.services.department_service import DepartmentService
 from app.services.delegation_service import DelegationService
@@ -32,6 +34,7 @@ from app.services.message_center_service import MessageCenterService
 from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
+from app.services.overview_service import OverviewService
 from app.services.profile_field_policy_service import ProfileFieldPolicyService
 from app.services.profile_service import ProfileService
 from app.services.task_automation_service import TaskAutomationService
@@ -185,6 +188,26 @@ def get_document_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DocumentService:
   return DocumentService(session)
+
+
+def get_board_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> BoardService:
+  return BoardService(session)
+
+
+def get_announcement_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+) -> AnnouncementService:
+  return AnnouncementService(session, notification_service)
+
+
+def get_overview_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+) -> OverviewService:
+  return OverviewService(session, notification_service)
 
 
 def get_openai_client(

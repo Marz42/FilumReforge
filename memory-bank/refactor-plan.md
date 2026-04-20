@@ -1,7 +1,7 @@
 # Project Filum 重构方案
 
-**版本**: v1.1  
-**状态**: 已确认并进入执行；Step 1 已完成，Step 2 待开始  
+**版本**: v1.2  
+**状态**: 已确认并进入执行；Step 1 / Step 2 已完成，等待用户验测  
 **适用范围**: 基于当前 Phase 5 已完成基线，对前端信息架构、部分领域模型、页面边界与权限分层进行重构规划
 
 ## 1. 重构背景
@@ -624,6 +624,15 @@
 - API 集成测试：总览聚合、看板、公告
 - 前端单测：总览展示、权限可见性、列表排序
 - Worker / 定时任务测试：卡片到期归档
+
+**执行结果**
+
+- 已落地 `departments.capabilities` 能力字段，公告权限不再依赖写死部门名称。
+- 已新增 `board_cards` / `board_card_archives` / `announcements` / `announcement_archives`。
+- 已新增 `OverviewService`、`BoardService`、`AnnouncementService` 以及 `/overview`、`/board-cards`、`/announcements` 相关接口。
+- 已补齐看板过期归档 cron。
+- 已重写 `HomeView.vue`，完成看板、公告、待办事项、任务跟踪和快捷入口展示，并支持发布看板 / 公告。
+- 已完成后端与前端自动化回归，当前应进入用户手动验测。
 
 ## Step 3. 任务中心重构
 

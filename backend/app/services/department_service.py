@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import DepartmentCapability
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models import Department, User
 from app.services.access_control import ensure_active_user, ensure_management_role, get_visible_department_ids
@@ -43,6 +44,7 @@ class DepartmentService:
     parent_id: UUID | None = None,
     manager_id: UUID | None = None,
     sort_order: int = 0,
+    capabilities: list[DepartmentCapability] | None = None,
   ) -> Department:
     ensure_management_role(actor)
 
@@ -61,6 +63,7 @@ class DepartmentService:
       parent_id=parent_id,
       manager_id=manager_id,
       sort_order=sort_order,
+      capabilities=[capability.value for capability in capabilities or []],
     )
     self._session.add(department)
     await self._session.commit()
@@ -78,6 +81,7 @@ class DepartmentService:
     manager_id: UUID | None = None,
     sort_order: int | None = None,
     is_active: bool | None = None,
+    capabilities: list[DepartmentCapability] | None = None,
   ) -> Department:
     ensure_management_role(actor)
     department = await self._session.get(Department, department_id)
@@ -104,6 +108,8 @@ class DepartmentService:
       department.sort_order = sort_order
     if is_active is not None:
       department.is_active = is_active
+    if capabilities is not None:
+      department.capabilities = [capability.value for capability in capabilities]
 
     await self._session.commit()
     await self._session.refresh(department)
@@ -124,6 +130,7 @@ class DepartmentService:
         "manager_id": str(node.manager_id) if node.manager_id else None,
         "sort_order": node.sort_order,
         "is_active": node.is_active,
+        "capabilities": list(node.capabilities),
         "children": [serialize(child) for child in children_map.get(node.id, [])],
       }
 

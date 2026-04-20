@@ -194,3 +194,9 @@ class DocumentStatus(StrEnum):
   DRAFT = "draft"
   PUBLISHED = "published"
   ARCHIVED = "archived"
+
+
+class DepartmentCapability(StrEnum):
+  PUBLISH_ANNOUNCEMENT = "publish_announcement"
+  PUBLISH_ORG_TASK = "publish_org_task"
+  MANAGE_TEMPLATES = "manage_templates"

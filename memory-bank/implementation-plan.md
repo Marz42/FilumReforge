@@ -38,7 +38,7 @@
 - Workflow & Messaging：模板、审批流、周期调度、消息中心、回执、watcher、多视图
 - Knowledge / AI：文档库、embedding、RAG、`@系统` / `/` 路由、Tool Calling
 - Push / PWA：浏览器订阅管理、Web Push adapter、manifest、service worker
-- 前端：登录、分组导航壳层、总览入口、任务中心聚合入口、汇报中心入口、消息中心、知识库、人员管理、部门管理
+- 前端：登录、分组导航壳层、总览模块（看板 / 公告 / 待办 / 跟踪）、任务中心聚合入口、汇报中心入口、消息中心、知识库、人员管理、部门管理
 - 测试辅助：测试组织 / demo 账号脚本
 
 ### 未实现但已确认的关键缺口

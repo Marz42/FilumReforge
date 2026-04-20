@@ -60,6 +60,7 @@ async def create_department(
     parent_id=payload.parent_id,
     manager_id=payload.manager_id,
     sort_order=payload.sort_order,
+    capabilities=payload.capabilities,
   )
   return DepartmentRead.model_validate(department)
 
@@ -80,5 +81,6 @@ async def update_department(
     manager_id=payload.manager_id,
     sort_order=payload.sort_order,
     is_active=payload.is_active,
+    capabilities=payload.capabilities,
   )
   return DepartmentRead.model_validate(department)

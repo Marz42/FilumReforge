@@ -13,6 +13,7 @@ from app.models.hr_governance import (
 )
 from app.models.knowledge import Document, DocumentEmbedding
 from app.models.notification import NotificationDelivery, NotificationMessage, NotificationReceipt
+from app.models.overview import Announcement, AnnouncementArchive, BoardCard, BoardCardArchive
 from app.models.profile import Profile
 from app.models.push_subscription import PushSubscription
 from app.models.task import Task, TaskComment, TaskDependency, TaskLog
@@ -32,7 +33,11 @@ from app.models.user import User
 __all__ = [
   "Attachment",
   "AttachmentLink",
+  "Announcement",
+  "AnnouncementArchive",
   "Base",
+  "BoardCard",
+  "BoardCardArchive",
   "Delegation",
   "Department",
   "Document",

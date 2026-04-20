@@ -14,12 +14,14 @@ from app.core.enums import (
   AttachmentTargetType,
   CommentFormat,
   DEFAULT_USER_NOTIFICATION_CHANNELS,
+  DepartmentCapability,
   DelegationScopeType,
   DocumentCategory,
   DocumentStatus,
   EmploymentEventType,
   NotificationChannel,
   NotificationReceiptType,
+  TaskPriority,
   PushSubscriptionStatus,
   PositionAssignmentType,
   ReportingLineType,
@@ -32,9 +34,12 @@ from app.core.enums import (
 )
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.models import AttachmentLink, NotificationDelivery, NotificationMessage as NotificationMessageModel, TaskDependency, TaskLog
+from app.models import Announcement, BoardCard
 from app.integrations.storage.local import LocalStorageAdapter
+from app.services.announcement_service import AnnouncementService
 from app.services.attachment_service import AttachmentService
 from app.services.auth_service import AuthService
+from app.services.board_service import BoardService
 from app.services.browser_push_service import BrowserPushService
 from app.services.delegation_service import DelegationService
 from app.services.department_service import DepartmentService
@@ -291,6 +296,232 @@ async def test_task_service_creates_task_and_enqueues_notification(db_session) -
   assert notification_queue.payloads[0]["message_type"] == "task_assigned"
   assert [log.action_type for log in task_logs] == [TaskActionType.CREATED, TaskActionType.ASSIGNED]
   assert {delivery.channel for delivery in deliveries} == set(DEFAULT_USER_NOTIFICATION_CHANNELS)
+
+
+@pytest.mark.asyncio
+async def test_board_service_limits_active_cards_and_archives_expired_cards(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  parent_department = await department_service.create_department(
+    actor=admin,
+    name="技术中心",
+    code="tech-center",
+  )
+  team_department = await department_service.create_department(
+    actor=admin,
+    name="平台研发组",
+    code="platform-team",
+    parent_id=parent_department.id,
+  )
+  await profile_service.update_profile(
+    actor=admin,
+    user_id=admin.id,
+    department_id=team_department.id,
+  )
+
+  board_service = BoardService(db_session)
+  scope_options = await board_service.list_publish_scope_options(actor=admin)
+  assert [option.label for option in scope_options] == ["公司", "技术中心", "平台研发组"]
+
+  first_card = await board_service.create_card(
+    actor=admin,
+    scope_department_id=None,
+    title="公司周会提醒",
+    content_md="请准时参加周会。",
+  )
+  second_card = await board_service.create_card(
+    actor=admin,
+    scope_department_id=team_department.id,
+    title="研发排期同步",
+    content_md="请更新本周排期。",
+  )
+
+  with pytest.raises(ConflictError):
+    await board_service.create_card(
+      actor=admin,
+      scope_department_id=parent_department.id,
+      title="第三张卡片",
+      content_md="超过上限。",
+    )
+
+  stored_first_card = await db_session.get(BoardCard, first_card.id)
+  assert stored_first_card is not None
+  stored_first_card.expires_at = datetime.now(UTC) - timedelta(minutes=5)
+  await db_session.commit()
+
+  archived_count = await board_service.archive_expired_cards()
+  active_cards = await board_service.list_active_cards(actor=admin)
+  archived_cards = await board_service.list_archives(actor=admin)
+
+  assert second_card.id in {card.id for card in active_cards}
+  assert archived_count == 1
+  assert len(archived_cards) == 1
+  assert archived_cards[0].original_card_id == first_card.id
+
+
+@pytest.mark.asyncio
+async def test_announcement_service_respects_department_capabilities(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  queue_publisher = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, queue_publisher)
+  announcement_service = AnnouncementService(db_session, notification_service)
+
+  capable_department = await department_service.create_department(
+    actor=admin,
+    name="财务行政部",
+    code="finance-admin",
+    capabilities=[DepartmentCapability.PUBLISH_ANNOUNCEMENT],
+  )
+  other_department = await department_service.create_department(
+    actor=admin,
+    name="技术中心",
+    code="tech-center",
+  )
+
+  capable_user = await user_service.create_user(
+    actor=admin,
+    email="notice@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  other_user = await user_service.create_user(
+    actor=admin,
+    email="engineer@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=capable_user.id,
+    employee_no="EMP-001",
+    real_name="公告发布人",
+    department_id=capable_department.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=other_user.id,
+    employee_no="EMP-002",
+    real_name="研发工程师",
+    department_id=other_department.id,
+  )
+
+  announcement = await announcement_service.create_announcement(
+    actor=capable_user,
+    publisher_department_id=capable_department.id,
+    title="办公区维护通知",
+    content_md="今晚 9 点进行网络维护。",
+  )
+
+  with pytest.raises(AuthorizationError):
+    await announcement_service.create_announcement(
+      actor=other_user,
+      publisher_department_id=other_department.id,
+      title="非法公告",
+      content_md="不应成功。",
+    )
+
+  stored_announcement = await db_session.scalar(select(Announcement).where(Announcement.id == announcement.id))
+  assert stored_announcement is not None
+  assert len(queue_publisher.payloads) == 2
+
+
+@pytest.mark.asyncio
+async def test_task_service_builds_overview_inbox_and_tracking(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  watcher = await user_service.create_user(
+    actor=admin,
+    email="watcher@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="研发部",
+    code="engineering",
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="执行人",
+    department_id=department.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=watcher.id,
+    employee_no="EMP-002",
+    real_name="关注人",
+    department_id=department.id,
+  )
+
+  inbox_task = await task_service.create_task(
+    actor=admin,
+    title="补齐总览接口",
+    assignee_id=employee.id,
+    department_id=department.id,
+    due_date=datetime.now(UTC) + timedelta(hours=2),
+    priority=TaskPriority.URGENT,
+  )
+  tracking_task = await task_service.create_task(
+    actor=admin,
+    title="补齐看板归档",
+    assignee_id=admin.id,
+    department_id=department.id,
+    due_date=datetime.now(UTC) + timedelta(days=1),
+    priority=TaskPriority.HIGH,
+  )
+  await task_service.add_task_watchers(
+    actor=admin,
+    task_id=tracking_task.id,
+    watcher_user_ids=[employee.id],
+  )
+
+  inbox = await task_service.list_task_inbox(actor=employee)
+  tracking = await task_service.list_task_tracking(actor=employee)
+
+  assert [item.task_id for item in inbox] == [inbox_task.id]
+  assert tracking[0].task_id == tracking_task.id
+  assert "关注" in tracking[0].relation_types
 
 
 @pytest.mark.asyncio
