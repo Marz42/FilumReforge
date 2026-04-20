@@ -7,6 +7,7 @@ import App from './App.vue'
 import router from './router'
 import { setUnauthorizedHandler } from './api/session'
 import { useAuthStore } from './stores/auth'
+import { registerPwaServiceWorker } from './utils/pwa'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -22,5 +23,7 @@ await authStore.restoreSession()
 app.use(pinia)
 app.use(ElementPlus)
 app.use(router)
+
+void registerPwaServiceWorker()
 
 app.mount('#app')

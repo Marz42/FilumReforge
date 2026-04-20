@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import NotificationChannel, PushSubscriptionStatus
 from app.integrations.notifications.queue import NotificationQueuePublisher
-from app.models import NotificationDelivery, NotificationMessage as NotificationMessageModel
+from app.models import NotificationDelivery, NotificationMessage as NotificationMessageModel, PushSubscription
 from app.schemas.messages import NotificationMessage
 
 
@@ -18,7 +20,30 @@ class NotificationService:
     self._session = session
     self._queue_publisher = queue_publisher
 
+  async def _resolve_channels(self, *, message: NotificationMessage) -> list[NotificationChannel]:
+    channels = list(dict.fromkeys(message.channels))
+    if (
+      message.recipient_user_id is None
+      or NotificationChannel.WEB_PUSH not in channels
+    ):
+      return channels
+
+    active_subscription = await self._session.scalar(
+      select(PushSubscription.id).where(
+        PushSubscription.user_id == message.recipient_user_id,
+        PushSubscription.status == PushSubscriptionStatus.ACTIVE,
+      )
+    )
+    if active_subscription is None:
+      return [
+        channel
+        for channel in channels
+        if channel != NotificationChannel.WEB_PUSH
+      ]
+    return channels
+
   async def send(self, message: NotificationMessage) -> NotificationMessageModel:
+    channels = await self._resolve_channels(message=message)
     notification_message = NotificationMessageModel(
       source_type=message.source_type,
       source_id=message.source_id,
@@ -35,7 +60,7 @@ class NotificationService:
     await self._session.flush()
 
     deliveries: list[NotificationDelivery] = []
-    for channel in message.channels:
+    for channel in channels:
       delivery = NotificationDelivery(
         message_id=notification_message.id,
         channel=channel,

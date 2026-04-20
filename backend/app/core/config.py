@@ -23,6 +23,12 @@ class Settings(BaseSettings):
   redis_notification_queue: str = "notification:outbox"
   openai_api_key: str | None = None
   openai_base_url: str | None = None
+  openai_chat_model: str = "gpt-5-mini"
+  openai_embedding_model: str = "text-embedding-3-small"
+  openai_embedding_dimensions: int = 1536
+  web_push_public_key: str | None = None
+  web_push_private_key: str | None = None
+  web_push_subject: str = "mailto:filum@example.com"
   storage_provider: str = "local"
   storage_bucket: str = "filum-dev"
   storage_base_path: str = "./.storage"

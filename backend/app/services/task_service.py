@@ -12,7 +12,7 @@ from app.core.enums import (
   AttachmentTargetType,
   AttachmentVisibility,
   CommentFormat,
-  NotificationChannel,
+  DEFAULT_USER_NOTIFICATION_CHANNELS,
   TaskActionType,
   TaskPriority,
   TaskSourceType,
@@ -160,7 +160,7 @@ class TaskService:
         message_type="task_assigned",
         title=f"收到新任务：{task.title}",
         body_text=f"任务「{task.title}」已分配给你，请及时处理。",
-        channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+        channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
       )
     )
 
@@ -421,7 +421,7 @@ class TaskService:
             message_type="task_reassigned",
             title=f"任务已重新分配：{task.title}",
             body_text=f"任务「{task.title}」已重新分配给你。",
-            channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+            channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
           )
         )
 
@@ -646,7 +646,7 @@ class TaskService:
             message_type="task_cc_added",
             title=f"你被加入任务关注：{task.title}",
             body_text=f"任务「{task.title}」已将你加入关注列表。",
-            channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+            channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
           )
         )
 

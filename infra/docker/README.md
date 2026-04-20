@@ -38,7 +38,7 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 ## 服务说明
 
-- `postgres`: PostgreSQL 主数据库
+- `postgres`: PostgreSQL 主数据库（镜像已切换为带 `pgvector` 扩展的 `pgvector/pgvector:pg16`）
 - `redis`: Redis broker / cache
 - `backend`: FastAPI 开发服务
 - `frontend`: Vite 开发服务

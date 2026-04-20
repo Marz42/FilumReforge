@@ -1,8 +1,8 @@
 # Project Filum 架构基线
 
-**版本**: v2.3.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 已完成；下一阶段进入 Phase 5 准备  
-**适用范围**: 当前仓库代码、完整数据库 schema、Phase 4 已验收基线，以及未来 Phase 5 的工程扩展边界
+**版本**: v3.1.0  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / 壳层导航重构已完成，Step 2 / 总览模块待落地  
+**适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
 
@@ -29,6 +29,7 @@
 - Phase 2 / Collaboration & Stats
 - Phase 3 / HR Governance & Org Modeling
 - Phase 4 / Workflow Engine & Messaging
+- Phase 5 / Knowledge, AI Router & Experience
 
 ### 2.2 当前已实现能力
 
@@ -44,19 +45,23 @@
 - 任务评论、内部备注、审计日志、评论附件、活动时间线
 - 任务模板、模板实例化、watcher / 抄送与周期调度
 - 轻量审批流引擎：流程定义、实例、步骤执行、代理审批、打回 / 驳回
-- ARQ worker、逾期提醒扫描、通知消息落库与异步入队
+- ARQ worker、逾期提醒扫描、通知消息落库、adapter 分发与异步入队
 - 消息中心收件箱、用户回执、审批提醒与系统消息聚合
 - 任务中心列表 / 看板 / 甘特图多视图
 - 任务完成率 / 逾期率 / 负载统计
-- 浏览器后台界面：登录、部门、Phase 3 档案治理页、模板中心、审批中心、消息中心、Phase 4 任务工作台
+- 文档知识库、RAG 检索、LLM Router 与 Tool Calling
+- 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
+- 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；当前入口包括总览、任务中心、知识库、汇报中心、消息中心、人员管理、部门管理
+- 测试数据脚本：可重复生成 demo 组织、档案与账号
 
 ### 2.3 当前明确缺口
 
+- 公开注册 / 邀请注册 / 审批式注册仍未落地
 - 生命周期事件与任务模板 / 审批流的自动联动
 - HR 字段权限的可视化规则管理页仍偏基础
 - 消息附件
-- 真实 Email / WebSocket / Web Push 渠道
-- 文档知识库、RAG、LLM Router、浏览器推送 / PWA
+- Email / WebSocket 渠道的外部真实接入仍是最小实现后的下一步
+- 更系统的重构、集成测试与端到端验证
 
 ## 3. 模块边界与状态映射
 
@@ -72,10 +77,10 @@
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现 Phase 4 增强版 | 真实渠道适配器、浏览器推送 |
 | Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现基础版 | 消息附件、渠道融合、推送 |
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
-| Knowledge Base | Markdown 文档、向量检索、RAG | 未实现 | Phase 5 |
-| AI Router | `@系统` / `/` 指令路由、Tool Calling | 未实现 | Phase 5 |
-| Frontend Experience | 浏览器后台、档案治理、模板 / 审批 / 消息 / 多视图任务页 | 已实现 Phase 4 工作台版 | AI 指令面板 / Push / PWA |
-| Platform Tools | 内置工具注册与暴露 | 未实现 | Phase 5 |
+| Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
+| AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
+| Frontend Experience | 浏览器后台、分组导航、人员管理聚合入口、任务中心聚合入口、知识库、消息中心、Push / PWA | 重构执行中（Step 1 已完成） | 总览模块、任务中心、汇报中心与消息联动细化 |
+| Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑
 
@@ -93,49 +98,48 @@
     |-- app.services
     |-- Workflow Engine
     |-- Message Center
+    |-- LLM Router
     |-- app.integrations
     |
-    +--> PostgreSQL
+    +--> PostgreSQL / pgvector
     +--> Redis / ARQ Queue
     +--> Object Storage Adapter (local now, S3-compatible later)
+    +--> Email / WebSocket / Web Push Adapters
 
 [ ARQ Worker ]
     |-- app.workers.arq_worker
     |-- app.workers.jobs
     |-- Scheduled Tasks / Approval Reminders
+    |-- Notification Delivery / Embedding Jobs
     |
-    +--> PostgreSQL
+    +--> PostgreSQL / pgvector
     +--> Redis / ARQ Queue
 ```
 
-### 4.2 Phase 5 目标扩展运行时
+### 4.2 后续增强运行时
 
 ```text
 [ Browser ]
     |-- Vue 3 SPA
-    |-- Task Views / Inbox / Approval Center / AI Command UI
-    |-- Browser Push Subscription
+    |-- Kanban / Gantt / Inbox / Knowledge / AI Command UI
+    |-- Browser Push / PWA
     |
     v
 [ Nginx ]
     |
     v
 [ FastAPI ]
-    |-- REST API
-    |-- Workflow Engine
-    |-- Message Center
-    |-- LLM Router
+    |-- 更细粒度服务边界
+    |-- 更完整的通知适配与注册能力
     |
     +--> PostgreSQL / pgvector
     +--> Redis / ARQ Queue
     +--> Object Storage
-    +--> Email / WebSocket / Web Push Adapters
 
-[ ARQ Worker ]
-    |-- Notifications
-    |-- Scheduled Tasks
-    |-- Approval Reminders
-    |-- LLM / Embedding Jobs
+[ Test / QA ]
+    |-- 集成测试
+    |-- E2E smoke
+    |-- 场景化 demo 数据
 ```
 
 ### 4.3 当前本地开发路径
@@ -193,17 +197,32 @@
 | `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
 | `backend/app/services/message_center_service.py` | 消息收件箱聚合、消息读取与回执写入 |
 | `backend/app/services/notification_service.py` | 消息落库、delivery 记录、队列入队 |
+| `backend/app/services/document_service.py` | 知识库文档 CRUD、可见性与附件聚合 |
+| `backend/app/services/knowledge_retrieval_service.py` | 文档切块、embedding 重建、RAG 检索 |
+| `backend/app/services/tool_registry_service.py` | 内置工具注册、schema 输出与执行入口 |
+| `backend/app/services/llm_router_service.py` | `@系统` / `/` 路由、Tool Calling 编排 |
+| `backend/app/services/browser_push_service.py` | Push 订阅管理与 Push payload 构造 |
+| `backend/app/services/sample_data_service.py` | demo 组织、用户、档案、汇报线与岗位测试数据生成 |
 | `backend/app/api/routes/hr_governance.py` | Phase 3 岗位、字段定义、字段权限、授权管理接口 |
 | `backend/app/api/routes/task_templates.py` | 模板、实例化与 schedule 接口 |
 | `backend/app/api/routes/workflows.py` | 流程定义、实例、待办审批与审批动作接口 |
 | `backend/app/api/routes/messages.py` | 收件箱与回执接口 |
+| `backend/app/api/routes/documents.py` | 文档 CRUD、发布、归档接口 |
+| `backend/app/api/routes/knowledge.py` | 检索与知识查询接口 |
+| `backend/app/api/routes/ai_router.py` | `@系统` / `/` AI Router 接口 |
+| `backend/app/api/routes/push_subscriptions.py` | 浏览器 Push 订阅接口 |
 | `backend/app/integrations/notifications/queue.py` | ARQ 入队发布器 |
+| `backend/app/integrations/llm/openai_client.py` | OpenAI SDK 统一封装 |
+| `backend/app/integrations/notifications/factory.py` | 通知 adapter 构造与分发 |
+| `backend/app/integrations/notifications/web_push.py` | Web Push 发送实现 |
 | `backend/app/workers/jobs.py` | 通知消费、逾期提醒、周期模板实例化与审批提醒扫描 |
 | `backend/app/workers/arq_worker.py` | ARQ worker 运行时入口与 cron 配置 |
 | `backend/alembic/versions/20260413_01_phase1_foundation.py` | Phase 1 基线迁移 |
 | `backend/alembic/versions/20260414_01_phase2_collaboration.py` | Phase 2 协同迁移 |
 | `backend/alembic/versions/20260415_01_phase3_hr_governance.py` | Phase 3 HR 治理迁移 |
 | `backend/alembic/versions/20260416_01_phase4_workflow_messaging.py` | Phase 4 workflow / messaging 迁移 |
+| `backend/alembic/versions/20260417_01_phase5_knowledge_push.py` | Phase 5 knowledge / push 迁移 |
+| `backend/app/scripts/seed_sample_data.py` | 测试组织与 demo 账号初始化脚本 |
 
 ### 5.3 frontend 当前热点文件
 
@@ -213,24 +232,40 @@
 | `frontend/src/stores/auth.ts` | 登录态与会话恢复 |
 | `frontend/src/stores/app.ts` | 当前阶段标识与全局项目状态文案 |
 | `frontend/src/views/LoginView.vue` | 登录与管理员初始化 |
+| `frontend/src/views/HomeView.vue` | 当前总览承载页；Step 1 后已作为 `/overview` 入口，Step 2 将在此基础上替换旧仪表盘内容 |
+| `frontend/src/views/PeopleManagementView.vue` | Step 1 新增的人员管理聚合入口，承载用户账号 / 档案管理双标签 |
+| `frontend/src/views/UsersView.vue` | 用户管理工作台，当前由 `PeopleManagementView.vue` 聚合承载 |
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
-| `frontend/src/views/ProfilesView.vue` | Phase 3 档案治理工作台 |
-| `frontend/src/views/TasksView.vue` | Phase 4 任务中心，支持列表 / 看板 / 甘特图与 watcher |
-| `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口 |
-| `frontend/src/views/ApprovalsView.vue` | 审批定义、待办审批与实例查看 |
+| `frontend/src/views/ProfilesView.vue` | Phase 3 档案治理工作台，当前由 `PeopleManagementView.vue` 聚合承载 |
+| `frontend/src/views/KnowledgeBaseView.vue` | 知识库页面 |
+| `frontend/src/views/TaskCenterView.vue` | Step 1 新增的任务中心聚合入口，承载任务工作台 / 任务模板双标签 |
+| `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，当前由 `TaskCenterView.vue` 聚合承载 |
+| `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口，当前由 `TaskCenterView.vue` 聚合承载 |
+| `frontend/src/views/ApprovalsView.vue` | 当前复用为“汇报中心”入口壳；底层仍承载审批定义、待办审批与实例查看 |
 | `frontend/src/views/MessagesView.vue` | 消息收件箱与回执工作台 |
-| `frontend/src/components/AppShell.vue` | 全局导航，已接入模板 / 审批 / 消息中心入口 |
-| `frontend/src/router/index.ts` | 路由表，已注册 Phase 4 工作台页面 |
+| `frontend/src/components/CommandBar.vue` | 全局命令入口，承载 `@系统` / `/` |
+| `frontend/src/components/PushSubscriptionCard.vue` | 浏览器 Push 订阅管理卡片 |
+| `frontend/src/components/AppShell.vue` | 全局壳层导航；Step 1 后改为“通用模块 / 特殊模块”分组结构 |
+| `frontend/src/router/index.ts` | 路由表；Step 1 后主入口改为 `/overview`、`/task-center`、`/reports`、`/people`，并保留旧地址兼容跳转 |
 | `frontend/src/api/tasks.ts` | 任务、状态流转、评论、活动流、统计、watcher、多视图 API client |
 | `frontend/src/api/task-templates.ts` | 模板、实例化与 schedule API client |
 | `frontend/src/api/workflows.ts` | 审批定义、流程实例与审批动作 API client |
 | `frontend/src/api/messages.ts` | 收件箱与回执 API client |
+| `frontend/src/api/documents.ts` | 文档 CRUD API client |
+| `frontend/src/api/knowledge.ts` | 检索 / 知识查询 API client |
+| `frontend/src/api/ai.ts` | AI Router API client |
+| `frontend/src/api/push.ts` | Push 订阅 API client |
+| `frontend/src/utils/pwa.ts` | Service worker 注册与 Push 工具函数 |
 | `frontend/src/types/api.ts` | 前端共享 API 类型 |
+| `frontend/tests/UsersView.spec.ts` | 用户管理页回归测试 |
 | `frontend/tests/ProfilesView.spec.ts` | Phase 3 档案治理页回归测试 |
 | `frontend/tests/TasksView.spec.ts` | Phase 4 任务多视图与 watcher 回归测试 |
 | `frontend/tests/TaskTemplatesView.spec.ts` | 模板工作台回归测试 |
-| `frontend/tests/ApprovalsView.spec.ts` | 审批中心回归测试 |
+| `frontend/tests/ApprovalsView.spec.ts` | 当前汇报中心入口复用页的回归测试 |
 | `frontend/tests/MessagesView.spec.ts` | 消息中心回归测试 |
+| `frontend/tests/KnowledgeBaseView.spec.ts` | 知识库页回归测试 |
+| `frontend/tests/PushSubscriptionCard.spec.ts` | Push 订阅卡片回归测试 |
+| `frontend/tests/Router.spec.ts` | Step 1 新增的路由兼容跳转与导航权限回归测试 |
 
 ### 5.4 infra
 
@@ -301,13 +336,29 @@
 2. `MessageCenterService` 聚合消息、投递记录与回执记录。
 3. 前端消息中心读取收件箱，并通过 `notification_receipts` 写入 `read / acknowledged` 回执。
 
-### 6.9 AI 路由链路（目标 / Phase 5）
+### 6.9 AI 路由链路（当前 / Phase 5）
 
 1. 前端拦截 `@系统` 或 `/`。
 2. 后端 `LLMRouterService` 构造工具清单。
 3. LLM 决策调用工具。
 4. 后端执行工具并返回结构化结果。
 5. LLM 组织最终自然语言回复。
+
+### 6.10 浏览器推送链路（当前 / Phase 5）
+
+1. 前端注册 `sw.js` 并请求浏览器通知权限。
+2. `PushSubscriptionCard` 创建 / 撤销浏览器订阅。
+3. 后端 `push_subscriptions` 持久化活跃订阅。
+4. 业务服务通过 `NotificationService.send()` 进入通知总线。
+5. `NotificationService` 会按目标用户是否存在活跃订阅过滤 `WEB_PUSH` delivery。
+6. worker 调用 `WebPushNotificationAdapter` 发送浏览器推送。
+
+### 6.11 测试数据链路（当前）
+
+1. `python -m app.scripts.seed_sample_data` 读取当前配置与数据库连接。
+2. 若系统尚无管理员，则自动初始化 `admin@example.com`。
+3. 创建或更新 demo 部门、岗位、用户、档案、任职关系与汇报线。
+4. 输出可直接用于手工测试的账号清单。
 
 ## 7. 阶段映射
 
@@ -318,7 +369,7 @@
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、日志、ARQ 提醒、统计与协同页 |
 | Phase 3 / HR Governance & Org Modeling | done | 生命周期、字段权限、多岗位、汇报线、代理授权 |
 | Phase 4 / Workflow Engine & Messaging | done | 模板、审批流、自动触发、消息中心、多视图 |
-| Phase 5 / Knowledge, AI Router & Experience | next | 知识库、RAG、`@系统` 路由、Push、PWA |
+| Phase 5 / Knowledge, AI Router & Experience | done | 知识库、RAG、`@系统` 路由、Push、PWA |
 
 ## 8. 数据库设计原则
 
@@ -346,7 +397,7 @@
 | `attachment_visibility` | `private`, `internal`, `public` | 已实现 |
 | `attachment_status` | `uploaded`, `deleted`, `quarantined` | 已实现 |
 | `attachment_target_type` | `task_comment`, `task`, `profile`, `document` | 已实现（未来将扩展到消息等对象） |
-| `notification_channel` | `email`, `web_push`, `websocket` | 已实现枚举，真实适配器未全落地 |
+| `notification_channel` | `email`, `web_push`, `websocket` | 已实现，adapter 第一版已落地 |
 | `notification_message_status` | `queued`, `processing`, `completed`, `failed` | 已实现 |
 | `notification_delivery_status` | `pending`, `sent`, `failed`, `retrying` | 已实现 |
 | `position_assignment_type` | `primary`, `part_time`, `acting` | 已实现 |

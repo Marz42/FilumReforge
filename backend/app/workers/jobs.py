@@ -7,15 +7,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import Settings, get_settings
 from app.core.enums import (
+  DEFAULT_USER_NOTIFICATION_CHANNELS,
   NotificationChannel,
   NotificationDeliveryStatus,
   NotificationMessageStatus,
+  DocumentStatus,
   UserStatus,
   WorkflowStepRunStatus,
 )
 from app.models import NotificationMessage as NotificationMessageModel
-from app.models import WorkflowInstance, WorkflowStepRun
+from app.models import Document, WorkflowInstance, WorkflowStepRun
+from app.integrations.llm.openai_client import OpenAIClient
+from app.integrations.notifications.base import NotificationAdapter
+from app.integrations.notifications.factory import build_notification_adapters
+from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.notification_service import NotificationService
 from app.services.task_service import TaskService
 from app.services.task_automation_service import TaskAutomationService
@@ -39,6 +46,8 @@ async def process_notification_message_payload(
   *,
   session: AsyncSession,
   payload: dict[str, object],
+  settings: Settings | None = None,
+  adapters: dict[NotificationChannel, NotificationAdapter] | None = None,
 ) -> NotificationMessageModel | None:
   message_id = _parse_uuid(payload.get("message_id"), field_name="message_id")
   raw_delivery_ids = payload.get("delivery_ids", [])
@@ -66,17 +75,45 @@ async def process_notification_message_payload(
   if not deliveries:
     return message
 
+  resolved_settings = settings or get_settings()
+  adapter_map = adapters or build_notification_adapters(session=session, settings=resolved_settings)
   now = datetime.now(UTC)
   message.status = NotificationMessageStatus.PROCESSING
+  all_successful = True
   for delivery in deliveries:
     if delivery.status == NotificationDeliveryStatus.SENT:
       continue
-    delivery.status = NotificationDeliveryStatus.SENT
     delivery.attempt_count += 1
     delivery.attempted_at = now
+    delivery.error_message = None
+
+    adapter = adapter_map.get(delivery.channel)
+    if adapter is None:
+      delivery.status = NotificationDeliveryStatus.FAILED
+      delivery.error_message = f"未配置通知通道适配器：{delivery.channel.value}"
+      all_successful = False
+      continue
+
+    try:
+      external_message_id = await adapter.send(
+        message=message,
+        delivery=delivery,
+      )
+    except Exception as exc:  # noqa: BLE001
+      delivery.status = NotificationDeliveryStatus.FAILED
+      delivery.error_message = str(exc)
+      all_successful = False
+      continue
+
+    delivery.status = NotificationDeliveryStatus.SENT
+    delivery.external_message_id = external_message_id
     delivery.delivered_at = now
 
-  message.status = NotificationMessageStatus.COMPLETED
+  message.status = (
+    NotificationMessageStatus.COMPLETED
+    if all_successful
+    else NotificationMessageStatus.FAILED
+  )
   message.completed_at = now
   await session.commit()
   await session.refresh(message)
@@ -127,7 +164,7 @@ async def enqueue_overdue_task_reminders(
           message_type="task_overdue_reminder",
           title=f"任务已逾期：{task.title}",
           body_text=f"任务「{task.title}」已超过截止时间，请尽快处理。",
-          channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+          channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
           payload={
             "task_id": str(task.id),
             "task_title": task.title,
@@ -207,7 +244,7 @@ async def enqueue_pending_workflow_reminders(
         message_type="workflow_pending_reminder",
         title=f"审批待处理提醒：{instance.definition.name}",
         body_text=f"流程「{instance.definition.name}」的步骤「{step.name}」仍待处理，请尽快完成。",
-        channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+        channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
         payload={
           "workflow_instance_id": str(instance.id),
           "workflow_definition_id": str(instance.definition_id),
@@ -219,3 +256,53 @@ async def enqueue_pending_workflow_reminders(
     created_count += 1
 
   return created_count
+
+
+async def rebuild_document_embeddings(
+  *,
+  session: AsyncSession,
+  document_id: UUID | str,
+  settings: Settings | None = None,
+  openai_client: OpenAIClient | None = None,
+) -> int:
+  resolved_settings = settings or get_settings()
+  resolved_document_id = (
+    _parse_uuid(document_id, field_name="document_id")
+    if isinstance(document_id, str)
+    else document_id
+  )
+  retrieval_service = KnowledgeRetrievalService(
+    session,
+    resolved_settings,
+    openai_client or OpenAIClient(resolved_settings),
+  )
+  embeddings = await retrieval_service.rebuild_document_embeddings(
+    document_id=resolved_document_id,
+  )
+  return len(embeddings)
+
+
+async def rebuild_all_document_embeddings(
+  *,
+  session: AsyncSession,
+  settings: Settings | None = None,
+  openai_client: OpenAIClient | None = None,
+) -> int:
+  resolved_settings = settings or get_settings()
+  retrieval_service = KnowledgeRetrievalService(
+    session,
+    resolved_settings,
+    openai_client or OpenAIClient(resolved_settings),
+  )
+  document_ids = list(
+    await session.scalars(
+      select(Document.id)
+      .where(Document.status.in_([DocumentStatus.DRAFT, DocumentStatus.PUBLISHED]))
+      .order_by(Document.updated_at.asc())
+    )
+  )
+  rebuilt_count = 0
+  for document_id in document_ids:
+    await retrieval_service.rebuild_document_embeddings(document_id=document_id)
+    rebuilt_count += 1
+  return rebuilt_count

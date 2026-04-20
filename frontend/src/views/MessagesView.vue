@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { createMessageReceipt, listMessages } from '@/api/messages'
+import PushSubscriptionCard from '@/components/PushSubscriptionCard.vue'
 import type { Message } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
@@ -54,6 +55,8 @@ onMounted(() => {
 
 <template>
   <div class="page">
+    <PushSubscriptionCard />
+
     <el-row :gutter="20">
       <el-col :xs="24" :xl="12">
         <el-card shadow="never" v-loading="loading">

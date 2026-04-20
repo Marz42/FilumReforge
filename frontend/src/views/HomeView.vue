@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
+import { listDocuments } from '@/api/documents'
 import { listDepartments } from '@/api/departments'
+import { listMessages } from '@/api/messages'
 import { listProfiles } from '@/api/profiles'
 import { listTasks } from '@/api/tasks'
 import { useAppStore } from '@/stores/app'
@@ -16,6 +18,8 @@ const loading = ref(false)
 const departmentCount = ref(0)
 const profileCount = ref(0)
 const taskCount = ref(0)
+const documentCount = ref(0)
+const messageCount = ref(0)
 const latestTaskTitles = ref<string[]>([])
 
 const architectureHighlights = [
@@ -23,41 +27,67 @@ const architectureHighlights = [
   'JWT access / refresh 会话链路',
   'Redis 异步通知总线',
   '统一附件对象存储抽象',
-  '任务模板 / 审批流 / 消息中心',
+  '知识库 + RAG 检索基座',
+  'AI Router 与浏览器推送 / PWA',
 ]
 
-const summaryCards = computed(() => [
-  {
-    label: '部门数量',
-    value: departmentCount.value,
-    description: '组织树与负责人绑定',
-  },
-  {
-    label: '员工档案',
-    value: profileCount.value,
-    description: 'HR 档案与 JSON 动态字段',
-  },
-  {
-    label: '任务数量',
-    value: taskCount.value,
-    description: '创建、指派与通知联动',
-  },
-])
+const summaryCards = computed(() => {
+  const cards = [
+    {
+      label: '知识文档',
+      value: documentCount.value,
+      description: '制度、SOP、公告与 FAQ',
+    },
+    {
+      label: '消息数量',
+      value: messageCount.value,
+      description: '消息中心与回执链路',
+    },
+    {
+      label: '任务数量',
+      value: taskCount.value,
+      description: '创建、指派与通知联动',
+    },
+  ]
+
+  if (authStore.isManagementRole) {
+    cards.unshift(
+      {
+        label: '部门数量',
+        value: departmentCount.value,
+        description: '组织树与负责人绑定',
+      },
+      {
+        label: '员工档案',
+        value: profileCount.value,
+        description: 'HR 档案与 JSON 动态字段',
+      },
+    )
+  }
+
+  return cards
+})
 
 async function loadDashboard(): Promise<void> {
   loading.value = true
 
   try {
-    const [departments, profiles, tasks] = await Promise.all([
-      listDepartments(),
-      listProfiles(),
+    const [tasks, documents, messages] = await Promise.all([
       listTasks(),
+      listDocuments(),
+      listMessages(),
     ])
 
-    departmentCount.value = departments.length
-    profileCount.value = profiles.length
     taskCount.value = tasks.length
+    documentCount.value = documents.length
+    messageCount.value = messages.length
     latestTaskTitles.value = tasks.slice(0, 5).map((task) => task.title)
+
+    if (authStore.isManagementRole) {
+      const [departments, profiles] = await Promise.all([listDepartments(), listProfiles()])
+      departmentCount.value = departments.length
+      profileCount.value = profiles.length
+    }
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
   } finally {
@@ -107,7 +137,7 @@ onMounted(() => {
               {{ formatDateTime(authStore.user?.last_login_at ?? null) }}
             </el-descriptions-item>
             <el-descriptions-item label="Foundation 范围">
-              用户、部门、档案、任务、模板、审批、消息与通知总线
+              用户、部门、档案、任务、模板、审批、消息、知识库、AI Router 与浏览器推送
             </el-descriptions-item>
           </el-descriptions>
         </el-card>

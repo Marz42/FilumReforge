@@ -77,6 +77,13 @@ class NotificationChannel(StrEnum):
   WEBSOCKET = "websocket"
 
 
+DEFAULT_USER_NOTIFICATION_CHANNELS: tuple[NotificationChannel, ...] = (
+  NotificationChannel.WEBSOCKET,
+  NotificationChannel.EMAIL,
+  NotificationChannel.WEB_PUSH,
+)
+
+
 class NotificationMessageStatus(StrEnum):
   QUEUED = "queued"
   PROCESSING = "processing"
@@ -167,3 +174,23 @@ class WorkflowStepRunStatus(StrEnum):
   RETURNED = "returned"
   DELEGATED = "delegated"
   SKIPPED = "skipped"
+
+
+class PushSubscriptionStatus(StrEnum):
+  ACTIVE = "active"
+  EXPIRED = "expired"
+  REVOKED = "revoked"
+
+
+class DocumentCategory(StrEnum):
+  POLICY = "policy"
+  SOP = "sop"
+  ANNOUNCEMENT = "announcement"
+  FAQ = "faq"
+  OTHER = "other"
+
+
+class DocumentStatus(StrEnum):
+  DRAFT = "draft"
+  PUBLISHED = "published"
+  ARCHIVED = "archived"

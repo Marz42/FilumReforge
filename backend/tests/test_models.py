@@ -14,8 +14,11 @@ from app.core.enums import (
   CommentFormat,
   DelegationScopeType,
   DelegationStatus,
+  DocumentCategory,
+  DocumentStatus,
   EmploymentEventType,
   NotificationChannel,
+  PushSubscriptionStatus,
   PositionAssignmentType,
   ReportingLineType,
   TaskActionType,
@@ -32,6 +35,8 @@ from app.models import (
   Base,
   Delegation,
   Department,
+  Document,
+  DocumentEmbedding,
   EmploymentEvent,
   NotificationDelivery,
   NotificationMessage,
@@ -41,6 +46,7 @@ from app.models import (
   ProfileFieldDefinition,
   ProfileFieldPermission,
   ProfilePosition,
+  PushSubscription,
   RefreshToken,
   ReportingLine,
   Task,
@@ -612,5 +618,81 @@ async def test_phase4_models_persist_workflow_and_messaging_entities() -> None:
     assert stored_workflow_instance.status == WorkflowInstanceStatus.IN_PROGRESS
     assert stored_receipt is not None
     assert stored_receipt.user_id == approver_id
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phase5_models_persist_knowledge_and_push_entities() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  author_id = uuid4()
+
+  async with session_factory() as session:
+    author = User(
+      id=author_id,
+      email="knowledge-owner@example.com",
+      password_hash="hashed-password",
+      role=UserRole.HR,
+      status=UserStatus.ACTIVE,
+    )
+    document = Document(
+      title="员工入职 SOP",
+      slug="employee-onboarding-sop",
+      category=DocumentCategory.SOP,
+      status=DocumentStatus.PUBLISHED,
+      content_md="# 入职流程\n\n1. 提交材料\n2. 创建账号",
+      author=author,
+      version=2,
+      published_at=datetime.now(UTC),
+    )
+    embedding = DocumentEmbedding(
+      document=document,
+      chunk_index=0,
+      chunk_text="提交材料 创建账号",
+      token_count=8,
+      embedding_model="text-embedding-3-small",
+      embedding=[0.01, 0.02, 0.03],
+    )
+    subscription = PushSubscription(
+      user=author,
+      endpoint="https://push.example.com/subscriptions/abc",
+      p256dh_key="p256dh-key",
+      auth_key="auth-key",
+      status=PushSubscriptionStatus.ACTIVE,
+      user_agent="Mozilla/5.0",
+      last_seen_at=datetime.now(UTC),
+    )
+
+    session.add_all([author, document, embedding, subscription])
+    await session.commit()
+
+    stored_document = await session.scalar(
+      select(Document).where(Document.slug == "employee-onboarding-sop")
+    )
+    stored_embedding = await session.scalar(
+      select(DocumentEmbedding).where(DocumentEmbedding.document_id == document.id)
+    )
+    stored_subscription = await session.scalar(
+      select(PushSubscription).where(
+        PushSubscription.endpoint == "https://push.example.com/subscriptions/abc"
+      )
+    )
+
+    assert stored_document is not None
+    assert stored_document.category == DocumentCategory.SOP
+    assert stored_document.status == DocumentStatus.PUBLISHED
+    assert stored_embedding is not None
+    assert stored_embedding.embedding_model == "text-embedding-3-small"
+    assert stored_subscription is not None
+    assert stored_subscription.status == PushSubscriptionStatus.ACTIVE
 
   await engine.dispose()

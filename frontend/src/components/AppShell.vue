@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import CommandBar from '@/components/CommandBar.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import type { UserRole } from '@/types/api'
@@ -17,24 +18,44 @@ const roleLabelMap: Record<UserRole, string> = {
   employee: '员工',
 }
 
-const navigationItems = computed(() => {
-  const items = [
-    { label: '仪表盘', routeName: 'dashboard' },
-    { label: '任务中心', routeName: 'tasks' },
-    { label: '模板中心', routeName: 'task-templates' },
-    { label: '审批中心', routeName: 'approvals' },
-    { label: '消息中心', routeName: 'messages' },
-  ]
+const generalNavigationItems = computed(() => [
+  { label: '总览', routeName: 'overview' },
+  { label: '任务中心', routeName: 'task-center' },
+  { label: '知识库', routeName: 'knowledge-base' },
+  { label: '汇报中心', routeName: 'reports' },
+  { label: '消息中心', routeName: 'messages' },
+])
+
+const specialNavigationItems = computed(() => {
+  const items: Array<{ label: string; routeName: string }> = []
 
   if (authStore.isManagementRole) {
-    items.splice(1, 0, { label: '部门管理', routeName: 'departments' })
-    items.splice(2, 0, { label: '档案管理', routeName: 'profiles' })
+    items.push({ label: '人员管理', routeName: 'people' })
+  }
+
+  if (authStore.user?.role === 'admin') {
+    items.push({ label: '部门管理', routeName: 'departments' })
   }
 
   return items
 })
 
-const activeMenu = computed(() => (typeof route.name === 'string' ? route.name : 'dashboard'))
+const activeMenu = computed(() => {
+  if (typeof route.name !== 'string') {
+    return 'overview'
+  }
+
+  const legacyRouteMap: Record<string, string> = {
+    dashboard: 'overview',
+    tasks: 'task-center',
+    'task-templates': 'task-center',
+    approvals: 'reports',
+    users: 'people',
+    profiles: 'people',
+  }
+
+  return legacyRouteMap[route.name] ?? route.name
+})
 const currentRoleLabel = computed(() => {
   if (!authStore.user) {
     return '访客'
@@ -58,7 +79,7 @@ function handleLogout(): void {
     <el-aside width="240px" class="app-shell__aside">
       <div class="app-shell__brand">
         <h1>{{ appStore.projectName }}</h1>
-        <p>{{ appStore.currentPhase }} · Workflow & Messaging</p>
+        <p>{{ appStore.currentPhase }} · Knowledge, AI Router & Experience</p>
       </div>
 
       <el-menu
@@ -66,13 +87,25 @@ function handleLogout(): void {
         class="app-shell__menu"
         @select="handleSelect"
       >
-        <el-menu-item
-          v-for="item in navigationItems"
-          :key="item.routeName"
-          :index="item.routeName"
-        >
-          {{ item.label }}
-        </el-menu-item>
+        <el-menu-item-group title="通用模块">
+          <el-menu-item
+            v-for="item in generalNavigationItems"
+            :key="item.routeName"
+            :index="item.routeName"
+          >
+            {{ item.label }}
+          </el-menu-item>
+        </el-menu-item-group>
+
+        <el-menu-item-group v-if="specialNavigationItems.length > 0" title="特殊模块">
+          <el-menu-item
+            v-for="item in specialNavigationItems"
+            :key="item.routeName"
+            :index="item.routeName"
+          >
+            {{ item.label }}
+          </el-menu-item>
+        </el-menu-item-group>
       </el-menu>
     </el-aside>
 
@@ -84,6 +117,7 @@ function handleLogout(): void {
         </div>
 
         <div class="app-shell__user">
+          <CommandBar />
           <el-tag type="primary" effect="plain">{{ currentRoleLabel }}</el-tag>
           <span>{{ authStore.user?.email ?? '未登录' }}</span>
           <el-button link type="primary" @click="handleLogout">退出登录</el-button>

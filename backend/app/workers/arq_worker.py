@@ -13,12 +13,16 @@ from app.workers.jobs import (
   enqueue_overdue_task_reminders,
   enqueue_pending_workflow_reminders,
   process_notification_message_payload,
+  rebuild_all_document_embeddings,
+  rebuild_document_embeddings,
   run_due_task_schedules,
 )
 
 OVERDUE_REMINDER_JOB = "enqueue_overdue_task_reminders"
 WORKFLOW_REMINDER_JOB = "enqueue_pending_workflow_reminders"
 TASK_SCHEDULE_JOB = "run_due_task_schedules"
+REBUILD_DOCUMENT_EMBEDDINGS_JOB = "rebuild_document_embeddings_job"
+REBUILD_ALL_DOCUMENT_EMBEDDINGS_JOB = "rebuild_all_document_embeddings_job"
 
 
 async def startup(ctx: dict[str, object]) -> None:
@@ -36,9 +40,14 @@ async def shutdown(ctx: dict[str, object]) -> None:
 
 
 async def process_notification_message(ctx: dict[str, object], payload: dict[str, object]) -> None:
+  settings: Settings = ctx["settings"]  # type: ignore[assignment]
   session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
   async with session_factory() as session:
-    await process_notification_message_payload(session=session, payload=payload)
+    await process_notification_message_payload(
+      session=session,
+      payload=payload,
+      settings=settings,
+    )
 
 
 async def enqueue_overdue_task_reminders_job(ctx: dict[str, object]) -> int:
@@ -83,6 +92,27 @@ async def run_due_task_schedules_job(ctx: dict[str, object]) -> int:
     )
 
 
+async def rebuild_document_embeddings_job(ctx: dict[str, object], document_id: str) -> int:
+  settings: Settings = ctx["settings"]  # type: ignore[assignment]
+  session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
+  async with session_factory() as session:
+    return await rebuild_document_embeddings(
+      session=session,
+      document_id=document_id,
+      settings=settings,
+    )
+
+
+async def rebuild_all_document_embeddings_job(ctx: dict[str, object]) -> int:
+  settings: Settings = ctx["settings"]  # type: ignore[assignment]
+  session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
+  async with session_factory() as session:
+    return await rebuild_all_document_embeddings(
+      session=session,
+      settings=settings,
+    )
+
+
 _settings = get_settings()
 
 
@@ -92,6 +122,8 @@ class WorkerSettings:
     enqueue_overdue_task_reminders_job,
     enqueue_pending_workflow_reminders_job,
     run_due_task_schedules_job,
+    rebuild_document_embeddings_job,
+    rebuild_all_document_embeddings_job,
   ]
   cron_jobs = [
     cron(

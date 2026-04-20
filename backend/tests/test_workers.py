@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import json
 
 import pytest
 from sqlalchemy import func, select
 
 from app.core.config import Settings
 from app.core.enums import (
+  DEFAULT_USER_NOTIFICATION_CHANNELS,
+  DocumentCategory,
+  DocumentStatus,
   NotificationChannel,
   NotificationDeliveryStatus,
   NotificationMessageStatus,
@@ -15,8 +19,12 @@ from app.core.enums import (
   UserRole,
 )
 from app.models import NotificationDelivery, NotificationMessage, TaskSchedule
+from app.models import DocumentEmbedding
+from app.integrations.notifications.web_push import WebPushNotificationAdapter
 from app.services.auth_service import AuthService
+from app.services.browser_push_service import BrowserPushService
 from app.services.department_service import DepartmentService
+from app.services.document_service import DocumentService
 from app.services.notification_service import NotificationService
 from app.services.profile_service import ProfileService
 from app.services.task_automation_service import TaskAutomationService
@@ -28,6 +36,8 @@ from app.workers.jobs import (
   enqueue_overdue_task_reminders,
   enqueue_pending_workflow_reminders,
   process_notification_message_payload,
+  rebuild_all_document_embeddings,
+  rebuild_document_embeddings,
   run_due_task_schedules,
 )
 from app.schemas.messages import NotificationMessage as NotificationMessageSchema
@@ -39,6 +49,36 @@ class InMemoryQueuePublisher:
 
   async def publish(self, payload: dict[str, object]) -> None:
     self.payloads.append(payload)
+
+
+class FakeOpenAIClient:
+  async def create_embeddings(self, *, inputs, model=None):  # noqa: ANN001
+    return [
+      [float(index + 1), float(len(str(text))), 1.0]
+      for index, text in enumerate(inputs)
+    ]
+
+
+class FakeWebPushSender:
+  def __init__(self) -> None:
+    self.payloads: list[dict[str, object]] = []
+
+  def __call__(
+    self,
+    *,
+    subscription_info: dict[str, object],
+    data: str,
+    vapid_private_key: str,
+    vapid_claims: dict[str, str],
+  ) -> None:
+    self.payloads.append(
+      {
+        "subscription_info": subscription_info,
+        "data": data,
+        "vapid_private_key": vapid_private_key,
+        "vapid_claims": vapid_claims,
+      }
+    )
 
 
 TEST_JWT_SECRET = "test-secret-key-with-32-bytes-minimum!!"
@@ -121,6 +161,14 @@ async def test_enqueue_overdue_task_reminders_is_idempotent(db_session) -> None:
     real_name="研发工程师",
     department_id=department.id,
   )
+  push_service = BrowserPushService(db_session)
+  await push_service.upsert_subscription(
+    actor=employee,
+    endpoint="https://push.example.com/subscriptions/overdue",
+    p256dh_key="p256dh",
+    auth_key="auth",
+    user_agent="Mozilla/5.0",
+  )
 
   task_service = TaskService(db_session)
   overdue_task = await task_service.create_task(
@@ -146,11 +194,46 @@ async def test_enqueue_overdue_task_reminders_is_idempotent(db_session) -> None:
       NotificationMessage.message_type == "task_overdue_reminder",
     )
   )
+  employee_message = await db_session.scalar(
+    select(NotificationMessage).where(
+      NotificationMessage.source_id == overdue_task.id,
+      NotificationMessage.message_type == "task_overdue_reminder",
+      NotificationMessage.recipient_user_id == employee.id,
+    )
+  )
+  manager_message = await db_session.scalar(
+    select(NotificationMessage).where(
+      NotificationMessage.source_id == overdue_task.id,
+      NotificationMessage.message_type == "task_overdue_reminder",
+      NotificationMessage.recipient_user_id == admin.id,
+    )
+  )
+  assert employee_message is not None
+  assert manager_message is not None
+  employee_deliveries = list(
+    await db_session.scalars(
+      select(NotificationDelivery)
+      .where(NotificationDelivery.message_id == employee_message.id)
+      .order_by(NotificationDelivery.created_at.asc())
+    )
+  )
+  manager_deliveries = list(
+    await db_session.scalars(
+      select(NotificationDelivery)
+      .where(NotificationDelivery.message_id == manager_message.id)
+      .order_by(NotificationDelivery.created_at.asc())
+    )
+  )
 
   assert first_created_count == 2
   assert second_created_count == 0
   assert reminder_count == 2
   assert len(queue_publisher.payloads) == 2
+  assert {delivery.channel for delivery in employee_deliveries} == set(DEFAULT_USER_NOTIFICATION_CHANNELS)
+  assert {delivery.channel for delivery in manager_deliveries} == {
+    NotificationChannel.WEBSOCKET,
+    NotificationChannel.EMAIL,
+  }
 
 
 @pytest.mark.asyncio
@@ -324,3 +407,119 @@ async def test_enqueue_pending_workflow_reminders_is_idempotent(db_session) -> N
   assert second_created_count == 0
   assert reminder_count == 1
   assert len(queue_publisher.payloads) == 1
+
+
+@pytest.mark.asyncio
+async def test_process_notification_message_payload_dispatches_web_push(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    web_push_private_key="test-private-key",
+    web_push_subject="mailto:test@example.com",
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  push_service = BrowserPushService(db_session)
+  await push_service.upsert_subscription(
+    actor=admin,
+    endpoint="https://push.example.com/subscriptions/worker",
+    p256dh_key="p256dh",
+    auth_key="auth",
+    user_agent="Mozilla/5.0",
+  )
+
+  queue_publisher = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, queue_publisher)
+  message = await notification_service.send(
+    NotificationMessageSchema(
+      source_type="knowledge",
+      source_id=None,
+      recipient_user_id=admin.id,
+      recipient_email=admin.email,
+      message_type="knowledge_published",
+      title="知识库已更新",
+      body_text="员工入职 SOP 已重新发布。",
+      channels=[NotificationChannel.WEB_PUSH],
+      payload={"document_slug": "employee-onboarding-sop"},
+    )
+  )
+
+  fake_sender = FakeWebPushSender()
+  adapter = WebPushNotificationAdapter(
+    session=db_session,
+    settings=settings,
+    sender=fake_sender,
+  )
+  processed_message = await process_notification_message_payload(
+    session=db_session,
+    payload=queue_publisher.payloads[0],
+    settings=settings,
+    adapters={NotificationChannel.WEB_PUSH: adapter},
+  )
+  delivery = await db_session.scalar(
+    select(NotificationDelivery).where(NotificationDelivery.message_id == message.id)
+  )
+  subscriptions = await push_service.list_subscriptions(actor=admin)
+
+  assert processed_message is not None
+  assert processed_message.status == NotificationMessageStatus.COMPLETED
+  assert delivery is not None
+  assert delivery.status == NotificationDeliveryStatus.SENT
+  assert len(fake_sender.payloads) == 1
+  assert json.loads(fake_sender.payloads[0]["data"])["message_type"] == "knowledge_published"
+  assert subscriptions[0].last_seen_at is not None
+
+
+@pytest.mark.asyncio
+async def test_rebuild_document_embedding_jobs_index_documents(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    openai_api_key="test-openai-key",
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  document_service = DocumentService(db_session)
+  onboarding_document = await document_service.create_document(
+    actor=admin,
+    title="员工入职 SOP",
+    slug="employee-onboarding-sop",
+    category=DocumentCategory.SOP,
+    content_md="入职 提交材料 开通账号",
+    status=DocumentStatus.PUBLISHED,
+  )
+  policy_document = await document_service.create_document(
+    actor=admin,
+    title="采购审批规范",
+    slug="procurement-policy",
+    category=DocumentCategory.POLICY,
+    content_md="采购 审批 预算",
+    status=DocumentStatus.DRAFT,
+  )
+
+  first_count = await rebuild_document_embeddings(
+    session=db_session,
+    document_id=onboarding_document.id,
+    settings=settings,
+    openai_client=FakeOpenAIClient(),
+  )
+  rebuilt_documents = await rebuild_all_document_embeddings(
+    session=db_session,
+    settings=settings,
+    openai_client=FakeOpenAIClient(),
+  )
+  embedding_count = await db_session.scalar(select(func.count(DocumentEmbedding.id)))
+
+  assert first_count >= 1
+  assert rebuilt_documents == 2
+  assert embedding_count is not None and embedding_count >= 2

@@ -53,6 +53,9 @@ describe('Messages view', () => {
     const wrapper = mount(MessagesView, {
       global: {
         plugins: [ElementPlus],
+        stubs: {
+          PushSubscriptionCard: true,
+        },
       },
     })
 

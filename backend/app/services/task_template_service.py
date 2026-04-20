@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import NotificationChannel, TaskPriority, TaskSourceType
+from app.core.enums import DEFAULT_USER_NOTIFICATION_CHANNELS, TaskPriority, TaskSourceType
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import Task, TaskDependency, TaskTemplate, TaskTemplateStep, TaskTemplateStepDependency, TaskWatcher, User
 from app.schemas.messages import NotificationMessage
@@ -347,7 +347,7 @@ class TaskTemplateService:
             message_type="task_cc_added",
             title=f"你被加入任务关注：{task.title}",
             body_text=f"任务「{task.title}」由模板实例化，并已将你加入关注列表。",
-            channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+            channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
           )
         )
 

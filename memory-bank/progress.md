@@ -9,7 +9,14 @@
 | Phase 2 / Collaboration & Stats | done | 状态机、评论留痕、审计日志、ARQ 提醒 worker、统计与协同任务页已完成并通过用户简单测试 |
 | Phase 3 / HR Governance & Org Modeling | done | 代码已实现、修复 PostgreSQL 迁移命名问题，并通过用户手动验测 |
 | Phase 4 / Workflow Engine & Messaging | done | 模板、审批流、自动化、消息中心与多视图已完成，并通过用户手动验测 |
-| Phase 5 / Knowledge, AI Router & Experience | next | 作为下一阶段推进，重点转向 Knowledge / AI Router / Push |
+| Phase 5 / Knowledge, AI Router & Experience | done | 知识库、RAG、AI Router、Push / PWA 已完成，后续进入文档收口、重构与测试强化 |
+
+## 当前重构执行状态
+
+| 步骤 | 状态 | 结论 |
+| --- | --- | --- |
+| Step 1 / 壳层导航重构 | done | 用户已确认通过，已完成分组导航、主入口改名、旧路由兼容跳转与聚合入口壳层 |
+| Step 2 / 总览模块 | pending | 待开始实现看板、公告、当前任务投影与总览聚合 |
 
 ## 已完成里程碑
 
@@ -163,6 +170,39 @@
 | --- | --- | --- | --- |
 | 用户手动验测 | done | 用户已确认 Phase 4 通过，可进入下一阶段 | 已完成自动化验证与用户手动验测 |
 
+### Phase 5 / Knowledge, AI Router & Experience
+
+#### 1. 模型先行
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| Knowledge / Push 模型与迁移 | done | `documents`、`document_embeddings`、`push_subscriptions`、`20260417_01_phase5_knowledge_push.py` | 已执行模型、metadata、迁移与配置测试 |
+| 编排与数据库基线 | done | Compose PostgreSQL 切换到 `pgvector/pgvector:pg16`，补齐 OpenAI / VAPID 配置项 | 已完成配置级检查与测试覆盖 |
+
+#### 2. 服务层封装
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| 文档与检索服务 | done | `DocumentService`、`KnowledgeRetrievalService`、文档附件与 embedding 重建 | 已执行服务测试 |
+| AI Router 与工具注册 | done | `ToolRegistryService`、`LLMRouterService`、`@系统` / `/` 路由编排 | 已执行服务与 API 测试 |
+| Push 与通知渠道 | done | `BrowserPushService`、Web Push adapter、通知 adapter factory | 已执行服务、worker 与 API 测试 |
+
+#### 3. Worker / API / 前端
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| Worker 与 adapter | done | 文档 embedding job、通知投递分发、Web Push 发送 | 已执行 worker 单元测试 |
+| API 层 | done | `documents`、`knowledge`、`ai_router`、`push_subscriptions` 路由与 schema | 已执行 API 集成测试 |
+| 前端工作台 | done | 知识库页、命令栏、Push 订阅卡片、PWA 基线 | 已执行 `test:unit`、`type-check`、`build`、`lint` |
+
+#### 4. 阶段后续补丁
+
+| 步骤 | 状态 | 产出 | 验证 |
+| --- | --- | --- | --- |
+| 浏览器通知业务链路补齐 | done | 任务指派、转派、抄送、逾期提醒、审批提醒已接入 `WEB_PUSH`，并做订阅感知过滤 | 已执行后端与前端全量回归 |
+| 用户管理入口补齐 | done | 新增 `/users` 工作台、侧边栏导航与前端测试 | 已执行前端全量验证 |
+| 测试数据脚本 | done | `SampleDataService`、`python -m app.scripts.seed_sample_data`、可重复 demo 组织与账号 | 已执行服务测试并实际生成测试数据 |
+
 ## 用户验测补记
 
 ### Phase 1 验测补记
@@ -204,6 +244,24 @@
   4. 任务中心列表 / 看板 / 甘特图多视图与 watcher
 - 用户已确认 Phase 4 通过，因此当前文档状态已推进为 **Phase 4 done / Phase 5 next**。
 
+### Phase 5 验测补记
+
+- Phase 5 主体代码已经完成，自动化验证链路已全部通过。
+- 已完成的自动化验证包括：后端 `pytest`、后端 `compileall`、前端 `test:unit`、`type-check`、`build`、`lint`。
+- 本阶段新增的关键能力包括：
+  1. Markdown 知识库与文档附件
+  2. embedding 重建、RAG 检索与 `pgvector`
+  3. `@系统` / `/` 路由与 Tool Calling
+  4. 浏览器 Push 订阅、Web Push adapter 与 PWA 基线
+- 用户在阶段后续使用中发现：
+  1. 业务消息尚未完整接入浏览器推送
+  2. 前端缺少用户管理入口
+- 对应 follow-up 已完成：
+  1. 补齐任务与审批相关 Web Push 业务链路，并改为订阅感知 delivery 创建
+  2. 新增 `/users` 用户管理页与导航入口
+  3. 新增测试组织 / demo 用户初始化脚本，便于后续测试
+- 当前文档基线已按 **Phase 5 done** 收口，下一步等待用户确认后进入更深入的重构与测试。
+
 ## 当前可用能力
 
 - 管理员初始化、登录、JWT access / refresh 会话
@@ -223,25 +281,47 @@
 - 审批流定义、审批实例、待办审批与代理审批
 - 任务 watcher / 抄送
 - 任务中心列表 / 看板 / 甘特图多视图
-- 通知消息落库、ARQ 入队、逾期提醒扫描与状态回写
-- 消息中心收件箱与消息回执
+- 通知消息落库、ARQ 入队、adapter 分发、逾期提醒扫描与状态回写
+- 消息中心收件箱、消息回执与浏览器推送订阅
+- 文档知识库、文档附件、embedding 重建、RAG 检索
+- `@系统` / `/` 命令入口与 Tool Calling
+- PWA manifest / service worker 基线
+- 用户管理工作台（`/users`）
+- 测试组织 / demo 用户初始化脚本
 - Compose 本地开发基线（postgres / redis / backend / worker / frontend / nginx）
 
 ## 当前明确缺口（非完成项）
 
-| 方向 | 仍未实现的关键能力 | 目标阶段 |
+| 方向 | 仍未实现或需继续深化的关键能力 | 当前判断 |
 | --- | --- | --- |
+| 注册与账号开通 | 公开注册 / 邀请注册 / 审批式注册方案仍未定 | 待明确设计后实现 |
 | HR 流程自动化 | 生命周期事件与任务模板 / 审批流联动、字段权限可视化管理增强 | 后续增强 |
-| 消息渠道深化 | 真实 Email / WebSocket / Web Push 适配器、消息附件 | Phase 5+ |
-| Knowledge / AI | 文档库、RAG、`@系统` / `/` 路由、Tool Calling | Phase 5 |
-| Push / PWA | 浏览器推送订阅、PWA 安装与体验打磨 | Phase 5 |
+| 消息渠道深化 | 消息附件、真实 Email / WebSocket 发送接入、delivery 观测增强 | 后续增强 |
+| 工程质量 | 更细的重构、集成测试、E2E 路径与性能 / 稳定性验证 | 下一轮重点 |
 
 ## 当前规划焦点
 
-下一阶段优先级已经调整为：
+当前建议优先级已经调整为：
 
-1. **开始 Phase 5 / Knowledge, AI Router & Experience 设计**
-2. **优先落地文档知识库、RAG 与 `@系统` / `/` 路由**
-3. **在此基础上进入浏览器推送与 PWA**
+1. **基于 Phase 5 现状做重构与测试强化**
+2. **明确并落地注册能力**
+3. **补齐消息附件与更真实的渠道适配**
+4. **推进生命周期事件与模板 / 审批流联动**
 
-当前已经确认 Workflow & Messaging 基座可用，后续可以按计划进入 Knowledge / AI / Push。
+## 重构执行补记
+
+### Step 1 / 壳层导航重构
+
+- 用户已确认 Step 1 通过。
+- 本步骤已完成：
+  1. 左侧导航按“通用模块 / 特殊模块”分组
+  2. 主入口路由调整为 `/overview`、`/task-center`、`/reports`、`/people`
+  3. 旧地址 `/dashboard`、`/tasks`、`/task-templates`、`/approvals`、`/users`、`/profiles` 已接入兼容跳转
+  4. 新增 `TaskCenterView.vue` 与 `PeopleManagementView.vue` 两个聚合壳层，避免任务模板、用户页、档案页在重构早期失去入口
+  5. `部门管理` 收紧为仅管理员可见，`人员管理` 对 `admin / hr` 可见
+- 已完成验证：
+  - 前端单元测试
+  - 路由兼容跳转测试
+  - `type-check`
+  - `build`
+  - `lint`

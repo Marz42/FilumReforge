@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import select
@@ -12,10 +13,14 @@ from app.core.enums import (
   AttachmentStatus,
   AttachmentTargetType,
   CommentFormat,
+  DEFAULT_USER_NOTIFICATION_CHANNELS,
   DelegationScopeType,
+  DocumentCategory,
+  DocumentStatus,
   EmploymentEventType,
   NotificationChannel,
   NotificationReceiptType,
+  PushSubscriptionStatus,
   PositionAssignmentType,
   ReportingLineType,
   TaskActionType,
@@ -26,21 +31,27 @@ from app.core.enums import (
   WorkflowInstanceStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError
-from app.models import AttachmentLink, TaskDependency, TaskLog
+from app.models import AttachmentLink, NotificationDelivery, NotificationMessage as NotificationMessageModel, TaskDependency, TaskLog
 from app.integrations.storage.local import LocalStorageAdapter
 from app.services.attachment_service import AttachmentService
 from app.services.auth_service import AuthService
+from app.services.browser_push_service import BrowserPushService
 from app.services.delegation_service import DelegationService
 from app.services.department_service import DepartmentService
+from app.services.document_service import DocumentService
 from app.services.hr_lifecycle_service import HRLifecycleService
+from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
+from app.services.llm_router_service import LLMRouterService
 from app.services.message_center_service import MessageCenterService
 from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.profile_service import ProfileService
+from app.schemas.messages import NotificationMessage
 from app.services.task_automation_service import TaskAutomationService
 from app.services.task_service import CommentAttachmentInput, TaskService
 from app.services.task_template_service import TaskTemplateService
+from app.services.tool_registry_service import ToolRegistryService
 from app.services.user_service import UserService
 from app.services.workflow_engine_service import WorkflowEngineService
 
@@ -51,6 +62,59 @@ class InMemoryQueuePublisher:
 
   async def publish(self, payload):  # noqa: ANN001
     self.payloads.append(payload)
+
+
+class FakeOpenAIClient:
+  async def create_embeddings(self, *, inputs, model=None):  # noqa: ANN001
+    embeddings: list[list[float]] = []
+    for raw_text in inputs:
+      text = str(raw_text).lower()
+      embeddings.append(
+        [
+          float(text.count("入职") + text.count("onboarding")),
+          float(text.count("采购") + text.count("purchase")),
+          float(text.count("审批") + text.count("approval")),
+        ]
+      )
+    return embeddings
+
+
+class FakeRouterOpenAIClient(FakeOpenAIClient):
+  def __init__(self) -> None:
+    self.chat_calls = 0
+
+  async def create_chat_completion(self, **kwargs):  # noqa: ANN001
+    self.chat_calls += 1
+    if self.chat_calls == 1:
+      return SimpleNamespace(
+        choices=[
+          SimpleNamespace(
+            message=SimpleNamespace(
+              content=None,
+              tool_calls=[
+                SimpleNamespace(
+                  id="tool-call-1",
+                  function=SimpleNamespace(
+                    name="search_documents",
+                    arguments='{"query":"入职流程","limit":3}',
+                  ),
+                )
+              ],
+            )
+          )
+        ]
+      )
+
+    return SimpleNamespace(
+      choices=[
+        SimpleNamespace(
+          message=SimpleNamespace(
+            content="根据知识库，入职流程需要先提交材料，再开通账号。",
+            tool_calls=[],
+          )
+        )
+      ]
+    )
 
 
 TEST_JWT_SECRET = "test-secret-key-with-32-bytes-minimum!!"
@@ -172,6 +236,7 @@ async def test_task_service_creates_task_and_enqueues_notification(db_session) -
   notification_queue = InMemoryQueuePublisher()
   notification_service = NotificationService(db_session, notification_queue)
   task_service = TaskService(db_session, notification_service)
+  push_service = BrowserPushService(db_session)
 
   employee = await user_service.create_user(
     actor=admin,
@@ -187,6 +252,13 @@ async def test_task_service_creates_task_and_enqueues_notification(db_session) -
     real_name="普通员工",
     department_id=admin_profile.department_id,
   )
+  await push_service.upsert_subscription(
+    actor=employee,
+    endpoint="https://push.example.com/subscriptions/task-assigned",
+    p256dh_key="p256dh",
+    auth_key="auth",
+    user_agent="Mozilla/5.0",
+  )
 
   task = await task_service.create_task(
     actor=admin,
@@ -197,11 +269,66 @@ async def test_task_service_creates_task_and_enqueues_notification(db_session) -
   task_logs = list(
     await db_session.scalars(select(TaskLog).where(TaskLog.task_id == task.id).order_by(TaskLog.created_at.asc()))
   )
+  assignment_message = await db_session.scalar(
+    select(NotificationMessageModel).where(
+      NotificationMessageModel.source_type == "task",
+      NotificationMessageModel.source_id == task.id,
+      NotificationMessageModel.message_type == "task_assigned",
+      NotificationMessageModel.recipient_user_id == employee.id,
+    )
+  )
+  assert assignment_message is not None
+  deliveries = list(
+    await db_session.scalars(
+      select(NotificationDelivery)
+      .where(NotificationDelivery.message_id == assignment_message.id)
+      .order_by(NotificationDelivery.created_at.asc())
+    )
+  )
 
   assert task in tasks_for_employee
   assert len(notification_queue.payloads) == 1
   assert notification_queue.payloads[0]["message_type"] == "task_assigned"
   assert [log.action_type for log in task_logs] == [TaskActionType.CREATED, TaskActionType.ASSIGNED]
+  assert {delivery.channel for delivery in deliveries} == set(DEFAULT_USER_NOTIFICATION_CHANNELS)
+
+
+@pytest.mark.asyncio
+async def test_notification_service_skips_web_push_without_subscription(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  notification_service = NotificationService(db_session)
+  message = await notification_service.send(
+    NotificationMessage(
+      source_type="task",
+      source_id=admin.id,
+      recipient_user_id=admin.id,
+      recipient_email=admin.email,
+      message_type="task_assigned",
+      title="收到新任务",
+      body_text="请处理任务。",
+      channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
+    )
+  )
+  deliveries = list(
+    await db_session.scalars(
+      select(NotificationDelivery)
+      .where(NotificationDelivery.message_id == message.id)
+      .order_by(NotificationDelivery.created_at.asc())
+    )
+  )
+
+  assert {delivery.channel for delivery in deliveries} == {
+    NotificationChannel.WEBSOCKET,
+    NotificationChannel.EMAIL,
+  }
 
 
 @pytest.mark.asyncio
@@ -911,3 +1038,279 @@ async def test_phase4_workflow_engine_supports_delegation_and_return_flow(db_ses
   assert completed_instance.status == WorkflowInstanceStatus.APPROVED
   assert any(payload["message_type"] == "workflow_action_required" for payload in notification_queue.payloads)
   assert any(payload["message_type"] == "workflow_returned" for payload in notification_queue.payloads)
+
+
+@pytest.mark.asyncio
+async def test_phase5_document_service_controls_visibility_and_document_attachments(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  document_service = DocumentService(db_session)
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  with TemporaryDirectory() as tmp_dir:
+    storage_service = ObjectStorageService(
+      LocalStorageAdapter(base_path=tmp_dir, bucket="filum-test")
+    )
+    attachment_service = AttachmentService(db_session, storage_service)
+
+    document = await document_service.create_document(
+      actor=admin,
+      title="员工入职指南",
+      slug=None,
+      category=DocumentCategory.SOP,
+      content_md="# 入职\n\n准备材料并开通账号。",
+    )
+    await attachment_service.upload_attachment(
+      actor=admin,
+      filename="onboarding.pdf",
+      content_type="application/pdf",
+      content=b"document-attachment",
+      target_type=AttachmentTargetType.DOCUMENT,
+      target_id=document.id,
+      relation="reference",
+    )
+
+    assert await document_service.list_documents(actor=employee) == []
+
+    published_document = await document_service.publish_document(
+      actor=admin,
+      document_id=document.id,
+    )
+    updated_document = await document_service.update_document(
+      actor=admin,
+      document_id=document.id,
+      content_md="# 入职\n\n准备材料、开通账号并签收设备。",
+    )
+
+    visible_documents = await document_service.list_documents(actor=employee)
+    attachments = await document_service.list_document_attachments(
+      actor=employee,
+      document_id=document.id,
+    )
+    employee_view = await document_service.get_document_by_slug(
+      actor=employee,
+      slug="员工入职指南",
+    )
+
+    assert published_document.status == DocumentStatus.PUBLISHED
+    assert updated_document.version == 2
+    assert len(visible_documents) == 1
+    assert visible_documents[0].slug == "员工入职指南"
+    assert employee_view.id == document.id
+    assert len(attachments) == 1
+    assert attachments[0].original_filename == "onboarding.pdf"
+
+
+@pytest.mark.asyncio
+async def test_phase5_knowledge_retrieval_reindexes_and_filters_by_access(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  document_service = DocumentService(db_session)
+  retrieval_service = KnowledgeRetrievalService(
+    db_session,
+    settings,
+    FakeOpenAIClient(),
+  )
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  onboarding_document = await document_service.create_document(
+    actor=admin,
+    title="入职资料清单",
+    slug="employee-onboarding-checklist",
+    category=DocumentCategory.SOP,
+    content_md="入职 账号 设备",
+    status=DocumentStatus.PUBLISHED,
+  )
+  procurement_document = await document_service.create_document(
+    actor=admin,
+    title="采购审批规范",
+    slug="procurement-approval-policy",
+    category=DocumentCategory.POLICY,
+    content_md="采购 审批 预算",
+    status=DocumentStatus.PUBLISHED,
+  )
+  draft_document = await document_service.create_document(
+    actor=admin,
+    title="草稿制度",
+    slug="draft-policy",
+    category=DocumentCategory.POLICY,
+    content_md="采购 审批 草稿",
+    status=DocumentStatus.DRAFT,
+  )
+
+  await retrieval_service.rebuild_document_embeddings(document_id=onboarding_document.id)
+  await retrieval_service.rebuild_document_embeddings(document_id=procurement_document.id)
+  await retrieval_service.rebuild_document_embeddings(document_id=draft_document.id)
+
+  onboarding_hits = await retrieval_service.search_documents(
+    actor=employee,
+    query="入职账号",
+  )
+  policy_hits = await retrieval_service.search_documents(
+    actor=admin,
+    query="采购审批",
+    category=DocumentCategory.POLICY,
+  )
+  context, context_hits = await retrieval_service.build_rag_context(
+    actor=employee,
+    query="入职设备",
+  )
+
+  assert onboarding_hits
+  assert onboarding_hits[0].document.id == onboarding_document.id
+  assert all(hit.document.status == DocumentStatus.PUBLISHED for hit in onboarding_hits)
+  assert policy_hits
+  assert any(hit.document.id == procurement_document.id for hit in policy_hits)
+  assert any(hit.document.id == draft_document.id for hit in policy_hits)
+  assert "入职资料清单" in context
+  assert context_hits[0].document.id == onboarding_document.id
+
+
+@pytest.mark.asyncio
+async def test_phase5_browser_push_service_upserts_and_revokes_subscriptions(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  push_service = BrowserPushService(db_session)
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+
+  subscription = await push_service.upsert_subscription(
+    actor=admin,
+    endpoint="https://push.example.com/subscriptions/1",
+    p256dh_key="key-1",
+    auth_key="auth-1",
+    user_agent="Mozilla/5.0",
+  )
+  updated_subscription = await push_service.upsert_subscription(
+    actor=admin,
+    endpoint="https://push.example.com/subscriptions/1",
+    p256dh_key="key-2",
+    auth_key="auth-2",
+    user_agent="Chrome",
+  )
+  listed_subscriptions = await push_service.list_subscriptions(actor=admin)
+  message = await notification_service.send(
+    NotificationMessage(
+      source_type="knowledge",
+      source_id=None,
+      recipient_user_id=admin.id,
+      recipient_email=admin.email,
+      message_type="knowledge_published",
+      title="新制度已发布",
+      body_text="员工入职 SOP 已发布。",
+      channels=[NotificationChannel.WEB_PUSH],
+      payload={"document_slug": "employee-onboarding-checklist"},
+    )
+  )
+  payload = push_service.build_payload(message=message)
+  revoked_subscription = await push_service.revoke_subscription(
+    actor=admin,
+    subscription_id=subscription.id,
+  )
+
+  assert subscription.id == updated_subscription.id
+  assert updated_subscription.p256dh_key == "key-2"
+  assert len(listed_subscriptions) == 1
+  assert payload["title"] == "新制度已发布"
+  assert payload["payload"] == {"document_slug": "employee-onboarding-checklist"}
+  assert revoked_subscription.status == PushSubscriptionStatus.REVOKED
+
+
+@pytest.mark.asyncio
+async def test_phase5_llm_router_handles_slash_commands_and_tool_calls(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    openai_api_key="test-openai-key",
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  document_service = DocumentService(db_session)
+  task_service = TaskService(db_session, NotificationService(db_session, InMemoryQueuePublisher()))
+  workflow_engine_service = WorkflowEngineService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+  )
+  message_center_service = MessageCenterService(db_session)
+  profile_service = ProfileService(db_session)
+  router_openai_client = FakeRouterOpenAIClient()
+  retrieval_service = KnowledgeRetrievalService(
+    db_session,
+    settings,
+    router_openai_client,
+  )
+  tool_registry_service = ToolRegistryService(
+    document_service=document_service,
+    retrieval_service=retrieval_service,
+    task_service=task_service,
+    workflow_engine_service=workflow_engine_service,
+    message_center_service=message_center_service,
+    profile_service=profile_service,
+  )
+  router_service = LLMRouterService(
+    settings=settings,
+    openai_client=router_openai_client,
+    retrieval_service=retrieval_service,
+    tool_registry_service=tool_registry_service,
+  )
+
+  document = await document_service.create_document(
+    actor=admin,
+    title="员工入职 SOP",
+    slug="employee-onboarding-sop",
+    category=DocumentCategory.SOP,
+    content_md="入职流程需要先提交材料，再开通账号。",
+    status=DocumentStatus.PUBLISHED,
+  )
+  await retrieval_service.rebuild_document_embeddings(document_id=document.id)
+
+  slash_result = await router_service.route_text(actor=admin, text="/profile")
+  mention_result = await router_service.route_text(actor=admin, text="@系统 入职流程是什么？")
+
+  assert slash_result.mode == "slash_command"
+  assert slash_result.command_name == "profile"
+  assert slash_result.tool_results[0]["tool_name"] == "get_profile_summary"
+  assert "档案摘要" in slash_result.reply_text
+
+  assert mention_result.mode == "mention"
+  assert mention_result.tool_results
+  assert mention_result.tool_results[0]["tool_name"] == "search_documents"
+  assert "入职流程需要先提交材料" in mention_result.reply_text
+  assert mention_result.knowledge_hits

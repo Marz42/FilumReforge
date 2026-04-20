@@ -9,9 +9,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.enums import (
   ApprovalMode,
+  DEFAULT_USER_NOTIFICATION_CHANNELS,
   DelegationScopeType,
   DelegationStatus,
-  NotificationChannel,
   WorkflowDefinitionStatus,
   WorkflowInstanceStatus,
   WorkflowStepRunStatus,
@@ -257,7 +257,7 @@ class WorkflowEngineService:
         title=title,
         body_text=body_text,
         payload=dict(payload or {}),
-        channels=[NotificationChannel.WEBSOCKET, NotificationChannel.EMAIL],
+        channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
       )
     )
 

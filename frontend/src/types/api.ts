@@ -31,6 +31,9 @@ export type NotificationChannel = 'email' | 'web_push' | 'websocket'
 export type NotificationMessageStatus = 'queued' | 'processing' | 'completed' | 'failed'
 export type NotificationDeliveryStatus = 'pending' | 'sent' | 'failed' | 'retrying'
 export type NotificationReceiptType = 'delivered' | 'read' | 'acknowledged'
+export type PushSubscriptionStatus = 'active' | 'expired' | 'revoked'
+export type DocumentCategory = 'policy' | 'sop' | 'announcement' | 'faq' | 'other'
+export type DocumentStatus = 'draft' | 'published' | 'archived'
 export type WorkflowDefinitionStatus = 'draft' | 'active' | 'archived'
 export type WorkflowStepType = 'task' | 'approval' | 'notify'
 export type ApprovalMode = 'single' | 'parallel_all' | 'parallel_any'
@@ -452,4 +455,65 @@ export interface Message {
   created_at: string
   deliveries: NotificationDelivery[]
   receipts: NotificationReceipt[]
+}
+
+export interface DocumentSummary {
+  id: string
+  title: string
+  slug: string
+  category: DocumentCategory
+  status: DocumentStatus
+  author_id: string
+  version: number
+  published_at: string | null
+  created_at: string
+  updated_at: string
+  author_email: string | null
+}
+
+export interface Document extends DocumentSummary {
+  content_md: string
+  attachments: Attachment[]
+}
+
+export interface DocumentSearchHit {
+  document_id: string
+  title: string
+  slug: string
+  category: DocumentCategory
+  status: DocumentStatus
+  score: number
+  chunk_index: number
+  excerpt: string
+}
+
+export interface DocumentSearchResponse {
+  query: string
+  items: DocumentSearchHit[]
+}
+
+export interface KnowledgeQueryResult {
+  query: string
+  context: string
+  hits: DocumentSearchHit[]
+}
+
+export interface AIRouterResult {
+  mode: string
+  prompt: string
+  reply_text: string
+  command_name: string | null
+  tool_results: Record<string, unknown>[]
+  knowledge_hits: DocumentSearchHit[]
+}
+
+export interface PushSubscription {
+  id: string
+  user_id: string
+  endpoint: string
+  status: PushSubscriptionStatus
+  user_agent: string | null
+  last_seen_at: string | null
+  created_at: string
+  updated_at: string
 }

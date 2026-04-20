@@ -16,3 +16,7 @@ class ConflictError(AppError):
 
 class NotFoundError(AppError):
   """Raised when a requested resource cannot be found."""
+
+
+class ConfigurationError(AppError):
+  """Raised when required infrastructure or integration config is missing."""

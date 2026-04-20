@@ -37,6 +37,17 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
   notification_messages = relationship("NotificationMessage", back_populates="recipient_user")
   notification_receipts = relationship("NotificationReceipt", back_populates="user")
+  authored_documents = relationship(
+    "Document",
+    back_populates="author",
+    foreign_keys="Document.author_id",
+  )
+  push_subscriptions = relationship(
+    "PushSubscription",
+    back_populates="user",
+    cascade="all, delete-orphan",
+    foreign_keys="PushSubscription.user_id",
+  )
   position_assignments = relationship("ProfilePosition", back_populates="user")
   created_task_templates = relationship(
     "TaskTemplate",

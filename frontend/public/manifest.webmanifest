@@ -1,0 +1,16 @@
+{
+  "name": "Project Filum",
+  "short_name": "Filum",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#0f172a",
+  "description": "Project Filum 后台工作台，包含知识库、AI Router 与浏览器消息推送能力。",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

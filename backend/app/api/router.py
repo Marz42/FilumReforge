@@ -1,12 +1,16 @@
 from fastapi import APIRouter
 
+from app.api.routes.ai_router import router as ai_router_router
 from app.api.routes.attachments import router as attachments_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.departments import router as departments_router
+from app.api.routes.documents import router as documents_router
 from app.api.routes.health import router as health_router
 from app.api.routes.hr_governance import router as hr_governance_router
+from app.api.routes.knowledge import router as knowledge_router
 from app.api.routes.messages import router as messages_router
 from app.api.routes.profiles import router as profiles_router
+from app.api.routes.push_subscriptions import router as push_subscriptions_router
 from app.api.routes.tasks import router as tasks_router
 from app.api.routes.task_templates import router as task_templates_router
 from app.api.routes.users import router as users_router
@@ -24,3 +28,7 @@ api_router.include_router(task_templates_router, tags=["task-templates"])
 api_router.include_router(workflows_router, tags=["workflows"])
 api_router.include_router(messages_router, tags=["messages"])
 api_router.include_router(attachments_router, tags=["attachments"])
+api_router.include_router(documents_router, tags=["documents"])
+api_router.include_router(knowledge_router, tags=["knowledge"])
+api_router.include_router(ai_router_router, tags=["ai"])
+api_router.include_router(push_subscriptions_router, tags=["push-subscriptions"])

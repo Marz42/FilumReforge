@@ -100,9 +100,9 @@ When writing new code, anchor it to its phase so scope stays clear.
 
 ## IMPORTANT INSTRUCTIONS:
 
-- Always read memory-bank/@architecture.md before writing any code. Include entire database schema.
-- Always read memory-bank/@design-document.md before writing any code.
-- After adding a major feature or completing a milestone, update memory-bank/@architecture.md.
+- Always read memory-bank/architecture.md before writing any code. Include entire database schema.
+- Always read memory-bank/design-document.md before writing any code.
+- After adding a major feature or completing a milestone, update memory-bank/architecture.md.
 - Use Simplified Chinese to communicate with the developer.
 - After adding a major feature or completing a milestone, commit your changes using git.
 
