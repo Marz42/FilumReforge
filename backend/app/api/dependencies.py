@@ -39,6 +39,8 @@ from app.services.task_center_service import TaskCenterService
 from app.services.task_memo_service import TaskMemoService
 from app.services.profile_field_policy_service import ProfileFieldPolicyService
 from app.services.profile_service import ProfileService
+from app.services.report_center_service import ReportCenterService
+from app.services.report_service import ReportService
 from app.services.task_automation_service import TaskAutomationService
 from app.services.task_service import TaskService
 from app.services.task_template_service import TaskTemplateService
@@ -226,6 +228,24 @@ def get_task_center_service(
   task_memo_service: Annotated[TaskMemoService, Depends(get_task_memo_service)],
 ) -> TaskCenterService:
   return TaskCenterService(session, task_service, task_template_service, task_memo_service)
+
+
+def get_report_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+  workflow_engine_service: Annotated[WorkflowEngineService, Depends(get_workflow_engine_service)],
+) -> ReportService:
+  return ReportService(session, notification_service, workflow_engine_service)
+
+
+def get_report_center_service(
+  report_service: Annotated[ReportService, Depends(get_report_service)],
+  workflow_engine_service: Annotated[
+    WorkflowEngineService,
+    Depends(get_workflow_engine_service),
+  ],
+) -> ReportCenterService:
+  return ReportCenterService(report_service, workflow_engine_service)
 
 
 def get_openai_client(

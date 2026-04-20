@@ -48,6 +48,36 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     back_populates="author",
     foreign_keys="Document.author_id",
   )
+  reports_initiated = relationship(
+    "Report",
+    back_populates="initiator",
+    foreign_keys="Report.initiator_user_id",
+  )
+  reports_targeted = relationship(
+    "Report",
+    back_populates="target",
+    foreign_keys="Report.target_user_id",
+  )
+  reports_currently_received = relationship(
+    "Report",
+    back_populates="current_recipient",
+    foreign_keys="Report.current_recipient_user_id",
+  )
+  report_routes_sent = relationship(
+    "ReportRoute",
+    back_populates="sender",
+    foreign_keys="ReportRoute.sender_user_id",
+  )
+  report_routes_received = relationship(
+    "ReportRoute",
+    back_populates="recipient",
+    foreign_keys="ReportRoute.recipient_user_id",
+  )
+  report_routes_assigned = relationship(
+    "ReportRoute",
+    back_populates="assigned_user",
+    foreign_keys="ReportRoute.assigned_user_id",
+  )
   push_subscriptions = relationship(
     "PushSubscription",
     back_populates="user",

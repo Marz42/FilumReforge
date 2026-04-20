@@ -18,6 +18,7 @@
 | Step 1 / 壳层导航重构 | done | 用户已确认通过，已完成分组导航、主入口改名、旧路由兼容跳转与聚合入口壳层 |
 | Step 2 / 总览模块 | done | 已完成看板、公告、当前任务投影、总览聚合接口、总览页前端、归档 cron 与自动化回归，并通过用户手动验测 |
 | Step 3 / 任务中心重构 | done | 已完成任务中心六标签工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归，并通过用户手动验测 |
+| Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；当前等待用户手动验测 |
 
 ## 已完成里程碑
 
@@ -242,8 +243,17 @@
 - 已将前端 `TaskCenterView.vue` 重构为六标签工作台：任务模板、发布任务、待办事项、任务跟踪、历史任务、备忘。
 - 已保留 `TasksView.vue` 的活动时间线、任务协同详情与负载概览，并作为任务跟踪详情区复用。
 - 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 回归。
-- 用户已确认 Step 3 通过，因此当前重构基线已推进为 **Step 3 done / Step 4 next**。
-- 下一步进入 Step 4 / 汇报中心落地，并继续遵守“完成一步后停下等待用户测试确认”。
+- 用户已确认 Step 3 通过，因此当前重构基线已推进为 **Step 3 done / Step 4 start**。
+
+### Step 4 / 汇报中心落地
+
+- 已新增 `reports`、`report_routes` 表、迁移、模型关系与 API schema。
+- 已新增 `/api/v1/report-center`、`/api/v1/report-center/reports` 与动作接口，支持发起、流转、退回、归档。
+- 已新增 `ReportService`、`ReportCenterService`，支持逐级向上汇报、逐级向下传达、代理委托、可选挂接 workflow instance。
+- 已将 `/reports` 页面升级为真正的汇报中心，支持待处理、我发起、历史归档、发起向上汇报、发起向下传达五个标签。
+- 已通过通知总线把新汇报 / 新传达接入消息中心与浏览器推送链路。
+- 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 回归。
+- 当前停在 Step 4，等待用户手动验测后再决定是否进入 Step 5。
 
 ### Phase 3 验测补记
 

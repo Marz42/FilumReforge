@@ -82,6 +82,8 @@ def test_alembic_upgrade_and_downgrade(tmp_path, monkeypatch) -> None:
     "announcements",
     "announcement_archives",
     "task_memos",
+    "reports",
+    "report_routes",
   }.issubset(upgraded_tables)
 
   command.downgrade(alembic_config, "base")

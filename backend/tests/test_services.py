@@ -19,6 +19,9 @@ from app.core.enums import (
   DocumentCategory,
   DocumentStatus,
   EmploymentEventType,
+  ReportDirection,
+  ReportRouteStatus,
+  ReportStatus,
   NotificationChannel,
   NotificationReceiptType,
   TaskPriority,
@@ -52,6 +55,8 @@ from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.profile_service import ProfileService
+from app.services.report_center_service import ReportCenterService
+from app.services.report_service import ReportService
 from app.schemas.messages import NotificationMessage
 from app.services.task_automation_service import TaskAutomationService
 from app.services.task_memo_service import TaskMemoService
@@ -1395,6 +1400,158 @@ async def test_phase4_workflow_engine_supports_delegation_and_return_flow(db_ses
   assert completed_instance.status == WorkflowInstanceStatus.APPROVED
   assert any(payload["message_type"] == "workflow_action_required" for payload in notification_queue.payloads)
   assert any(payload["message_type"] == "workflow_returned" for payload in notification_queue.payloads)
+
+
+@pytest.mark.asyncio
+async def test_step4_report_center_supports_routing_delegation_and_archive(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  organization_relation_service = OrganizationRelationService(db_session)
+  delegation_service = DelegationService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  delegate = await user_service.create_user(
+    actor=admin,
+    email="delegate@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="汇报测试部",
+    code="reporting-test",
+    manager_id=admin.id,
+  )
+  for user, employee_no, real_name in [
+    (manager, "EMP-RPT-002", "中层经理"),
+    (delegate, "EMP-RPT-003", "代理人"),
+    (requester, "EMP-RPT-004", "汇报员工"),
+  ]:
+    await profile_service.create_profile(
+      actor=admin,
+      user_id=user.id,
+      employee_no=employee_no,
+      real_name=real_name,
+      department_id=department.id,
+    )
+
+  await organization_relation_service.create_reporting_line(
+    actor=admin,
+    user_id=requester.id,
+    manager_user_id=manager.id,
+    line_type=ReportingLineType.SOLID,
+    starts_at=date(2025, 1, 1),
+    department_id=department.id,
+    is_primary=True,
+  )
+  await organization_relation_service.create_reporting_line(
+    actor=admin,
+    user_id=manager.id,
+    manager_user_id=admin.id,
+    line_type=ReportingLineType.SOLID,
+    starts_at=date(2025, 1, 1),
+    department_id=department.id,
+    is_primary=True,
+  )
+  await delegation_service.create_delegation(
+    actor=manager,
+    delegator_user_id=manager.id,
+    delegate_user_id=delegate.id,
+    scope_type=DelegationScopeType.ALL,
+    starts_at=datetime.now(UTC) - timedelta(hours=1),
+    ends_at=datetime.now(UTC) + timedelta(days=2),
+  )
+
+  notification_queue = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, notification_queue)
+  workflow_engine_service = WorkflowEngineService(db_session, notification_service)
+  report_service = ReportService(db_session, notification_service, workflow_engine_service)
+  report_center_service = ReportCenterService(report_service, workflow_engine_service)
+
+  definition = await workflow_engine_service.create_definition(
+    actor=admin,
+    code="report-approval",
+    name="汇报挂接审批",
+    scope_type="report",
+    status=WorkflowDefinitionStatus.ACTIVE,
+    steps=[
+      {
+        "step_key": "approve",
+        "name": "经理审批",
+        "step_type": "approval",
+        "assignee_rule": {"type": "department_manager"},
+      }
+    ],
+  )
+
+  report = await report_service.create_report(
+    actor=requester,
+    direction=ReportDirection.UPWARD,
+    target_user_id=admin.id,
+    title="周报",
+    content_md="本周已完成重构准备与联调排期。",
+    workflow_definition_id=definition.id,
+  )
+  first_route = report.routes[0]
+  delegate_snapshot = await report_center_service.get_snapshot(actor=delegate)
+  requester_snapshot = await report_center_service.get_snapshot(actor=requester)
+
+  assert report.workflow_instance_id is not None
+  assert first_route.recipient_user_id == manager.id
+  assert first_route.assigned_user_id == delegate.id
+  assert delegate_snapshot.pending_reports[0].id == report.id
+  assert requester_snapshot.permissions["can_create_upward"] is True
+
+  forwarded = await report_service.act_report(
+    actor=delegate,
+    report_id=report.id,
+    action="advance",
+    note="已转交给最终上级。",
+  )
+  second_route = next(route for route in forwarded.routes if route.sequence_no == 2)
+  assert forwarded.current_recipient_user_id == admin.id
+  assert second_route.status == ReportRouteStatus.PENDING
+
+  completed = await report_service.act_report(
+    actor=admin,
+    report_id=report.id,
+    action="advance",
+  )
+  assert completed.status == ReportStatus.COMPLETED
+
+  archived = await report_service.act_report(
+    actor=requester,
+    report_id=report.id,
+    action="archive",
+  )
+  history_reports = await report_service.list_history_reports(actor=requester)
+
+  assert archived.status == ReportStatus.ARCHIVED
+  assert any(item.id == report.id for item in history_reports)
+  assert any(payload["message_type"] == "report_pending" for payload in notification_queue.payloads)
+  assert any(payload["message_type"] == "report_completed" for payload in notification_queue.payloads)
+  assert any(payload["message_type"] == "workflow_action_required" for payload in notification_queue.payloads)
 
 
 @pytest.mark.asyncio

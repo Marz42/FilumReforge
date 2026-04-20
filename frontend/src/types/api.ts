@@ -576,6 +576,83 @@ export interface WorkflowInstance {
   definition: WorkflowDefinition | null
 }
 
+export type ReportDirection = 'upward' | 'downward'
+export type ReportStatus = 'in_progress' | 'completed' | 'returned' | 'archived'
+export type ReportRouteStatus = 'queued' | 'pending' | 'forwarded' | 'completed' | 'returned'
+
+export interface ReportActionOption {
+  action: string
+  label: string
+  button_type: string
+}
+
+export interface ReportTargetOption {
+  user_id: string
+  label: string
+  path_labels: string[]
+  hops: number
+}
+
+export interface WorkflowDefinitionOption {
+  id: string
+  name: string
+}
+
+export interface ReportRoute {
+  id: string
+  sequence_no: number
+  sender_user_id: string
+  sender_label: string
+  recipient_user_id: string
+  recipient_label: string
+  assigned_user_id: string | null
+  assigned_label: string | null
+  status: ReportRouteStatus
+  activated_at: string | null
+  acted_at: string | null
+  note: string | null
+}
+
+export interface ReportRecord {
+  id: string
+  direction: ReportDirection
+  status: ReportStatus
+  title: string
+  content_md: string
+  initiator_user_id: string
+  initiator_label: string
+  target_user_id: string
+  target_label: string
+  current_recipient_user_id: string | null
+  current_recipient_label: string | null
+  current_route_sequence: number | null
+  workflow_definition_id: string | null
+  workflow_definition_name: string | null
+  workflow_instance_id: string | null
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+  returned_at: string | null
+  archived_at: string | null
+  available_actions: ReportActionOption[]
+  routes: ReportRoute[]
+}
+
+export interface ReportCenterPermissions {
+  can_create_upward: boolean
+  can_create_downward: boolean
+}
+
+export interface ReportCenterSnapshot {
+  permissions: ReportCenterPermissions
+  upward_target_options: ReportTargetOption[]
+  downward_target_options: ReportTargetOption[]
+  workflow_definition_options: WorkflowDefinitionOption[]
+  pending_reports: ReportRecord[]
+  initiated_reports: ReportRecord[]
+  history_reports: ReportRecord[]
+}
+
 export interface NotificationDelivery {
   id: string
   message_id: string

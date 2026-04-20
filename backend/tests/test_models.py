@@ -20,6 +20,9 @@ from app.core.enums import (
   NotificationChannel,
   PushSubscriptionStatus,
   PositionAssignmentType,
+  ReportDirection,
+  ReportRouteStatus,
+  ReportStatus,
   ReportingLineType,
   TaskActionType,
   WorkflowDefinitionStatus,
@@ -51,6 +54,8 @@ from app.models import (
   ProfileFieldPermission,
   ProfilePosition,
   PushSubscription,
+  Report,
+  ReportRoute,
   RefreshToken,
   ReportingLine,
   Task,
@@ -443,6 +448,86 @@ async def test_step3_models_persist_task_memos() -> None:
     assert stored_memo is not None
     assert stored_memo.related_task_id == task_id
     assert stored_memo.is_pinned is True
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_step4_models_persist_reports_and_routes() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  async with session_factory() as session:
+    initiator = User(
+      email="initiator@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    manager = User(
+      email="manager@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    target = User(
+      email="target@example.com",
+      password_hash="hashed-password",
+      role=UserRole.ADMIN,
+      status=UserStatus.ACTIVE,
+    )
+    department = Department(
+      name="汇报部",
+      code="reports",
+      manager=target,
+    )
+    session.add_all([initiator, manager, target, department])
+    await session.flush()
+
+    session.add_all(
+      [
+        Profile(user=initiator, employee_no="EMP-RPT-001", real_name="发起人", department=department),
+        Profile(user=manager, employee_no="EMP-RPT-002", real_name="中层经理", department=department),
+        Profile(user=target, employee_no="EMP-RPT-003", real_name="最终上级", department=department),
+      ]
+    )
+    report = Report(
+      direction=ReportDirection.UPWARD,
+      status=ReportStatus.IN_PROGRESS,
+      title="阶段汇报",
+      content_md="本周完成了关键任务推进。",
+      initiator=initiator,
+      target=target,
+      current_recipient=manager,
+      current_route_sequence=1,
+    )
+    route = ReportRoute(
+      report=report,
+      sequence_no=1,
+      sender=initiator,
+      recipient=manager,
+      assigned_user=manager,
+      status=ReportRouteStatus.PENDING,
+    )
+    session.add_all([report, route])
+    await session.commit()
+
+    stored_report = await session.scalar(select(Report).where(Report.title == "阶段汇报"))
+    stored_route = await session.scalar(select(ReportRoute).where(ReportRoute.report_id == report.id))
+
+    assert stored_report is not None
+    assert stored_report.direction == ReportDirection.UPWARD
+    assert stored_report.current_recipient_user_id == manager.id
+    assert stored_route is not None
+    assert stored_route.status == ReportRouteStatus.PENDING
+    assert stored_route.assigned_user_id == manager.id
 
   await engine.dispose()
 

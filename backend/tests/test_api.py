@@ -1234,6 +1234,194 @@ async def test_task_center_api_supports_snapshot_and_memos(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_step4_report_center_api_supports_flow_and_archive(api_client) -> None:
+  client, queue_publisher = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  created_users: dict[str, str] = {}
+  for email, role in (
+    ("manager@example.com", "employee"),
+    ("delegate@example.com", "employee"),
+    ("requester@example.com", "employee"),
+  ):
+    response = await client.post(
+      "/api/v1/users",
+      headers=headers,
+      json={
+        "email": email,
+        "password": "StrongPassword123!",
+        "role": role,
+        "status": "active",
+      },
+    )
+    assert response.status_code == 201
+    created_users[email] = response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "汇报 API 测试部",
+      "code": "report-center-api",
+      "parent_id": root_department["id"],
+      "manager_id": created_users["manager@example.com"],
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  for email, employee_no, real_name in (
+    ("manager@example.com", "EMP-RPT-A1", "中层经理"),
+    ("delegate@example.com", "EMP-RPT-A2", "代理同学"),
+    ("requester@example.com", "EMP-RPT-A3", "汇报员工"),
+  ):
+    profile_response = await client.post(
+      "/api/v1/profiles",
+      headers=headers,
+      json={
+        "user_id": created_users[email],
+        "employee_no": employee_no,
+        "real_name": real_name,
+        "department_id": department_id,
+        "custom_fields": {},
+      },
+    )
+    assert profile_response.status_code == 201
+
+  manager_id = created_users["manager@example.com"]
+  delegate_id = created_users["delegate@example.com"]
+  requester_id = created_users["requester@example.com"]
+
+  reporting_line_response = await client.post(
+    f"/api/v1/profiles/{requester_id}/reporting-lines",
+    headers=headers,
+    json={
+      "manager_user_id": manager_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert reporting_line_response.status_code == 201
+
+  manager_reporting_line_response = await client.post(
+    f"/api/v1/profiles/{manager_id}/reporting-lines",
+    headers=headers,
+    json={
+      "manager_user_id": (await client.get("/api/v1/auth/me", headers=headers)).json()["id"],
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert manager_reporting_line_response.status_code == 201
+
+  manager_headers = await login(
+    client,
+    email="manager@example.com",
+    password="StrongPassword123!",
+  )
+  delegate_headers = await login(
+    client,
+    email="delegate@example.com",
+    password="StrongPassword123!",
+  )
+  requester_headers = await login(
+    client,
+    email="requester@example.com",
+    password="StrongPassword123!",
+  )
+
+  delegation_response = await client.post(
+    "/api/v1/delegations",
+    headers=manager_headers,
+    json={
+      "delegator_user_id": manager_id,
+      "delegate_user_id": delegate_id,
+      "scope_type": "all",
+      "starts_at": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+      "ends_at": (datetime.now(UTC) + timedelta(days=7)).isoformat(),
+    },
+  )
+  assert delegation_response.status_code == 201
+
+  workflow_definition_response = await client.post(
+    "/api/v1/workflows/definitions",
+    headers=headers,
+    json={
+      "code": "report-center-api-flow",
+      "name": "汇报审批流",
+      "scope_type": "report",
+      "status": "active",
+      "steps": [
+        {
+          "step_key": "approve",
+          "name": "经理审批",
+          "step_type": "approval",
+          "assignee_rule": {"type": "department_manager"},
+        }
+      ],
+    },
+  )
+  assert workflow_definition_response.status_code == 201
+  workflow_definition_id = workflow_definition_response.json()["id"]
+
+  report_create_response = await client.post(
+    "/api/v1/report-center/reports",
+    headers=requester_headers,
+    json={
+      "direction": "upward",
+      "target_user_id": (await client.get("/api/v1/auth/me", headers=headers)).json()["id"],
+      "title": "项目周报",
+      "content_md": "本周已完成任务中心验证与汇报中心准备。",
+      "workflow_definition_id": workflow_definition_id,
+    },
+  )
+  assert report_create_response.status_code == 201
+  report_id = report_create_response.json()["id"]
+  assert report_create_response.json()["workflow_instance_id"] is not None
+
+  delegate_snapshot_response = await client.get("/api/v1/report-center", headers=delegate_headers)
+  assert delegate_snapshot_response.status_code == 200
+  assert len(delegate_snapshot_response.json()["pending_reports"]) == 1
+
+  advance_response = await client.post(
+    f"/api/v1/report-center/reports/{report_id}/actions",
+    headers=delegate_headers,
+    json={"action": "advance"},
+  )
+  assert advance_response.status_code == 200
+  assert advance_response.json()["current_recipient_user_id"] == (await client.get("/api/v1/auth/me", headers=headers)).json()["id"]
+
+  complete_response = await client.post(
+    f"/api/v1/report-center/reports/{report_id}/actions",
+    headers=headers,
+    json={"action": "advance"},
+  )
+  assert complete_response.status_code == 200
+  assert complete_response.json()["status"] == "completed"
+
+  archive_response = await client.post(
+    f"/api/v1/report-center/reports/{report_id}/actions",
+    headers=requester_headers,
+    json={"action": "archive"},
+  )
+  assert archive_response.status_code == 200
+  assert archive_response.json()["status"] == "archived"
+
+  requester_snapshot_response = await client.get("/api/v1/report-center", headers=requester_headers)
+  assert requester_snapshot_response.status_code == 200
+  history_reports = requester_snapshot_response.json()["history_reports"]
+  assert any(item["id"] == report_id for item in history_reports)
+  assert any(payload["message_type"] == "report_pending" for payload in queue_publisher.payloads)
+  assert any(payload["message_type"] == "workflow_action_required" for payload in queue_publisher.payloads)
+
+
+@pytest.mark.asyncio
 async def test_phase5_knowledge_ai_push_api_flow(api_client) -> None:
   client, queue_publisher = api_client
   headers, _ = await bootstrap_and_login(client)

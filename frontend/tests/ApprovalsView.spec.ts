@@ -1,123 +1,121 @@
-import { createPinia, setActivePinia } from 'pinia'
+import { reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { User, WorkflowDefinition, WorkflowInstance, WorkflowStepRun } from '@/types/api'
+import type { ReportCenterSnapshot } from '@/types/api'
 
-vi.mock('@/api/workflows', () => ({
-  actWorkflowStepRun: vi.fn(),
-  createWorkflowDefinition: vi.fn(),
-  listPendingWorkflowStepRuns: vi.fn(),
-  listWorkflowDefinitions: vi.fn(),
-  listWorkflowInstances: vi.fn(),
-  startWorkflow: vi.fn(),
+vi.mock('@/api/report-center', () => ({
+  actReport: vi.fn(),
+  createReport: vi.fn(),
+  getReportCenterSnapshot: vi.fn(),
 }))
 
-import {
-  actWorkflowStepRun,
-  listPendingWorkflowStepRuns,
-  listWorkflowDefinitions,
-  listWorkflowInstances,
-  startWorkflow,
-} from '@/api/workflows'
-import { useAuthStore } from '@/stores/auth'
-import ApprovalsView from '@/views/ApprovalsView.vue'
+const route = reactive({
+  query: {} as Record<string, string | undefined>,
+})
+const replace = vi.fn(async ({ query }: { query?: Record<string, string> }) => {
+  route.query = query ?? {}
+})
 
-const mockUser: User = {
-  id: 'user-1',
-  email: 'admin@example.com',
-  role: 'admin',
-  status: 'active',
-  last_login_at: null,
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
-}
+vi.mock('vue-router', () => ({
+  useRoute: () => route,
+  useRouter: () => ({
+    replace,
+  }),
+}))
 
-const mockDefinition: WorkflowDefinition = {
-  id: 'definition-1',
-  code: 'purchase-flow',
-  name: '采购审批',
-  scope_type: 'task',
-  status: 'active',
-  version: 1,
-  config: {},
-  created_by: 'user-1',
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
-  steps: [
+import { actReport, getReportCenterSnapshot } from '@/api/report-center'
+import ReportsView from '@/views/ReportsView.vue'
+
+const mockSnapshot: ReportCenterSnapshot = {
+  permissions: {
+    can_create_upward: true,
+    can_create_downward: true,
+  },
+  upward_target_options: [
     {
-      id: 'step-1',
-      definition_id: 'definition-1',
-      step_key: 'manager',
-      name: '直属审批',
-      step_type: 'approval',
-      approval_mode: 'single',
-      assignee_rule: { type: 'department_manager' },
-      reject_target_step_key: null,
-      sort_order: 1,
-      config: {},
-      created_at: '2025-01-01T00:00:00Z',
-      updated_at: '2025-01-01T00:00:00Z',
+      user_id: 'manager-1',
+      label: '直属经理',
+      path_labels: ['直属经理'],
+      hops: 1,
     },
   ],
+  downward_target_options: [
+    {
+      user_id: 'member-1',
+      label: '部门成员',
+      path_labels: ['部门成员'],
+      hops: 1,
+    },
+  ],
+  workflow_definition_options: [
+    {
+      id: 'workflow-1',
+      name: '汇报审批流',
+    },
+  ],
+  pending_reports: [
+    {
+      id: 'report-1',
+      direction: 'upward',
+      status: 'in_progress',
+      title: '项目周报',
+      content_md: '本周完成了汇报中心联调。',
+      initiator_user_id: 'user-1',
+      initiator_label: '汇报员工',
+      target_user_id: 'admin-1',
+      target_label: '总经理',
+      current_recipient_user_id: 'delegate-1',
+      current_recipient_label: '代理经理',
+      current_route_sequence: 1,
+      workflow_definition_id: 'workflow-1',
+      workflow_definition_name: '汇报审批流',
+      workflow_instance_id: 'instance-1',
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T01:00:00Z',
+      completed_at: null,
+      returned_at: null,
+      archived_at: null,
+      available_actions: [
+        {
+          action: 'advance',
+          label: '继续上报',
+          button_type: 'primary',
+        },
+      ],
+      routes: [
+        {
+          id: 'route-1',
+          sequence_no: 1,
+          sender_user_id: 'user-1',
+          sender_label: '汇报员工',
+          recipient_user_id: 'manager-1',
+          recipient_label: '直属经理',
+          assigned_user_id: 'delegate-1',
+          assigned_label: '代理经理',
+          status: 'pending',
+          activated_at: '2025-01-01T00:00:00Z',
+          acted_at: null,
+          note: null,
+        },
+      ],
+    },
+  ],
+  initiated_reports: [],
+  history_reports: [],
 }
 
-const mockStepRun: WorkflowStepRun = {
-  id: 'run-1',
-  instance_id: 'instance-1',
-  step_id: 'step-1',
-  assignee_user_id: 'user-1',
-  delegated_from_user_id: null,
-  status: 'pending',
-  acted_at: null,
-  comment: null,
-  payload: {},
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
-  step: mockDefinition.steps[0]!,
-}
-
-const mockInstance: WorkflowInstance = {
-  id: 'instance-1',
-  definition_id: 'definition-1',
-  source_type: 'task_request',
-  source_id: null,
-  initiator_user_id: 'user-1',
-  status: 'in_progress',
-  current_step_key: 'manager',
-  payload: {},
-  started_at: '2025-01-01T00:00:00Z',
-  completed_at: null,
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
-  step_runs: [mockStepRun],
-  definition: mockDefinition,
-}
-
-describe('Approvals view', () => {
+describe('Reports view', () => {
   beforeEach(() => {
-    setActivePinia(createPinia())
     vi.clearAllMocks()
-
-    const authStore = useAuthStore()
-    authStore.initialized = true
-    authStore.accessToken = 'test-access-token'
-    authStore.refreshToken = 'test-refresh-token'
-    authStore.user = mockUser
-
-    vi.mocked(listPendingWorkflowStepRuns).mockResolvedValue([mockStepRun])
-    vi.mocked(listWorkflowDefinitions).mockResolvedValue([mockDefinition])
-    vi.mocked(listWorkflowInstances).mockResolvedValue([mockInstance])
-    vi.mocked(actWorkflowStepRun).mockResolvedValue({
-      ...mockInstance,
-      status: 'approved',
-    })
-    vi.mocked(startWorkflow).mockResolvedValue(mockInstance)
+    route.query = {}
+    vi.mocked(getReportCenterSnapshot).mockResolvedValue(mockSnapshot)
+    vi.mocked(actReport).mockResolvedValue(mockSnapshot.pending_reports[0]!)
   })
 
-  it('starts workflows and submits approval actions', async () => {
-    const wrapper = mount(ApprovalsView, {
+  it('renders pending reports by default and submits actions', async () => {
+    const wrapper = mount(ReportsView, {
       global: {
         plugins: [ElementPlus],
       },
@@ -125,25 +123,36 @@ describe('Approvals view', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('采购审批')
-    expect(wrapper.text()).toContain('直属审批')
+    expect(wrapper.text()).toContain('项目周报')
+    expect(wrapper.text()).toContain('代理经理')
+    expect(wrapper.text()).toContain('待处理')
 
-    const approveButton = wrapper.findAll('button').find((node) => node.text().includes('通过'))
-    expect(approveButton).toBeTruthy()
-    await approveButton?.trigger('click')
+    const actionButton = wrapper.findAll('button').find((node) => node.text().includes('继续上报'))
+    expect(actionButton).toBeTruthy()
+    await actionButton?.trigger('click')
     await flushPromises()
 
-    expect(actWorkflowStepRun).toHaveBeenCalledWith('run-1', 'approve')
+    expect(actReport).toHaveBeenCalledWith('report-1', { action: 'advance' })
+  })
 
-    const startButton = wrapper.findAll('button').find((node) => node.text().includes('发起审批'))
-    expect(startButton).toBeTruthy()
-    await startButton?.trigger('click')
+  it('updates route query when tab changes', async () => {
+    const wrapper = mount(ReportsView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
     await flushPromises()
 
-    expect(startWorkflow).toHaveBeenCalledWith({
-      definition_id: 'definition-1',
-      source_type: 'task_request',
-      payload: {},
+    const tabs = wrapper.findComponent({ name: 'ElTabs' })
+    tabs.vm.$emit('tab-change', 'upward')
+    await flushPromises()
+
+    expect(replace).toHaveBeenCalledWith({
+      name: 'reports',
+      query: {
+        tab: 'upward',
+      },
     })
   })
 })

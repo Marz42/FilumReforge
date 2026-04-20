@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
 **版本**: v3.3.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 已完成并通过用户验测，下一步进入 Step 4 / 汇报中心落地  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 已完成并通过用户验测，Step 4 / 汇报中心落地已实现并等待用户验测  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -48,6 +48,7 @@
 - ARQ worker、逾期提醒扫描、通知消息落库、adapter 分发与异步入队
 - 消息中心收件箱、用户回执、审批提醒与系统消息聚合
 - 六标签任务中心：模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘
+- 汇报中心：向上汇报、向下传达、逐级流转、历史归档与可选审批挂接
 - 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
 - 任务完成率 / 逾期率 / 负载统计
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
@@ -80,7 +81,7 @@
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
-| Frontend Experience | 浏览器后台、分组导航、总览模块、人员管理聚合入口、六标签任务中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 已完成并通过验测） | 汇报中心与消息联动细化 |
+| Frontend Experience | 浏览器后台、分组导航、总览模块、人员管理聚合入口、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 已完成并通过验测；Step 4 已实现，等待验测） | 档案管理合并与消息联动细化 |
 | Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑
@@ -196,6 +197,9 @@
 | `backend/app/services/task_template_service.py` | 模板 CRUD、步骤替换与模板实例化 |
 | `backend/app/services/task_center_service.py` | 任务中心聚合服务，输出模板摘要、发布范围、待办、跟踪、历史与备忘 |
 | `backend/app/services/task_memo_service.py` | 个人备忘 CRUD 与关联任务校验 |
+| `backend/app/models/report.py` | 汇报中心领域模型：`reports`、`report_routes` |
+| `backend/app/services/report_service.py` | 汇报生命周期服务，处理逐级流转、代理委托、归档与审批挂接 |
+| `backend/app/services/report_center_service.py` | 汇报中心聚合服务，输出待处理、我发起、历史、目标选项与审批选项 |
 | `backend/app/services/workflow_engine_service.py` | 流程定义、流程实例、审批动作、打回 / 驳回 / 代理审批 |
 | `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
 | `backend/app/services/message_center_service.py` | 消息收件箱聚合、消息读取与回执写入 |
@@ -214,6 +218,7 @@
 | `backend/app/api/routes/hr_governance.py` | Phase 3 岗位、字段定义、字段权限、授权管理接口 |
 | `backend/app/api/routes/task_templates.py` | 模板、实例化与 schedule 接口 |
 | `backend/app/api/routes/task_center.py` | 任务中心聚合与备忘接口 |
+| `backend/app/api/routes/report_center.py` | 汇报中心聚合、创建与动作接口 |
 | `backend/app/api/routes/workflows.py` | 流程定义、实例、待办审批与审批动作接口 |
 | `backend/app/api/routes/messages.py` | 收件箱与回执接口 |
 | `backend/app/api/routes/documents.py` | 文档 CRUD、发布、归档接口 |
@@ -231,6 +236,7 @@
 | `backend/alembic/versions/20260415_01_phase3_hr_governance.py` | Phase 3 HR 治理迁移 |
 | `backend/alembic/versions/20260416_01_phase4_workflow_messaging.py` | Phase 4 workflow / messaging 迁移 |
 | `backend/alembic/versions/20260417_01_phase5_knowledge_push.py` | Phase 5 knowledge / push 迁移 |
+| `backend/alembic/versions/20260420_03_report_center.py` | Step 4 汇报中心迁移 |
 | `backend/app/scripts/seed_sample_data.py` | 测试组织与 demo 账号初始化脚本 |
 
 ### 5.3 frontend 当前热点文件
@@ -250,9 +256,10 @@
 | `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为六标签任务中心，承载模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘 |
 | `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用 |
 | `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口，Step 3 后由任务中心按权限透传能力 |
-| `frontend/src/views/ApprovalsView.vue` | 当前复用为“汇报中心”入口壳；底层仍承载审批定义、待办审批与实例查看 |
+| `frontend/src/views/ReportsView.vue` | Step 4 新增的汇报中心工作台，承载待处理、我发起、历史、向上汇报与向下传达 |
 | `frontend/src/views/MessagesView.vue` | 消息收件箱与回执工作台 |
 | `frontend/src/api/overview.ts` | 总览、看板、公告 API client |
+| `frontend/src/api/report-center.ts` | 汇报中心聚合、创建与动作 API client |
 | `frontend/src/components/CommandBar.vue` | 全局命令入口，承载 `@系统` / `/` |
 | `frontend/src/components/PushSubscriptionCard.vue` | 浏览器 Push 订阅管理卡片 |
 | `frontend/src/components/AppShell.vue` | 全局壳层导航；Step 1 后改为“通用模块 / 特殊模块”分组结构 |
@@ -274,7 +281,7 @@
 | `frontend/tests/ProfilesView.spec.ts` | Phase 3 档案治理页回归测试 |
 | `frontend/tests/TasksView.spec.ts` | Phase 4 任务多视图与 watcher 回归测试 |
 | `frontend/tests/TaskTemplatesView.spec.ts` | 模板工作台回归测试 |
-| `frontend/tests/ApprovalsView.spec.ts` | 当前汇报中心入口复用页的回归测试 |
+| `frontend/tests/ApprovalsView.spec.ts` | Step 4 汇报中心工作台回归测试 |
 | `frontend/tests/MessagesView.spec.ts` | 消息中心回归测试 |
 | `frontend/tests/KnowledgeBaseView.spec.ts` | 知识库页回归测试 |
 | `frontend/tests/PushSubscriptionCard.spec.ts` | Push 订阅卡片回归测试 |
@@ -381,7 +388,7 @@
 4. `AnnouncementService` 基于 `departments.capabilities` 控制公告发布权限，并在发布时向可见用户写入系统消息。
 5. ARQ worker 定时执行过期看板归档，把活跃卡片快照写入 `board_card_archives`。
 
-### 6.13 任务中心链路（Step 3 已实现，等待验测）
+### 6.13 任务中心链路（已完成并通过验测）
 
 1. `TaskCenterView.vue` 进入 `/task-center` 后调用 `GET /task-center`，默认落在“待办事项”，并兼容旧的 `?tab=tasks` -> `tracking`。
 2. `TaskCenterService` 聚合模板摘要、发布权限、发布部门 / 用户选项、待办、跟踪、历史与个人备忘。
@@ -389,6 +396,14 @@
 4. `TaskService` 输出 `list_task_inbox()`、`list_task_tracking()` 与 `list_task_history()`，前端据此拆分待办 / 跟踪 / 历史三个标签。
 5. `TaskMemoService` 负责 `task_memos` 的新增、编辑、删除，并校验关联任务是否对当前用户可见。
 6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览，发布任务入口则收敛到单独标签。
+
+### 6.14 汇报中心链路（Step 4 已实现，等待验测）
+
+1. `ReportsView.vue` 进入 `/reports` 后调用 `GET /report-center`，默认落在“待处理”，同时保留 `/approvals` -> `/reports` 的兼容跳转。
+2. `ReportCenterService` 聚合待处理、我发起、历史归档、向上 / 向下目标选项，以及可选审批流定义。
+3. `ReportService` 基于 `reporting_lines` 的主汇报线计算逐级路径，生成 `reports` / `report_routes`，并处理继续流转、退回与归档。
+4. 路由节点激活时会解析 `DelegationScopeType.ALL` 的有效代理，把当前处理人切换为代理人，并经 `NotificationService` 写入消息中心与浏览器推送链路。
+5. 如用户选择挂接审批流，`ReportService` 会同步启动 `workflow_instance`，并将其绑定到 `report.workflow_instance_id`。
 
 ## 7. 阶段映射
 
@@ -435,6 +450,9 @@
 | `employment_event_type` | `onboard`, `transfer`, `promotion`, `reward`, `discipline`, `offboard`, `rehire` | 已实现 |
 | `delegation_scope_type` | `approval`, `task`, `data_access`, `all` | 已实现 |
 | `delegation_status` | `pending`, `active`, `expired`, `revoked` | 已实现 |
+| `report_direction` | `upward`, `downward` | Step 4 已实现 |
+| `report_status` | `in_progress`, `completed`, `returned`, `archived` | Step 4 已实现 |
+| `report_route_status` | `queued`, `pending`, `forwarded`, `completed`, `returned` | Step 4 已实现 |
 | `workflow_definition_status` | `draft`, `active`, `archived` | 已实现 |
 | `workflow_step_type` | `task`, `approval`, `notify` | 已实现 |
 | `approval_mode` | `single`, `parallel_all`, `parallel_any` | 已实现 |
@@ -1288,6 +1306,60 @@
 - `idx_announcement_archives_publisher_department_id (publisher_department_id)`
 - `idx_announcement_archives_archived_at (archived_at DESC)`
 
+### 10.38 `reports`
+
+**实现状态**: Step 4 已实现
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 汇报主键 |
+| `direction` | `report_direction` | NOT NULL | `upward` / `downward` |
+| `status` | `report_status` | NOT NULL, DEFAULT `in_progress` | 汇报状态 |
+| `title` | `varchar(255)` | NOT NULL | 主题 |
+| `content_md` | `text` | NOT NULL | 正文 |
+| `initiator_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 发起人 |
+| `target_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 最终目标人 |
+| `current_recipient_user_id` | `uuid` | FK -> `users.id`, NULL | 当前处理人 |
+| `current_route_sequence` | `int` | NULL | 当前节点序号 |
+| `workflow_definition_id` | `uuid` | FK -> `workflow_definitions.id`, NULL | 挂接的审批流定义 |
+| `workflow_instance_id` | `uuid` | FK -> `workflow_instances.id`, NULL | 挂接的审批实例 |
+| `completed_at` | `timestamptz` | NULL | 完成时间 |
+| `returned_at` | `timestamptz` | NULL | 退回时间 |
+| `archived_at` | `timestamptz` | NULL | 归档时间 |
+| `created_at` | `timestamptz` | NOT NULL | 创建时间 |
+| `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
+
+**索引**
+
+- `idx_reports_initiator_status (initiator_user_id, status)`
+- `idx_reports_current_recipient (current_recipient_user_id, status)`
+- `idx_reports_target_status (target_user_id, status)`
+
+### 10.39 `report_routes`
+
+**实现状态**: Step 4 已实现
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 路由节点主键 |
+| `report_id` | `uuid` | FK -> `reports.id`, NOT NULL | 所属汇报 |
+| `sequence_no` | `int` | NOT NULL | 节点序号 |
+| `sender_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 上一跳发送人 |
+| `recipient_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 预期接收人 |
+| `assigned_user_id` | `uuid` | FK -> `users.id`, NULL | 实际处理人（含代理） |
+| `status` | `report_route_status` | NOT NULL, DEFAULT `queued` | 节点状态 |
+| `activated_at` | `timestamptz` | NULL | 激活时间 |
+| `acted_at` | `timestamptz` | NULL | 处理时间 |
+| `note` | `text` | NULL | 节点备注 |
+| `created_at` | `timestamptz` | NOT NULL | 创建时间 |
+| `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
+
+**索引**
+
+- `uq_report_routes_sequence (report_id, sequence_no)`
+- `idx_report_routes_assigned_status (assigned_user_id, status)`
+- `idx_report_routes_report_status (report_id, status)`
+
 ## 11. 关系说明
 
 - `users 1:1 profiles`
@@ -1297,6 +1369,8 @@
 - `departments 1:N announcements`
 - `users N:N positions` 通过 `profile_positions`
 - `users N:N users` 通过 `reporting_lines`
+- `users 1:N reports`（initiator / target / current_recipient 三种角色）
+- `reports 1:N report_routes`
 - `profiles 1:N employment_events`
 - `profile_field_definitions 1:N profile_field_permissions`
 - `users N:N users` 通过 `delegations`

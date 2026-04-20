@@ -7,9 +7,9 @@ import KnowledgeBaseView from '@/views/KnowledgeBaseView.vue'
 import LoginView from '@/views/LoginView.vue'
 import type { UserRole } from '@/types/api'
 import DepartmentsView from '@/views/DepartmentsView.vue'
-import ApprovalsView from '@/views/ApprovalsView.vue'
 import MessagesView from '@/views/MessagesView.vue'
 import PeopleManagementView from '@/views/PeopleManagementView.vue'
+import ReportsView from '@/views/ReportsView.vue'
 import TaskCenterView from '@/views/TaskCenterView.vue'
 
 const router = createRouter({
@@ -118,7 +118,7 @@ const router = createRouter({
         {
           path: 'reports',
           name: 'reports',
-          component: ApprovalsView,
+          component: ReportsView,
         },
         {
           path: 'approvals',

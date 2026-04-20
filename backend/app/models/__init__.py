@@ -16,6 +16,7 @@ from app.models.notification import NotificationDelivery, NotificationMessage, N
 from app.models.overview import Announcement, AnnouncementArchive, BoardCard, BoardCardArchive
 from app.models.profile import Profile
 from app.models.push_subscription import PushSubscription
+from app.models.report import Report, ReportRoute
 from app.models.task import Task, TaskComment, TaskDependency, TaskLog, TaskMemo
 from app.models.task_workflow import (
   TaskSchedule,
@@ -52,6 +53,8 @@ __all__ = [
   "ProfileFieldPermission",
   "ProfilePosition",
   "PushSubscription",
+  "Report",
+  "ReportRoute",
   "RefreshToken",
   "ReportingLine",
   "Task",

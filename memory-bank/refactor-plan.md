@@ -1,7 +1,7 @@
 # Project Filum 重构方案
 
 **版本**: v1.3  
-**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 已完成并通过用户验测；下一步进入 Step 4  
+**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 已完成并通过用户验测；Step 4 已实现并等待用户验测  
 **适用范围**: 基于当前 Phase 5 已完成基线，对前端信息架构、部分领域模型、页面边界与权限分层进行重构规划
 
 ## 1. 重构背景
@@ -659,6 +659,15 @@
 - 全量前端回归
 
 ## Step 4. 汇报中心落地
+
+**当前状态**
+
+- 已新增独立的 `reports` / `report_routes` 领域、Alembic 迁移与 schema。
+- 已新增 `ReportService`、`ReportCenterService` 与 `/report-center` 聚合 / 动作接口。
+- 已支持逐级向上汇报、逐级向下传达、代理委托、历史归档与可选挂接审批流。
+- 已将 `/reports` 页面升级为新的汇报中心工作台，并保留 `/approvals` -> `/reports` 兼容跳转。
+- 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 回归。
+- 当前停在 Step 4，等待用户手动验测。
 
 **目标**
 

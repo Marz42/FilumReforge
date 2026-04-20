@@ -200,3 +200,23 @@ class DepartmentCapability(StrEnum):
   PUBLISH_ANNOUNCEMENT = "publish_announcement"
   PUBLISH_ORG_TASK = "publish_org_task"
   MANAGE_TEMPLATES = "manage_templates"
+
+
+class ReportDirection(StrEnum):
+  UPWARD = "upward"
+  DOWNWARD = "downward"
+
+
+class ReportStatus(StrEnum):
+  IN_PROGRESS = "in_progress"
+  COMPLETED = "completed"
+  RETURNED = "returned"
+  ARCHIVED = "archived"
+
+
+class ReportRouteStatus(StrEnum):
+  QUEUED = "queued"
+  PENDING = "pending"
+  FORWARDED = "forwarded"
+  COMPLETED = "completed"
+  RETURNED = "returned"
