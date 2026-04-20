@@ -57,6 +57,7 @@ from app.models import (
   TaskComment,
   TaskDependency,
   TaskLog,
+  TaskMemo,
   TaskSchedule,
   TaskTemplate,
   TaskTemplateStep,
@@ -388,6 +389,60 @@ async def test_phase2_models_persist_task_comments_and_logs() -> None:
     assert stored_log.detail["comment_id"] == str(comment_id)
     assert stored_comment_link is not None
     assert stored_comment_link.relation == "comment_attachment"
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_step3_models_persist_task_memos() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  user_id = uuid4()
+  department_id = uuid4()
+  task_id = uuid4()
+
+  async with session_factory() as session:
+    user = User(
+      id=user_id,
+      email="memo-owner@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    department = Department(
+      id=department_id,
+      name="执行部",
+      code="delivery",
+      manager=user,
+    )
+    task = Task(
+      id=task_id,
+      title="整理交付清单",
+      creator=user,
+      assignee=user,
+      department=department,
+    )
+    memo = TaskMemo(
+      owner=user,
+      related_task=task,
+      content="先和交付负责人确认最终版本。",
+      is_pinned=True,
+    )
+    session.add_all([user, department, task, memo])
+    await session.commit()
+
+    stored_memo = await session.scalar(select(TaskMemo).where(TaskMemo.owner_user_id == user_id))
+    assert stored_memo is not None
+    assert stored_memo.related_task_id == task_id
+    assert stored_memo.is_pinned is True
 
   await engine.dispose()
 

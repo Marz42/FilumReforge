@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
 **版本**: v3.3.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 已完成并通过用户验测，Step 3 / 任务中心重构进行中  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 已完成并通过用户验测，Step 3 / 任务中心重构已实现并等待用户验测  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -47,7 +47,8 @@
 - 轻量审批流引擎：流程定义、实例、步骤执行、代理审批、打回 / 驳回
 - ARQ worker、逾期提醒扫描、通知消息落库、adapter 分发与异步入队
 - 消息中心收件箱、用户回执、审批提醒与系统消息聚合
-- 任务中心列表 / 看板 / 甘特图多视图
+- 六标签任务中心：模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘
+- 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
 - 任务完成率 / 逾期率 / 负载统计
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
@@ -79,7 +80,7 @@
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
-| Frontend Experience | 浏览器后台、分组导航、总览模块、人员管理聚合入口、任务中心聚合入口、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 已完成并通过验测；Step 3 进行中） | 任务中心、汇报中心与消息联动细化 |
+| Frontend Experience | 浏览器后台、分组导航、总览模块、人员管理聚合入口、六标签任务中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 已完成并通过验测；Step 3 已实现，等待用户验测） | 汇报中心与消息联动细化 |
 | Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑
@@ -193,6 +194,8 @@
 | `backend/app/services/task_service.py` | 任务状态机、评论、日志、统计，以及 watcher / board / gantt 扩展 |
 | `backend/app/services/workflow_rule_resolver.py` | 模板与审批流共用的 assignee rule 解析器 |
 | `backend/app/services/task_template_service.py` | 模板 CRUD、步骤替换与模板实例化 |
+| `backend/app/services/task_center_service.py` | 任务中心聚合服务，输出模板摘要、发布范围、待办、跟踪、历史与备忘 |
+| `backend/app/services/task_memo_service.py` | 个人备忘 CRUD 与关联任务校验 |
 | `backend/app/services/workflow_engine_service.py` | 流程定义、流程实例、审批动作、打回 / 驳回 / 代理审批 |
 | `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
 | `backend/app/services/message_center_service.py` | 消息收件箱聚合、消息读取与回执写入 |
@@ -210,6 +213,7 @@
 | `backend/app/api/routes/overview.py` | 总览、看板、公告接口 |
 | `backend/app/api/routes/hr_governance.py` | Phase 3 岗位、字段定义、字段权限、授权管理接口 |
 | `backend/app/api/routes/task_templates.py` | 模板、实例化与 schedule 接口 |
+| `backend/app/api/routes/task_center.py` | 任务中心聚合与备忘接口 |
 | `backend/app/api/routes/workflows.py` | 流程定义、实例、待办审批与审批动作接口 |
 | `backend/app/api/routes/messages.py` | 收件箱与回执接口 |
 | `backend/app/api/routes/documents.py` | 文档 CRUD、发布、归档接口 |
@@ -243,9 +247,9 @@
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
 | `frontend/src/views/ProfilesView.vue` | Phase 3 档案治理工作台，当前由 `PeopleManagementView.vue` 聚合承载 |
 | `frontend/src/views/KnowledgeBaseView.vue` | 知识库页面 |
-| `frontend/src/views/TaskCenterView.vue` | Step 1 新增的任务中心聚合入口，承载任务工作台 / 任务模板双标签 |
-| `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，当前由 `TaskCenterView.vue` 聚合承载 |
-| `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口，当前由 `TaskCenterView.vue` 聚合承载 |
+| `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为六标签任务中心，承载模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘 |
+| `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用 |
+| `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口，Step 3 后由任务中心按权限透传能力 |
 | `frontend/src/views/ApprovalsView.vue` | 当前复用为“汇报中心”入口壳；底层仍承载审批定义、待办审批与实例查看 |
 | `frontend/src/views/MessagesView.vue` | 消息收件箱与回执工作台 |
 | `frontend/src/api/overview.ts` | 总览、看板、公告 API client |
@@ -254,6 +258,8 @@
 | `frontend/src/components/AppShell.vue` | 全局壳层导航；Step 1 后改为“通用模块 / 特殊模块”分组结构 |
 | `frontend/src/router/index.ts` | 路由表；Step 1 后主入口改为 `/overview`、`/task-center`、`/reports`、`/people`，并保留旧地址兼容跳转 |
 | `frontend/tests/HomeView.spec.ts` | 总览展示与发布动作单测 |
+| `frontend/tests/TaskCenterView.spec.ts` | Step 3 任务中心标签与旧路由兼容单测 |
+| `frontend/src/api/task-center.ts` | 任务中心聚合与备忘 API client |
 | `frontend/src/api/tasks.ts` | 任务、状态流转、评论、活动流、统计、watcher、多视图 API client |
 | `frontend/src/api/task-templates.ts` | 模板、实例化与 schedule API client |
 | `frontend/src/api/workflows.ts` | 审批定义、流程实例与审批动作 API client |
@@ -374,6 +380,15 @@
 3. `BoardService` 根据当前用户的组织路径返回公司级 + 路径级看板，并限制每人最多 2 张活跃卡片。
 4. `AnnouncementService` 基于 `departments.capabilities` 控制公告发布权限，并在发布时向可见用户写入系统消息。
 5. ARQ worker 定时执行过期看板归档，把活跃卡片快照写入 `board_card_archives`。
+
+### 6.13 任务中心链路（Step 3 已实现，等待验测）
+
+1. `TaskCenterView.vue` 进入 `/task-center` 后调用 `GET /task-center`，默认落在“待办事项”，并兼容旧的 `?tab=tasks` -> `tracking`。
+2. `TaskCenterService` 聚合模板摘要、发布权限、发布部门 / 用户选项、待办、跟踪、历史与个人备忘。
+3. `TaskTemplateService` 与 `TaskAutomationService` 使用“管理角色 + 部门负责人 + 部门能力”判断模板管理与组织任务发布权限。
+4. `TaskService` 输出 `list_task_inbox()`、`list_task_tracking()` 与 `list_task_history()`，前端据此拆分待办 / 跟踪 / 历史三个标签。
+5. `TaskMemoService` 负责 `task_memos` 的新增、编辑、删除，并校验关联任务是否对当前用户可见。
+6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览，发布任务入口则收敛到单独标签。
 
 ## 7. 阶段映射
 
@@ -990,7 +1005,27 @@
 - `idx_task_schedules_active_next_run (is_active, next_run_at)`
 - `idx_task_schedules_owner_user_id (owner_user_id)`
 
-### 10.25 `notification_messages`
+### 10.25 `task_memos`
+
+**实现状态**: 已实现
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 备忘主键 |
+| `owner_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 备忘所属用户 |
+| `related_task_id` | `uuid` | FK -> `tasks.id`, NULL | 关联任务 |
+| `content` | `text` | NOT NULL | 备忘正文 |
+| `is_pinned` | `bool` | NOT NULL, DEFAULT `false` | 是否置顶 |
+| `created_at` | `timestamptz` | NOT NULL | 创建时间 |
+| `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
+
+**索引**
+
+- `idx_task_memos_owner_user_id (owner_user_id)`
+- `idx_task_memos_related_task_id (related_task_id)`
+- `idx_task_memos_owner_user_id_is_pinned (owner_user_id, is_pinned)`
+
+### 10.26 `notification_messages`
 
 **实现状态**: 已实现
 
@@ -1022,7 +1057,7 @@
 - 当前用于异步通知总线。
 - Phase 4 已在此基础上扩展“消息中心 / 回执”能力，而不是再造一套平行消息表。
 
-### 10.26 `notification_deliveries`
+### 10.27 `notification_deliveries`
 
 **实现状态**: 已实现
 
@@ -1045,7 +1080,7 @@
 - `idx_notification_deliveries_message_id (message_id)`
 - `idx_notification_deliveries_status_channel (status, channel)`
 
-### 10.27 `notification_receipts`
+### 10.28 `notification_receipts`
 
 **实现状态**: 已实现
 
@@ -1063,7 +1098,7 @@
 - `uq_notification_receipts_binding (message_id, user_id, receipt_type)`
 - `idx_notification_receipts_user_id_created_at (user_id, created_at)`
 
-### 10.28 `push_subscriptions`
+### 10.29 `push_subscriptions`
 
 **实现状态**: Phase 5 规划
 
@@ -1085,7 +1120,7 @@
 - `uq_push_subscriptions_endpoint`
 - `idx_push_subscriptions_user_status (user_id, status)`
 
-### 10.29 `task_logs`
+### 10.30 `task_logs`
 
 **实现状态**: 已实现
 
@@ -1105,7 +1140,7 @@
 - `idx_task_logs_task_id_created_at (task_id, created_at DESC)`
 - `idx_task_logs_operator_id (operator_id)`
 
-### 10.30 `task_comments`
+### 10.31 `task_comments`
 
 **实现状态**: 已实现
 
@@ -1126,7 +1161,7 @@
 - `idx_task_comments_task_id_created_at (task_id, created_at ASC)`
 - `idx_task_comments_user_id (user_id)`
 
-### 10.31 `documents`
+### 10.32 `documents`
 
 **实现状态**: Phase 5 规划
 
@@ -1149,7 +1184,7 @@
 - `uq_documents_slug`
 - `idx_documents_category_status (category, status)`
 
-### 10.32 `document_embeddings`
+### 10.33 `document_embeddings`
 
 **实现状态**: Phase 5 规划
 
@@ -1169,7 +1204,7 @@
 - `uq_document_embeddings_chunk (document_id, chunk_index)`
 - 向量索引：`ivfflat` 或 `hnsw`
 
-### 10.33 `board_cards`
+### 10.34 `board_cards`
 
 **实现状态**: 重构 Step 2 已实现
 
@@ -1190,7 +1225,7 @@
 - `idx_board_cards_author_user_id (author_user_id)`
 - `idx_board_cards_expires_at (expires_at)`
 
-### 10.34 `board_card_archives`
+### 10.35 `board_card_archives`
 
 **实现状态**: 重构 Step 2 已实现
 
@@ -1212,7 +1247,7 @@
 - `idx_board_card_archives_scope_department_id (scope_department_id)`
 - `idx_board_card_archives_archived_at (archived_at DESC)`
 
-### 10.35 `announcements`
+### 10.36 `announcements`
 
 **实现状态**: 重构 Step 2 已实现
 
@@ -1232,7 +1267,7 @@
 - `idx_announcements_publisher_department_id (publisher_department_id)`
 - `idx_announcements_published_at (published_at DESC)`
 
-### 10.36 `announcement_archives`
+### 10.37 `announcement_archives`
 
 **实现状态**: 重构 Step 2 已实现
 
@@ -1266,6 +1301,8 @@
 - `profile_field_definitions 1:N profile_field_permissions`
 - `users N:N users` 通过 `delegations`
 - `tasks N:N tasks` 通过 `task_dependencies`
+- `users 1:N task_memos`
+- `tasks 1:N task_memos`
 - `task_templates 1:N task_template_steps`
 - `task_template_steps N:N task_template_steps` 通过 `task_template_step_dependencies`
 - `workflow_definitions 1:N workflow_steps`

@@ -36,6 +36,7 @@ from app.models import (
 from app.schemas.messages import NotificationMessage
 from app.services.access_control import (
   MANAGEMENT_ROLES,
+  can_publish_org_tasks,
   can_manage_assignee,
   ensure_active_user,
   get_managed_department_ids,
@@ -116,6 +117,18 @@ class TaskTrackingEntry:
   relation_types: list[str]
   current_stage_label: str
   current_handler_label: str | None
+
+
+@dataclass(slots=True)
+class TaskHistoryEntry:
+  task_id: UUID
+  title: str
+  priority: TaskPriority
+  due_date: datetime | None
+  completed_at: datetime | None
+  department_name: str | None
+  relation_types: list[str]
+  source_type: TaskSourceType
 
 
 ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
@@ -239,6 +252,10 @@ class TaskService:
     skip_assignee_permission: bool = False,
   ) -> tuple[Task, User]:
     ensure_active_user(actor)
+    if (
+      actor.id != assignee_id or department_id is not None
+    ) and not await can_publish_org_tasks(self._session, actor):
+      raise AuthorizationError("当前账号不能发布组织任务。")
 
     assignee = await self._resolve_assignee_for_task(
       actor=actor,
@@ -421,6 +438,23 @@ class TaskService:
       relation_types=relation_types,
       current_stage_label=current_stage_label,
       current_handler_label=current_handler_label,
+    )
+
+  @staticmethod
+  def _build_history_entry(
+    *,
+    task: Task,
+    relation_types: list[str],
+  ) -> TaskHistoryEntry:
+    return TaskHistoryEntry(
+      task_id=task.id,
+      title=task.title,
+      priority=task.priority,
+      due_date=task.due_date,
+      completed_at=task.completed_at,
+      department_name=task.department.name if task.department is not None else None,
+      relation_types=relation_types,
+      source_type=task.source_type,
     )
 
   async def _create_task_log(
@@ -633,6 +667,62 @@ class TaskService:
       ),
     )
     return sorted_entries[:limit]
+
+  async def list_task_history(self, *, actor: User, limit: int = 20) -> list[TaskHistoryEntry]:
+    ensure_active_user(actor)
+
+    workflow_related_task_ids = {
+      task_id
+      for task_id in list(
+        await self._session.scalars(
+          select(WorkflowInstance.source_id)
+          .outerjoin(WorkflowInstance.step_runs)
+          .where(
+            WorkflowInstance.source_type == "task",
+            WorkflowInstance.source_id.is_not(None),
+            or_(
+              WorkflowInstance.initiator_user_id == actor.id,
+              WorkflowStepRun.assignee_user_id == actor.id,
+            ),
+          )
+        )
+      )
+      if task_id is not None
+    }
+    history_filters = [
+      Task.creator_id == actor.id,
+      Task.assignee_id == actor.id,
+      Task.watchers.any(TaskWatcher.user_id == actor.id),
+    ]
+    if workflow_related_task_ids:
+      history_filters.append(Task.id.in_(workflow_related_task_ids))
+
+    tasks = list(
+      await self._session.scalars(
+        select(Task)
+        .options(
+          selectinload(Task.department),
+          selectinload(Task.watchers),
+        )
+        .where(or_(*history_filters), Task.status == TaskStatus.DONE)
+        .order_by(Task.completed_at.desc(), Task.updated_at.desc())
+      )
+    )
+
+    entries: list[TaskHistoryEntry] = []
+    for task in tasks:
+      relation_types: list[str] = []
+      if task.creator_id == actor.id:
+        relation_types.append("发起")
+      if task.assignee_id == actor.id:
+        relation_types.append("执行")
+      if any(watcher.user_id == actor.id for watcher in task.watchers):
+        relation_types.append("关注")
+      if task.id in workflow_related_task_ids:
+        relation_types.append("流程")
+      entries.append(self._build_history_entry(task=task, relation_types=relation_types or ["相关"]))
+
+    return entries[:limit]
 
   async def update_task(
     self,

@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import TaskSchedule, TaskTemplate, User
-from app.services.access_control import MANAGEMENT_ROLES, ensure_active_user
+from app.services.access_control import can_manage_task_templates, ensure_active_user
 from app.services.task_template_service import TaskTemplateService
 
 
@@ -29,9 +29,8 @@ class TaskAutomationService:
       selectinload(TaskSchedule.owner),
     )
 
-  @staticmethod
-  def _ensure_management(actor: User) -> None:
-    if actor.role not in MANAGEMENT_ROLES:
+  async def _ensure_manage_templates(self, *, actor: User) -> None:
+    if not await can_manage_task_templates(self._session, actor):
       raise AuthorizationError("当前账号不能管理自动化调度。")
 
   @staticmethod
@@ -54,7 +53,7 @@ class TaskAutomationService:
 
   async def _get_schedule_or_raise(self, *, actor: User, schedule_id) -> TaskSchedule:
     statement = self._statement().where(TaskSchedule.id == schedule_id)
-    if actor.role not in MANAGEMENT_ROLES:
+    if not await can_manage_task_templates(self._session, actor):
       statement = statement.where(TaskSchedule.owner_user_id == actor.id)
     schedule = await self._session.scalar(statement)
     if schedule is None:
@@ -64,7 +63,7 @@ class TaskAutomationService:
   async def list_schedules(self, *, actor: User) -> list[TaskSchedule]:
     ensure_active_user(actor)
     statement = self._statement().order_by(TaskSchedule.updated_at.desc())
-    if actor.role not in MANAGEMENT_ROLES:
+    if not await can_manage_task_templates(self._session, actor):
       statement = statement.where(TaskSchedule.owner_user_id == actor.id)
     return list(await self._session.scalars(statement))
 
@@ -79,7 +78,7 @@ class TaskAutomationService:
     is_active: bool = True,
   ) -> TaskSchedule:
     ensure_active_user(actor)
-    self._ensure_management(actor)
+    await self._ensure_manage_templates(actor=actor)
 
     template = await self._session.get(TaskTemplate, template_id)
     if template is None:
@@ -116,7 +115,7 @@ class TaskAutomationService:
     is_active: bool | None = None,
   ) -> TaskSchedule:
     ensure_active_user(actor)
-    self._ensure_management(actor)
+    await self._ensure_manage_templates(actor=actor)
     schedule = await self._get_schedule_or_raise(actor=actor, schedule_id=schedule_id)
 
     if cron_expr is not None:

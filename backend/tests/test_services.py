@@ -54,6 +54,7 @@ from app.services.organization_relation_service import OrganizationRelationServi
 from app.services.profile_service import ProfileService
 from app.schemas.messages import NotificationMessage
 from app.services.task_automation_service import TaskAutomationService
+from app.services.task_memo_service import TaskMemoService
 from app.services.task_service import CommentAttachmentInput, TaskService
 from app.services.task_template_service import TaskTemplateService
 from app.services.tool_registry_service import ToolRegistryService
@@ -522,6 +523,130 @@ async def test_task_service_builds_overview_inbox_and_tracking(db_session) -> No
   assert [item.task_id for item in inbox] == [inbox_task.id]
   assert tracking[0].task_id == tracking_task.id
   assert "关注" in tracking[0].relation_types
+
+
+@pytest.mark.asyncio
+async def test_step3_task_center_permissions_history_and_memos(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="内容部",
+    code="content",
+    manager_id=manager.id,
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=manager.id,
+    employee_no="EMP-MGR-STEP3",
+    real_name="内容主管",
+    department_id=department.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-EMP-STEP3",
+    real_name="内容成员",
+    department_id=department.id,
+  )
+
+  notification_service = NotificationService(db_session)
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+  task_memo_service = TaskMemoService(db_session, task_service)
+
+  template = await task_template_service.create_template(
+    actor=manager,
+    code="content-publish",
+    name="内容发布",
+    category="ops",
+    steps=[
+      {
+        "step_key": "draft",
+        "title": "内容整理",
+        "default_assignee_rule": {"type": "initiator"},
+      }
+    ],
+  )
+  with pytest.raises(AuthorizationError):
+    await task_template_service.create_template(
+      actor=employee,
+      code="forbidden-template",
+      name="无权限模板",
+      category="ops",
+      steps=[
+        {
+          "step_key": "draft",
+          "title": "草稿",
+          "default_assignee_rule": {"type": "initiator"},
+        }
+      ],
+    )
+
+  tasks = await task_template_service.instantiate_template(
+    actor=employee,
+    template_id=template.id,
+    payload={"department_id": str(department.id)},
+  )
+  created_task = tasks[0]
+  await task_service.transition_task_status(
+    actor=employee,
+    task_id=created_task.id,
+    target_status=TaskStatus.DOING,
+  )
+  await task_service.transition_task_status(
+    actor=employee,
+    task_id=created_task.id,
+    target_status=TaskStatus.REVIEW,
+  )
+  await task_service.transition_task_status(
+    actor=employee,
+    task_id=created_task.id,
+    target_status=TaskStatus.DONE,
+  )
+
+  history = await task_service.list_task_history(actor=employee)
+  assert history[0].task_id == created_task.id
+  assert "执行" in history[0].relation_types
+
+  memo = await task_memo_service.create_memo(
+    actor=employee,
+    content="完成后同步到周报。",
+    related_task_id=created_task.id,
+    is_pinned=True,
+  )
+  updated_memo = await task_memo_service.update_memo(
+    actor=employee,
+    memo_id=memo.id,
+    content="完成后同步到周报和群公告。",
+  )
+  memos = await task_memo_service.list_memos(actor=employee)
+
+  assert updated_memo.related_task_id == created_task.id
+  assert memos[0].content == "完成后同步到周报和群公告。"
 
 
 @pytest.mark.asyncio
@@ -1023,6 +1148,7 @@ async def test_phase4_template_automation_and_message_center_services(db_session
     name="流程部",
     code="workflow-dept",
     manager_id=manager.id,
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
   )
   await profile_service.create_profile(
     actor=admin,

@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, status
 
 from app.api.dependencies import (
   get_current_user,
-  get_management_user,
   get_task_automation_service,
   get_task_template_service,
 )
@@ -72,7 +71,7 @@ async def read_task_template(
 @router.post("", response_model=TaskTemplateRead, status_code=status.HTTP_201_CREATED)
 async def create_task_template(
   payload: TaskTemplateCreateRequest,
-  actor: Annotated[User, Depends(get_management_user)],
+  actor: Annotated[User, Depends(get_current_user)],
   task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
 ) -> TaskTemplateRead:
   template = await task_template_service.create_template(
@@ -93,7 +92,7 @@ async def create_task_template(
 async def update_task_template(
   template_id: UUID,
   payload: TaskTemplateUpdateRequest,
-  actor: Annotated[User, Depends(get_management_user)],
+  actor: Annotated[User, Depends(get_current_user)],
   task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
 ) -> TaskTemplateRead:
   template = await task_template_service.update_template(
@@ -144,7 +143,7 @@ async def list_task_schedules(
 @router.post("/schedules", response_model=TaskScheduleRead, status_code=status.HTTP_201_CREATED)
 async def create_task_schedule(
   payload: TaskScheduleCreateRequest,
-  actor: Annotated[User, Depends(get_management_user)],
+  actor: Annotated[User, Depends(get_current_user)],
   task_automation_service: Annotated[TaskAutomationService, Depends(get_task_automation_service)],
 ) -> TaskScheduleRead:
   schedule = await task_automation_service.create_schedule(
@@ -162,7 +161,7 @@ async def create_task_schedule(
 async def update_task_schedule(
   schedule_id: UUID,
   payload: TaskScheduleUpdateRequest,
-  actor: Annotated[User, Depends(get_management_user)],
+  actor: Annotated[User, Depends(get_current_user)],
   task_automation_service: Annotated[TaskAutomationService, Depends(get_task_automation_service)],
 ) -> TaskScheduleRead:
   schedule = await task_automation_service.update_schedule(

@@ -102,7 +102,7 @@ const router = createRouter({
           redirect: {
             name: 'task-center',
             query: {
-              tab: 'tasks',
+              tab: 'tracking',
             },
           },
         },

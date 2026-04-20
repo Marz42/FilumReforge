@@ -11,7 +11,7 @@ from app.core.enums import DEFAULT_USER_NOTIFICATION_CHANNELS, TaskPriority, Tas
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import Task, TaskDependency, TaskTemplate, TaskTemplateStep, TaskTemplateStepDependency, TaskWatcher, User
 from app.schemas.messages import NotificationMessage
-from app.services.access_control import MANAGEMENT_ROLES, ensure_active_user
+from app.services.access_control import can_manage_task_templates, can_publish_org_tasks, ensure_active_user
 from app.services.notification_service import NotificationService
 from app.services.task_service import TaskService
 from app.services.workflow_rule_resolver import (
@@ -41,14 +41,13 @@ class TaskTemplateService:
       selectinload(TaskTemplate.schedules),
     )
 
-  @staticmethod
-  def _ensure_management(actor: User) -> None:
-    if actor.role not in MANAGEMENT_ROLES:
+  async def _ensure_manage_templates(self, *, actor: User) -> None:
+    if not await can_manage_task_templates(self._session, actor):
       raise AuthorizationError("当前账号不能管理任务模板。")
 
   async def _get_template_or_raise(self, *, actor: User, template_id: UUID) -> TaskTemplate:
     statement = self._statement().where(TaskTemplate.id == template_id)
-    if actor.role not in MANAGEMENT_ROLES:
+    if not await can_manage_task_templates(self._session, actor):
       statement = statement.where(TaskTemplate.is_active.is_(True))
     template = await self._session.scalar(statement)
     if template is None:
@@ -125,7 +124,7 @@ class TaskTemplateService:
   async def list_templates(self, *, actor: User) -> list[TaskTemplate]:
     ensure_active_user(actor)
     statement = self._statement().order_by(TaskTemplate.updated_at.desc())
-    if actor.role not in MANAGEMENT_ROLES:
+    if not await can_manage_task_templates(self._session, actor):
       statement = statement.where(TaskTemplate.is_active.is_(True))
     return list(await self._session.scalars(statement))
 
@@ -147,7 +146,7 @@ class TaskTemplateService:
     steps: list[dict[str, object]],
   ) -> TaskTemplate:
     ensure_active_user(actor)
-    self._ensure_management(actor)
+    await self._ensure_manage_templates(actor=actor)
 
     if await self._session.scalar(select(TaskTemplate.id).where(TaskTemplate.code == code)) is not None:
       raise ConflictError("任务模板编码已存在。")
@@ -183,7 +182,7 @@ class TaskTemplateService:
     steps: list[dict[str, object]] | None = None,
   ) -> TaskTemplate:
     ensure_active_user(actor)
-    self._ensure_management(actor)
+    await self._ensure_manage_templates(actor=actor)
     template = await self._get_template_or_raise(actor=actor, template_id=template_id)
 
     if code is not None and code.strip() != template.code:
@@ -220,6 +219,8 @@ class TaskTemplateService:
     payload: dict[str, object] | None = None,
   ) -> list[Task]:
     ensure_active_user(actor)
+    if not await can_publish_org_tasks(self._session, actor):
+      raise AuthorizationError("当前账号不能发布模板任务。")
     template = await self._get_template_or_raise(actor=actor, template_id=template_id)
     if not template.is_active:
       raise ConflictError("任务模板未启用，不能实例化。")

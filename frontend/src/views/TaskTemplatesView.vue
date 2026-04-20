@@ -12,11 +12,22 @@ import {
   listTaskTemplates,
 } from '@/api/task-templates'
 import { useAuthStore } from '@/stores/auth'
-import type { Department, Task, TaskSchedule, TaskTemplate } from '@/types/api'
+import type { Department, Task, TaskCenterDepartmentOption, TaskSchedule, TaskTemplate } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
+interface Props {
+  canManageTemplates?: boolean
+  canPublishTask?: boolean
+  departmentOptions?: TaskCenterDepartmentOption[]
+}
+
 const authStore = useAuthStore()
+const props = withDefaults(defineProps<Props>(), {
+  canManageTemplates: undefined,
+  canPublishTask: undefined,
+  departmentOptions: undefined,
+})
 const loading = ref(false)
 const createDialogVisible = ref(false)
 const createSubmitting = ref(false)
@@ -51,6 +62,17 @@ const scheduleForm = reactive({
 const selectedTemplate = computed(
   () => templates.value.find((template) => template.id === selectedTemplateId.value) ?? null,
 )
+const canManageTemplates = computed(() => props.canManageTemplates ?? authStore.isManagementRole)
+const canPublishTask = computed(() => props.canPublishTask ?? authStore.isManagementRole)
+const instantiateDepartmentOptions = computed(() => {
+  if (props.departmentOptions && props.departmentOptions.length > 0) {
+    return props.departmentOptions
+  }
+  return departments.value.map((department) => ({
+    id: department.id,
+    label: department.name,
+  }))
+})
 
 function parseJsonValue<T>(text: string, fallback: T): T {
   if (!text.trim()) {
@@ -73,7 +95,7 @@ async function loadData(): Promise<void> {
   try {
     const [templateList, scheduleList, departmentList] = await Promise.all([
       listTaskTemplates(),
-      authStore.isManagementRole ? listTaskSchedules() : Promise.resolve([]),
+      canManageTemplates.value ? listTaskSchedules() : Promise.resolve([]),
       listDepartments(),
     ])
     templates.value = templateList
@@ -168,7 +190,7 @@ onMounted(() => {
           <template #header>
             <div class="page__header">
               <span>任务模板</span>
-              <el-button v-if="authStore.isManagementRole" type="primary" @click="createDialogVisible = true">
+              <el-button v-if="canManageTemplates" type="primary" @click="createDialogVisible = true">
                 新建模板
               </el-button>
             </div>
@@ -222,21 +244,33 @@ onMounted(() => {
             </el-timeline>
 
             <el-divider>实例化</el-divider>
-            <el-form label-position="top">
-              <el-form-item label="所属部门（可选）">
-                <el-select v-model="instantiateForm.department_id" clearable placeholder="默认使用当前用户部门">
-                  <el-option
-                    v-for="department in departments"
-                    :key="department.id"
-                    :label="department.name"
-                    :value="department.id"
-                  />
-                </el-select>
-              </el-form-item>
-            </el-form>
-            <el-button type="primary" :loading="instantiateSubmitting" @click="handleInstantiateTemplate">
-              实例化模板
-            </el-button>
+             <el-form label-position="top">
+               <el-form-item label="所属部门（可选）">
+                 <el-select v-model="instantiateForm.department_id" clearable placeholder="默认使用当前用户部门">
+                   <el-option
+                     v-for="department in instantiateDepartmentOptions"
+                     :key="department.id"
+                     :label="department.label"
+                     :value="department.id"
+                   />
+                 </el-select>
+               </el-form-item>
+             </el-form>
+             <el-button
+               v-if="canPublishTask"
+               type="primary"
+               :loading="instantiateSubmitting"
+               @click="handleInstantiateTemplate"
+             >
+               实例化模板
+             </el-button>
+             <el-alert
+               v-else
+               type="info"
+               show-icon
+               :closable="false"
+               title="当前账号没有发布任务权限，可查看模板但不能实例化。"
+             />
 
             <el-divider>最近实例化结果</el-divider>
             <el-empty v-if="instantiatedTasks.length === 0" description="尚未实例化模板" />
@@ -251,7 +285,7 @@ onMounted(() => {
       </el-col>
     </el-row>
 
-    <el-card v-if="authStore.isManagementRole" shadow="never">
+    <el-card v-if="canManageTemplates" shadow="never">
       <template #header>
         <span>周期调度</span>
       </template>

@@ -67,6 +67,7 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
   logs = relationship("TaskLog", back_populates="task", cascade="all, delete-orphan")
   watchers = relationship("TaskWatcher", back_populates="task", cascade="all, delete-orphan")
+  memos = relationship("TaskMemo", back_populates="related_task")
 
 
 class TaskDependency(Base):
@@ -135,3 +136,26 @@ class TaskComment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
   task = relationship("Task", back_populates="comments")
   user = relationship("User", back_populates="task_comments")
+
+
+class TaskMemo(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "task_memos"
+  __table_args__ = (
+    CheckConstraint("length(trim(content)) > 0", name="task_memos_non_empty_content"),
+    Index("idx_task_memos_owner_pinned_updated", "owner_user_id", "is_pinned", "updated_at"),
+    Index("idx_task_memos_related_task", "related_task_id"),
+  )
+
+  owner_user_id: Mapped[UUID] = mapped_column(
+    ForeignKey("users.id", name="fk_task_memos_owner", ondelete="CASCADE"),
+    nullable=False,
+  )
+  related_task_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("tasks.id", name="fk_task_memos_related_task", ondelete="SET NULL"),
+    nullable=True,
+  )
+  content: Mapped[str] = mapped_column(Text, nullable=False)
+  is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+  owner = relationship("User", back_populates="task_memos", foreign_keys=[owner_user_id])
+  related_task = relationship("Task", back_populates="memos", foreign_keys=[related_task_id])

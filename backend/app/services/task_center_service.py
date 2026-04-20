@@ -1,0 +1,203 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.enums import DepartmentCapability, UserStatus
+from app.models import Department, Profile, User
+from app.services.access_control import (
+  TASK_SCOPE_TYPES,
+  can_manage_task_templates,
+  can_publish_org_tasks,
+  ensure_active_user,
+  get_actor_department,
+  get_effective_managed_department_ids,
+  is_management_role,
+)
+from app.services.task_memo_service import TaskMemoService
+from app.services.task_service import TaskHistoryEntry, TaskInboxEntry, TaskService, TaskTrackingEntry
+from app.services.task_template_service import TaskTemplateService
+
+
+@dataclass(slots=True)
+class TaskCenterDepartmentOption:
+  id: UUID
+  label: str
+
+
+@dataclass(slots=True)
+class TaskCenterUserOption:
+  user_id: UUID
+  email: str
+  real_name: str | None
+  department_id: UUID | None
+  department_name: str | None
+  label: str
+
+
+@dataclass(slots=True)
+class TaskTemplateSummary:
+  id: UUID
+  name: str
+  category: str
+  is_active: bool
+  step_count: int
+
+
+@dataclass(slots=True)
+class TaskCenterSnapshot:
+  permissions: dict[str, bool]
+  template_summaries: list[TaskTemplateSummary]
+  publish_department_options: list[TaskCenterDepartmentOption]
+  publish_user_options: list[TaskCenterUserOption]
+  task_inbox: list[TaskInboxEntry]
+  task_tracking: list[TaskTrackingEntry]
+  task_history: list[TaskHistoryEntry]
+  task_memos: list
+
+
+class TaskCenterService:
+  def __init__(
+    self,
+    session: AsyncSession,
+    task_service: TaskService,
+    task_template_service: TaskTemplateService,
+    task_memo_service: TaskMemoService,
+  ) -> None:
+    self._session = session
+    self._task_service = task_service
+    self._task_template_service = task_template_service
+    self._task_memo_service = task_memo_service
+
+  async def _list_publish_department_options(self, *, actor: User) -> list[TaskCenterDepartmentOption]:
+    if not await can_publish_org_tasks(self._session, actor):
+      return []
+
+    if is_management_role(actor):
+      departments = list(
+        await self._session.scalars(
+          select(Department)
+          .where(Department.is_active.is_(True))
+          .order_by(Department.sort_order.asc(), Department.name.asc())
+        )
+      )
+      return [TaskCenterDepartmentOption(id=department.id, label=department.name) for department in departments]
+
+    managed_department_ids = await get_effective_managed_department_ids(
+      self._session,
+      actor.id,
+      scope_types=TASK_SCOPE_TYPES,
+    )
+    if managed_department_ids:
+      departments = list(
+        await self._session.scalars(
+          select(Department)
+          .where(Department.id.in_(managed_department_ids), Department.is_active.is_(True))
+          .order_by(Department.sort_order.asc(), Department.name.asc())
+        )
+      )
+      return [TaskCenterDepartmentOption(id=department.id, label=department.name) for department in departments]
+
+    actor_department = await get_actor_department(self._session, actor.id)
+    if actor_department is None:
+      return []
+    if DepartmentCapability.PUBLISH_ORG_TASK.value not in set(actor_department.capabilities):
+      return []
+    return [TaskCenterDepartmentOption(id=actor_department.id, label=actor_department.name)]
+
+  async def _list_publish_user_options(
+    self,
+    *,
+    actor: User,
+    department_options: list[TaskCenterDepartmentOption],
+  ) -> list[TaskCenterUserOption]:
+    if not department_options and not is_management_role(actor):
+      return []
+
+    statement = (
+      select(User)
+      .options(selectinload(User.profile))
+      .where(User.status == UserStatus.ACTIVE)
+      .order_by(User.created_at.asc())
+    )
+    if not is_management_role(actor):
+      department_ids = [option.id for option in department_options]
+      statement = statement.join(Profile, Profile.user_id == User.id).where(Profile.department_id.in_(department_ids))
+
+    users = list(await self._session.scalars(statement))
+    department_name_map: dict[UUID, str] = {}
+    department_ids = {
+      profile.department_id
+      for user in users
+      if user.profile is not None and user.profile.department_id is not None
+      for profile in [user.profile]
+    }
+    if department_ids:
+      departments = list(
+        await self._session.scalars(select(Department).where(Department.id.in_(department_ids)))
+      )
+      department_name_map = {department.id: department.name for department in departments}
+    options: list[TaskCenterUserOption] = []
+    for user in users:
+      profile = user.profile
+      real_name = profile.real_name if profile is not None else None
+      department_name = (
+        department_name_map.get(profile.department_id)
+        if profile is not None and profile.department_id is not None
+        else None
+      )
+      label = real_name or user.email
+      if real_name:
+        label = f"{real_name}（{user.email}）"
+      options.append(
+        TaskCenterUserOption(
+          user_id=user.id,
+          email=user.email,
+          real_name=real_name,
+          department_id=profile.department_id if profile is not None else None,
+          department_name=department_name,
+          label=label,
+        )
+      )
+    return options
+
+  async def _build_template_summaries(self, *, actor: User) -> list[TaskTemplateSummary]:
+    templates = await self._task_template_service.list_templates(actor=actor)
+    return [
+      TaskTemplateSummary(
+        id=template.id,
+        name=template.name,
+        category=template.category,
+        is_active=template.is_active,
+        step_count=len(template.steps),
+      )
+      for template in templates
+    ]
+
+  async def get_task_center(self, *, actor: User) -> TaskCenterSnapshot:
+    ensure_active_user(actor)
+    can_manage_templates = await can_manage_task_templates(self._session, actor)
+    can_publish_task = await can_publish_org_tasks(self._session, actor)
+    publish_department_options = await self._list_publish_department_options(actor=actor)
+    publish_user_options = await self._list_publish_user_options(
+      actor=actor,
+      department_options=publish_department_options,
+    )
+
+    return TaskCenterSnapshot(
+      permissions={
+        "can_manage_templates": can_manage_templates,
+        "can_publish_task": can_publish_task,
+      },
+      template_summaries=await self._build_template_summaries(actor=actor),
+      publish_department_options=publish_department_options,
+      publish_user_options=publish_user_options,
+      task_inbox=await self._task_service.list_task_inbox(actor=actor, limit=50),
+      task_tracking=await self._task_service.list_task_tracking(actor=actor, limit=50),
+      task_history=await self._task_service.list_task_history(actor=actor, limit=50),
+      task_memos=await self._task_memo_service.list_memos(actor=actor),
+    )

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import (
+  DepartmentCapability,
   DelegationScopeType,
   DelegationStatus,
   ReportingLineType,
@@ -39,6 +40,13 @@ def is_management_role(actor: User) -> bool:
 
 async def get_actor_department_id(session: AsyncSession, actor_id: UUID) -> UUID | None:
   return await session.scalar(select(Profile.department_id).where(Profile.user_id == actor_id))
+
+
+async def get_actor_department(session: AsyncSession, actor_id: UUID) -> Department | None:
+  actor_department_id = await get_actor_department_id(session, actor_id)
+  if actor_department_id is None:
+    return None
+  return await session.get(Department, actor_department_id)
 
 
 async def get_actor_department_path_ids(session: AsyncSession, actor_id: UUID) -> list[UUID]:
@@ -167,6 +175,54 @@ async def get_effective_managed_department_ids(
     scoped_ids = _expand_department_ids(departments, root_ids={delegation.scope_department_id})
     effective_ids.update(delegated_ids & scoped_ids)
   return effective_ids
+
+
+async def has_department_capability(
+  session: AsyncSession,
+  *,
+  actor_id: UUID,
+  capability: DepartmentCapability,
+) -> bool:
+  department = await get_actor_department(session, actor_id)
+  if department is None:
+    return False
+  return capability.value in set(department.capabilities)
+
+
+async def can_manage_task_templates(session: AsyncSession, actor: User) -> bool:
+  ensure_active_user(actor)
+  if is_management_role(actor):
+    return True
+  managed_department_ids = await get_effective_managed_department_ids(
+    session,
+    actor.id,
+    scope_types=TASK_SCOPE_TYPES,
+  )
+  if managed_department_ids:
+    return True
+  return await has_department_capability(
+    session,
+    actor_id=actor.id,
+    capability=DepartmentCapability.MANAGE_TEMPLATES,
+  )
+
+
+async def can_publish_org_tasks(session: AsyncSession, actor: User) -> bool:
+  ensure_active_user(actor)
+  if is_management_role(actor):
+    return True
+  managed_department_ids = await get_effective_managed_department_ids(
+    session,
+    actor.id,
+    scope_types=TASK_SCOPE_TYPES,
+  )
+  if managed_department_ids:
+    return True
+  return await has_department_capability(
+    session,
+    actor_id=actor.id,
+    capability=DepartmentCapability.PUBLISH_ORG_TASK,
+  )
 
 
 async def get_effective_report_user_ids(

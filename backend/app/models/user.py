@@ -32,6 +32,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   created_tasks = relationship("Task", back_populates="creator", foreign_keys="Task.creator_id")
   assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="Task.assignee_id")
   task_comments = relationship("TaskComment", back_populates="user")
+  task_memos = relationship(
+    "TaskMemo",
+    back_populates="owner",
+    cascade="all, delete-orphan",
+    foreign_keys="TaskMemo.owner_user_id",
+  )
   operated_task_logs = relationship("TaskLog", back_populates="operator")
   uploaded_attachments = relationship("Attachment", back_populates="uploader")
   refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")

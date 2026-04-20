@@ -35,6 +35,8 @@ from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.overview_service import OverviewService
+from app.services.task_center_service import TaskCenterService
+from app.services.task_memo_service import TaskMemoService
 from app.services.profile_field_policy_service import ProfileFieldPolicyService
 from app.services.profile_service import ProfileService
 from app.services.task_automation_service import TaskAutomationService
@@ -156,6 +158,13 @@ def get_task_service(
   return TaskService(session, notification_service, attachment_service)
 
 
+def get_task_memo_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskMemoService:
+  return TaskMemoService(session, task_service)
+
+
 def get_task_template_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
   task_service: Annotated[TaskService, Depends(get_task_service)],
@@ -208,6 +217,15 @@ def get_overview_service(
   notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> OverviewService:
   return OverviewService(session, notification_service)
+
+
+def get_task_center_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
+  task_memo_service: Annotated[TaskMemoService, Depends(get_task_memo_service)],
+) -> TaskCenterService:
+  return TaskCenterService(session, task_service, task_template_service, task_memo_service)
 
 
 def get_openai_client(

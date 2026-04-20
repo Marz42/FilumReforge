@@ -36,6 +36,10 @@ import type {
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
+interface Props {
+  showCreateTaskComposer?: boolean
+}
+
 type StatusAction = {
   label: string
   status: TaskStatus
@@ -89,6 +93,9 @@ const NEXT_STATUS_ACTIONS: Record<Exclude<TaskStatus, 'done'>, StatusAction> = {
 }
 
 const authStore = useAuthStore()
+const props = withDefaults(defineProps<Props>(), {
+  showCreateTaskComposer: true,
+})
 const loading = ref(false)
 const submitting = ref(false)
 const taskAttachmentUploading = ref(false)
@@ -507,7 +514,9 @@ onMounted(() => {
                   </el-button>
                 </el-button-group>
               </el-space>
-              <el-button type="primary" @click="dialogVisible = true">新建任务</el-button>
+              <el-button v-if="props.showCreateTaskComposer" type="primary" @click="dialogVisible = true">
+                新建任务
+              </el-button>
             </div>
           </template>
 
@@ -849,7 +858,13 @@ onMounted(() => {
       </el-table>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="新建任务" width="560px" @closed="resetTaskForm">
+    <el-dialog
+      v-if="props.showCreateTaskComposer"
+      v-model="dialogVisible"
+      title="新建任务"
+      width="560px"
+      @closed="resetTaskForm"
+    >
       <el-form label-position="top">
         <el-form-item label="任务标题">
           <el-input v-model="form.title" />

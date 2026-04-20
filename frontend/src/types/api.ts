@@ -387,6 +387,97 @@ export interface OverviewSnapshot {
   permissions: OverviewPermissions
 }
 
+export interface TaskCenterTemplateSummary {
+  id: string
+  name: string
+  category: string
+  is_active: boolean
+  step_count: number
+}
+
+export interface TaskCenterDepartmentOption {
+  id: string
+  label: string
+}
+
+export interface TaskCenterUserOption {
+  user_id: string
+  email: string
+  real_name: string | null
+  department_id: string | null
+  department_name: string | null
+  label: string
+}
+
+export interface TaskCenterInboxItem {
+  task_id: string
+  title: string
+  priority: TaskPriority
+  status: TaskStatus
+  due_date: string | null
+  department_name: string | null
+  current_stage_label: string
+  current_handler_label: string | null
+}
+
+export interface TaskCenterTrackingItem {
+  task_id: string
+  title: string
+  priority: TaskPriority
+  status: TaskStatus
+  due_date: string | null
+  department_name: string | null
+  relation_types: string[]
+  current_stage_label: string
+  current_handler_label: string | null
+}
+
+export interface TaskCenterHistoryItem {
+  task_id: string
+  title: string
+  priority: TaskPriority
+  due_date: string | null
+  completed_at: string | null
+  department_name: string | null
+  relation_types: string[]
+  source_type: TaskSourceType
+}
+
+export interface TaskCenterTaskReference {
+  id: string
+  title: string
+  status: TaskStatus
+  priority: TaskPriority
+  due_date: string | null
+}
+
+export interface TaskMemo {
+  id: string
+  owner_user_id: string
+  related_task_id: string | null
+  content: string
+  is_pinned: boolean
+  created_at: string
+  updated_at: string
+  related_task: TaskCenterTaskReference | null
+}
+
+export interface TaskCenterPermissions {
+  can_manage_templates: boolean
+  can_publish_task: boolean
+}
+
+export interface TaskCenterSnapshot {
+  permissions: TaskCenterPermissions
+  template_summaries: TaskCenterTemplateSummary[]
+  publish_department_options: TaskCenterDepartmentOption[]
+  publish_user_options: TaskCenterUserOption[]
+  task_inbox: TaskCenterInboxItem[]
+  task_tracking: TaskCenterTrackingItem[]
+  task_history: TaskCenterHistoryItem[]
+  task_memos: TaskMemo[]
+}
+
 export interface TaskTemplateStep {
   id: string
   template_id: string

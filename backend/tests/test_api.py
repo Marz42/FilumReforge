@@ -868,6 +868,7 @@ async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
       "parent_id": root_department["id"],
       "manager_id": manager_id,
       "sort_order": 40,
+      "capabilities": ["publish_org_task"],
     },
   )
   assert department_response.status_code == 201
@@ -1084,6 +1085,152 @@ async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
   assert len([item for item in watcher_messages_response.json() if item["message_type"] == "task_cc_added"]) == 2
 
   assert any(payload["message_type"] == "workflow_action_required" for payload in queue_publisher.payloads)
+
+
+@pytest.mark.asyncio
+async def test_task_center_api_supports_snapshot_and_memos(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  manager_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "manager@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert manager_response.status_code == 201
+  manager_id = manager_response.json()["id"]
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "任务中心测试部",
+      "code": "task-center-test",
+      "parent_id": root_department["id"],
+      "manager_id": manager_id,
+      "capabilities": ["publish_org_task"],
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  for user_id, employee_no, real_name in (
+    (manager_id, "EMP-MGR-TC", "任务主管"),
+    (employee_id, "EMP-EMP-TC", "任务成员"),
+  ):
+    profile_response = await client.post(
+      "/api/v1/profiles",
+      headers=headers,
+      json={
+        "user_id": user_id,
+        "employee_no": employee_no,
+        "real_name": real_name,
+        "department_id": department_id,
+        "custom_fields": {},
+      },
+    )
+    assert profile_response.status_code == 201
+
+  manager_headers = await login(
+    client,
+    email="manager@example.com",
+    password="StrongPassword123!",
+  )
+  employee_headers = await login(
+    client,
+    email="employee@example.com",
+    password="StrongPassword123!",
+  )
+
+  template_response = await client.post(
+    "/api/v1/task-templates",
+    headers=manager_headers,
+    json={
+      "code": "task-center-template",
+      "name": "任务中心模板",
+      "category": "ops",
+      "steps": [
+        {
+          "step_key": "draft",
+          "title": "提交内容",
+          "default_assignee_rule": {"type": "initiator"},
+        }
+      ],
+    },
+  )
+  assert template_response.status_code == 201
+  template_id = template_response.json()["id"]
+
+  instantiate_response = await client.post(
+    f"/api/v1/task-templates/{template_id}/instantiate",
+    headers=employee_headers,
+    json={"payload": {"department_id": department_id}},
+  )
+  assert instantiate_response.status_code == 200
+  task_id = instantiate_response.json()["tasks"][0]["id"]
+
+  for next_status in ("doing", "review", "done"):
+    status_response = await client.patch(
+      f"/api/v1/tasks/{task_id}/status",
+      headers=employee_headers,
+      json={"status": next_status},
+    )
+    assert status_response.status_code == 200
+
+  memo_response = await client.post(
+    "/api/v1/task-center/memos",
+    headers=employee_headers,
+    json={
+      "content": "完成后同步到团队周报。",
+      "related_task_id": task_id,
+      "is_pinned": True,
+    },
+  )
+  assert memo_response.status_code == 201
+  memo_id = memo_response.json()["id"]
+
+  snapshot_response = await client.get("/api/v1/task-center", headers=employee_headers)
+  assert snapshot_response.status_code == 200
+  payload = snapshot_response.json()
+  assert payload["permissions"]["can_publish_task"] is True
+  assert payload["permissions"]["can_manage_templates"] is False
+  assert len(payload["template_summaries"]) == 1
+  assert len(payload["task_history"]) == 1
+  assert len(payload["task_memos"]) == 1
+
+  update_memo_response = await client.patch(
+    f"/api/v1/task-center/memos/{memo_id}",
+    headers=employee_headers,
+    json={"content": "完成后同步到团队周报和公告。"},
+  )
+  assert update_memo_response.status_code == 200
+  assert update_memo_response.json()["related_task_id"] == task_id
+
+  delete_memo_response = await client.delete(
+    f"/api/v1/task-center/memos/{memo_id}",
+    headers=employee_headers,
+  )
+  assert delete_memo_response.status_code == 204
 
 
 @pytest.mark.asyncio

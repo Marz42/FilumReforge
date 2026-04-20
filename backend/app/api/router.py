@@ -14,6 +14,7 @@ from app.api.routes.profiles import router as profiles_router
 from app.api.routes.push_subscriptions import router as push_subscriptions_router
 from app.api.routes.tasks import router as tasks_router
 from app.api.routes.task_templates import router as task_templates_router
+from app.api.routes.task_center import router as task_center_router
 from app.api.routes.users import router as users_router
 from app.api.routes.workflows import router as workflows_router
 
@@ -26,6 +27,7 @@ api_router.include_router(profiles_router, tags=["profiles"])
 api_router.include_router(hr_governance_router, tags=["hr-governance"])
 api_router.include_router(tasks_router, tags=["tasks"])
 api_router.include_router(task_templates_router, tags=["task-templates"])
+api_router.include_router(task_center_router, tags=["task-center"])
 api_router.include_router(workflows_router, tags=["workflows"])
 api_router.include_router(messages_router, tags=["messages"])
 api_router.include_router(overview_router, tags=["overview"])
