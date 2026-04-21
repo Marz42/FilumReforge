@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.core.exceptions import AuthenticationError
+from app.core.request_context import set_request_actor
 from app.integrations.notifications.queue import (
   JobQueuePublisher,
   NotificationQueuePublisher,
@@ -307,6 +308,7 @@ def get_llm_router_service(
 
 
 async def get_current_user(
+  request: Request,
   credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
   session: Annotated[AsyncSession, Depends(get_db_session)],
   settings: Annotated[Settings, Depends(get_settings)],
@@ -315,7 +317,11 @@ async def get_current_user(
     raise AuthenticationError("缺少访问令牌。")
 
   auth_service = AuthService(session, settings)
-  return await auth_service.get_user_from_access_token(credentials.credentials)
+  current_user = await auth_service.get_user_from_access_token(credentials.credentials)
+  request.state.current_user_id = str(current_user.id)
+  request.state.current_user_email = current_user.email
+  set_request_actor(user_id=current_user.id, email=current_user.email)
+  return current_user
 
 
 def get_management_user(

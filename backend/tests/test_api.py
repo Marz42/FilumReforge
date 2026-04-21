@@ -8,18 +8,20 @@ from types import SimpleNamespace
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.api.dependencies import (
   get_job_queue_publisher,
   get_notification_queue_publisher,
+  get_report_service,
   get_openai_client,
 )
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.main import create_app
-from app.models import Base
+from app.models import Base, ErrorEvent
 from app.workers.arq_worker import (
   REBUILD_ALL_DOCUMENT_EMBEDDINGS_JOB,
   REBUILD_DOCUMENT_EMBEDDINGS_JOB,
@@ -118,6 +120,31 @@ class InMemoryQueuePublisher:
     raise AssertionError(f"unexpected job: {job_name}")
 
 
+class FailingNotificationQueuePublisher(InMemoryQueuePublisher):
+  def __init__(
+    self,
+    *,
+    session_factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    openai_client: FakeRouterOpenAIClient,
+    error_message: str = "queue unavailable",
+  ) -> None:
+    super().__init__(
+      session_factory=session_factory,
+      settings=settings,
+      openai_client=openai_client,
+    )
+    self.error_message = error_message
+
+  async def publish(self, payload: dict[str, object]) -> None:
+    raise RuntimeError(self.error_message)
+
+
+class BrokenReportService:
+  async def create_report(self, **kwargs):  # noqa: ANN003, ANN201
+    raise RuntimeError("forced report creation failure")
+
+
 @pytest_asyncio.fixture
 async def api_client(
   tmp_path: Path,
@@ -141,6 +168,7 @@ async def api_client(
     await connection.run_sync(Base.metadata.create_all)
 
   application = create_app()
+  application.state.error_tracking_session_factory = session_factory
   fake_openai_client = FakeRouterOpenAIClient()
   queue_publisher = InMemoryQueuePublisher(
     session_factory=session_factory,
@@ -1419,6 +1447,327 @@ async def test_step4_report_center_api_supports_flow_and_archive(api_client) -> 
   assert any(item["id"] == report_id for item in history_reports)
   assert any(payload["message_type"] == "report_pending" for payload in queue_publisher.payloads)
   assert any(payload["message_type"] == "workflow_action_required" for payload in queue_publisher.payloads)
+
+
+@pytest.mark.asyncio
+async def test_step4_report_center_api_creates_reports_without_delegation(api_client) -> None:
+  client, queue_publisher = api_client
+  headers, _ = await bootstrap_and_login(client)
+  admin_id = (await client.get("/api/v1/auth/me", headers=headers)).json()["id"]
+
+  created_users: dict[str, str] = {}
+  for email in ("manager@example.com", "requester@example.com"):
+    response = await client.post(
+      "/api/v1/users",
+      headers=headers,
+      json={
+        "email": email,
+        "password": "StrongPassword123!",
+        "role": "employee",
+        "status": "active",
+      },
+    )
+    assert response.status_code == 201
+    created_users[email] = response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "汇报无代理 API 测试部",
+      "code": "report-no-delegate-api",
+      "parent_id": root_department["id"],
+      "manager_id": admin_id,
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  for email, employee_no, real_name in (
+    ("manager@example.com", "EMP-RPT-NA-1", "中层经理"),
+    ("requester@example.com", "EMP-RPT-NA-2", "汇报员工"),
+  ):
+    profile_response = await client.post(
+      "/api/v1/profiles",
+      headers=headers,
+      json={
+        "user_id": created_users[email],
+        "employee_no": employee_no,
+        "real_name": real_name,
+        "department_id": department_id,
+        "custom_fields": {},
+      },
+    )
+    assert profile_response.status_code == 201
+
+  manager_id = created_users["manager@example.com"]
+  requester_id = created_users["requester@example.com"]
+
+  requester_reporting_line_response = await client.post(
+    f"/api/v1/profiles/{requester_id}/reporting-lines",
+    headers=headers,
+    json={
+      "manager_user_id": manager_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert requester_reporting_line_response.status_code == 201
+
+  manager_reporting_line_response = await client.post(
+    f"/api/v1/profiles/{manager_id}/reporting-lines",
+    headers=headers,
+    json={
+      "manager_user_id": admin_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert manager_reporting_line_response.status_code == 201
+
+  requester_headers = await login(
+    client,
+    email="requester@example.com",
+    password="StrongPassword123!",
+  )
+
+  upward_response = await client.post(
+    "/api/v1/report-center/reports",
+    headers=requester_headers,
+    json={
+      "direction": "upward",
+      "target_user_id": admin_id,
+      "title": "向上汇报无代理测试",
+      "content_md": "验证无代理场景下的创建不会再触发 500。",
+    },
+  )
+  assert upward_response.status_code == 201
+  assert upward_response.json()["current_recipient_user_id"] == manager_id
+
+  downward_response = await client.post(
+    "/api/v1/report-center/reports",
+    headers=headers,
+    json={
+      "direction": "downward",
+      "target_user_id": requester_id,
+      "title": "向下传达无代理测试",
+      "content_md": "验证逐级向下传达的创建不会再触发 500。",
+    },
+  )
+  assert downward_response.status_code == 201
+  assert downward_response.json()["current_recipient_user_id"] == manager_id
+  assert sum(payload["message_type"] == "report_pending" for payload in queue_publisher.payloads) == 2
+
+
+@pytest.mark.asyncio
+async def test_step4_report_center_api_returns_success_when_notification_queue_is_unavailable(
+  tmp_path: Path,
+) -> None:
+  settings = Settings(
+    postgres_dsn="sqlite+aiosqlite:///:memory:",
+    storage_base_path=str(tmp_path / ".storage"),
+    storage_bucket="filum-test",
+    jwt_secret_key=TEST_JWT_SECRET,
+    openai_api_key="test-openai-key",
+    web_push_private_key="test-private-key",
+    web_push_subject="mailto:test@example.com",
+  )
+  engine = create_async_engine(
+    settings.postgres_dsn,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  application = create_app()
+  application.state.error_tracking_session_factory = session_factory
+  fake_openai_client = FakeRouterOpenAIClient()
+  queue_publisher = FailingNotificationQueuePublisher(
+    session_factory=session_factory,
+    settings=settings,
+    openai_client=fake_openai_client,
+    error_message="redis unavailable",
+  )
+
+  async def override_get_db_session() -> AsyncIterator[AsyncSession]:
+    async with session_factory() as session:
+      yield session
+
+  def override_get_settings() -> Settings:
+    return settings
+
+  def override_get_notification_queue_publisher() -> FailingNotificationQueuePublisher:
+    return queue_publisher
+
+  def override_get_job_queue_publisher() -> FailingNotificationQueuePublisher:
+    return queue_publisher
+
+  def override_get_openai_client() -> FakeRouterOpenAIClient:
+    return fake_openai_client
+
+  application.dependency_overrides[get_db_session] = override_get_db_session
+  application.dependency_overrides[get_settings] = override_get_settings
+  application.dependency_overrides[get_notification_queue_publisher] = (
+    override_get_notification_queue_publisher
+  )
+  application.dependency_overrides[get_job_queue_publisher] = override_get_job_queue_publisher
+  application.dependency_overrides[get_openai_client] = override_get_openai_client
+
+  transport = ASGITransport(app=application)
+  async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+    headers, _ = await bootstrap_and_login(client)
+    admin_id = (await client.get("/api/v1/auth/me", headers=headers)).json()["id"]
+
+    created_users: dict[str, str] = {}
+    for email in ("manager@example.com", "requester@example.com"):
+      response = await client.post(
+        "/api/v1/users",
+        headers=headers,
+        json={
+          "email": email,
+          "password": "StrongPassword123!",
+          "role": "employee",
+          "status": "active",
+        },
+      )
+      assert response.status_code == 201
+      created_users[email] = response.json()["id"]
+
+    departments_response = await client.get("/api/v1/departments", headers=headers)
+    root_department = next(item for item in departments_response.json() if item["code"] == "root")
+    department_response = await client.post(
+      "/api/v1/departments",
+      headers=headers,
+      json={
+        "name": "汇报队列故障 API 测试部",
+        "code": "report-queue-failure-api",
+        "parent_id": root_department["id"],
+        "manager_id": admin_id,
+      },
+    )
+    assert department_response.status_code == 201
+    department_id = department_response.json()["id"]
+
+    for email, employee_no, real_name in (
+      ("manager@example.com", "EMP-RPT-QF-1", "中层经理"),
+      ("requester@example.com", "EMP-RPT-QF-2", "汇报员工"),
+    ):
+      profile_response = await client.post(
+        "/api/v1/profiles",
+        headers=headers,
+        json={
+          "user_id": created_users[email],
+          "employee_no": employee_no,
+          "real_name": real_name,
+          "department_id": department_id,
+          "custom_fields": {},
+        },
+      )
+      assert profile_response.status_code == 201
+
+    manager_id = created_users["manager@example.com"]
+    requester_id = created_users["requester@example.com"]
+    requester_reporting_line_response = await client.post(
+      f"/api/v1/profiles/{requester_id}/reporting-lines",
+      headers=headers,
+      json={
+        "manager_user_id": manager_id,
+        "department_id": department_id,
+        "line_type": "solid",
+        "is_primary": True,
+        "starts_at": "2025-01-01",
+      },
+    )
+    assert requester_reporting_line_response.status_code == 201
+
+    manager_reporting_line_response = await client.post(
+      f"/api/v1/profiles/{manager_id}/reporting-lines",
+      headers=headers,
+      json={
+        "manager_user_id": admin_id,
+        "department_id": department_id,
+        "line_type": "solid",
+        "is_primary": True,
+        "starts_at": "2025-01-01",
+      },
+    )
+    assert manager_reporting_line_response.status_code == 201
+
+    requester_headers = await login(client, email="requester@example.com", password="StrongPassword123!")
+
+    create_response = await client.post(
+      "/api/v1/report-center/reports",
+      headers=requester_headers,
+      json={
+        "direction": "upward",
+        "target_user_id": admin_id,
+        "title": "队列故障 API 测试",
+        "content_md": "通知队列不可用时也应保持业务成功。",
+      },
+    )
+    assert create_response.status_code == 201
+
+    manager_headers = await login(client, email="manager@example.com", password="StrongPassword123!")
+    message_center_response = await client.get("/api/v1/messages", headers=manager_headers)
+    assert message_center_response.status_code == 200
+    report_pending_message = next(
+      message
+      for message in message_center_response.json()
+      if message["message_type"] == "report_pending"
+    )
+    assert report_pending_message["status"] == "failed"
+    assert all(delivery["status"] == "failed" for delivery in report_pending_message["deliveries"])
+    assert all(delivery["error_message"] == "通知入队失败：redis unavailable" for delivery in report_pending_message["deliveries"])
+
+  application.dependency_overrides.clear()
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_step4_report_center_api_returns_request_id_and_persists_error_event_on_500(api_client) -> None:
+  client, queue_publisher = api_client
+  headers, _ = await bootstrap_and_login(client)
+  application = client._transport.app  # type: ignore[attr-defined]
+  application.dependency_overrides[get_report_service] = lambda: BrokenReportService()
+
+  try:
+    transport = ASGITransport(app=application, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as error_client:
+      response = await error_client.post(
+        "/api/v1/report-center/reports",
+        headers=headers,
+        json={
+          "direction": "upward",
+          "target_user_id": (await error_client.get("/api/v1/auth/me", headers=headers)).json()["id"],
+          "title": "错误追踪测试",
+          "content_md": "用于验证 request id 与 error event。",
+        },
+      )
+  finally:
+    application.dependency_overrides.pop(get_report_service, None)
+
+  assert response.status_code == 500
+  payload = response.json()
+  request_id = payload["request_id"]
+  assert payload["detail"] == "服务器内部错误，请记录请求编号并反馈给开发者。"
+  assert payload["error_code"] == "internal_error"
+  assert response.headers["x-request-id"] == request_id
+
+  async with queue_publisher._session_factory() as session:
+    error_event = await session.scalar(select(ErrorEvent).where(ErrorEvent.request_id == request_id))
+    assert error_event is not None
+    assert error_event.scope == "api.unhandled"
+    assert error_event.path == "/api/v1/report-center/reports"
+    assert error_event.error_type == "RuntimeError"
+    assert error_event.error_code == "internal_error"
 
 
 @pytest.mark.asyncio

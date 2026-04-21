@@ -2,6 +2,7 @@ from app.models.attachment import Attachment, AttachmentLink
 from app.models.auth import RefreshToken
 from app.models.base import Base
 from app.models.department import Department
+from app.models.error_event import ErrorEvent
 from app.models.hr_governance import (
   Delegation,
   EmploymentEvent,
@@ -43,6 +44,7 @@ __all__ = [
   "Department",
   "Document",
   "DocumentEmbedding",
+  "ErrorEvent",
   "EmploymentEvent",
   "NotificationDelivery",
   "NotificationMessage",

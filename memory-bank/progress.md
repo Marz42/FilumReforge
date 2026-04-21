@@ -18,7 +18,7 @@
 | Step 1 / 壳层导航重构 | done | 用户已确认通过，已完成分组导航、主入口改名、旧路由兼容跳转与聚合入口壳层 |
 | Step 2 / 总览模块 | done | 已完成看板、公告、当前任务投影、总览聚合接口、总览页前端、归档 cron 与自动化回归，并通过用户手动验测 |
 | Step 3 / 任务中心重构 | done | 已完成任务中心六标签工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归，并通过用户手动验测 |
-| Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；当前等待用户手动验测 |
+| Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；已修复 PostgreSQL 500 根因，当前等待用户手动复测 |
 
 ## 已完成里程碑
 
@@ -252,8 +252,12 @@
 - 已新增 `ReportService`、`ReportCenterService`，支持逐级向上汇报、逐级向下传达、代理委托、可选挂接 workflow instance。
 - 已将 `/reports` 页面升级为真正的汇报中心，支持待处理、我发起、历史归档、发起向上汇报、发起向下传达五个标签。
 - 已通过通知总线把新汇报 / 新传达接入消息中心与浏览器推送链路。
+- 已补齐 request id 中间件、统一 500 错误处理、`error_events` 错误事件落库，以及前端错误提示中的 request id 展示。
+- 已定位真实根因为：`reports` / `report_routes` 在 ORM flush 时写入了枚举名（如 `UPWARD` / `IN_PROGRESS`），而 PostgreSQL check constraint 只接受小写枚举值（如 `upward` / `in_progress`）；现已仅在汇报领域切换为按 `enum.value` 持久化。
+- 已新增回归测试，直接断言 report 领域枚举写库值为小写；同时保留 500 响应 request id 与 `error_events` 落库测试。
+- 已在 Docker Compose + PostgreSQL 真环境中，用 `demo.engineer.a@example.com` 对“方舟”“高原”两条向上汇报目标完成复测，均返回 `201`。
 - 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 回归。
-- 当前停在 Step 4，等待用户手动验测后再决定是否进入 Step 5。
+- 当前停在 Step 4，等待用户手动复测后再决定是否进入 Step 5。
 
 ### Phase 3 验测补记
 

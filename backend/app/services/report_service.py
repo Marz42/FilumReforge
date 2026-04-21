@@ -18,6 +18,7 @@ from app.core.enums import (
   ReportingLineType,
 )
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.request_context import merge_error_context, set_error_scope, set_error_stage
 from app.models import Delegation, Report, ReportRoute, ReportingLine, User, WorkflowDefinition, WorkflowInstance
 from app.schemas.messages import NotificationMessage
 from app.schemas.report_center import ReportActionOptionRead, ReportTargetOptionRead
@@ -32,6 +33,13 @@ def _user_label(user: User | None) -> str:
   if user.profile is not None and user.profile.real_name:
     return user.profile.real_name
   return user.email
+
+
+def _excerpt(value: str, *, limit: int = 160) -> str:
+  text = value.strip()
+  if len(text) <= limit:
+    return text
+  return f"{text[: limit - 3]}..."
 
 
 class ReportService:
@@ -240,8 +248,6 @@ class ReportService:
   async def _activate_route(self, *, report: Report, route: ReportRoute) -> None:
     assignee = await self._find_active_delegate(recipient_user_id=route.recipient_user_id)
     if assignee is None:
-      assignee = route.recipient
-    if assignee is None:
       assignee = await self._session.get(User, route.recipient_user_id)
     if assignee is None:
       raise NotFoundError("汇报目标用户不存在。")
@@ -363,6 +369,21 @@ class ReportService:
     workflow_definition_id: UUID | None = None,
   ) -> Report:
     ensure_active_user(actor)
+    normalized_title = title.strip()
+    normalized_content = content_md.strip()
+    set_error_scope("report_center.create_report")
+    merge_error_context(
+      {
+        "source_type": "report",
+        "actor_email": actor.email,
+        "direction": direction.value,
+        "target_user_id": str(target_user_id),
+        "workflow_definition_id": str(workflow_definition_id) if workflow_definition_id is not None else None,
+        "title": _excerpt(normalized_title, limit=120),
+        "content_preview": _excerpt(normalized_content),
+      }
+    )
+    set_error_stage("resolve_route_path")
     route_user_ids = await self._resolve_route_path(
       actor=actor,
       target_user_id=target_user_id,
@@ -371,11 +392,13 @@ class ReportService:
     if not route_user_ids:
       raise ConflictError("当前汇报链路为空。")
 
+    merge_error_context({"route_user_ids": [str(user_id) for user_id in route_user_ids]})
+    set_error_stage("persist_report")
     report = Report(
       direction=direction,
       status=ReportStatus.IN_PROGRESS,
-      title=title.strip(),
-      content_md=content_md.strip(),
+      title=normalized_title,
+      content_md=normalized_content,
       initiator_user_id=actor.id,
       target_user_id=target_user_id,
       workflow_definition_id=workflow_definition_id,
@@ -383,9 +406,11 @@ class ReportService:
     report.initiator = actor
     self._session.add(report)
     await self._session.flush()
+    merge_error_context({"source_id": str(report.id)})
 
     previous_user_id = actor.id
     routes: list[ReportRoute] = []
+    set_error_stage("persist_routes")
     for index, user_id in enumerate(route_user_ids, start=1):
       route = ReportRoute(
         report_id=report.id,
@@ -400,6 +425,7 @@ class ReportService:
 
     await self._session.flush()
     if workflow_definition_id is not None:
+      set_error_stage("start_workflow")
       if self._workflow_engine_service is None:
         raise ConflictError("审批流引擎未配置。")
       workflow_instance = await self._workflow_engine_service.start_workflow(
@@ -415,8 +441,11 @@ class ReportService:
       report.workflow_instance_id = workflow_instance.id
 
     first_route = routes[0]
+    set_error_stage("activate_first_route")
     await self._activate_route(report=report, route=first_route)
+    set_error_stage("commit_report")
     await self._session.commit()
+    set_error_stage("load_report_response")
     return await self.get_report(actor=actor, report_id=report.id)
 
   async def act_report(

@@ -11,6 +11,7 @@ from app.api.dependencies import (
   get_report_service,
 )
 from app.models import Report, ReportRoute, User
+from app.core.request_context import merge_error_context, set_error_stage
 from app.schemas.report_center import (
   ReportActionRequest,
   ReportCenterPermissionsRead,
@@ -129,6 +130,8 @@ async def create_report(
     content_md=payload.content_md,
     workflow_definition_id=payload.workflow_definition_id,
   )
+  merge_error_context({"source_id": str(report.id)})
+  set_error_stage("serialize_response")
   return _build_report_read(actor=actor, report_service=report_service, report=report)
 
 

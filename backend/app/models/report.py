@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db_types import build_enum
+from app.core.db_types import build_value_enum
 from app.core.enums import ReportDirection, ReportRouteStatus, ReportStatus
 from app.models.base import Base
 from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
@@ -25,11 +25,11 @@ class Report(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   )
 
   direction: Mapped[ReportDirection] = mapped_column(
-    build_enum(enum_cls=ReportDirection, name="report_direction"),
+    build_value_enum(enum_cls=ReportDirection, name="report_direction"),
     nullable=False,
   )
   status: Mapped[ReportStatus] = mapped_column(
-    build_enum(enum_cls=ReportStatus, name="report_status"),
+    build_value_enum(enum_cls=ReportStatus, name="report_status"),
     default=ReportStatus.IN_PROGRESS,
     nullable=False,
   )
@@ -111,7 +111,7 @@ class ReportRoute(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     nullable=True,
   )
   status: Mapped[ReportRouteStatus] = mapped_column(
-    build_enum(enum_cls=ReportRouteStatus, name="report_route_status"),
+    build_value_enum(enum_cls=ReportRouteStatus, name="report_route_status"),
     default=ReportRouteStatus.QUEUED,
     nullable=False,
   )

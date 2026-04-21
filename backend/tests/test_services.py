@@ -23,6 +23,8 @@ from app.core.enums import (
   ReportRouteStatus,
   ReportStatus,
   NotificationChannel,
+  NotificationDeliveryStatus,
+  NotificationMessageStatus,
   NotificationReceiptType,
   TaskPriority,
   PushSubscriptionStatus,
@@ -36,7 +38,7 @@ from app.core.enums import (
   WorkflowInstanceStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError
-from app.models import AttachmentLink, NotificationDelivery, NotificationMessage as NotificationMessageModel, TaskDependency, TaskLog
+from app.models import AttachmentLink, NotificationDelivery, NotificationMessage as NotificationMessageModel, TaskDependency, TaskLog, User
 from app.models import Announcement, BoardCard
 from app.integrations.storage.local import LocalStorageAdapter
 from app.services.announcement_service import AnnouncementService
@@ -57,6 +59,7 @@ from app.services.organization_relation_service import OrganizationRelationServi
 from app.services.profile_service import ProfileService
 from app.services.report_center_service import ReportCenterService
 from app.services.report_service import ReportService
+from app.services.sample_data_service import SampleDataService
 from app.schemas.messages import NotificationMessage
 from app.services.task_automation_service import TaskAutomationService
 from app.services.task_memo_service import TaskMemoService
@@ -73,6 +76,14 @@ class InMemoryQueuePublisher:
 
   async def publish(self, payload):  # noqa: ANN001
     self.payloads.append(payload)
+
+
+class FailingQueuePublisher:
+  def __init__(self, error_message: str = "queue unavailable") -> None:
+    self.error_message = error_message
+
+  async def publish(self, payload):  # noqa: ANN001
+    raise RuntimeError(self.error_message)
 
 
 class FakeOpenAIClient:
@@ -1552,6 +1563,152 @@ async def test_step4_report_center_supports_routing_delegation_and_archive(db_se
   assert any(payload["message_type"] == "report_pending" for payload in notification_queue.payloads)
   assert any(payload["message_type"] == "report_completed" for payload in notification_queue.payloads)
   assert any(payload["message_type"] == "workflow_action_required" for payload in notification_queue.payloads)
+
+
+@pytest.mark.asyncio
+async def test_step4_report_service_creates_upward_and_downward_reports_without_delegation(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  organization_relation_service = OrganizationRelationService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="汇报无代理测试部",
+    code="report-no-delegate",
+    manager_id=admin.id,
+  )
+  for user, employee_no, real_name in [
+    (manager, "EMP-RPT-ND-001", "中层经理"),
+    (requester, "EMP-RPT-ND-002", "汇报员工"),
+  ]:
+    await profile_service.create_profile(
+      actor=admin,
+      user_id=user.id,
+      employee_no=employee_no,
+      real_name=real_name,
+      department_id=department.id,
+    )
+
+  await organization_relation_service.create_reporting_line(
+    actor=admin,
+    user_id=requester.id,
+    manager_user_id=manager.id,
+    line_type=ReportingLineType.SOLID,
+    starts_at=date(2025, 1, 1),
+    department_id=department.id,
+    is_primary=True,
+  )
+  await organization_relation_service.create_reporting_line(
+    actor=admin,
+    user_id=manager.id,
+    manager_user_id=admin.id,
+    line_type=ReportingLineType.SOLID,
+    starts_at=date(2025, 1, 1),
+    department_id=department.id,
+    is_primary=True,
+  )
+
+  notification_queue = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, notification_queue)
+  report_service = ReportService(db_session, notification_service)
+
+  upward_report = await report_service.create_report(
+    actor=requester,
+    direction=ReportDirection.UPWARD,
+    target_user_id=admin.id,
+    title="向上汇报测试",
+    content_md="验证无代理时也能正常创建。",
+  )
+  downward_report = await report_service.create_report(
+    actor=admin,
+    direction=ReportDirection.DOWNWARD,
+    target_user_id=requester.id,
+    title="向下传达测试",
+    content_md="验证逐级向下传达的创建链路。",
+  )
+
+  assert upward_report.current_recipient_user_id == manager.id
+  assert upward_report.routes[0].assigned_user_id == manager.id
+  assert downward_report.current_recipient_user_id == manager.id
+  assert downward_report.routes[0].assigned_user_id == manager.id
+  assert sum(payload["message_type"] == "report_pending" for payload in notification_queue.payloads) == 2
+
+
+@pytest.mark.asyncio
+async def test_step4_report_service_keeps_report_creation_successful_when_notification_queue_fails(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  await SampleDataService(db_session, settings).seed_manual_test_workspace(default_password="FilumTest123!")
+
+  actor = await db_session.scalar(select(User).where(User.email == "demo.engineer.a@example.com"))
+  target = await db_session.scalar(select(User).where(User.email == "demo.tech.director@example.com"))
+  assert actor is not None
+  assert target is not None
+
+  report_service = ReportService(
+    db_session,
+    NotificationService(db_session, FailingQueuePublisher("redis unavailable")),
+  )
+
+  report = await report_service.create_report(
+    actor=actor,
+    direction=ReportDirection.UPWARD,
+    target_user_id=target.id,
+    title="队列故障汇报测试",
+    content_md="即使通知队列不可用，也不应返回 500。",
+  )
+
+  message = await db_session.scalar(
+    select(NotificationMessageModel)
+    .where(
+      NotificationMessageModel.source_type == "report",
+      NotificationMessageModel.source_id == report.id,
+      NotificationMessageModel.message_type == "report_pending",
+    )
+  )
+  deliveries = list(
+    await db_session.scalars(
+      select(NotificationDelivery)
+      .where(NotificationDelivery.message_id == message.id)
+      .order_by(NotificationDelivery.created_at.asc())
+    )
+  )
+
+  assert message is not None
+  assert report.current_recipient_user_id is not None
+  assert message.status == NotificationMessageStatus.FAILED
+  assert len(deliveries) == 2
+  assert all(delivery.status == NotificationDeliveryStatus.FAILED for delivery in deliveries)
+  assert all(delivery.attempt_count == 1 for delivery in deliveries)
+  assert all(delivery.error_message == "通知入队失败：redis unavailable" for delivery in deliveries)
 
 
 @pytest.mark.asyncio

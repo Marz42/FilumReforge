@@ -5,7 +5,12 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import NotificationChannel, PushSubscriptionStatus
+from app.core.enums import (
+  NotificationChannel,
+  NotificationDeliveryStatus,
+  NotificationMessageStatus,
+  PushSubscriptionStatus,
+)
 from app.integrations.notifications.queue import NotificationQueuePublisher
 from app.models import NotificationDelivery, NotificationMessage as NotificationMessageModel, PushSubscription
 from app.schemas.messages import NotificationMessage
@@ -72,13 +77,25 @@ class NotificationService:
     await self._session.refresh(notification_message)
 
     if self._queue_publisher is not None:
-      await self._queue_publisher.publish(
-        {
-          "message_id": str(notification_message.id),
-          "delivery_ids": [str(delivery.id) for delivery in deliveries],
-          "source_type": notification_message.source_type,
-          "message_type": notification_message.message_type,
-        }
-      )
+      payload = {
+        "message_id": str(notification_message.id),
+        "delivery_ids": [str(delivery.id) for delivery in deliveries],
+        "source_type": notification_message.source_type,
+        "message_type": notification_message.message_type,
+      }
+      try:
+        await self._queue_publisher.publish(payload)
+      except Exception as exc:  # noqa: BLE001
+        failure_time = datetime.now(UTC)
+        error_message = f"通知入队失败：{exc}"
+        notification_message.status = NotificationMessageStatus.FAILED
+        notification_message.completed_at = failure_time
+        for delivery in deliveries:
+          delivery.status = NotificationDeliveryStatus.FAILED
+          delivery.attempt_count += 1
+          delivery.attempted_at = failure_time
+          delivery.error_message = error_message
+        await self._session.commit()
+        await self._session.refresh(notification_message)
 
     return notification_message

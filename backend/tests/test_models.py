@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -44,6 +44,7 @@ from app.models import (
   Department,
   Document,
   DocumentEmbedding,
+  ErrorEvent,
   EmploymentEvent,
   NotificationDelivery,
   NotificationMessage,
@@ -521,6 +522,18 @@ async def test_step4_models_persist_reports_and_routes() -> None:
 
     stored_report = await session.scalar(select(Report).where(Report.title == "阶段汇报"))
     stored_route = await session.scalar(select(ReportRoute).where(ReportRoute.report_id == report.id))
+    raw_report_row = (
+      await session.execute(
+        text("select direction, status from reports where title = :title"),
+        {"title": "阶段汇报"},
+      )
+    ).one()
+    raw_route_row = (
+      await session.execute(
+        text("select status from report_routes where sequence_no = :sequence_no"),
+        {"sequence_no": 1},
+      )
+    ).one()
 
     assert stored_report is not None
     assert stored_report.direction == ReportDirection.UPWARD
@@ -528,6 +541,59 @@ async def test_step4_models_persist_reports_and_routes() -> None:
     assert stored_route is not None
     assert stored_route.status == ReportRouteStatus.PENDING
     assert stored_route.assigned_user_id == manager.id
+    assert raw_report_row == ("upward", "in_progress")
+    assert raw_route_row == ("pending",)
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_observability_models_persist_error_events() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  actor_id = uuid4()
+  async with session_factory() as session:
+    actor = User(
+      id=actor_id,
+      email="observer@example.com",
+      password_hash="hashed-password",
+      role=UserRole.EMPLOYEE,
+      status=UserStatus.ACTIVE,
+    )
+    session.add(actor)
+    await session.flush()
+
+    error_event = ErrorEvent(
+      request_id="req-observability-1",
+      scope="report_center.create_report",
+      actor_user_id=actor_id,
+      source_type="report",
+      source_id=uuid4(),
+      http_method="POST",
+      path="/api/v1/report-center/reports",
+      error_type="RuntimeError",
+      error_message="boom",
+      error_code="internal_error",
+      stage="serialize_response",
+      context_json={"direction": "upward", "target_user_id": "target-1"},
+    )
+    session.add(error_event)
+    await session.commit()
+
+    stored_event = await session.scalar(select(ErrorEvent).where(ErrorEvent.request_id == "req-observability-1"))
+
+    assert stored_event is not None
+    assert stored_event.scope == "report_center.create_report"
+    assert stored_event.actor_user_id == actor_id
+    assert stored_event.context_json["direction"] == "upward"
 
   await engine.dispose()
 

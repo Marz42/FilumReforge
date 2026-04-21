@@ -20,6 +20,17 @@ def build_enum(*, enum_cls: type, name: str) -> Enum:
   )
 
 
+def build_value_enum(*, enum_cls: type, name: str) -> Enum:
+  return Enum(
+    enum_cls,
+    name=name,
+    native_enum=False,
+    validate_strings=True,
+    create_constraint=True,
+    values_callable=lambda members: [member.value for member in members],
+  )
+
+
 def build_json_type() -> JSON:
   return JSON().with_variant(JSONB(astext_type=Text()), "postgresql")
 

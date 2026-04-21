@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.3.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 已完成并通过用户验测，Step 4 / 汇报中心落地已实现并等待用户验测  
+**版本**: v3.3.1  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 已完成并通过用户验测，Step 4 / 汇报中心落地已实现，已修复 PostgreSQL 500 根因并等待用户复测  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -55,6 +55,7 @@
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
 - 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；总览页已落地看板、公告、待办事项、任务跟踪与任务中心快捷入口
 - 测试数据脚本：可重复生成 demo 组织、档案与账号
+- request id、统一 500 错误收口与 `error_events` 诊断链路
 
 ### 2.3 当前明确缺口
 
@@ -178,14 +179,19 @@
 
 | 路径 | 作用 |
 | --- | --- |
-| `backend/app/main.py` | FastAPI 入口，注册路由、异常处理、开发态 CORS |
+| `backend/app/main.py` | FastAPI 入口，注册路由、异常处理、开发态 CORS 与 request id 中间件 |
 | `backend/app/api/dependencies.py` | 数据库、认证、附件、通知等依赖注入 |
+| `backend/app/api/error_handlers.py` | 统一业务异常 / 500 错误响应，返回 `request_id` 与通用错误码 |
+| `backend/app/core/db_types.py` | JSON / enum DB 类型封装；`build_value_enum()` 用于按枚举值持久化 report 领域状态 |
 | `backend/app/core/enums.py` | 当前已实现的基础枚举、HR 治理枚举与 Phase 4 workflow / receipt 枚举 |
+| `backend/app/core/request_context.py` | request id、actor、scope、stage 与错误上下文的 ContextVar 绑定 |
+| `backend/app/core/error_tracking.py` | 未捕获异常日志、上下文脱敏与 `error_events` 持久化 |
 | `backend/app/models/profile.py` | 员工档案主模型 |
 | `backend/app/models/hr_governance.py` | 岗位、任职关系、汇报线、字段定义、字段权限、生命周期事件、代理授权模型 |
 | `backend/app/models/task.py` | 任务、依赖、日志、评论模型 |
 | `backend/app/models/task_workflow.py` | Phase 4 模板、审批流、watcher、schedule 数据模型 |
 | `backend/app/models/notification.py` | 通知消息、delivery 与 receipt 模型 |
+| `backend/app/models/error_event.py` | 系统级错误事件模型，记录 request id、scope、stage 与脱敏上下文 |
 | `backend/app/services/access_control.py` | 活跃账号、管理权限、组织范围、代理授权与汇报关系解析 |
 | `backend/app/services/profile_service.py` | 档案聚合、字段裁剪、Phase 3 档案读写编排 |
 | `backend/app/services/organization_relation_service.py` | 岗位目录、任职关系、汇报线管理 |
@@ -237,6 +243,7 @@
 | `backend/alembic/versions/20260416_01_phase4_workflow_messaging.py` | Phase 4 workflow / messaging 迁移 |
 | `backend/alembic/versions/20260417_01_phase5_knowledge_push.py` | Phase 5 knowledge / push 迁移 |
 | `backend/alembic/versions/20260420_03_report_center.py` | Step 4 汇报中心迁移 |
+| `backend/alembic/versions/20260421_01_error_events.py` | Step 4 排障新增的 `error_events` 迁移 |
 | `backend/app/scripts/seed_sample_data.py` | 测试组织与 demo 账号初始化脚本 |
 
 ### 5.3 frontend 当前热点文件
@@ -397,13 +404,20 @@
 5. `TaskMemoService` 负责 `task_memos` 的新增、编辑、删除，并校验关联任务是否对当前用户可见。
 6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览，发布任务入口则收敛到单独标签。
 
-### 6.14 汇报中心链路（Step 4 已实现，等待验测）
+### 6.14 汇报中心链路（Step 4 已实现，已修复 PostgreSQL 500 根因并等待复测）
 
 1. `ReportsView.vue` 进入 `/reports` 后调用 `GET /report-center`，默认落在“待处理”，同时保留 `/approvals` -> `/reports` 的兼容跳转。
 2. `ReportCenterService` 聚合待处理、我发起、历史归档、向上 / 向下目标选项，以及可选审批流定义。
 3. `ReportService` 基于 `reporting_lines` 的主汇报线计算逐级路径，生成 `reports` / `report_routes`，并处理继续流转、退回与归档。
 4. 路由节点激活时会解析 `DelegationScopeType.ALL` 的有效代理，把当前处理人切换为代理人，并经 `NotificationService` 写入消息中心与浏览器推送链路。
 5. 如用户选择挂接审批流，`ReportService` 会同步启动 `workflow_instance`，并将其绑定到 `report.workflow_instance_id`。
+6. `reports` / `report_routes` 领域枚举现在按 `enum.value` 持久化，确保 ORM 写库值与 PostgreSQL check constraint 的小写枚举值一致。
+
+### 6.15 错误追踪与诊断链路
+
+1. `RequestContextMiddleware` 为每个 HTTP 请求生成或透传 `X-Request-ID`，并把 request id 写入响应头。
+2. `get_current_user()` 会把当前用户写入 request context；`ReportService.create_report()` 会持续标记 `scope`、`stage` 与脱敏业务上下文。
+3. 所有未捕获异常都会经 `handle_unhandled_exception()` 统一返回带 `request_id` / `error_code` 的 500，并把错误详情写入 `error_events`。
 
 ## 7. 阶段映射
 
@@ -1308,7 +1322,7 @@
 
 ### 10.38 `reports`
 
-**实现状态**: Step 4 已实现
+**实现状态**: Step 4 已实现；2026-04-21 已修复 PostgreSQL enum 持久化不一致问题
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -1337,7 +1351,7 @@
 
 ### 10.39 `report_routes`
 
-**实现状态**: Step 4 已实现
+**实现状态**: Step 4 已实现；状态枚举与数据库约束已统一为按枚举值持久化
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -1360,6 +1374,34 @@
 - `idx_report_routes_assigned_status (assigned_user_id, status)`
 - `idx_report_routes_report_status (report_id, status)`
 
+### 10.40 `error_events`
+
+**实现状态**: Step 4 排障补充，已实现
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 错误事件主键 |
+| `request_id` | `varchar(64)` | NOT NULL | 请求编号 |
+| `scope` | `varchar(128)` | NOT NULL | 业务或模块范围，如 `report_center.create_report` |
+| `actor_user_id` | `uuid` | FK -> `users.id`, NULL | 当前用户 |
+| `source_type` | `varchar(64)` | NULL | 业务对象类型 |
+| `source_id` | `uuid` | NULL | 业务对象主键 |
+| `http_method` | `varchar(16)` | NULL | 请求方法 |
+| `path` | `varchar(255)` | NULL | 请求路径 |
+| `error_type` | `varchar(255)` | NOT NULL | Python 异常类型 |
+| `error_message` | `text` | NOT NULL | 错误信息 |
+| `error_code` | `varchar(64)` | NULL | 统一错误码 |
+| `stage` | `varchar(64)` | NULL | 失败阶段 |
+| `context_json` | `json/jsonb` | NOT NULL | 脱敏后的上下文摘要 |
+| `created_at` | `timestamptz` | NOT NULL | 创建时间 |
+
+**索引**
+
+- `idx_error_events_request_id (request_id)`
+- `idx_error_events_scope_created_at (scope, created_at)`
+- `idx_error_events_actor_user_id (actor_user_id, created_at)`
+- `idx_error_events_source_binding (source_type, source_id)`
+
 ## 11. 关系说明
 
 - `users 1:1 profiles`
@@ -1371,6 +1413,7 @@
 - `users N:N users` 通过 `reporting_lines`
 - `users 1:N reports`（initiator / target / current_recipient 三种角色）
 - `reports 1:N report_routes`
+- `users 1:N error_events`（actor_user）
 - `profiles 1:N employment_events`
 - `profile_field_definitions 1:N profile_field_permissions`
 - `users N:N users` 通过 `delegations`
