@@ -12,6 +12,7 @@ from app.core.enums import DEFAULT_USER_NOTIFICATION_CHANNELS, DepartmentCapabil
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.models import Announcement, AnnouncementArchive, Department, Profile, User
 from app.schemas.messages import NotificationMessage
+from app.services.notification_source import build_announcement_source_payload
 from app.services.access_control import ensure_active_user
 from app.services.notification_service import NotificationService
 
@@ -137,10 +138,14 @@ class AnnouncementService:
             title=f"新公告：{announcement.title}",
             body_text=f"{department.name} 发布了新公告「{announcement.title}」。",
             channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
-            payload={
+            payload=build_announcement_source_payload(
+              announcement_id=announcement.id,
+              announcement_title=announcement.title,
+              extra_payload={
               "announcement_id": str(announcement.id),
               "publisher_department_id": str(department.id),
-            },
+              },
+            ),
           )
         )
 

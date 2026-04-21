@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, type UploadFile } from 'element-plus'
 
 import { listAttachments, uploadAttachment } from '@/api/attachments'
@@ -38,6 +38,7 @@ import { formatDateTime } from '@/utils/formatters'
 
 interface Props {
   showCreateTaskComposer?: boolean
+  initialSelectedTaskId?: string
 }
 
 type StatusAction = {
@@ -278,8 +279,10 @@ async function loadData(): Promise<void> {
       users.value = [authStore.user]
     }
 
-    const stillSelected = taskList.some((task) => task.id === selectedTaskId.value)
-    if (!stillSelected) {
+    const preferredTaskId = props.initialSelectedTaskId?.trim()
+    if (preferredTaskId && taskList.some((task) => task.id === preferredTaskId)) {
+      selectedTaskId.value = preferredTaskId
+    } else if (!taskList.some((task) => task.id === selectedTaskId.value)) {
       selectedTaskId.value = taskList[0]?.id ?? ''
     }
 
@@ -451,6 +454,17 @@ onMounted(() => {
   resetTaskForm()
   void loadData()
 })
+
+watch(
+  () => props.initialSelectedTaskId,
+  async (nextTaskId) => {
+    if (!nextTaskId || !tasks.value.some((task) => task.id === nextTaskId)) {
+      return
+    }
+    selectedTaskId.value = nextTaskId
+    await loadSelectedTaskDetails(nextTaskId)
+  },
+)
 </script>
 
 <template>

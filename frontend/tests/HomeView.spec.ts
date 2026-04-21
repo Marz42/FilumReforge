@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { OverviewSnapshot } from '@/types/api'
@@ -119,11 +120,28 @@ describe('Home view', () => {
     vi.mocked(createAnnouncement).mockResolvedValue(overviewSnapshot.announcements[0]!)
   })
 
+  async function createTestRouter() {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/overview',
+          name: 'overview',
+          component: HomeView,
+        },
+      ],
+    })
+    await router.push({ name: 'overview' })
+    await router.isReady()
+    return router
+  }
+
   it('renders overview sections and data', async () => {
+    const router = await createTestRouter()
     const wrapper = mount(HomeView, {
       attachTo: document.body,
       global: {
-        plugins: [ElementPlus],
+        plugins: [ElementPlus, router],
         stubs: {
           transition: false,
         },
@@ -142,10 +160,11 @@ describe('Home view', () => {
   })
 
   it('submits a new board card', async () => {
+    const router = await createTestRouter()
     const wrapper = mount(HomeView, {
       attachTo: document.body,
       global: {
-        plugins: [ElementPlus],
+        plugins: [ElementPlus, router],
         stubs: {
           transition: false,
         },
@@ -170,10 +189,11 @@ describe('Home view', () => {
   })
 
   it('submits a new announcement', async () => {
+    const router = await createTestRouter()
     const wrapper = mount(HomeView, {
       attachTo: document.body,
       global: {
-        plugins: [ElementPlus],
+        plugins: [ElementPlus, router],
         stubs: {
           transition: false,
         },

@@ -65,6 +65,7 @@ const downwardForm = reactive({
 })
 
 const activeTab = computed<ReportCenterTab>(() => normalizeTab(route.query.tab))
+const selectedReportId = computed(() => (typeof route.query.selected === 'string' ? route.query.selected : ''))
 const pendingReports = computed(() => snapshot.value?.pending_reports ?? [])
 const initiatedReports = computed(() => snapshot.value?.initiated_reports ?? [])
 const historyReports = computed(() => snapshot.value?.history_reports ?? [])
@@ -227,7 +228,12 @@ onMounted(() => {
         <el-tab-pane label="待处理" name="pending">
           <el-empty v-if="pendingReports.length === 0" description="暂无待处理汇报" />
           <div v-else class="reports-page__list">
-            <el-card v-for="report in pendingReports" :key="report.id" shadow="hover">
+            <el-card
+              v-for="report in pendingReports"
+              :key="report.id"
+              shadow="hover"
+              :class="{ 'reports-page__card--selected': report.id === selectedReportId }"
+            >
               <template #header>
                 <div class="reports-page__card-header">
                   <div>
@@ -286,7 +292,12 @@ onMounted(() => {
         <el-tab-pane label="我发起" name="initiated">
           <el-empty v-if="initiatedReports.length === 0" description="暂无流转中的汇报" />
           <div v-else class="reports-page__list">
-            <el-card v-for="report in initiatedReports" :key="report.id" shadow="hover">
+            <el-card
+              v-for="report in initiatedReports"
+              :key="report.id"
+              shadow="hover"
+              :class="{ 'reports-page__card--selected': report.id === selectedReportId }"
+            >
               <template #header>
                 <div class="reports-page__card-header">
                   <div>
@@ -323,7 +334,12 @@ onMounted(() => {
         <el-tab-pane label="历史归档" name="history">
           <el-empty v-if="historyReports.length === 0" description="暂无历史汇报" />
           <div v-else class="reports-page__list">
-            <el-card v-for="report in historyReports" :key="report.id" shadow="hover">
+            <el-card
+              v-for="report in historyReports"
+              :key="report.id"
+              shadow="hover"
+              :class="{ 'reports-page__card--selected': report.id === selectedReportId }"
+            >
               <template #header>
                 <div class="reports-page__card-header">
                   <div>
@@ -510,6 +526,10 @@ onMounted(() => {
 
 .reports-page__route-line {
   line-height: 1.5;
+}
+
+.reports-page__card--selected {
+  border-color: var(--el-color-primary);
 }
 
 .reports-page__route-note {

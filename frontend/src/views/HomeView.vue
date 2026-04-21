@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute } from 'vue-router'
 
 import { createAnnouncement, createBoardCard, getOverview } from '@/api/overview'
 import { useAuthStore } from '@/stores/auth'
@@ -8,6 +9,7 @@ import type { OverviewSnapshot, TaskPriority } from '@/types/api'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 import { getErrorMessage } from '@/utils/errors'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const loading = ref(false)
 const boardDialogVisible = ref(false)
@@ -63,6 +65,9 @@ const boardScopeOptions = computed(() => permissions.value?.board_scope_options 
 const announcementScopeOptions = computed(() => permissions.value?.announcement_scope_options ?? [])
 const canPublishBoard = computed(() => permissions.value?.can_publish_board ?? false)
 const canPublishAnnouncement = computed(() => permissions.value?.can_publish_announcement ?? false)
+const highlightedAnnouncementId = computed(() =>
+  typeof route.query.announcement === 'string' ? route.query.announcement : '',
+)
 
 function priorityTagType(priority: TaskPriority): 'danger' | 'warning' | 'info' | 'success' {
   switch (priority) {
@@ -253,6 +258,7 @@ onMounted(() => {
               v-for="announcement in overview.announcements"
               :key="announcement.id"
               class="overview__compact-item"
+              :class="{ 'overview__compact-item--highlighted': announcement.id === highlightedAnnouncementId }"
             >
               <div class="overview__item-meta">
                 <strong>{{ announcement.publisher_department_name }}</strong>
@@ -498,6 +504,10 @@ onMounted(() => {
   border: 1px solid var(--el-border-color-light);
   border-radius: 12px;
   padding: 16px;
+}
+
+.overview__compact-item--highlighted {
+  border-color: var(--el-color-primary);
 }
 
 .overview__item-meta {

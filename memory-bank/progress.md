@@ -19,7 +19,8 @@
 | Step 2 / 总览模块 | done | 已完成看板、公告、当前任务投影、总览聚合接口、总览页前端、归档 cron 与自动化回归，并通过用户手动验测 |
 | Step 3 / 任务中心重构 | done | 已完成任务中心六标签工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归，并通过用户手动验测 |
 | Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；已修复 PostgreSQL 500 根因，并通过用户手动验测 |
-| Step 5 / 档案管理 & 用户管理合并 | in_review | 已完成 `/api/v1/people-management` 聚合接口与统一人员工作台；已完成全量自动化回归，等待用户手动验测 |
+| Step 5 / 档案管理 & 用户管理合并 | done | 已完成 `/api/v1/people-management` 聚合接口与统一人员工作台；已完成全量自动化回归，并通过用户手动验测 |
+| Step 6 / 消息中心联动与提醒收口 | in_review | 已完成消息中心聚合快照、来源 payload 规范化、用户级隔离、来源回跳与前后端全量回归；等待用户手动验测 |
 
 ## 已完成里程碑
 
@@ -268,7 +269,16 @@
 - 已在统一人员工作台内保留并接通关键管理动作：新建账号、补建档案、编辑账号、编辑档案、岗位目录维护、任职维护、汇报线维护、生命周期事件记录、代理授权创建 / 撤销。
 - 已新增后端 service / API 回归测试，以及前端 `PeopleManagementView.spec.ts`，覆盖聚合读取、角色保护、详情标签切换、补建档案与统一写链路调用。
 - 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 全量回归。
-- 当前重构执行基线已推进为 **Step 5 implemented / waiting for user validation**；在用户确认前，不进入 Step 6。
+- 用户已确认 Step 5 通过；当前重构执行基线已推进为 **Step 5 done / Step 6 start**。
+
+### Step 6 / 消息中心联动与提醒收口
+
+- 本轮目标是让总览、任务中心、汇报中心、公告与消息中心形成闭环，重点收口来源对象标识、用户级隔离、未读 / 未确认状态与来源回跳。
+- 已复用现有 `notification_messages`、`notification_deliveries`、`notification_receipts`，未新增表结构；后端通过聚合读模型与统一来源 payload 完成来源模块、来源对象、来源回跳、未读 / 已确认状态输出。
+- 已将消息中心后端严格收口为“当前用户自己的 inbox”，不再允许管理角色通过消息中心查看他人收件箱；同时把 `task` / `report` / `announcement` / `workflow` 的消息 payload 统一为可回跳协议。
+- 已将前端 `MessagesView.vue` 升级为真正的消息工作台，补齐统计卡、未读 / 未确认 / 来源筛选、我的回执状态与“回到来源”入口；`HomeView.vue`、`TaskCenterView.vue`、`TasksView.vue`、`ReportsView.vue` 已补齐来源 query 的高亮 / 选中消费。
+- 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 全量回归。
+- 当前状态：**Step 6 implemented / waiting for user validation**；当前停在 Step 6，不进入 Step 7。
 
 ### Phase 3 验测补记
 

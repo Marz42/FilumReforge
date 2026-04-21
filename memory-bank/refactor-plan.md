@@ -1,7 +1,7 @@
 # Project Filum 重构方案
 
 **版本**: v1.4  
-**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 / Step 4 已完成并通过用户验测，Step 5 已实现并等待用户验测  
+**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 / Step 4 / Step 5 已完成并通过用户验测；Step 6 已实现并等待用户验测  
 **适用范围**: 基于当前 Phase 5 已完成基线，对前端信息架构、部分领域模型、页面边界与权限分层进行重构规划
 
 ## 1. 重构背景
@@ -710,7 +710,7 @@
 - 已将 `/people` 页面升级为统一人员工作台，左侧为人员列表 / 筛选，右侧为账号信息、档案信息、岗位 / 汇报、生命周期、权限视图五个标签。
 - 已保留并复用现有 `/users` 与 `/profiles*` 写接口，统一页面上的编辑动作不引入新写链路。
 - 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 回归。
-- 当前状态为 **Step 5 implemented / waiting for user validation**；在用户确认前不进入 Step 6。
+- 当前状态为 **Step 5 done / user accepted**；已作为 Step 6 的进入基线。
 
 ## Step 6. 消息中心联动与提醒收口
 
@@ -731,6 +731,14 @@
 - API 测试：回执、筛选、来源跳转字段
 - Worker 测试：消息投递与状态回写
 - 前端单测：消息详情、来源回跳、未读状态更新
+
+**当前状态**
+
+- 已完成消息中心聚合快照：来源模块 / 来源对象 / 来源回跳 / 未读 / 已确认状态均由后端统一输出。
+- 已完成用户级隔离收口：消息中心只展示当前用户自己的收件箱与自己的回执状态，不再沿用管理角色查看他人 inbox 的旧行为。
+- 已完成 `task` / `report` / `announcement` / `workflow` 的来源 payload 规范化，并将前端 `MessagesView.vue` 升级为带统计卡、筛选、回执与回到来源按钮的消息工作台。
+- 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 全量回归。
+- 当前状态：**Step 6 implemented / waiting for user validation**；在用户确认前不进入 Step 7。
 
 ## Step 7. 文档收口与全量回归
 

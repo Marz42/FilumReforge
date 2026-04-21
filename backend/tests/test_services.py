@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -37,7 +38,7 @@ from app.core.enums import (
   WorkflowDefinitionStatus,
   WorkflowInstanceStatus,
 )
-from app.core.exceptions import AuthorizationError, ConflictError
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import AttachmentLink, NotificationDelivery, NotificationMessage as NotificationMessageModel, TaskDependency, TaskLog, User
 from app.models import Announcement, BoardCard
 from app.integrations.storage.local import LocalStorageAdapter
@@ -54,6 +55,7 @@ from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.llm_router_service import LLMRouterService
 from app.services.message_center_service import MessageCenterService
 from app.services.notification_service import NotificationService
+from app.services.notification_source import build_task_source_payload
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.people_management_service import PeopleManagementService
@@ -1228,6 +1230,100 @@ async def test_phase3_services_apply_lifecycle_events(db_session) -> None:
   assert len(events) == 3
   assert any(position.position_id == lead_position.id for position in positions)
   assert any(position.position_id == specialist_position.id and position.is_primary for position in positions)
+
+
+@pytest.mark.asyncio
+async def test_message_center_snapshot_is_user_scoped_and_tracks_source_metadata(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  watcher = await user_service.create_user(
+    actor=admin,
+    email="watcher@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  message_center_service = MessageCenterService(db_session)
+  task_id = uuid4()
+  report_id = uuid4()
+
+  await notification_service.send(
+    NotificationMessage(
+      source_type="task",
+      source_id=task_id,
+      recipient_user_id=manager.id,
+      recipient_email=manager.email,
+      message_type="task_assigned",
+      title="收到新任务：季度复盘",
+      body_text="任务「季度复盘」已分配给你，请及时处理。",
+      channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
+      payload=build_task_source_payload(task_id=task_id, task_title="季度复盘"),
+    )
+  )
+  await notification_service.send(
+    NotificationMessage(
+      source_type="report",
+      source_id=report_id,
+      recipient_user_id=watcher.id,
+      recipient_email=watcher.email,
+      message_type="report_pending",
+      title="新的向上汇报：预算申请",
+      body_text="请处理「预算申请」。",
+      channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
+    )
+  )
+
+  snapshot = await message_center_service.get_message_center_snapshot(actor=manager, state="unread")
+
+  assert snapshot.total_count == 1
+  assert snapshot.filtered_count == 1
+  assert snapshot.unread_count == 1
+  assert snapshot.items[0]["source"]["module_key"] == "task"
+  assert snapshot.items[0]["source"]["module_label"] == "任务中心"
+  assert snapshot.items[0]["source"]["target"]["route_name"] == "task-center"
+  assert snapshot.items[0]["source"]["target"]["route_query"]["selected"] == str(task_id)
+  assert snapshot.items[0]["receipt_state"]["is_read"] is False
+  assert snapshot.source_counts == [
+    {
+      "source_type": "task",
+      "label": "任务中心",
+      "count": 1,
+    }
+  ]
+
+  acknowledged_receipt = await message_center_service.create_receipt(
+    actor=manager,
+    message_id=snapshot.items[0]["id"],
+    receipt_type=NotificationReceiptType.ACKNOWLEDGED,
+  )
+  acknowledged_snapshot = await message_center_service.get_message_center_snapshot(
+    actor=manager,
+    state="acknowledged",
+  )
+
+  assert acknowledged_receipt.receipt_type == NotificationReceiptType.ACKNOWLEDGED
+  assert acknowledged_snapshot.filtered_count == 1
+  assert acknowledged_snapshot.unread_count == 0
+  assert acknowledged_snapshot.items[0]["receipt_state"]["is_acknowledged"] is True
+  assert all(message.recipient_user_id == watcher.id for message in await message_center_service.list_messages(actor=watcher))
+
+  with pytest.raises(NotFoundError):
+    await message_center_service.get_message_view(actor=watcher, message_id=snapshot.items[0]["id"])
 
 
 @pytest.mark.asyncio

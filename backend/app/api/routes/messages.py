@@ -1,25 +1,37 @@
 from __future__ import annotations
 
-from typing import Annotated
+from dataclasses import asdict
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
 from app.api.dependencies import get_current_user, get_message_center_service
 from app.models import User
-from app.schemas.message_center import MessageRead, MessageReceiptCreateRequest, NotificationReceiptRead
+from app.schemas.message_center import (
+  MessageCenterSnapshotRead,
+  MessageRead,
+  MessageReceiptCreateRequest,
+  NotificationReceiptRead,
+)
 from app.services.message_center_service import MessageCenterService
 
 router = APIRouter(prefix="/messages")
 
 
-@router.get("", response_model=list[MessageRead])
+@router.get("", response_model=MessageCenterSnapshotRead)
 async def list_messages(
   actor: Annotated[User, Depends(get_current_user)],
   message_center_service: Annotated[MessageCenterService, Depends(get_message_center_service)],
-) -> list[MessageRead]:
-  messages = await message_center_service.list_messages(actor=actor)
-  return [MessageRead.model_validate(message) for message in messages]
+  source_type: str | None = None,
+  state: Literal["all", "unread", "read", "unacknowledged", "acknowledged"] = "all",
+) -> MessageCenterSnapshotRead:
+  snapshot = await message_center_service.get_message_center_snapshot(
+    actor=actor,
+    source_type=source_type,
+    state=state,
+  )
+  return MessageCenterSnapshotRead.model_validate(asdict(snapshot))
 
 
 @router.get("/{message_id}", response_model=MessageRead)
@@ -28,7 +40,7 @@ async def read_message(
   actor: Annotated[User, Depends(get_current_user)],
   message_center_service: Annotated[MessageCenterService, Depends(get_message_center_service)],
 ) -> MessageRead:
-  message = await message_center_service.get_message(actor=actor, message_id=message_id)
+  message = await message_center_service.get_message_view(actor=actor, message_id=message_id)
   return MessageRead.model_validate(message)
 
 

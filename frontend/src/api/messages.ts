@@ -1,8 +1,25 @@
-import type { Message, NotificationReceipt, NotificationReceiptType } from '@/types/api'
+import type {
+  MessageCenterSnapshot,
+  MessageStateFilter,
+  NotificationReceipt,
+  NotificationReceiptType,
+} from '@/types/api'
 import { http } from './http'
 
-export async function listMessages(): Promise<Message[]> {
-  const { data } = await http.get<Message[]>('/messages')
+type GetMessageCenterSnapshotParams = {
+  sourceType?: string
+  state?: MessageStateFilter
+}
+
+export async function getMessageCenterSnapshot(
+  params: GetMessageCenterSnapshotParams = {},
+): Promise<MessageCenterSnapshot> {
+  const { data } = await http.get<MessageCenterSnapshot>('/messages', {
+    params: {
+      source_type: params.sourceType,
+      state: params.state,
+    },
+  })
   return data
 }
 

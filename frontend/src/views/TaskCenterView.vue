@@ -86,6 +86,7 @@ const memoForm = reactive({
 })
 
 const activeTab = computed<TaskCenterTab>(() => normalizeTab(route.query.tab))
+const selectedTaskId = computed(() => (typeof route.query.selected === 'string' ? route.query.selected : ''))
 const permissions = computed(() => {
   return (
     snapshot.value?.permissions ?? {
@@ -481,7 +482,7 @@ onMounted(() => {
         </el-table>
       </el-card>
 
-      <TasksView :show-create-task-composer="false" />
+      <TasksView :show-create-task-composer="false" :initial-selected-task-id="selectedTaskId" />
     </template>
 
     <template v-else-if="activeTab === 'history'">

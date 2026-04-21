@@ -31,6 +31,7 @@ export type NotificationChannel = 'email' | 'web_push' | 'websocket'
 export type NotificationMessageStatus = 'queued' | 'processing' | 'completed' | 'failed'
 export type NotificationDeliveryStatus = 'pending' | 'sent' | 'failed' | 'retrying'
 export type NotificationReceiptType = 'delivered' | 'read' | 'acknowledged'
+export type MessageStateFilter = 'all' | 'unread' | 'read' | 'unacknowledged' | 'acknowledged'
 export type PushSubscriptionStatus = 'active' | 'expired' | 'revoked'
 export type DocumentCategory = 'policy' | 'sop' | 'announcement' | 'faq' | 'other'
 export type DocumentStatus = 'draft' | 'published' | 'archived'
@@ -724,6 +725,28 @@ export interface NotificationReceipt {
   created_at: string
 }
 
+export interface MessageSourceTarget {
+  route_name: string | null
+  route_query: Record<string, string>
+  can_navigate: boolean
+}
+
+export interface MessageSource {
+  module_key: string
+  module_label: string
+  object_type: string
+  object_id: string | null
+  object_label: string | null
+  target: MessageSourceTarget
+}
+
+export interface MessageReceiptState {
+  is_read: boolean
+  is_acknowledged: boolean
+  read_at: string | null
+  acknowledged_at: string | null
+}
+
 export interface Message {
   id: string
   source_type: string
@@ -740,8 +763,27 @@ export interface Message {
   enqueued_at: string | null
   completed_at: string | null
   created_at: string
+  source: MessageSource
+  receipt_state: MessageReceiptState
   deliveries: NotificationDelivery[]
   receipts: NotificationReceipt[]
+}
+
+export interface MessageSourceCount {
+  source_type: string
+  label: string
+  count: number
+}
+
+export interface MessageCenterSnapshot {
+  items: Message[]
+  total_count: number
+  filtered_count: number
+  unread_count: number
+  unacknowledged_count: number
+  source_counts: MessageSourceCount[]
+  applied_source_type: string | null
+  applied_state: MessageStateFilter
 }
 
 export interface DocumentSummary {

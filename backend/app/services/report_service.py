@@ -24,6 +24,7 @@ from app.schemas.messages import NotificationMessage
 from app.schemas.report_center import ReportActionOptionRead, ReportTargetOptionRead
 from app.services.access_control import ensure_active_user
 from app.services.notification_service import NotificationService
+from app.services.notification_source import build_report_source_payload
 from app.services.workflow_engine_service import WorkflowEngineService
 
 
@@ -275,11 +276,16 @@ class ReportService:
         message_type="report_pending",
         title=f"新的{direction_label}：{report.title}",
         body_text=f"请处理「{report.title}」。",
-        payload={
-          "direction": report.direction.value,
-          "report_id": str(report.id),
-          "route_sequence": route.sequence_no,
-        },
+        payload=build_report_source_payload(
+          report_id=report.id,
+          report_title=report.title,
+          route_tab="pending",
+          extra_payload={
+            "direction": report.direction.value,
+            "report_id": str(report.id),
+            "route_sequence": route.sequence_no,
+          },
+        ),
         channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
       )
     )
@@ -309,7 +315,12 @@ class ReportService:
         message_type=message_type,
         title=title,
         body_text=body_text,
-        payload=dict(payload or {}),
+        payload=build_report_source_payload(
+          report_id=report.id,
+          report_title=report.title,
+          route_tab="initiated",
+          extra_payload=dict(payload or {}),
+        ),
         channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
       )
     )

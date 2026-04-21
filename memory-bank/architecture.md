@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
 **版本**: v3.4.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 / Step 4 已完成并通过用户验测，Step 5 已实现并等待用户验测  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 / Step 4 / Step 5 已完成并通过用户验测，Step 6 已实现并等待用户验测  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -47,6 +47,7 @@
 - 轻量审批流引擎：流程定义、实例、步骤执行、代理审批、打回 / 驳回
 - ARQ worker、逾期提醒扫描、通知消息落库、adapter 分发与异步入队
 - 消息中心收件箱、用户回执、审批提醒与系统消息聚合
+- Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
 - 六标签任务中心：模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘
 - 汇报中心：向上汇报、向下传达、逐级流转、历史归档与可选审批挂接
 - 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
@@ -79,11 +80,11 @@
 | Workflow Engine | 模板、审批、自动触发、周期调度 | 已实现基础版 | 与 HR 生命周期 / AI 入口联动 |
 | Task Collaboration | 评论、日志、评论附件、时间线、watcher | 已实现 Phase 4 增强版 | 与消息中心、推送渠道打通 |
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现 Phase 4 增强版 | 真实渠道适配器、浏览器推送 |
-| Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现基础版 | 消息附件、渠道融合、推送 |
+| Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现 Step 6 增强版 | 消息附件、渠道融合、推送 |
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
-| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 / Step 4 已完成并通过验测，Step 5 已实现待验测） | 消息联动细化 |
+| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 / Step 4 / Step 5 已完成并通过验测，Step 6 已实现待验测） | Step 7 文档收口与更深回归 |
 | Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑
@@ -210,7 +211,8 @@
 | `backend/app/services/report_center_service.py` | 汇报中心聚合服务，输出待处理、我发起、历史、目标选项与审批选项 |
 | `backend/app/services/workflow_engine_service.py` | 流程定义、流程实例、审批动作、打回 / 驳回 / 代理审批 |
 | `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
-| `backend/app/services/message_center_service.py` | 消息收件箱聚合、消息读取与回执写入 |
+| `backend/app/services/message_center_service.py` | Step 6 消息聚合服务：按当前用户隔离 inbox，输出来源模块 / 对象 / 回跳、未读 / 已确认状态与筛选统计 |
+| `backend/app/services/notification_source.py` | Step 6 通知来源辅助：统一 task / report / announcement / workflow 的来源 payload 与回跳协议 |
 | `backend/app/services/notification_service.py` | 消息落库、delivery 记录、队列入队 |
 | `backend/app/services/document_service.py` | 知识库文档 CRUD、可见性与附件聚合 |
 | `backend/app/services/knowledge_retrieval_service.py` | 文档切块、embedding 重建、RAG 检索 |
@@ -229,7 +231,7 @@
 | `backend/app/api/routes/people_management.py` | Step 5 人员聚合接口，输出统一人员列表与详情工作台数据 |
 | `backend/app/api/routes/report_center.py` | 汇报中心聚合、创建与动作接口 |
 | `backend/app/api/routes/workflows.py` | 流程定义、实例、待办审批与审批动作接口 |
-| `backend/app/api/routes/messages.py` | 收件箱与回执接口 |
+| `backend/app/api/routes/messages.py` | Step 6 消息中心聚合 / 详情 / 回执接口，`GET /messages` 返回工作台快照而非裸消息列表 |
 | `backend/app/api/routes/documents.py` | 文档 CRUD、发布、归档接口 |
 | `backend/app/api/routes/knowledge.py` | 检索与知识查询接口 |
 | `backend/app/api/routes/ai_router.py` | `@系统` / `/` AI Router 接口 |
@@ -257,18 +259,18 @@
 | `frontend/src/stores/auth.ts` | 登录态与会话恢复 |
 | `frontend/src/stores/app.ts` | 当前阶段标识与全局项目状态文案 |
 | `frontend/src/views/LoginView.vue` | 登录与管理员初始化 |
-| `frontend/src/views/HomeView.vue` | 当前总览页；已承载看板、公告、待办事项、任务跟踪与快捷入口 |
+| `frontend/src/views/HomeView.vue` | 当前总览页；已承载看板、公告、待办事项、任务跟踪与快捷入口，并消费 `?announcement=` 来源回跳高亮 |
 | `frontend/src/views/PeopleManagementView.vue` | Step 5 统一人员工作台：左侧人员列表，右侧账号 / 档案 / 岗位汇报 / 生命周期 / 权限视图详情 |
 | `frontend/src/views/UsersView.vue` | 原用户管理工作台，当前保留为回归参考与兼容底座 |
 | `frontend/src/api/people-management.ts` | Step 5 人员聚合 API client |
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
 | `frontend/src/views/ProfilesView.vue` | 原 Phase 3 档案治理工作台，当前保留为回归参考与兼容底座 |
 | `frontend/src/views/KnowledgeBaseView.vue` | 知识库页面 |
-| `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为六标签任务中心，承载模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘 |
-| `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用 |
+| `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为六标签任务中心，承载模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘；Step 6 起消费消息来源 `?selected=` |
+| `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用；Step 6 起支持外部来源指定初始选中任务 |
 | `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口，Step 3 后由任务中心按权限透传能力 |
-| `frontend/src/views/ReportsView.vue` | Step 4 新增的汇报中心工作台，承载待处理、我发起、历史、向上汇报与向下传达 |
-| `frontend/src/views/MessagesView.vue` | 消息收件箱与回执工作台 |
+| `frontend/src/views/ReportsView.vue` | Step 4 新增的汇报中心工作台，承载待处理、我发起、历史、向上汇报与向下传达；Step 6 起消费消息来源 `?selected=` 高亮 |
+| `frontend/src/views/MessagesView.vue` | Step 6 升级后的消息工作台：统计卡、未读 / 未确认 / 来源筛选、我的回执状态与“回到来源”入口 |
 | `frontend/src/api/overview.ts` | 总览、看板、公告 API client |
 | `frontend/src/api/report-center.ts` | 汇报中心聚合、创建与动作 API client |
 | `frontend/src/components/CommandBar.vue` | 全局命令入口，承载 `@系统` / `/` |

@@ -34,6 +34,7 @@ from app.models import (
   WorkflowStepRun,
 )
 from app.schemas.messages import NotificationMessage
+from app.services.notification_source import build_task_source_payload
 from app.services.access_control import (
   MANAGEMENT_ROLES,
   can_publish_org_tasks,
@@ -232,6 +233,7 @@ class TaskService:
         title=f"收到新任务：{task.title}",
         body_text=f"任务「{task.title}」已分配给你，请及时处理。",
         channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
+        payload=build_task_source_payload(task_id=task.id, task_title=task.title),
       )
     )
 
@@ -800,6 +802,7 @@ class TaskService:
             title=f"任务已重新分配：{task.title}",
             body_text=f"任务「{task.title}」已重新分配给你。",
             channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
+            payload=build_task_source_payload(task_id=task.id, task_title=task.title),
           )
         )
 
@@ -1025,6 +1028,7 @@ class TaskService:
             title=f"你被加入任务关注：{task.title}",
             body_text=f"任务「{task.title}」已将你加入关注列表。",
             channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
+            payload=build_task_source_payload(task_id=task.id, task_title=task.title),
           )
         )
 

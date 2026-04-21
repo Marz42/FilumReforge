@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -41,6 +41,28 @@ class NotificationReceiptRead(BaseModel):
   created_at: datetime
 
 
+class MessageSourceTargetRead(BaseModel):
+  route_name: str | None = None
+  route_query: dict[str, str] = Field(default_factory=dict)
+  can_navigate: bool
+
+
+class MessageSourceRead(BaseModel):
+  module_key: str
+  module_label: str
+  object_type: str
+  object_id: UUID | None = None
+  object_label: str | None = None
+  target: MessageSourceTargetRead
+
+
+class MessageReceiptStateRead(BaseModel):
+  is_read: bool
+  is_acknowledged: bool
+  read_at: datetime | None = None
+  acknowledged_at: datetime | None = None
+
+
 class MessageRead(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 
@@ -59,8 +81,27 @@ class MessageRead(BaseModel):
   enqueued_at: datetime | None
   completed_at: datetime | None
   created_at: datetime
+  source: MessageSourceRead
+  receipt_state: MessageReceiptStateRead
   deliveries: list[NotificationDeliveryRead] = Field(default_factory=list)
   receipts: list[NotificationReceiptRead] = Field(default_factory=list)
+
+
+class MessageSourceCountRead(BaseModel):
+  source_type: str
+  label: str
+  count: int
+
+
+class MessageCenterSnapshotRead(BaseModel):
+  items: list[MessageRead] = Field(default_factory=list)
+  total_count: int
+  filtered_count: int
+  unread_count: int
+  unacknowledged_count: int
+  source_counts: list[MessageSourceCountRead] = Field(default_factory=list)
+  applied_source_type: str | None = None
+  applied_state: Literal["all", "unread", "read", "unacknowledged", "acknowledged"] = "all"
 
 
 class MessageReceiptCreateRequest(BaseModel):

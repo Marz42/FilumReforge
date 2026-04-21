@@ -29,6 +29,7 @@ from app.models import (
 from app.schemas.messages import NotificationMessage
 from app.services.access_control import MANAGEMENT_ROLES, ensure_active_user
 from app.services.notification_service import NotificationService
+from app.services.notification_source import build_workflow_source_payload
 from app.services.workflow_rule_resolver import parse_uuid_value, resolve_actor_department_id, resolve_user_targets_from_rule
 
 
@@ -247,6 +248,13 @@ class WorkflowEngineService:
   ) -> None:
     if self._notification_service is None:
       return
+    workflow_route_tab = None
+    if instance.source_type == "report":
+      workflow_route_tab = (
+        "initiated"
+        if message_type in {"workflow_completed", "workflow_rejected", "workflow_returned"}
+        else "pending"
+      )
     await self._notification_service.send(
       NotificationMessage(
         source_type="workflow",
@@ -256,7 +264,12 @@ class WorkflowEngineService:
         message_type=message_type,
         title=title,
         body_text=body_text,
-        payload=dict(payload or {}),
+        payload=build_workflow_source_payload(
+          instance=instance,
+          object_label=instance.definition.name,
+          route_tab=workflow_route_tab,
+          extra_payload=dict(payload or {}),
+        ),
         channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
       )
     )

@@ -1251,7 +1251,7 @@ async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
 
   delegate_messages_response = await client.get("/api/v1/messages", headers=delegate_headers)
   assert delegate_messages_response.status_code == 200
-  delegate_messages = delegate_messages_response.json()
+  delegate_messages = delegate_messages_response.json()["items"]
   workflow_message = next(
     item for item in delegate_messages if item["message_type"] == "workflow_action_required"
   )
@@ -1266,9 +1266,140 @@ async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
 
   watcher_messages_response = await client.get("/api/v1/messages", headers=watcher_headers)
   assert watcher_messages_response.status_code == 200
-  assert len([item for item in watcher_messages_response.json() if item["message_type"] == "task_cc_added"]) == 2
+  watcher_messages = watcher_messages_response.json()["items"]
+  assert len([item for item in watcher_messages if item["message_type"] == "task_cc_added"]) == 2
 
   assert any(payload["message_type"] == "workflow_action_required" for payload in queue_publisher.payloads)
+
+
+@pytest.mark.asyncio
+async def test_message_center_api_returns_source_metadata_and_hides_other_users_messages(api_client) -> None:
+  client, _ = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=admin_headers,
+    json={
+      "name": "消息联动部",
+      "code": "message-linkage",
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  create_manager_response = await client.post(
+    "/api/v1/users",
+    headers=admin_headers,
+    json={
+      "email": "manager@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert create_manager_response.status_code == 201
+  manager_id = create_manager_response.json()["id"]
+
+  create_requester_response = await client.post(
+    "/api/v1/users",
+    headers=admin_headers,
+    json={
+      "email": "requester@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert create_requester_response.status_code == 201
+  requester_id = create_requester_response.json()["id"]
+
+  await client.post(
+    "/api/v1/profiles",
+    headers=admin_headers,
+    json={
+      "user_id": manager_id,
+      "employee_no": "EMP-MGR-001",
+      "real_name": "部门负责人",
+      "department_id": department_id,
+    },
+  )
+  manager_profile_response = await client.post(
+    f"/api/v1/profiles/{manager_id}/reporting-lines",
+    headers=admin_headers,
+    json={
+      "manager_user_id": (await client.get("/api/v1/auth/me", headers=admin_headers)).json()["id"],
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert manager_profile_response.status_code == 201
+
+  requester_profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=admin_headers,
+    json={
+      "user_id": requester_id,
+      "employee_no": "EMP-REQ-001",
+      "real_name": "申请员工",
+      "department_id": department_id,
+    },
+  )
+  assert requester_profile_response.status_code == 201
+
+  reporting_line_response = await client.post(
+    f"/api/v1/profiles/{requester_id}/reporting-lines",
+    headers=admin_headers,
+    json={
+      "manager_user_id": manager_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert reporting_line_response.status_code == 201
+
+  requester_headers = await login(client, email="requester@example.com", password="StrongPassword123!")
+  create_response = await client.post(
+    "/api/v1/report-center/reports",
+    headers=requester_headers,
+    json={
+      "direction": "upward",
+      "target_user_id": manager_id,
+      "title": "消息中心来源联动测试",
+      "content_md": "需要验证来源字段与用户隔离。",
+    },
+  )
+  assert create_response.status_code == 201
+
+  manager_headers = await login(client, email="manager@example.com", password="StrongPassword123!")
+  message_center_response = await client.get(
+    "/api/v1/messages",
+    headers=manager_headers,
+    params={"state": "unread"},
+  )
+  assert message_center_response.status_code == 200
+  snapshot = message_center_response.json()
+  assert snapshot["unread_count"] >= 1
+  report_pending_message = next(
+    item
+    for item in snapshot["items"]
+    if item["message_type"] == "report_pending"
+  )
+  assert report_pending_message["source"]["module_key"] == "report"
+  assert report_pending_message["source"]["module_label"] == "汇报中心"
+  assert report_pending_message["source"]["target"]["route_name"] == "reports"
+  assert report_pending_message["source"]["target"]["route_query"]["selected"] == create_response.json()["id"]
+  assert report_pending_message["receipt_state"]["is_read"] is False
+
+  foreign_message_response = await client.get(
+    f"/api/v1/messages/{report_pending_message['id']}",
+    headers=requester_headers,
+  )
+  assert foreign_message_response.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -1876,7 +2007,7 @@ async def test_step4_report_center_api_returns_success_when_notification_queue_i
     assert message_center_response.status_code == 200
     report_pending_message = next(
       message
-      for message in message_center_response.json()
+      for message in message_center_response.json()["items"]
       if message["message_type"] == "report_pending"
     )
     assert report_pending_message["status"] == "failed"
