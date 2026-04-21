@@ -1,7 +1,7 @@
 # Project Filum 重构方案
 
-**版本**: v1.3  
-**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 / Step 4 已完成并通过用户验测  
+**版本**: v1.4  
+**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 / Step 4 已完成并通过用户验测，Step 5 已实现并等待用户验测  
 **适用范围**: 基于当前 Phase 5 已完成基线，对前端信息架构、部分领域模型、页面边界与权限分层进行重构规划
 
 ## 1. 重构背景
@@ -703,6 +703,14 @@
 - API 测试：聚合读写路径
 - 前端单测：列表、详情、多标签切换、角色保护
 - 回归现有用户管理与档案治理功能
+
+**当前实现情况**
+
+- 已新增 `PeopleManagementService` 与 `/api/v1/people-management` 读接口，统一输出人员列表摘要与详情工作台数据。
+- 已将 `/people` 页面升级为统一人员工作台，左侧为人员列表 / 筛选，右侧为账号信息、档案信息、岗位 / 汇报、生命周期、权限视图五个标签。
+- 已保留并复用现有 `/users` 与 `/profiles*` 写接口，统一页面上的编辑动作不引入新写链路。
+- 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 回归。
+- 当前状态为 **Step 5 implemented / waiting for user validation**；在用户确认前不进入 Step 6。
 
 ## Step 6. 消息中心联动与提醒收口
 

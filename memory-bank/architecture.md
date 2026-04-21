@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.3.1  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 / Step 4 已完成并通过用户验测  
+**版本**: v3.4.0  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 / Step 4 已完成并通过用户验测，Step 5 已实现并等待用户验测  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -54,6 +54,7 @@
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
 - 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；总览页已落地看板、公告、待办事项、任务跟踪与任务中心快捷入口
+- 特殊模块中的 `/people` 已升级为统一人员工作台：左侧人员列表，右侧账号 / 档案 / 岗位汇报 / 生命周期 / 权限视图多标签详情
 - 测试数据脚本：可重复生成 demo 组织、档案与账号
 - request id、统一 500 错误收口与 `error_events` 诊断链路
 
@@ -82,7 +83,7 @@
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
-| Frontend Experience | 浏览器后台、分组导航、总览模块、人员管理聚合入口、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 / Step 4 已完成并通过验测） | 档案管理合并与消息联动细化 |
+| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 / Step 4 已完成并通过验测，Step 5 已实现待验测） | 消息联动细化 |
 | Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑
@@ -198,6 +199,7 @@
 | `backend/app/services/profile_field_policy_service.py` | 字段定义初始化、字段权限解析与字段可见 / 可编辑判断 |
 | `backend/app/services/hr_lifecycle_service.py` | 生命周期事件登记与档案 / 任职关系联动 |
 | `backend/app/services/delegation_service.py` | 代理授权创建、撤销、状态刷新 |
+| `backend/app/services/people_management_service.py` | Step 5 人员聚合服务，统一编排 users / profiles 的列表摘要与详情读模型 |
 | `backend/app/services/task_service.py` | 任务状态机、评论、日志、统计，以及 watcher / board / gantt 扩展 |
 | `backend/app/services/workflow_rule_resolver.py` | 模板与审批流共用的 assignee rule 解析器 |
 | `backend/app/services/task_template_service.py` | 模板 CRUD、步骤替换与模板实例化 |
@@ -224,6 +226,7 @@
 | `backend/app/api/routes/hr_governance.py` | Phase 3 岗位、字段定义、字段权限、授权管理接口 |
 | `backend/app/api/routes/task_templates.py` | 模板、实例化与 schedule 接口 |
 | `backend/app/api/routes/task_center.py` | 任务中心聚合与备忘接口 |
+| `backend/app/api/routes/people_management.py` | Step 5 人员聚合接口，输出统一人员列表与详情工作台数据 |
 | `backend/app/api/routes/report_center.py` | 汇报中心聚合、创建与动作接口 |
 | `backend/app/api/routes/workflows.py` | 流程定义、实例、待办审批与审批动作接口 |
 | `backend/app/api/routes/messages.py` | 收件箱与回执接口 |
@@ -255,10 +258,11 @@
 | `frontend/src/stores/app.ts` | 当前阶段标识与全局项目状态文案 |
 | `frontend/src/views/LoginView.vue` | 登录与管理员初始化 |
 | `frontend/src/views/HomeView.vue` | 当前总览页；已承载看板、公告、待办事项、任务跟踪与快捷入口 |
-| `frontend/src/views/PeopleManagementView.vue` | Step 1 新增的人员管理聚合入口，承载用户账号 / 档案管理双标签 |
-| `frontend/src/views/UsersView.vue` | 用户管理工作台，当前由 `PeopleManagementView.vue` 聚合承载 |
+| `frontend/src/views/PeopleManagementView.vue` | Step 5 统一人员工作台：左侧人员列表，右侧账号 / 档案 / 岗位汇报 / 生命周期 / 权限视图详情 |
+| `frontend/src/views/UsersView.vue` | 原用户管理工作台，当前保留为回归参考与兼容底座 |
+| `frontend/src/api/people-management.ts` | Step 5 人员聚合 API client |
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
-| `frontend/src/views/ProfilesView.vue` | Phase 3 档案治理工作台，当前由 `PeopleManagementView.vue` 聚合承载 |
+| `frontend/src/views/ProfilesView.vue` | 原 Phase 3 档案治理工作台，当前保留为回归参考与兼容底座 |
 | `frontend/src/views/KnowledgeBaseView.vue` | 知识库页面 |
 | `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为六标签任务中心，承载模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘 |
 | `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用 |
@@ -286,6 +290,7 @@
 | `frontend/src/types/api.ts` | 前端共享 API 类型 |
 | `frontend/tests/UsersView.spec.ts` | 用户管理页回归测试 |
 | `frontend/tests/ProfilesView.spec.ts` | Phase 3 档案治理页回归测试 |
+| `frontend/tests/PeopleManagementView.spec.ts` | Step 5 统一人员工作台单测 |
 | `frontend/tests/TasksView.spec.ts` | Phase 4 任务多视图与 watcher 回归测试 |
 | `frontend/tests/TaskTemplatesView.spec.ts` | 模板工作台回归测试 |
 | `frontend/tests/ApprovalsView.spec.ts` | Step 4 汇报中心工作台回归测试 |

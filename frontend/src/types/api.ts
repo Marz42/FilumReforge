@@ -206,6 +206,54 @@ export interface Profile {
   updated_at: string
 }
 
+export interface PeopleManagementSummary {
+  total_people: number
+  profiled_people: number
+  unprofiled_people: number
+  inactive_people: number
+}
+
+export interface PeopleManagementPerson {
+  user_id: string
+  email: string
+  role: UserRole
+  status: UserStatus
+  last_login_at: string | null
+  has_profile: boolean
+  profile_completion_state: string
+  employee_no: string | null
+  real_name: string | null
+  department_id: string | null
+  department_name: string | null
+  job_title: string | null
+  hire_date: string | null
+  updated_at: string
+}
+
+export interface PeopleManagementActions {
+  can_edit_user: boolean
+  can_create_profile: boolean
+  can_edit_profile: boolean
+  can_manage_relations: boolean
+  can_manage_lifecycle: boolean
+  can_manage_delegations: boolean
+}
+
+export interface PeopleManagementSnapshot {
+  summary: PeopleManagementSummary
+  people: PeopleManagementPerson[]
+}
+
+export interface PeopleManagementDetail {
+  summary: PeopleManagementPerson
+  account: User
+  profile: Profile | null
+  actions: PeopleManagementActions
+  primary_manager_user_id: string | null
+  primary_manager_label: string | null
+  latest_employment_event: EmploymentEvent | null
+}
+
 export interface Task {
   id: string
   title: string

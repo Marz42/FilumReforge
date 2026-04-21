@@ -36,6 +36,7 @@ from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.overview_service import OverviewService
+from app.services.people_management_service import PeopleManagementService
 from app.services.task_center_service import TaskCenterService
 from app.services.task_memo_service import TaskMemoService
 from app.services.profile_field_policy_service import ProfileFieldPolicyService
@@ -220,6 +221,12 @@ def get_overview_service(
   notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> OverviewService:
   return OverviewService(session, notification_service)
+
+
+def get_people_management_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> PeopleManagementService:
+  return PeopleManagementService(session)
 
 
 def get_task_center_service(

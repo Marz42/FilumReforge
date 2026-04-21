@@ -19,6 +19,7 @@
 | Step 2 / 总览模块 | done | 已完成看板、公告、当前任务投影、总览聚合接口、总览页前端、归档 cron 与自动化回归，并通过用户手动验测 |
 | Step 3 / 任务中心重构 | done | 已完成任务中心六标签工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归，并通过用户手动验测 |
 | Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；已修复 PostgreSQL 500 根因，并通过用户手动验测 |
+| Step 5 / 档案管理 & 用户管理合并 | in_review | 已完成 `/api/v1/people-management` 聚合接口与统一人员工作台；已完成全量自动化回归，等待用户手动验测 |
 
 ## 已完成里程碑
 
@@ -258,6 +259,16 @@
 - 已在 Docker Compose + PostgreSQL 真环境中，用 `demo.engineer.a@example.com` 对“方舟”“高原”两条向上汇报目标完成复测，均返回 `201`。
 - 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 回归。
 - 用户已确认 Step 4 通过；当前重构执行基线已推进为 **Step 4 done / Step 5 pending**。
+
+### Step 5 / 档案管理 & 用户管理合并
+
+- 已新增 `PeopleManagementService` 与 `/api/v1/people-management`、`/api/v1/people-management/{user_id}`，统一编排账号、档案、任职、生命周期与权限视图读模型。
+- 已明确 Step 5 只新增聚合读接口；账号、档案、任职、汇报、生命周期、代理授权写链路继续复用既有 `/users` 与 `/profiles*` 接口，不引入新的聚合写接口与 schema 迁移。
+- 已将前端 `PeopleManagementView.vue` 从 Users / Profiles tab 壳层升级为真正的统一人员工作台：左侧人员列表与筛选，右侧账号信息、档案信息、岗位 / 汇报、生命周期、权限视图多标签详情。
+- 已在统一人员工作台内保留并接通关键管理动作：新建账号、补建档案、编辑账号、编辑档案、岗位目录维护、任职维护、汇报线维护、生命周期事件记录、代理授权创建 / 撤销。
+- 已新增后端 service / API 回归测试，以及前端 `PeopleManagementView.spec.ts`，覆盖聚合读取、角色保护、详情标签切换、补建档案与统一写链路调用。
+- 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 全量回归。
+- 当前重构执行基线已推进为 **Step 5 implemented / waiting for user validation**；在用户确认前，不进入 Step 6。
 
 ### Phase 3 验测补记
 

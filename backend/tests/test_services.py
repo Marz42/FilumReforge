@@ -56,6 +56,7 @@ from app.services.message_center_service import MessageCenterService
 from app.services.notification_service import NotificationService
 from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
+from app.services.people_management_service import PeopleManagementService
 from app.services.profile_service import ProfileService
 from app.services.report_center_service import ReportCenterService
 from app.services.report_service import ReportService
@@ -207,6 +208,108 @@ async def test_department_profile_and_user_services(db_session) -> None:
   assert department in departments
   assert profile in profiles
   assert profile.custom_fields["skills"] == ["recruiting"]
+
+
+@pytest.mark.asyncio
+async def test_people_management_service_aggregates_accounts_and_profiles(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  organization_relation_service = OrganizationRelationService(db_session)
+  lifecycle_service = HRLifecycleService(db_session)
+  people_management_service = PeopleManagementService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  await user_service.create_user(
+    actor=admin,
+    email="pending@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.INACTIVE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="研发部",
+    code="engineering",
+    manager_id=manager.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=manager.id,
+    employee_no="EMP-MANAGER-001",
+    real_name="技术负责人",
+    department_id=department.id,
+    job_title="技术负责人",
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="研发工程师",
+    department_id=department.id,
+    job_title="后端工程师",
+  )
+  await organization_relation_service.create_reporting_line(
+    actor=admin,
+    user_id=employee.id,
+    manager_user_id=manager.id,
+    line_type=ReportingLineType.SOLID,
+    department_id=department.id,
+    is_primary=True,
+    starts_at=date(2025, 1, 1),
+  )
+  await lifecycle_service.create_event(
+    actor=admin,
+    user_id=employee.id,
+    event_type=EmploymentEventType.PROMOTION,
+    effective_date=date(2025, 2, 1),
+    title="晋升为后端工程师",
+    summary="完成试用期",
+    payload={},
+  )
+
+  snapshot = await people_management_service.list_people(actor=admin)
+
+  assert snapshot.summary == {
+    "total_people": 4,
+    "profiled_people": 3,
+    "unprofiled_people": 1,
+    "inactive_people": 1,
+  }
+  employee_item = next(item for item in snapshot.people if item["user_id"] == employee.id)
+  assert employee_item["has_profile"] is True
+  assert employee_item["department_name"] == "研发部"
+  pending_item = next(item for item in snapshot.people if item["email"] == "pending@example.com")
+  assert pending_item["profile_completion_state"] == "missing_profile"
+
+  detail = await people_management_service.get_person_detail(actor=admin, user_id=employee.id)
+
+  assert detail.summary["real_name"] == "研发工程师"
+  assert detail.actions["can_edit_user"] is True
+  assert detail.actions["can_create_profile"] is False
+  assert detail.primary_manager_label == "技术负责人"
+  assert detail.latest_employment_event is not None
+  assert detail.latest_employment_event.event_type == EmploymentEventType.PROMOTION
 
 
 @pytest.mark.asyncio

@@ -297,6 +297,162 @@ async def test_auth_and_users_api_flow(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_people_management_api_returns_aggregated_people_workspace(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  manager_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "manager@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert manager_response.status_code == 201
+  manager_id = manager_response.json()["id"]
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  unprofiled_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "unprofiled@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "inactive",
+    },
+  )
+  assert unprofiled_response.status_code == 201
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  assert departments_response.status_code == 200
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+
+  create_department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "研发部",
+      "code": "engineering",
+      "parent_id": root_department["id"],
+      "manager_id": manager_id,
+      "sort_order": 10,
+    },
+  )
+  assert create_department_response.status_code == 201
+  department_id = create_department_response.json()["id"]
+
+  manager_profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": manager_id,
+      "employee_no": "EMP-MANAGER-001",
+      "real_name": "技术负责人",
+      "department_id": department_id,
+      "job_title": "技术负责人",
+    },
+  )
+  assert manager_profile_response.status_code == 201
+
+  employee_profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": employee_id,
+      "employee_no": "EMP-001",
+      "real_name": "研发工程师",
+      "department_id": department_id,
+      "job_title": "后端工程师",
+      "custom_fields": {"skills": ["python"]},
+    },
+  )
+  assert employee_profile_response.status_code == 201
+
+  reporting_line_response = await client.post(
+    f"/api/v1/profiles/{employee_id}/reporting-lines",
+    headers=headers,
+    json={
+      "manager_user_id": manager_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert reporting_line_response.status_code == 201
+
+  event_response = await client.post(
+    f"/api/v1/profiles/{employee_id}/events",
+    headers=headers,
+    json={
+      "event_type": "promotion",
+      "effective_date": "2025-02-01",
+      "title": "晋升为后端工程师",
+      "summary": "通过试用期",
+      "payload": {},
+    },
+  )
+  assert event_response.status_code == 201
+
+  people_response = await client.get("/api/v1/people-management", headers=headers)
+  assert people_response.status_code == 200
+  payload = people_response.json()
+  assert payload["summary"] == {
+    "total_people": 4,
+    "profiled_people": 3,
+    "unprofiled_people": 1,
+    "inactive_people": 1,
+  }
+  employee_item = next(item for item in payload["people"] if item["user_id"] == employee_id)
+  assert employee_item["has_profile"] is True
+  assert employee_item["department_name"] == "研发部"
+  unprofiled_item = next(
+    item for item in payload["people"] if item["email"] == "unprofiled@example.com"
+  )
+  assert unprofiled_item["profile_completion_state"] == "missing_profile"
+
+  detail_response = await client.get(f"/api/v1/people-management/{employee_id}", headers=headers)
+  assert detail_response.status_code == 200
+  detail_payload = detail_response.json()
+  assert detail_payload["account"]["email"] == "employee@example.com"
+  assert detail_payload["profile"]["real_name"] == "研发工程师"
+  assert detail_payload["primary_manager_label"] == "技术负责人"
+  assert detail_payload["latest_employment_event"]["event_type"] == "promotion"
+  assert detail_payload["actions"] == {
+    "can_edit_user": True,
+    "can_create_profile": False,
+    "can_edit_profile": True,
+    "can_manage_relations": True,
+    "can_manage_lifecycle": True,
+    "can_manage_delegations": True,
+  }
+
+  employee_headers = await login(
+    client,
+    email="employee@example.com",
+    password="StrongPassword123!",
+  )
+  forbidden_response = await client.get("/api/v1/people-management", headers=employee_headers)
+  assert forbidden_response.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_overview_api_supports_board_cards_and_announcements(api_client) -> None:
   client, _ = api_client
   headers, _ = await bootstrap_and_login(client)

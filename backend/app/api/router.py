@@ -10,6 +10,7 @@ from app.api.routes.hr_governance import router as hr_governance_router
 from app.api.routes.knowledge import router as knowledge_router
 from app.api.routes.messages import router as messages_router
 from app.api.routes.overview import router as overview_router
+from app.api.routes.people_management import router as people_management_router
 from app.api.routes.profiles import router as profiles_router
 from app.api.routes.push_subscriptions import router as push_subscriptions_router
 from app.api.routes.report_center import router as report_center_router
@@ -33,6 +34,7 @@ api_router.include_router(report_center_router, tags=["report-center"])
 api_router.include_router(workflows_router, tags=["workflows"])
 api_router.include_router(messages_router, tags=["messages"])
 api_router.include_router(overview_router, tags=["overview"])
+api_router.include_router(people_management_router, tags=["people-management"])
 api_router.include_router(attachments_router, tags=["attachments"])
 api_router.include_router(documents_router, tags=["documents"])
 api_router.include_router(knowledge_router, tags=["knowledge"])
