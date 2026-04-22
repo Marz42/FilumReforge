@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db_types import build_enum, build_json_type
@@ -31,8 +31,8 @@ class NotificationMessage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
   recipient_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
   message_type: Mapped[str] = mapped_column(String(64), nullable=False)
   title: Mapped[str] = mapped_column(String(255), nullable=False)
-  body_text: Mapped[str] = mapped_column(nullable=False)
-  body_html: Mapped[str | None] = mapped_column(nullable=True)
+  body_text: Mapped[str] = mapped_column(Text, nullable=False)
+  body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
   payload: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   status: Mapped[NotificationMessageStatus] = mapped_column(
     build_enum(enum_cls=NotificationMessageStatus, name="notification_message_status"),
@@ -71,7 +71,7 @@ class NotificationDelivery(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
   )
   attempt_count: Mapped[int] = mapped_column(default=0, nullable=False)
   external_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-  error_message: Mapped[str | None] = mapped_column(nullable=True)
+  error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
   attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
   delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -101,7 +101,7 @@ class NotificationReceipt(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     build_enum(enum_cls=NotificationReceiptType, name="notification_receipt_type"),
     nullable=False,
   )
-  note: Mapped[str | None] = mapped_column(nullable=True)
+  note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
   message = relationship("NotificationMessage", back_populates="receipts")
   user = relationship("User", back_populates="notification_receipts")

@@ -72,7 +72,14 @@ if [ -f ".venv/bin/activate" ]; then
   source .venv/bin/activate
 fi
 
-check "pytest (unit + integration)"  python -m pytest -q
+printf "  %-55s" "→ pytest (unit + integration)"
+if python -c "import pytest" >/dev/null 2>&1; then
+  echo
+  check "pytest (unit + integration)"  python -m pytest -q
+else
+  echo -e "${_yellow}WARN (pytest not installed in current environment — skipped)${_reset}"
+  warn=$((warn + 1))
+fi
 check "compileall (syntax check)"    python -m compileall -q app tests
 
 # =============================================================================

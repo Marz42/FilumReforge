@@ -146,6 +146,8 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 当前仓库已经具备实际部署基础，但还没有开箱即用的 production compose 文件。若要部署到云服务器，推荐采用“**前端静态文件 + Nginx + backend/worker systemd + PostgreSQL/Redis**”这条路径，而不是直接把开发态 Compose 暴露到公网。
 
+如果需要一份按真实成功部署整理、可以逐条复制执行的完整操作手册，请直接看 [memory-bank/deployment-runbook-ubuntu-2404.md](memory-bank/deployment-runbook-ubuntu-2404.md)。该文档覆盖 Ubuntu 24.04 LTS 全新服务器初始化、PostgreSQL/Redis/Nginx/systemd 配置、前端静态文件权限、HTTP/HTTPS 验证、推送通知验证以及后续更新发布流程。
+
 ### 推荐拓扑
 
 - Nginx：公网 80 / 443 入口、TLS、前端静态资源与 `/api/` 反向代理

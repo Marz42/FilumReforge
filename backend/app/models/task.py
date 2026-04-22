@@ -19,10 +19,12 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     Index("idx_tasks_assignee_status", "assignee_id", "status"),
     Index("idx_tasks_department_status", "department_id", "status"),
     Index("idx_tasks_due_date", "due_date"),
+    Index("idx_tasks_template_instance_id", "template_instance_id"),
+    Index("idx_tasks_template_step_run_id", "template_step_run_id"),
   )
 
   title: Mapped[str] = mapped_column(String(255), nullable=False)
-  description: Mapped[str | None] = mapped_column(nullable=True)
+  description: Mapped[str | None] = mapped_column(Text, nullable=True)
   creator_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
   assignee_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
   department_id: Mapped[UUID | None] = mapped_column(ForeignKey("departments.id"), nullable=True)

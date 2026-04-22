@@ -52,6 +52,12 @@ class DocumentEmbedding(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
   __table_args__ = (
     UniqueConstraint("document_id", "chunk_index", name="uq_document_embeddings_chunk"),
     Index("idx_document_embeddings_doc_id", "document_id"),
+    Index(
+      "idx_doc_embeddings_vector",
+      "embedding",
+      postgresql_using="hnsw",
+      postgresql_ops={"embedding": "vector_cosine_ops"},
+    ),
   )
 
   document_id: Mapped[UUID] = mapped_column(
