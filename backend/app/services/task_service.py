@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -27,6 +27,10 @@ from app.models import (
   TaskComment,
   TaskDependency,
   TaskLog,
+  TaskTemplate,
+  TaskTemplateInstance,
+  TaskTemplateStep,
+  TaskTemplateStepRun,
   TaskWatcher,
   User,
   WorkflowInstance,
@@ -35,6 +39,7 @@ from app.models import (
 )
 from app.schemas.messages import NotificationMessage
 from app.services.notification_source import build_task_source_payload
+from app.services.workflow_rule_resolver import resolve_user_targets_from_rule
 from app.services.access_control import (
   MANAGEMENT_ROLES,
   can_publish_org_tasks,
@@ -189,6 +194,288 @@ class TaskService:
     self._notification_service = notification_service
     self._attachment_service = attachment_service
 
+  @staticmethod
+  def _is_template_step_satisfied(*, step: TaskTemplateStep, step_runs: list[TaskTemplateStepRun]) -> bool:
+    if not step_runs:
+      return False
+    if step.join_mode == "any":
+      return any(step_run.status == "completed" for step_run in step_runs)
+    return all(step_run.status == "completed" for step_run in step_runs)
+
+  async def _load_tasks_by_ids(self, *, task_ids: list[UUID]) -> list[Task]:
+    if not task_ids:
+      return []
+    tasks = list(
+      await self._session.scalars(
+        select(Task)
+        .options(
+          selectinload(Task.creator),
+          selectinload(Task.assignee),
+          selectinload(Task.department),
+          selectinload(Task.watchers).selectinload(TaskWatcher.user),
+        )
+        .where(Task.id.in_(task_ids))
+      )
+    )
+    task_order = {task_id: index for index, task_id in enumerate(task_ids)}
+    return sorted(tasks, key=lambda task: task_order[task.id])
+
+  async def _get_template_instance_or_raise(self, *, instance_id: UUID) -> TaskTemplateInstance:
+    instance = await self._session.scalar(
+      select(TaskTemplateInstance)
+      .options(
+        selectinload(TaskTemplateInstance.template)
+        .selectinload(TaskTemplate.steps)
+        .selectinload(TaskTemplateStep.dependencies),
+        selectinload(TaskTemplateInstance.initiator),
+      )
+      .where(TaskTemplateInstance.id == instance_id)
+    )
+    if instance is None or instance.template is None:
+      raise NotFoundError("模板实例不存在。")
+    return instance
+
+  async def _list_template_step_runs(self, *, instance_id: UUID) -> list[TaskTemplateStepRun]:
+    return list(
+      await self._session.scalars(
+        select(TaskTemplateStepRun)
+        .options(selectinload(TaskTemplateStepRun.template_step))
+        .where(TaskTemplateStepRun.instance_id == instance_id)
+      )
+    )
+
+  async def _resolve_template_watchers(
+    self,
+    *,
+    instance: TaskTemplateInstance,
+    initiator: User,
+    department_id: UUID | None,
+  ) -> list[User]:
+    raw_watcher_user_ids = instance.payload.get("watcher_user_ids")
+    if not isinstance(raw_watcher_user_ids, list) or not raw_watcher_user_ids:
+      return []
+    return await resolve_user_targets_from_rule(
+      self._session,
+      actor=initiator,
+      assignee_rule={"type": "user_ids", "user_ids": raw_watcher_user_ids},
+      department_id=department_id,
+      allow_multiple=True,
+    )
+
+  async def _activate_template_step(
+    self,
+    *,
+    instance: TaskTemplateInstance,
+    template: TaskTemplate,
+    step: TaskTemplateStep,
+    initiator: User,
+    department_id: UUID | None,
+    watcher_users: list[User],
+  ) -> tuple[list[Task], list[TaskTemplateStepRun], list[tuple[Task, User]], list[tuple[Task, User]]]:
+    assignee_overrides = instance.payload.get("assignee_overrides")
+    override_rule = assignee_overrides.get(step.step_key) if isinstance(assignee_overrides, dict) else None
+    assignees = await resolve_user_targets_from_rule(
+      self._session,
+      actor=initiator,
+      assignee_rule=dict(override_rule) if isinstance(override_rule, dict) else step.default_assignee_rule,
+      department_id=department_id,
+      allow_multiple=step.assignment_mode == "fan_out",
+    )
+
+    now = datetime.now(UTC)
+    created_tasks: list[Task] = []
+    created_step_runs: list[TaskTemplateStepRun] = []
+    created_bindings: list[tuple[Task, User]] = []
+    watcher_bindings: list[tuple[Task, User]] = []
+    for assignee in assignees:
+      step_run = TaskTemplateStepRun(
+        instance_id=instance.id,
+        template_step_id=step.id,
+        assignee_user_id=assignee.id,
+        status="active",
+      )
+      self._session.add(step_run)
+      await self._session.flush()
+
+      due_date = (
+        now + timedelta(hours=step.default_due_offset_hours)
+        if step.default_due_offset_hours is not None
+        else None
+      )
+      task, resolved_assignee = await self.create_task_record(
+        actor=initiator,
+        title=f"{template.name} / {step.title}",
+        assignee_id=assignee.id,
+        description="\n\n".join(value for value in [template.description, step.description] if value) or None,
+        department_id=department_id,
+        due_date=due_date,
+        priority=TaskPriority(str(step.config.get("priority") or TaskPriority.MEDIUM)),
+        source_type=TaskSourceType.TEMPLATE,
+        extra_metadata={
+          "template_id": str(template.id),
+          "template_code": template.code,
+          "template_instance_id": str(instance.id),
+          "template_step_id": str(step.id),
+          "template_step_run_id": str(step_run.id),
+          "template_step_key": step.step_key,
+          "template_step_type": step.step_type,
+          "assignment_mode": step.assignment_mode,
+          "join_mode": step.join_mode,
+          "instantiation_payload": dict(instance.payload),
+        },
+        commit=False,
+        skip_assignee_permission=True,
+        skip_publish_permission=True,
+      )
+      task.template_instance_id = instance.id
+      task.template_step_run_id = step_run.id
+      created_tasks.append(task)
+      created_step_runs.append(step_run)
+      created_bindings.append((task, resolved_assignee))
+
+      for watcher_user in watcher_users:
+        if watcher_user.id == task.assignee_id:
+          continue
+        self._session.add(
+          TaskWatcher(
+            task_id=task.id,
+            user_id=watcher_user.id,
+            relation="cc",
+            created_by=initiator.id,
+          )
+        )
+        watcher_bindings.append((task, watcher_user))
+
+    return created_tasks, created_step_runs, created_bindings, watcher_bindings
+
+  async def _dispatch_template_activation_notifications(
+    self,
+    *,
+    created_bindings: list[tuple[Task, User]],
+    watcher_bindings: list[tuple[Task, User]],
+  ) -> None:
+    for task, assignee in created_bindings:
+      await self._send_assignment_notification(task=task, assignee=assignee)
+
+    if self._notification_service is None:
+      return
+    for task, watcher_user in watcher_bindings:
+      await self._notification_service.send(
+        NotificationMessage(
+          source_type="task",
+          source_id=task.id,
+          recipient_user_id=watcher_user.id,
+          recipient_email=watcher_user.email,
+          message_type="task_cc_added",
+          title=f"你被加入任务关注：{task.title}",
+          body_text=f"任务「{task.title}」由模板步骤激活，并已将你加入关注列表。",
+          channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
+        )
+      )
+
+  async def _activate_ready_template_steps(
+    self,
+    *,
+    instance: TaskTemplateInstance,
+  ) -> tuple[list[UUID], list[tuple[Task, User]], list[tuple[Task, User]]]:
+    template = instance.template
+    initiator = instance.initiator
+    if template is None or initiator is None:
+      raise NotFoundError("模板实例上下文不完整。")
+
+    department_id = instance.department_id
+    watcher_users = await self._resolve_template_watchers(
+      instance=instance,
+      initiator=initiator,
+      department_id=department_id,
+    )
+    step_runs = await self._list_template_step_runs(instance_id=instance.id)
+    step_runs_by_step_id: dict[UUID, list[TaskTemplateStepRun]] = {}
+    for step_run in step_runs:
+      step_runs_by_step_id.setdefault(step_run.template_step_id, []).append(step_run)
+
+    satisfied_step_ids = {
+      step.id
+      for step in template.steps
+      if self._is_template_step_satisfied(step=step, step_runs=step_runs_by_step_id.get(step.id, []))
+    }
+
+    created_task_ids: list[UUID] = []
+    created_bindings: list[tuple[Task, User]] = []
+    watcher_bindings: list[tuple[Task, User]] = []
+    for step in sorted(template.steps, key=lambda current_step: (current_step.sort_order, current_step.created_at)):
+      if step_runs_by_step_id.get(step.id):
+        continue
+      dependency_ids = {dependency.depends_on_step_id for dependency in step.dependencies}
+      if not dependency_ids.issubset(satisfied_step_ids):
+        continue
+
+      created_tasks, created_step_runs, step_bindings, step_watchers = await self._activate_template_step(
+        instance=instance,
+        template=template,
+        step=step,
+        initiator=initiator,
+        department_id=department_id,
+        watcher_users=watcher_users,
+      )
+      created_task_ids.extend(task.id for task in created_tasks)
+      created_bindings.extend(step_bindings)
+      watcher_bindings.extend(step_watchers)
+      step_runs_by_step_id[step.id] = created_step_runs
+
+    if template.steps and all(
+      self._is_template_step_satisfied(step=step, step_runs=step_runs_by_step_id.get(step.id, []))
+      for step in template.steps
+    ):
+      instance.status = "completed"
+      instance.completed_at = datetime.now(UTC)
+    elif created_task_ids or step_runs_by_step_id:
+      instance.status = "in_progress"
+
+    return created_task_ids, created_bindings, watcher_bindings
+
+  async def activate_template_instance_steps(self, *, instance_id: UUID) -> list[Task]:
+    instance = await self._get_template_instance_or_raise(instance_id=instance_id)
+    task_ids, created_bindings, watcher_bindings = await self._activate_ready_template_steps(instance=instance)
+    await self._session.commit()
+    tasks = await self._load_tasks_by_ids(task_ids=task_ids)
+    task_map = {task.id: task for task in tasks}
+    await self._dispatch_template_activation_notifications(
+      created_bindings=[(task_map[task.id], assignee) for task, assignee in created_bindings if task.id in task_map],
+      watcher_bindings=[(task_map[task.id], watcher) for task, watcher in watcher_bindings if task.id in task_map],
+    )
+    return tasks
+
+  async def _progress_template_instance_after_task_completion(self, *, task: Task) -> None:
+    if task.template_step_run_id is None:
+      return
+
+    step_run = await self._session.scalar(
+      select(TaskTemplateStepRun)
+      .options(
+        selectinload(TaskTemplateStepRun.instance)
+        .selectinload(TaskTemplateInstance.template)
+        .selectinload(TaskTemplate.steps)
+        .selectinload(TaskTemplateStep.dependencies),
+        selectinload(TaskTemplateStepRun.instance).selectinload(TaskTemplateInstance.initiator),
+      )
+      .where(TaskTemplateStepRun.id == task.template_step_run_id)
+    )
+    if step_run is None or step_run.instance is None:
+      return
+    if step_run.status != "completed":
+      step_run.status = "completed"
+      step_run.completed_at = datetime.now(UTC)
+
+    task_ids, created_bindings, watcher_bindings = await self._activate_ready_template_steps(instance=step_run.instance)
+    await self._session.commit()
+    tasks = await self._load_tasks_by_ids(task_ids=task_ids)
+    task_map = {created_task.id: created_task for created_task in tasks}
+    await self._dispatch_template_activation_notifications(
+      created_bindings=[(task_map[created_task.id], assignee) for created_task, assignee in created_bindings if created_task.id in task_map],
+      watcher_bindings=[(task_map[created_task.id], watcher) for created_task, watcher in watcher_bindings if created_task.id in task_map],
+    )
+
   async def _resolve_assignee_for_task(
     self,
     *,
@@ -237,6 +524,27 @@ class TaskService:
       )
     )
 
+  async def _ensure_task_dependencies_ready(self, *, task: Task) -> None:
+    blocking_dependencies = list(
+      await self._session.scalars(
+        select(TaskDependency)
+        .options(selectinload(TaskDependency.depends_on_task))
+        .where(
+          TaskDependency.task_id == task.id,
+          TaskDependency.dependency_type == "blocks",
+        )
+      )
+    )
+    pending_dependency_titles = [
+      dependency.depends_on_task.title
+      for dependency in blocking_dependencies
+      if dependency.depends_on_task is not None and dependency.depends_on_task.status != TaskStatus.DONE
+    ]
+    if pending_dependency_titles:
+      raise ConflictError(
+        f"前置任务尚未完成，当前任务不能开始执行：{', '.join(pending_dependency_titles)}。"
+      )
+
   async def create_task_record(
     self,
     *,
@@ -252,10 +560,12 @@ class TaskService:
     extra_metadata: dict[str, object] | None = None,
     commit: bool = False,
     skip_assignee_permission: bool = False,
+    skip_publish_permission: bool = False,
   ) -> tuple[Task, User]:
     ensure_active_user(actor)
     if (
-      actor.id != assignee_id or department_id is not None
+      not skip_publish_permission
+      and (actor.id != assignee_id or department_id is not None)
     ) and not await can_publish_org_tasks(self._session, actor):
       raise AuthorizationError("当前账号不能发布组织任务。")
 
@@ -304,6 +614,8 @@ class TaskService:
         "priority": priority.value,
         "source_type": source_type.value,
         "dependency_ids": [str(dependency_id) for dependency_id in dependency_ids or []],
+        "template_instance_id": str(task.template_instance_id) if task.template_instance_id is not None else None,
+        "template_step_run_id": str(task.template_step_run_id) if task.template_step_run_id is not None else None,
       },
     )
     await self._create_task_log(
@@ -826,6 +1138,8 @@ class TaskService:
     allowed_statuses = ALLOWED_TASK_STATUS_TRANSITIONS[task.status]
     if target_status not in allowed_statuses:
       raise ConflictError("不支持的任务状态流转。")
+    if target_status == TaskStatus.DOING:
+      await self._ensure_task_dependencies_ready(task=task)
 
     previous_status = task.status
     now = datetime.now(UTC)
@@ -849,6 +1163,8 @@ class TaskService:
     )
     await self._session.commit()
     await self._session.refresh(task)
+    if target_status == TaskStatus.DONE:
+      await self._progress_template_instance_after_task_completion(task=task)
     return task
 
   async def create_task_comment(

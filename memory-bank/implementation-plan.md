@@ -13,7 +13,7 @@
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: `refactor-plan.md` 的 **Step 7 / 当前重构收口（已实现，等待用户验测）**
+**当前执行位置**: `refactor-plan.md` 的 **Step 7 / 当前重构收口（已完成并通过用户验测）**；当前已进入 **工作流 E / 结构化任务模板与多步骤协作** 的实施阶段
 
 ## 2. 已确认约束
 
@@ -95,7 +95,7 @@
 
 **重点方向**
 
-- 当前批次：已完成 Step 7，当前重构成果已收口到 memory-bank、README 体系与全量验证结果；当前停在 Step 7，等待用户手动验测，不进入新的功能范围
+- 当前批次：Step 7 已完成并通过用户验测，当前重构成果已收口到 memory-bank、README 体系与全量验证结果；后续增强以新的工作流推进，不再回到 Step 7 收口语境
 - 收敛前端大型页面的状态与副作用
 - 梳理服务层边界，减少跨服务耦合
 - 明确通知总线、AI Router、知识库、档案治理等关键链路的集成测试覆盖
@@ -168,6 +168,44 @@
 - delivery 状态一致性
 - 附件绑定与权限控制
 - adapter 失败 / 重试 / 过期订阅处理
+
+### 6.5 工作流 E：结构化任务模板与多步骤协作
+
+**目标**
+
+在已完成“模板实例驱动的逐步激活”“多人扇出 / 汇聚”“结构化模板设计器首版”的基础上，继续把工作流 E 收口为可回归、可部署、可持续扩展的稳定能力，使模板可以稳定覆盖“参与选题会后多人提交”“前置完成后再激活下游”的实际协作场景。
+
+**当前状态**
+
+- 后端已完成 `TaskTemplateInstance` / `TaskTemplateStepRun`、`assignment_mode` / `join_mode`、`tasks` 对模板运行态的回链字段，以及对应 Alembic 迁移
+- `TaskTemplateService` / `TaskService` 已切到“实例驱动激活”模式：实例化只激活首批就绪步骤，任务完成后会自动推进下游
+- API 已补结构化步骤字段、模板实例快照与实例列表接口
+- `TaskTemplatesView.vue` 已升级为结构化设计器首版，支持步骤增删改、JSON 导入、实例快照与已有模板编辑
+- 当前重心已从“从 0 到 1 实现”切到“全量回归、部署收口、模板管理深化与生命周期联动”
+
+**已确认决策**
+
+1. 激活策略采用“模板实例 / 步骤运行态独立建模 + 仅为已激活步骤创建真实任务”，不采用“预创建全部任务再锁定”
+2. 多人汇聚规则首版支持可配置 `all` / `any`
+3. 设计器首版采用结构化表单，不做完整拖拽式流程图；保留 JSON 预览 / 导入作为高级入口
+
+**下一批顺序**
+
+1. 验证与部署收口
+	- 执行 backend / frontend 全量回归，确认工作流 E 首批实现与现有基线没有回归冲突
+	- 持续同步 `memory-bank`、README 与云服务器部署指南，避免文档继续漂移
+2. 模板管理深化
+	- 继续补模板 / 调度更完整的管理动作与更强设计器校验，而不是停留在“可创建 / 可实例化”的首版能力
+3. 业务联动
+	- 将生命周期事件与任务模板 / 审批流联动，形成真正的事件驱动事务入口
+4. 稳定性与测试强化
+	- 扩展 workflow E 相关 API / 集成测试与更大范围的前端交互回归
+
+**测试出口**
+
+- 当前已完成定向验证：backend `pytest -q /app/tests/test_services.py /app/tests/test_api.py`、frontend `npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run type-check`
+- 下一步全量验证：backend `pytest -q`、`python -m compileall app tests`；frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`
+- 前端 lint 若仅做只读校验，优先执行 `npm exec oxlint .` 与 `npm exec eslint .`，避免 `npm run lint` 的 `--fix` 副作用混入回归结果
 
 ## 7. 跨阶段通用规则
 

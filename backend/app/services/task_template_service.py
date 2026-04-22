@@ -1,16 +1,24 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import DEFAULT_USER_NOTIFICATION_CHANNELS, TaskPriority, TaskSourceType
+from app.core.enums import TaskPriority
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
-from app.models import Task, TaskDependency, TaskTemplate, TaskTemplateStep, TaskTemplateStepDependency, TaskWatcher, User
-from app.schemas.messages import NotificationMessage
+from app.models import (
+  Task,
+  TaskTemplate,
+  TaskTemplateInstance,
+  TaskTemplateStep,
+  TaskTemplateStepDependency,
+  TaskTemplateStepRun,
+  User,
+)
 from app.services.access_control import can_manage_task_templates, can_publish_org_tasks, ensure_active_user
 from app.services.notification_service import NotificationService
 from app.services.task_service import TaskService
@@ -19,6 +27,12 @@ from app.services.workflow_rule_resolver import (
   resolve_actor_department_id,
   resolve_user_targets_from_rule,
 )
+
+
+@dataclass(slots=True)
+class TaskTemplateInstantiationResult:
+  instance: TaskTemplateInstance
+  tasks: list[Task]
 
 
 class TaskTemplateService:
@@ -39,6 +53,18 @@ class TaskTemplateService:
       .selectinload(TaskTemplateStep.dependencies)
       .selectinload(TaskTemplateStepDependency.depends_on_step),
       selectinload(TaskTemplate.schedules),
+    )
+
+  def _instance_statement(self):
+    return select(TaskTemplateInstance).options(
+      selectinload(TaskTemplateInstance.initiator),
+      selectinload(TaskTemplateInstance.department),
+      selectinload(TaskTemplateInstance.template)
+      .selectinload(TaskTemplate.steps)
+      .selectinload(TaskTemplateStep.dependencies)
+      .selectinload(TaskTemplateStepDependency.depends_on_step),
+      selectinload(TaskTemplateInstance.step_runs).selectinload(TaskTemplateStepRun.assignee),
+      selectinload(TaskTemplateInstance.step_runs).selectinload(TaskTemplateStepRun.task),
     )
 
   async def _ensure_manage_templates(self, *, actor: User) -> None:
@@ -79,10 +105,16 @@ class TaskTemplateService:
     for index, step_payload in enumerate(self._normalize_step_payloads(steps), start=1):
       step_key = str(step_payload.get("step_key") or "").strip()
       title = str(step_payload.get("title") or "").strip()
+      assignment_mode = str(step_payload.get("assignment_mode") or "single").strip()
+      join_mode = str(step_payload.get("join_mode") or "all").strip()
       if not step_key or not title:
         raise ConflictError("模板步骤必须包含 step_key 和 title。")
       if step_key in step_map:
         raise ConflictError("模板步骤 step_key 不能重复。")
+      if assignment_mode not in {"single", "fan_out"}:
+        raise ConflictError("assignment_mode 仅支持 single 或 fan_out。")
+      if join_mode not in {"all", "any"}:
+        raise ConflictError("join_mode 仅支持 all 或 any。")
 
       step = TaskTemplateStep(
         template_id=template.id,
@@ -90,6 +122,8 @@ class TaskTemplateService:
         title=title,
         description=str(step_payload.get("description") or "").strip() or None,
         step_type=str(step_payload.get("step_type") or "task"),
+        assignment_mode=assignment_mode,
+        join_mode="all" if assignment_mode == "single" else join_mode,
         default_assignee_rule=dict(step_payload.get("default_assignee_rule") or {"type": "initiator"}),
         default_due_offset_hours=(
           int(step_payload["default_due_offset_hours"])
@@ -131,6 +165,49 @@ class TaskTemplateService:
   async def get_template(self, *, actor: User, template_id: UUID) -> TaskTemplate:
     ensure_active_user(actor)
     return await self._get_template_or_raise(actor=actor, template_id=template_id)
+
+  async def list_instances(
+    self,
+    *,
+    actor: User,
+    template_id: UUID,
+    limit: int = 10,
+  ) -> list[TaskTemplateInstance]:
+    ensure_active_user(actor)
+    await self._get_template_or_raise(actor=actor, template_id=template_id)
+
+    normalized_limit = max(1, min(limit, 20))
+    statement = (
+      self._instance_statement()
+      .where(TaskTemplateInstance.template_id == template_id)
+      .order_by(TaskTemplateInstance.created_at.desc())
+      .limit(normalized_limit)
+    )
+    if not await can_manage_task_templates(self._session, actor):
+      statement = statement.where(TaskTemplateInstance.initiator_user_id == actor.id)
+    return list(await self._session.scalars(statement))
+
+  async def get_instance(
+    self,
+    *,
+    actor: User,
+    template_id: UUID,
+    instance_id: UUID,
+  ) -> TaskTemplateInstance:
+    ensure_active_user(actor)
+    await self._get_template_or_raise(actor=actor, template_id=template_id)
+
+    statement = self._instance_statement().where(
+      TaskTemplateInstance.id == instance_id,
+      TaskTemplateInstance.template_id == template_id,
+    )
+    if not await can_manage_task_templates(self._session, actor):
+      statement = statement.where(TaskTemplateInstance.initiator_user_id == actor.id)
+
+    instance = await self._session.scalar(statement)
+    if instance is None:
+      raise NotFoundError("模板实例不存在。")
+    return instance
 
   async def create_template(
     self,
@@ -217,7 +294,7 @@ class TaskTemplateService:
     department_id: UUID | None = None,
     watcher_user_ids: list[UUID] | None = None,
     payload: dict[str, object] | None = None,
-  ) -> list[Task]:
+  ) -> TaskTemplateInstantiationResult:
     ensure_active_user(actor)
     if not await can_publish_org_tasks(self._session, actor):
       raise AuthorizationError("当前账号不能发布模板任务。")
@@ -259,113 +336,24 @@ class TaskTemplateService:
     if assignee_overrides is not None and not isinstance(assignee_overrides, dict):
       raise ConflictError("assignee_overrides 必须是对象。")
 
-    created_tasks: list[tuple[Task, User]] = []
-    task_by_step_key: dict[str, Task] = {}
-    now = datetime.now(UTC)
-    for step in sorted(template.steps, key=lambda current_step: (current_step.sort_order, current_step.created_at)):
-      override_rule = assignee_overrides.get(step.step_key) if isinstance(assignee_overrides, dict) else None
-      assignees = await resolve_user_targets_from_rule(
-        self._session,
-        actor=actor,
-        assignee_rule=dict(override_rule) if isinstance(override_rule, dict) else step.default_assignee_rule,
-        department_id=resolved_department_id,
-        allow_multiple=False,
-      )
-      assignee = assignees[0]
-      due_date = (
-        now + timedelta(hours=step.default_due_offset_hours)
-        if step.default_due_offset_hours is not None
-        else None
-      )
-      task_title = f"{template.name} / {step.title}"
-      task_description = "\n\n".join(
-        value for value in [template.description, step.description] if value
-      ) or None
-      task, resolved_assignee = await self._task_service.create_task_record(
-        actor=actor,
-        title=task_title,
-        assignee_id=assignee.id,
-        description=task_description,
-        department_id=resolved_department_id,
-        due_date=due_date,
-        priority=TaskPriority(str(step.config.get("priority") or TaskPriority.MEDIUM)),
-        source_type=TaskSourceType.TEMPLATE,
-        extra_metadata={
-          "template_id": str(template.id),
-          "template_code": template.code,
-          "template_step_id": str(step.id),
-          "template_step_key": step.step_key,
-          "template_step_type": step.step_type,
-          "instantiation_payload": payload_dict,
-        },
-        commit=False,
-        skip_assignee_permission=True,
-      )
-      created_tasks.append((task, resolved_assignee))
-      task_by_step_key[step.step_key] = task
+    instance_payload = dict(payload_dict)
+    instance_payload["watcher_user_ids"] = [str(user.id) for user in watcher_users]
+    if assignee_overrides is not None:
+      instance_payload["assignee_overrides"] = dict(assignee_overrides)
 
-    for step in template.steps:
-      task = task_by_step_key[step.step_key]
-      for dependency in step.dependencies:
-        depends_on_task = task_by_step_key.get(dependency.depends_on_step.step_key)
-        if depends_on_task is None:
-          raise ConflictError("模板依赖缺少对应任务实例。")
-        self._session.add(
-          TaskDependency(
-            task_id=task.id,
-            depends_on_task_id=depends_on_task.id,
-          )
-        )
-
-    watcher_bindings: list[tuple[Task, User]] = []
-    for task, _ in created_tasks:
-      for watcher_user in watcher_users:
-        if watcher_user.id == task.assignee_id:
-          continue
-        self._session.add(
-          TaskWatcher(
-            task_id=task.id,
-            user_id=watcher_user.id,
-            relation="cc",
-            created_by=actor.id,
-          )
-        )
-        watcher_bindings.append((task, watcher_user))
-
-    await self._session.commit()
-
-    for task, assignee in created_tasks:
-      await self._task_service._send_assignment_notification(task=task, assignee=assignee)
-
-    if self._notification_service is not None:
-      for task, watcher_user in watcher_bindings:
-        await self._notification_service.send(
-          NotificationMessage(
-            source_type="task",
-            source_id=task.id,
-            recipient_user_id=watcher_user.id,
-            recipient_email=watcher_user.email,
-            message_type="task_cc_added",
-            title=f"你被加入任务关注：{task.title}",
-            body_text=f"任务「{task.title}」由模板实例化，并已将你加入关注列表。",
-            channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
-          )
-        )
-
-    task_ids = [task.id for task, _ in created_tasks]
-    if not task_ids:
-      return []
-    tasks = list(
-      await self._session.scalars(
-        select(Task)
-        .options(
-          selectinload(Task.creator),
-          selectinload(Task.assignee),
-          selectinload(Task.department),
-          selectinload(Task.watchers).selectinload(TaskWatcher.user),
-        )
-        .where(Task.id.in_(task_ids))
-      )
+    instance = TaskTemplateInstance(
+      template_id=template.id,
+      initiator_user_id=actor.id,
+      department_id=resolved_department_id,
+      status="in_progress",
+      payload=instance_payload,
     )
-    task_order = {task_id: index for index, task_id in enumerate(task_ids)}
-    return sorted(tasks, key=lambda task: task_order[task.id])
+    self._session.add(instance)
+    await self._session.flush()
+    tasks = await self._task_service.activate_template_instance_steps(instance_id=instance.id)
+    instance_snapshot = await self.get_instance(
+      actor=actor,
+      template_id=template.id,
+      instance_id=instance.id,
+    )
+    return TaskTemplateInstantiationResult(instance=instance_snapshot, tasks=tasks)

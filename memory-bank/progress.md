@@ -21,7 +21,13 @@
 | Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；已修复 PostgreSQL 500 根因，并通过用户手动验测 |
 | Step 5 / 档案管理 & 用户管理合并 | done | 已完成 `/api/v1/people-management` 聚合接口与统一人员工作台；已完成全量自动化回归，并通过用户手动验测 |
 | Step 6 / 消息中心联动与提醒收口 | done | 已完成消息中心聚合快照、来源 payload 规范化、用户级隔离、来源回跳与前后端全量回归，并通过用户手动验测 |
-| Step 7 / 当前重构收口 | in_review | 已完成 memory-bank、README 与子目录 README 收口，已执行最终全量回归；等待用户手动验测 |
+| Step 7 / 当前重构收口 | done | 已完成 memory-bank、README 与子目录 README 收口，已执行最终全量回归，并通过用户验测 |
+
+## 下一轮工作流状态
+
+| 工作流 | 状态 | 结论 |
+| --- | --- | --- |
+| 工作流 E / 结构化任务模板与多步骤协作 | in_progress | 首批实现已落地：模板实例 / 步骤运行态、逐步激活、多人扇出 / 汇聚、结构化设计器与实例快照已完成；当前进入回归、部署准备与后续深化 |
 
 ## 已完成里程碑
 
@@ -284,10 +290,20 @@
 ### Step 7 / 当前重构收口
 
 - 本轮目标是把当前重构成果正式收口为可交接、可验证、可继续迭代的稳定基线。
-- 当前计划包含：推进 `memory-bank`、同步根 `README.md`、修正明显过时的子目录 README、执行后端 / 前端全量回归、提交最终收口 commit。
+- 本轮收口范围包括：推进 `memory-bank`、同步根 `README.md`、修正明显过时的子目录 README、执行后端 / 前端全量回归。
 - 已完成根 `README.md`、`backend/README.md`、`frontend/README.md`、`infra/docker/README.md` 的当前基线同步，并把前端壳层中的阶段文案从旧的 Phase 5 / Knowledge 文案收口到 Step 7。
 - 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 全量回归。
-- 当前状态：**Step 7 implemented / waiting for user validation**；当前停在 Step 7，不进入注册能力等后续工作流。
+- 用户已确认可以进入下一轮实现，因此 Step 7 已作为稳定基线收口完成。
+- 当前状态：**Step 7 done / user accepted**。
+
+### 工作流 E / 结构化任务模板与多步骤协作
+
+- 已完成后端运行态模型与迁移：新增 `TaskTemplateInstance`、`TaskTemplateStepRun`、`tasks.template_instance_id`、`tasks.template_step_run_id`，并落地 `20260422_01_template_runtime.py`。
+- 已完成服务层切换：`TaskTemplateService.instantiate_template()` 改为“创建实例 + 激活首批就绪步骤”；`TaskService` 在任务完成后回写步骤运行态并自动激活下游，支持 `single` / `fan_out` 与 `all` / `any` 汇聚语义。
+- 已完成 API 协议扩展：模板步骤显式暴露 `assignment_mode` / `join_mode`；实例化接口返回实例快照；新增 `GET /task-templates/{template_id}/instances`。
+- 已完成前端结构化设计器首版：支持步骤增删改、依赖选择、负责人规则、JSON 导入、实例快照展示，以及已有模板的结构化编辑。
+- 已完成定向验证：`docker compose exec backend pytest -q /app/tests/test_services.py /app/tests/test_api.py`、`npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run type-check`。
+- 当前下一步：继续做前后端全量回归、云部署收口、模板 / 调度管理深化，以及生命周期事件与模板 / 审批流联动。
 
 ### Phase 3 验测补记
 

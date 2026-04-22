@@ -155,6 +155,7 @@ async def api_client(
     storage_bucket="filum-test",
     jwt_secret_key=TEST_JWT_SECRET,
     openai_api_key="test-openai-key",
+    web_push_public_key="test-public-key",
     web_push_private_key="test-private-key",
     web_push_subject="mailto:test@example.com",
   )
@@ -1144,9 +1145,31 @@ async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
     },
   )
   assert instantiate_response.status_code == 200
-  instantiated_tasks = instantiate_response.json()["tasks"]
-  assert len(instantiated_tasks) == 2
+  instantiate_payload = instantiate_response.json()
+  instantiated_tasks = instantiate_payload["tasks"]
+  assert len(instantiated_tasks) == 1
+  assert instantiate_payload["instance"]["step_snapshots"][0]["status"] == "active"
+  assert instantiate_payload["instance"]["step_snapshots"][1]["status"] == "blocked"
   first_task_id = instantiated_tasks[0]["id"]
+
+  for next_status in ("doing", "review", "done"):
+    status_response = await client.patch(
+      f"/api/v1/tasks/{first_task_id}/status",
+      headers=employee_headers,
+      json={"status": next_status},
+    )
+    assert status_response.status_code == 200
+
+  instances_response = await client.get(
+    f"/api/v1/task-templates/{template_id}/instances",
+    headers=employee_headers,
+  )
+  assert instances_response.status_code == 200
+  assert len(instances_response.json()) == 1
+  latest_instance = instances_response.json()[0]
+  assert latest_instance["step_snapshots"][0]["status"] == "completed"
+  assert latest_instance["step_snapshots"][1]["status"] == "active"
+  assert len(latest_instance["step_snapshots"][1]["step_runs"]) == 1
 
   watcher_add_response = await client.post(
     f"/api/v1/tasks/{first_task_id}/watchers",
@@ -2184,12 +2207,30 @@ async def test_phase5_knowledge_ai_push_api_flow(api_client) -> None:
   assert create_subscription_response.status_code == 201
   subscription_id = create_subscription_response.json()["id"]
 
+  config_response = await client.get(
+    "/api/v1/push-subscriptions/config",
+    headers=employee_headers,
+  )
+  assert config_response.status_code == 200
+  assert config_response.json() == {
+    "public_key": "test-public-key",
+    "is_enabled": True,
+  }
+
   list_subscriptions_response = await client.get(
     "/api/v1/push-subscriptions",
     headers=employee_headers,
   )
   assert list_subscriptions_response.status_code == 200
   assert len(list_subscriptions_response.json()) == 1
+
+  test_push_response = await client.post(
+    "/api/v1/push-subscriptions/test",
+    headers=employee_headers,
+  )
+  assert test_push_response.status_code == 202
+  assert test_push_response.json()["detail"] == "测试推送已入队，请留意浏览器通知。"
+  assert queue_publisher.payloads[-1]["message_type"] == "web_push_test"
 
   delete_subscription_response = await client.delete(
     f"/api/v1/push-subscriptions/{subscription_id}",

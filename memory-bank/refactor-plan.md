@@ -1,8 +1,18 @@
 # Project Filum 重构方案
 
-**版本**: v1.4  
-**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 已完成并通过用户验测；Step 7 已实现并等待用户验测  
-**适用范围**: 基于当前 Phase 5 已完成基线，对前端信息架构、部分领域模型、页面边界与权限分层进行重构规划
+**版本**: v1.5  
+**状态**: 历史规划文档；Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测  
+**适用范围**: 记录当前重构批次启动前的方案与目标；当前实现事实以 `architecture.md`、`progress.md`、根目录与子目录 `README.md` 为准
+
+## 0. 阅读说明
+
+- 本文保留 Step 1-7 开始执行前的提案语境，部分“建议新增”“新建”“重写”表述描述的是历史计划，不表示当前仍未实现。
+- 当前已确认的关键落地映射如下：
+   - `PeopleAdminService` 规划名称已落地为 `PeopleManagementService`
+   - 汇报中心聚合 API 规划中的 `/reports/*` 已落地为 `/api/v1/report-center/*`
+   - 人员工作台聚合 API 规划中的 `/people/*` 已落地为 `/api/v1/people-management*`
+   - 总览页方案最终继续复用 `HomeView.vue` 承接 `/overview`，未单独保留 `OverviewView.vue`
+- 如果需要确认当前版本的真实行为，优先查看 `memory-bank/architecture.md`、`memory-bank/progress.md`、`README.md` 以及对应实现文件。
 
 ## 1. 重构背景
 
@@ -450,17 +460,17 @@
 - `access_control.py`
 - `attachments` 与对象存储抽象
 
-## 7.2 计划新增 / 调整的服务
+## 7.2 历史计划新增 / 调整的服务（当前已落地映射）
 
 ### 新增服务
 
 1. `OverviewService`
 2. `BoardService`
 3. `AnnouncementService`
-4. `TaskInboxService` 或在 `TaskService` 内新增投影查询
+4. 任务投影查询最终落地在 `TaskService`、`TaskCenterService` 与 `OverviewService`，未单独保留 `TaskInboxService`
 5. `ReportCenterService`
-6. `PeopleAdminService`
-7. `DepartmentCapabilityService`
+6. `PeopleManagementService`（规划阶段曾暂记为 `PeopleAdminService`）
+7. 部门能力当前通过 `departments.capabilities` 字段与部门管理链路承载，未单独保留 `DepartmentCapabilityService`
 8. `TaskMemoService`
 
 ### 需要重构的现有服务
@@ -474,7 +484,7 @@
 4. `NotificationService`
    - 明确哪些事件默认触发消息、哪些事件进入 Web Push
 
-## 7.3 建议新增 API
+## 7.3 历史建议 API（当前已落地入口）
 
 1. `/overview`
    - 总览聚合接口
@@ -484,12 +494,12 @@
    - 公告 CRUD、撤下、历史查询
 4. `/task-center/*`
    - 待办、跟踪、历史、备忘聚合接口
-5. `/reports/*`
-   - 汇报中心接口
-6. `/people/*`
-   - 人员管理聚合接口
-7. `/department-capabilities`
-   - 部门能力配置接口
+5. `/report-center/*`
+   - 汇报中心聚合接口；前端页面入口仍为 `/reports`
+6. `/people-management*`
+   - 人员工作台聚合接口；前端页面入口仍为 `/people`
+7. 部门能力配置
+   - 当前复用部门管理链路与 `departments.capabilities` 字段承载，未单独新增 `/department-capabilities`
 
 ## 8. 前端重构策略
 
@@ -516,8 +526,7 @@
 
 ### 总览
 
-- 新建 `OverviewView.vue`
-- 替换 `HomeView.vue`
+- 当前实际继续复用 `HomeView.vue` 承接 `/overview`，未单独保留 `OverviewView.vue`
 
 ### 任务中心
 

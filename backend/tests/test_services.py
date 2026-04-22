@@ -39,7 +39,16 @@ from app.core.enums import (
   WorkflowInstanceStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
-from app.models import AttachmentLink, NotificationDelivery, NotificationMessage as NotificationMessageModel, TaskDependency, TaskLog, User
+from app.models import (
+  AttachmentLink,
+  NotificationDelivery,
+  NotificationMessage as NotificationMessageModel,
+  TaskDependency,
+  TaskLog,
+  TaskTemplateInstance,
+  TaskTemplateStepRun,
+  User,
+)
 from app.models import Announcement, BoardCard
 from app.integrations.storage.local import LocalStorageAdapter
 from app.services.announcement_service import AnnouncementService
@@ -727,11 +736,12 @@ async def test_step3_task_center_permissions_history_and_memos(db_session) -> No
       ],
     )
 
-  tasks = await task_template_service.instantiate_template(
+  instantiation = await task_template_service.instantiate_template(
     actor=employee,
     template_id=template.id,
     payload={"department_id": str(department.id)},
   )
+  tasks = instantiation.tasks
   created_task = tasks[0]
   await task_service.transition_task_status(
     actor=employee,
@@ -1407,17 +1417,15 @@ async def test_phase4_template_automation_and_message_center_services(db_session
     ],
   )
 
-  tasks = await task_template_service.instantiate_template(
+  instantiation = await task_template_service.instantiate_template(
     actor=requester,
     template_id=template.id,
     watcher_user_ids=[watcher.id],
     payload={"department_id": str(department.id)},
   )
-  dependency_rows = list(
-    await db_session.scalars(
-      select(TaskDependency).where(TaskDependency.task_id == tasks[1].id)
-    )
-  )
+  tasks = instantiation.tasks
+  instances = list(await db_session.scalars(select(TaskTemplateInstance)))
+  step_runs = list(await db_session.scalars(select(TaskTemplateStepRun)))
   watchers = await task_service.list_task_watchers(actor=admin, task_id=tasks[0].id)
   watcher_messages = await message_center_service.list_messages(actor=watcher)
   read_receipt = await message_center_service.create_receipt(
@@ -1442,15 +1450,346 @@ async def test_phase4_template_automation_and_message_center_services(db_session
   executed_count = await task_automation_service.run_due_schedules(now=datetime.now(UTC))
   all_tasks = await task_service.list_tasks(actor=admin)
 
-  assert len(tasks) == 2
+  assert len(tasks) == 1
   assert tasks[0].source_type.value == "template"
-  assert dependency_rows[0].depends_on_task_id == tasks[0].id
+  assert tasks[0].extra_metadata["template_step_key"] == "prepare"
+  assert len(instances) == 1
+  assert len(step_runs) == 1
   assert [watcher_binding.user_id for watcher_binding in watchers] == [watcher.id]
-  assert len([message for message in watcher_messages if message.message_type == "task_cc_added"]) == 2
+  assert len([message for message in watcher_messages if message.message_type == "task_cc_added"]) == 1
   assert read_receipt.id == idempotent_receipt.id
   assert executed_count == 1
-  assert len(all_tasks) == 4
+  assert len(all_tasks) == 2
   assert schedule.next_run_at is not None
+
+
+@pytest.mark.asyncio
+async def test_task_template_dependencies_block_downstream_status_transition(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="视频部",
+    code="video-dept",
+    manager_id=manager.id,
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=manager.id,
+    employee_no="EMP-MGR-001",
+    real_name="视频主管",
+    department_id=department.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=requester.id,
+    employee_no="EMP-REQ-001",
+    real_name="视频发起人",
+    department_id=department.id,
+  )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="video-production",
+    name="视频制作",
+    category="media",
+    steps=[
+      {
+        "step_key": "topic_meeting",
+        "title": "召开选题会",
+        "default_assignee_rule": {"type": "initiator"},
+      },
+      {
+        "step_key": "manager_review",
+        "title": "主管确认选题",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["topic_meeting"],
+      },
+    ],
+  )
+
+  instantiation = await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=template.id,
+    payload={"department_id": str(department.id)},
+  )
+  tasks = instantiation.tasks
+  assert len(tasks) == 1
+  upstream_task = tasks[0]
+
+  await task_service.transition_task_status(
+    actor=requester,
+    task_id=upstream_task.id,
+    target_status=TaskStatus.DOING,
+  )
+  await task_service.transition_task_status(
+    actor=requester,
+    task_id=upstream_task.id,
+    target_status=TaskStatus.REVIEW,
+  )
+  await task_service.transition_task_status(
+    actor=requester,
+    task_id=upstream_task.id,
+    target_status=TaskStatus.DONE,
+  )
+
+  all_tasks = await task_service.list_tasks(actor=admin)
+  downstream_task = next(
+    task for task in all_tasks if task.extra_metadata.get("template_step_key") == "manager_review"
+  )
+
+  activated_task = await task_service.transition_task_status(
+    actor=manager,
+    task_id=downstream_task.id,
+    target_status=TaskStatus.DOING,
+  )
+
+  assert activated_task.status == TaskStatus.DOING
+
+
+@pytest.mark.asyncio
+async def test_task_template_fan_out_join_modes_activate_downstream(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  editor_a = await user_service.create_user(
+    actor=admin,
+    email="editor-a@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  editor_b = await user_service.create_user(
+    actor=admin,
+    email="editor-b@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="视频部",
+    code="video-team",
+    manager_id=manager.id,
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  for user_id, employee_no, real_name in [
+    (manager.id, "EMP-MGR-ALL", "视频主管"),
+    (requester.id, "EMP-REQ-ALL", "视频发起人"),
+    (editor_a.id, "EMP-EDA-ALL", "剪辑 A"),
+    (editor_b.id, "EMP-EDB-ALL", "剪辑 B"),
+  ]:
+    await profile_service.create_profile(
+      actor=admin,
+      user_id=user_id,
+      employee_no=employee_no,
+      real_name=real_name,
+      department_id=department.id,
+    )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  all_template = await task_template_service.create_template(
+    actor=admin,
+    code="video-all-join",
+    name="视频素材会签",
+    category="media",
+    steps=[
+      {
+        "step_key": "kickoff",
+        "title": "发起制作",
+        "default_assignee_rule": {"type": "initiator"},
+      },
+      {
+        "step_key": "collect_assets",
+        "title": "多人提交素材",
+        "assignment_mode": "fan_out",
+        "join_mode": "all",
+        "default_assignee_rule": {
+          "type": "user_ids",
+          "user_ids": [str(editor_a.id), str(editor_b.id)],
+        },
+        "depends_on_step_keys": ["kickoff"],
+      },
+      {
+        "step_key": "manager_review",
+        "title": "主管确认素材",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["collect_assets"],
+      },
+    ],
+  )
+
+  all_instantiation = await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=all_template.id,
+    payload={"department_id": str(department.id)},
+  )
+  initial_tasks = all_instantiation.tasks
+  kickoff_task = initial_tasks[0]
+  for target_status in [TaskStatus.DOING, TaskStatus.REVIEW, TaskStatus.DONE]:
+    await task_service.transition_task_status(
+      actor=requester,
+      task_id=kickoff_task.id,
+      target_status=target_status,
+    )
+
+  after_kickoff_tasks = await task_service.list_tasks(actor=admin)
+  fan_out_tasks = [
+    task
+    for task in after_kickoff_tasks
+    if task.extra_metadata.get("template_step_key") == "collect_assets"
+    and task.extra_metadata.get("template_id") == str(all_template.id)
+  ]
+  assert len(fan_out_tasks) == 2
+
+  first_fan_out_task = next(task for task in fan_out_tasks if task.assignee_id == editor_a.id)
+  for target_status in [TaskStatus.DOING, TaskStatus.REVIEW, TaskStatus.DONE]:
+    await task_service.transition_task_status(
+      actor=editor_a,
+      task_id=first_fan_out_task.id,
+      target_status=target_status,
+    )
+
+  tasks_after_first_completion = await task_service.list_tasks(actor=admin)
+  assert not any(
+    task.extra_metadata.get("template_step_key") == "manager_review"
+    and task.extra_metadata.get("template_id") == str(all_template.id)
+    for task in tasks_after_first_completion
+  )
+
+  second_fan_out_task = next(task for task in fan_out_tasks if task.assignee_id == editor_b.id)
+  for target_status in [TaskStatus.DOING, TaskStatus.REVIEW, TaskStatus.DONE]:
+    await task_service.transition_task_status(
+      actor=editor_b,
+      task_id=second_fan_out_task.id,
+      target_status=target_status,
+    )
+
+  tasks_after_all_completion = await task_service.list_tasks(actor=admin)
+  assert any(
+    task.extra_metadata.get("template_step_key") == "manager_review"
+    and task.extra_metadata.get("template_id") == str(all_template.id)
+    for task in tasks_after_all_completion
+  )
+
+  any_template = await task_template_service.create_template(
+    actor=admin,
+    code="video-any-join",
+    name="视频素材或签",
+    category="media",
+    steps=[
+      {
+        "step_key": "kickoff",
+        "title": "发起制作",
+        "default_assignee_rule": {"type": "initiator"},
+      },
+      {
+        "step_key": "collect_assets",
+        "title": "任一人先提交素材",
+        "assignment_mode": "fan_out",
+        "join_mode": "any",
+        "default_assignee_rule": {
+          "type": "user_ids",
+          "user_ids": [str(editor_a.id), str(editor_b.id)],
+        },
+        "depends_on_step_keys": ["kickoff"],
+      },
+      {
+        "step_key": "manager_review",
+        "title": "主管确认素材",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["collect_assets"],
+      },
+    ],
+  )
+
+  any_instantiation = await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=any_template.id,
+    payload={"department_id": str(department.id)},
+  )
+  any_initial_tasks = any_instantiation.tasks
+  any_kickoff_task = any_initial_tasks[0]
+  for target_status in [TaskStatus.DOING, TaskStatus.REVIEW, TaskStatus.DONE]:
+    await task_service.transition_task_status(
+      actor=requester,
+      task_id=any_kickoff_task.id,
+      target_status=target_status,
+    )
+
+  any_fan_out_tasks = [
+    task
+    for task in await task_service.list_tasks(actor=admin)
+    if task.extra_metadata.get("template_step_key") == "collect_assets"
+    and task.extra_metadata.get("template_id") == str(any_template.id)
+  ]
+  assert len(any_fan_out_tasks) == 2
+
+  first_any_task = next(task for task in any_fan_out_tasks if task.assignee_id == editor_a.id)
+  for target_status in [TaskStatus.DOING, TaskStatus.REVIEW, TaskStatus.DONE]:
+    await task_service.transition_task_status(
+      actor=editor_a,
+      task_id=first_any_task.id,
+      target_status=target_status,
+    )
+
+  tasks_after_any_completion = await task_service.list_tasks(actor=admin)
+  assert any(
+    task.extra_metadata.get("template_step_key") == "manager_review"
+    and task.extra_metadata.get("template_id") == str(any_template.id)
+    for task in tasks_after_any_completion
+  )
 
 
 @pytest.mark.asyncio

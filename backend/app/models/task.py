@@ -40,6 +40,14 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
   completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
   parent_task_id: Mapped[UUID | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+  template_instance_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("task_template_instances.id", name="fk_tasks_template_instance", ondelete="SET NULL"),
+    nullable=True,
+  )
+  template_step_run_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("task_template_step_runs.id", name="fk_tasks_template_step_run", ondelete="SET NULL"),
+    nullable=True,
+  )
   source_type: Mapped[TaskSourceType] = mapped_column(
     build_enum(enum_cls=TaskSourceType, name="task_source_type"),
     default=TaskSourceType.MANUAL,
@@ -50,6 +58,8 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   creator = relationship("User", back_populates="created_tasks", foreign_keys=[creator_id])
   assignee = relationship("User", back_populates="assigned_tasks", foreign_keys=[assignee_id])
   department = relationship("Department", back_populates="tasks")
+  template_instance = relationship("TaskTemplateInstance", back_populates="tasks", foreign_keys=[template_instance_id])
+  template_step_run = relationship("TaskTemplateStepRun", back_populates="task", foreign_keys=[template_step_run_id])
   parent_task = relationship("Task", remote_side="Task.id", back_populates="child_tasks")
   child_tasks = relationship("Task", back_populates="parent_task")
   dependencies = relationship(

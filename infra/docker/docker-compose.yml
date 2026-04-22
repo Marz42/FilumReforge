@@ -109,7 +109,6 @@ services:
       dockerfile: Dockerfile
     environment:
       VITE_DEV_API_PROXY_TARGET: http://backend:8000
-      VITE_WEB_PUSH_PUBLIC_KEY: ${WEB_PUSH_PUBLIC_KEY:-}
     working_dir: /app
     volumes:
       - ../../frontend:/app

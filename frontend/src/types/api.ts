@@ -534,6 +534,8 @@ export interface TaskTemplateStep {
   title: string
   description: string | null
   step_type: string
+  assignment_mode: string
+  join_mode: string
   default_assignee_rule: Record<string, unknown>
   default_due_offset_hours: number | null
   sort_order: number
@@ -559,8 +561,51 @@ export interface TaskTemplate {
   schedules: TaskSchedule[]
 }
 
+export type TaskTemplateInstanceStatus = 'in_progress' | 'completed' | 'cancelled'
+export type TaskTemplateStepSnapshotStatus = 'blocked' | 'ready' | 'active' | 'completed'
+export type TaskTemplateStepRunStatus = 'active' | 'completed' | 'skipped' | 'cancelled'
+
+export interface TaskTemplateStepRun {
+  id: string
+  instance_id: string
+  template_step_id: string
+  assignee_user_id: string
+  assignee_email: string | null
+  status: TaskTemplateStepRunStatus
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+  task: Task | null
+}
+
+export interface TaskTemplateStepSnapshot {
+  step: TaskTemplateStep
+  status: TaskTemplateStepSnapshotStatus
+  blocked_dependency_keys: string[]
+  total_run_count: number
+  active_run_count: number
+  completed_run_count: number
+  step_runs: TaskTemplateStepRun[]
+}
+
+export interface TaskTemplateInstance {
+  id: string
+  template_id: string
+  initiator_user_id: string
+  initiator_email: string | null
+  department_id: string | null
+  department_name: string | null
+  status: TaskTemplateInstanceStatus
+  payload: Record<string, unknown>
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+  step_snapshots: TaskTemplateStepSnapshot[]
+}
+
 export interface TaskTemplateInstantiation {
   template: TaskTemplate
+  instance: TaskTemplateInstance
   tasks: Task[]
 }
 

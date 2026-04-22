@@ -62,6 +62,8 @@ class TaskTemplateStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   __table_args__ = (
     UniqueConstraint("template_id", "step_key", name="uq_task_template_steps_template_key"),
     Index("idx_task_template_steps_template_order", "template_id", "sort_order"),
+    CheckConstraint("assignment_mode in ('single', 'fan_out')", name="task_tpl_steps_assignment_mode_check"),
+    CheckConstraint("join_mode in ('all', 'any')", name="task_tpl_steps_join_mode_check"),
   )
 
   template_id: Mapped[UUID] = mapped_column(
@@ -72,6 +74,8 @@ class TaskTemplateStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   title: Mapped[str] = mapped_column(String(255), nullable=False)
   description: Mapped[str | None] = mapped_column(Text, nullable=True)
   step_type: Mapped[str] = mapped_column(String(32), default="task", nullable=False)
+  assignment_mode: Mapped[str] = mapped_column(String(32), default="single", nullable=False)
+  join_mode: Mapped[str] = mapped_column(String(32), default="all", nullable=False)
   default_assignee_rule: Mapped[dict[str, Any]] = mapped_column(
     build_json_type(),
     default=dict,
@@ -94,6 +98,7 @@ class TaskTemplateStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     foreign_keys="TaskTemplateStepDependency.depends_on_step_id",
     cascade="all, delete-orphan",
   )
+  step_runs = relationship("TaskTemplateStepRun", back_populates="template_step")
 
 
 class TaskTemplateStepDependency(Base):
@@ -128,6 +133,72 @@ class TaskTemplateStepDependency(Base):
     back_populates="blocked_by",
     foreign_keys=[depends_on_step_id],
   )
+
+
+class TaskTemplateInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "task_template_instances"
+  __table_args__ = (
+    CheckConstraint("status in ('in_progress', 'completed', 'cancelled')", name="task_tpl_instances_status_check"),
+    Index("idx_task_tpl_instances_template_status", "template_id", "status"),
+    Index("idx_task_tpl_instances_initiator_created", "initiator_user_id", "created_at"),
+  )
+
+  template_id: Mapped[UUID] = mapped_column(
+    ForeignKey("task_templates.id", name="fk_task_tpl_instances_template"),
+    nullable=False,
+  )
+  initiator_user_id: Mapped[UUID] = mapped_column(
+    ForeignKey("users.id", name="fk_task_tpl_instances_initiator"),
+    nullable=False,
+  )
+  department_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("departments.id", name="fk_task_tpl_instances_department"),
+    nullable=True,
+  )
+  status: Mapped[str] = mapped_column(String(32), default="in_progress", nullable=False)
+  payload: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+  template = relationship("TaskTemplate")
+  initiator = relationship("User", foreign_keys=[initiator_user_id])
+  department = relationship("Department")
+  step_runs = relationship("TaskTemplateStepRun", back_populates="instance", cascade="all, delete-orphan")
+  tasks = relationship("Task", back_populates="template_instance")
+
+
+class TaskTemplateStepRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "task_template_step_runs"
+  __table_args__ = (
+    UniqueConstraint(
+      "instance_id",
+      "template_step_id",
+      "assignee_user_id",
+      name="uq_task_tpl_step_runs_instance_step_assignee",
+    ),
+    CheckConstraint("status in ('active', 'completed', 'skipped', 'cancelled')", name="task_tpl_step_runs_status_check"),
+    Index("idx_task_tpl_step_runs_instance_status", "instance_id", "status"),
+    Index("idx_task_tpl_step_runs_assignee_status", "assignee_user_id", "status"),
+  )
+
+  instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("task_template_instances.id", name="fk_task_tpl_step_runs_instance", ondelete="CASCADE"),
+    nullable=False,
+  )
+  template_step_id: Mapped[UUID] = mapped_column(
+    ForeignKey("task_template_steps.id", name="fk_task_tpl_step_runs_step", ondelete="CASCADE"),
+    nullable=False,
+  )
+  assignee_user_id: Mapped[UUID] = mapped_column(
+    ForeignKey("users.id", name="fk_task_tpl_step_runs_assignee"),
+    nullable=False,
+  )
+  status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
+  completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+  instance = relationship("TaskTemplateInstance", back_populates="step_runs")
+  template_step = relationship("TaskTemplateStep", back_populates="step_runs")
+  assignee = relationship("User", foreign_keys=[assignee_user_id])
+  task = relationship("Task", back_populates="template_step_run", uselist=False)
 
 
 class WorkflowDefinition(UUIDPrimaryKeyMixin, TimestampMixin, Base):

@@ -1,6 +1,6 @@
 # Filum Frontend
 
-当前前端基于 **Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus**，已完成从早期骨架到后台工作台的重构升级。
+当前前端基于 **Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus**，已完成从早期骨架到后台工作台的重构升级。当前重构 Step 1-7 已完成并通过用户验测；工作流 E 的前端首批实现也已落地，包含结构化模板设计器、实例运行态可视化与已有模板编辑。
 
 ## 当前主要界面
 
@@ -11,12 +11,24 @@
 - 知识库：文档、发布、RAG 查询
 - 人员工作台 / 部门管理：管理角色专用
 
+## 当前已知边界
+
+- `TaskTemplatesView.vue` 已支持结构化步骤设计、JSON 导入与实例快照，但仍未扩展为完整拖拽式流程图设计器
+- 模板 / 调度管理动作、更多设计器校验与更大范围回归仍在继续补齐
+- 当前 Dockerfile 与 Compose 运行的是 Vite dev server；正式部署应构建静态 `dist/` 并由 Nginx 提供
+
 ## 开发命令
 
 ```sh
 npm install
 npm run dev -- --host 0.0.0.0 --port 5173
 ```
+
+## 生产部署提醒
+
+- 当前前端上线建议执行 `npm install && npm run build`，再由 Nginx 直接托管 `dist/`
+- [../Dockerfile](../Dockerfile) 与 [../infra/docker/docker-compose.yml](../infra/docker/docker-compose.yml) 仍以开发联调为主，不建议把 Vite dev server 直接暴露到公网
+- 详细云部署方式请以仓库根目录 [README.md](README.md) 的“云服务器部署”章节为准
 
 ## 验证命令
 

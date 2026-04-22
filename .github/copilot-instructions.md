@@ -1,108 +1,111 @@
 # Copilot Instructions — Project Filum (FilumReforge)
 
-## Project Overview
+## 当前仓库状态
 
-**Project Filum** is a lightweight, AI-enhanced internal enterprise management platform for 50–100 person companies. It unifies HR records, task workflows, and messaging in a single system with deep LLM integration. The repository is currently in the **planning/pre-implementation phase** — `memory-bank/` holds the authoritative design documents.
+本仓库不是规划态项目，当前已经完成 Phase A、Phase 1-5，并完成重构 Step 1-7 的实现；最新交付状态以 `memory-bank/architecture.md`、`memory-bank/progress.md`、根目录 `README.md` 为准。
 
----
+开始任何实现、评审或文档更新前，先确认以下文档分工，不要把它们混用：
 
-## Architecture
+- `memory-bank/architecture.md`：当前工程基线、运行结构、完整 schema、关键模块职责
+- `memory-bank/design-document.md`：产品目标、业务边界、非目标、后续增强方向
+- `memory-bank/progress.md`：阶段和重构步骤的完成状态、验证记录
+- `memory-bank/implementation-plan.md`：从当前已交付基线出发的下一轮工作流
+- 根目录 `README.md`、`backend/README.md`、`frontend/README.md`：运行、验证、目录入口
 
-**Modular Monolith** — explicitly chosen over microservices to minimize operational overhead at this scale. Keep all business logic in a single deployable unit with well-separated internal modules.
+优先链接这些文档，不要把现有文档整段复制进新的说明文件。
 
-### Stack
+## 必须遵守的工作方式
 
-| Layer | Technology |
-|---|---|
-| Frontend | Vue 3 (Composition API) + TypeScript + Vite + Element Plus + Pinia + Vue Router |
-| Backend | Python 3.10+ + FastAPI + Pydantic v2 + SQLAlchemy 2.0 (async) + Alembic |
-| AI/LLM | Official `openai` Python SDK — **no LangChain** |
-| Database | PostgreSQL 15+ (JSONB for dynamic fields, pgvector reserved for RAG) |
-| Cache/Queue | Redis (session, org-tree cache, task broker) |
-| Async Workers | Celery or ARQ (email, reports, LLM calls) |
-| Deployment | Docker Compose + Nginx |
+- 使用简体中文和开发者沟通。
+- 写代码前至少阅读 `memory-bank/architecture.md` 和 `memory-bank/design-document.md`。
+- 如果任务涉及阶段状态、交付边界、是否已验测，还要同步查看 `memory-bank/progress.md`。
+- 如果文档和代码冲突，先以实际代码、迁移、测试和可运行命令为行为事实，再明确记录是“文档漂移”还是“实现缺口”。
+- 不要默认提交 git commit；只有用户明确要求时才提交。
+- 不要大段重写 `memory-bank`；仅在确认事实后做最小、可验证的更新。
 
----
+## 当前技术与边界
 
-## Key Design Conventions
+- 架构固定为模块化单体，不要引入微服务拆分假设。
+- 前端固定为 Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router。
+- 后端固定为 FastAPI + Pydantic v2 + SQLAlchemy 2.0 Async + Alembic。
+- 异步 worker 已固定为 ARQ，不再使用 Celery 作为当前实现描述。
+- AI 集成固定为官方 `openai` Python SDK；不要引入 LangChain。
+- 数据库为 PostgreSQL + JSONB + `pgvector`。
+- 所有前端 HTTP 请求统一通过 Axios；所有后端业务逻辑优先放在 service 层，route 保持薄。
 
-### Notification System
-All notifications go through a **single adapter bus**. Business logic calls `NotificationService.send(message_obj)` and never talks to email/WebSocket/WeCom directly. The gateway dispatcher routes to the appropriate adapter (Email, WebPush, future WeCom).
+## 项目特有约束
 
-### LLM Integration
-The LLM is an **intent routing engine**, not a chatbot. When the user types `@系统 ...` or `/...`, the frontend intercepts and sends to a backend LLM Router. The router uses **OpenAI Function Calling** to invoke registered backend tools (e.g., `get_department_tasks(...)`), feeds the raw JSON result back to the LLM, and returns a natural-language reply. Use **Pydantic v2 models as the JSON Schema** for tool definitions — do not use LangChain or any wrapper framework.
+- 通知统一走 `NotificationService.send(message_obj)`，业务层不要直连 Email、WebSocket、Web Push。
+- 任务状态机必须保持严格流转：`Todo -> Doing -> Review -> Done`。
+- 工作沟通必须绑定任务上下文，相关评论和附件进入 `task_comments`，不要设计独立工作聊天系统。
+- 档案动态字段进入 `profiles.custom_fields`，不要把可变字段硬塞进固定列。
+- LLM 是意图路由器，不是业务真相；工具 schema 优先复用 Pydantic v2。
+- 权限控制必须同时考虑角色、组织关系、字段级权限和代理授权。
 
-### HR Profile Fields
-Use PostgreSQL **JSONB** for dynamic/custom employee fields (skills, emergency contacts, etc.). Core identity fields go in typed columns; anything domain-specific or variable goes in `custom_fields (JSONB)` on the `profiles` table.
+## 代码导航
 
-### Task State Machine
-Tasks follow a strict state machine: `Todo → Doing → Review → Done`. Enforce transitions server-side; do not allow arbitrary status jumps.
+- `backend/app/main.py`：FastAPI 入口、CORS、request id 中间件、异常处理注册
+- `backend/app/api/routes/`：API 路由层；关键聚合入口包括 `overview.py`、`task_center.py`、`report_center.py`、`messages.py`、`people_management.py`
+- `backend/app/services/`：核心业务编排，优先在这里查真实行为
+- `backend/app/models/` 与 `backend/alembic/versions/`：领域模型和数据库事实来源
+- `frontend/src/router/`：当前路由和兼容重定向
+- `frontend/src/views/`：总览、任务中心、汇报中心、消息中心、知识库、人员工作台等主工作台
+- `frontend/tests/`、`backend/tests/`：当前行为的回归证据
 
-### RBAC & Data Isolation
-Two levels of access control:
-- **Role-level**: Admin / HR / Employee — controls UI feature visibility
-- **Data-level**: Org-tree scoping — e.g., a department manager can only query their subtree
+## 已验证的常用命令
 
-### Frontend Patterns
-- Use **Composition API** with `<script setup>` syntax
-- State management via **Pinia** stores (not Vuex)
-- All HTTP calls via **Axios**
-- Target B2B ("后台管理") UX with Element Plus components
+### Backend
 
-### Backend Patterns
-- FastAPI route handlers are thin; business logic lives in service classes
-- All DB operations use **async SQLAlchemy 2.0** sessions
-- Schema migrations managed exclusively via **Alembic**
-- Request/response models are Pydantic v2 schemas — leverage them for LLM tool definitions too
+```sh
+cd backend
+python -m venv .venv
+. .venv/bin/activate
+pip install -e ".[dev]"
+alembic upgrade head
+pytest -q
+python -m compileall app tests
+./scripts/start-dev.sh
+./scripts/start-worker.sh
+```
 
-### Task-Bound Communication (工作留痕)
-Never build a standalone chat feature. All work-related communications, comments, and attachments MUST be tightly coupled to a specific `Task` via the `task_comments` table. This ensures absolute traceability and contextual cohesion.
+### Frontend
 
-### RAG Knowledge Engine (AI知识库)
-For company policies and SOPs, use PostgreSQL with `pgvector`. Documents are stored in markdown, chunked, embedded via an Embedding model, and stored in `document_embeddings`. The LLM Router will perform similarity searches (RAG) before answering policy-related questions.
+```sh
+cd frontend
+npm install
+npm run dev -- --host 0.0.0.0 --port 5173
+npm run test:unit -- --run
+npm run type-check
+npm run build
+npm run lint
+```
 
-### Utility Tool Registry (扩展工具池)
-Design the system to allow plug-and-play internal tools (e.g., invoice generator, format converter). Tools should be isolated Vue components on the frontend and dedicated FastAPI routers on the backend. Expose these tools to the LLM via Function Calling.
+### Compose
 
+```sh
+cd infra/docker
+docker compose -f docker-compose.yml up --build -d
+```
 
----
+## memory-bank 对齐审查约定
 
+如果任务是“确认 memory-bank 和实际实现是否对齐”或“输出架构/实现评估报告”，按下面顺序执行：
 
+1. 先读 `memory-bank/architecture.md`、`design-document.md`、`progress.md`、`implementation-plan.md`
+2. 再核对根目录 `README.md`、`backend/README.md`、`frontend/README.md`
+3. 用迁移、模型、服务、路由、前端路由/视图、测试确认事实
+4. 区分三类结论：
+	- 文档已对齐
+	- 文档漂移但实现存在
+	- 设计目标存在但实现未落地
+5. 如果用户要求写报告，把报告放到 `memory-bank/`，并明确列出证据文件、问题等级、建议动作
 
-## Domain Models (intended)
+不要把“目标设计”误写成“当前已实现”，也不要因为 memory-bank 写了某能力就直接假定代码里已经存在。
 
-**Base & HR:**
-- `users` — auth base (`id`, `email`, `password_hash`, `role`, `status`)
-- `profiles` — HR detail (`user_id`, `real_name`, `department_id`, `custom_fields JSONB`)
-- `departments` — org tree (`id`, `name`, `parent_id`, `manager_id`)
+## 文档更新原则
 
-**Workflow & Collaboration:**
-- `tasks` — core workflow (`id`, `title`, `creator_id`, `assignee_id`, `status`, `due_date`)
-- `task_logs` — audit trail (`task_id`, `action_type`, `timestamp`)
-- `task_comments` — **CRITICAL for communication** (`id`, `task_id`, `user_id`, `content`, `attachments`, `created_at`)
-
-**Knowledge Base (RAG):**
-- `documents` — SOPs and policies (`id`, `title`, `content_md`, `author_id`, `category`)
-- `document_embeddings` — pgvector storage (`id`, `document_id`, `chunk_text`, `embedding VECTOR`)
-
----
-
-## Development Phases
-
-The project is built in four sequential phases. When implementing features, check which phase they belong to:
-
-1. **Phase 1 – Foundation**: Framework setup (Vue3 + FastAPI + PG), users, department tree, HR profiles CRUD, task creation/assignment, and base notification bus.
-2. **Phase 2 – Collaboration & Stats**: Task state machine, `task_comments` (in-task communication), background timeout reminders (Celery/Email), and BI Analytics (task completion/workload dashboards).
-3. **Phase 3 – Knowledge & AI Brain**: Markdown knowledge base CRUD, Embedding integration + pgvector, RAG similarity search, allowing employees to ask AI about internal policies.
-4. **Phase 4 – Platform & Tools Registry**: Deepen the `@系统` LLM Intent Router (Function Calling), build the plugin/utility tool registry standard, UI polish, and PWA integration.
-
-When writing new code, anchor it to its phase so scope stays clear.
-
-## IMPORTANT INSTRUCTIONS:
-
-- Always read memory-bank/architecture.md before writing any code. Include entire database schema.
-- Always read memory-bank/design-document.md before writing any code.
-- After adding a major feature or completing a milestone, update memory-bank/architecture.md.
-- Use Simplified Chinese to communicate with the developer.
-- After adding a major feature or completing a milestone, commit your changes using git.
+- 重大实现变化后，优先更新 `memory-bank/architecture.md`。
+- 如果阶段状态、验测结论或交付边界变化，再更新 `memory-bank/progress.md`。
+- 如果产品目标、非目标或路线图变化，再更新 `memory-bank/design-document.md` 或 `memory-bank/implementation-plan.md`。
+- 更新文档时引用真实文件和真实命令，不写无法从仓库验证的描述。
 

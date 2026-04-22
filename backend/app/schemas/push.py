@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import PushSubscriptionStatus
+from app.core.enums import NotificationMessageStatus, PushSubscriptionStatus
 
 
 class PushSubscriptionCreateRequest(BaseModel):
@@ -26,3 +26,14 @@ class PushSubscriptionRead(BaseModel):
   last_seen_at: datetime | None
   created_at: datetime
   updated_at: datetime
+
+
+class PushSubscriptionConfigRead(BaseModel):
+  public_key: str | None
+  is_enabled: bool
+
+
+class PushTestNotificationRead(BaseModel):
+  message_id: UUID
+  status: NotificationMessageStatus
+  detail: str

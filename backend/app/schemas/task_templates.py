@@ -14,6 +14,8 @@ class TaskTemplateStepInput(BaseModel):
   title: str = Field(min_length=1, max_length=255)
   description: str | None = None
   step_type: str = Field(default="task", min_length=1, max_length=32)
+  assignment_mode: str = Field(default="single", min_length=1, max_length=32)
+  join_mode: str = Field(default="all", min_length=1, max_length=32)
   default_assignee_rule: dict[str, Any] = Field(default_factory=dict)
   default_due_offset_hours: int | None = None
   sort_order: int | None = None
@@ -45,6 +47,8 @@ class TaskTemplateStepRead(BaseModel):
   title: str
   description: str | None
   step_type: str
+  assignment_mode: str
+  join_mode: str
   default_assignee_rule: dict[str, Any]
   default_due_offset_hours: int | None
   sort_order: int
@@ -70,6 +74,48 @@ class TaskTemplateRead(BaseModel):
   updated_at: datetime
   steps: list[TaskTemplateStepRead] = Field(default_factory=list)
   schedules: list[TaskScheduleRead] = Field(default_factory=list)
+
+
+class TaskTemplateStepRunRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  instance_id: UUID
+  template_step_id: UUID
+  assignee_user_id: UUID
+  assignee_email: str | None = None
+  status: str
+  completed_at: datetime | None
+  created_at: datetime
+  updated_at: datetime
+  task: TaskRead | None = None
+
+
+class TaskTemplateInstanceStepRead(BaseModel):
+  step: TaskTemplateStepRead
+  status: str
+  blocked_dependency_keys: list[str] = Field(default_factory=list)
+  total_run_count: int = 0
+  active_run_count: int = 0
+  completed_run_count: int = 0
+  step_runs: list[TaskTemplateStepRunRead] = Field(default_factory=list)
+
+
+class TaskTemplateInstanceRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  template_id: UUID
+  initiator_user_id: UUID
+  initiator_email: str | None = None
+  department_id: UUID | None
+  department_name: str | None = None
+  status: str
+  payload: dict[str, Any]
+  completed_at: datetime | None
+  created_at: datetime
+  updated_at: datetime
+  step_snapshots: list[TaskTemplateInstanceStepRead] = Field(default_factory=list)
 
 
 class TaskTemplateCreateRequest(BaseModel):
@@ -117,4 +163,5 @@ class TaskScheduleUpdateRequest(BaseModel):
 
 class TaskTemplateInstantiationRead(BaseModel):
   template: TaskTemplateRead
-  tasks: list[TaskRead]
+  instance: TaskTemplateInstanceRead
+  tasks: list[TaskRead] = Field(default_factory=list)

@@ -8,8 +8,24 @@ export interface CreatePushSubscriptionPayload {
   user_agent?: string | null
 }
 
+export interface PushTestNotificationResult {
+  message_id: string
+  status: string
+  detail: string
+}
+
+export interface PushSubscriptionConfigResult {
+  public_key: string | null
+  is_enabled: boolean
+}
+
 export async function listPushSubscriptions(): Promise<PushSubscription[]> {
   const { data } = await http.get<PushSubscription[]>('/push-subscriptions')
+  return data
+}
+
+export async function getPushSubscriptionConfig(): Promise<PushSubscriptionConfigResult> {
+  const { data } = await http.get<PushSubscriptionConfigResult>('/push-subscriptions/config')
   return data
 }
 
@@ -22,5 +38,10 @@ export async function createPushSubscription(
 
 export async function revokePushSubscription(subscriptionId: string): Promise<PushSubscription> {
   const { data } = await http.delete<PushSubscription>(`/push-subscriptions/${subscriptionId}`)
+  return data
+}
+
+export async function sendPushTestNotification(): Promise<PushTestNotificationResult> {
+  const { data } = await http.post<PushTestNotificationResult>('/push-subscriptions/test')
   return data
 }

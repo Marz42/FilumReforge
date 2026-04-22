@@ -1,4 +1,9 @@
-import type { TaskSchedule, TaskTemplate, TaskTemplateInstantiation } from '@/types/api'
+import type {
+  TaskSchedule,
+  TaskTemplate,
+  TaskTemplateInstance,
+  TaskTemplateInstantiation,
+} from '@/types/api'
 import { http } from './http'
 
 export interface TaskTemplateStepPayload {
@@ -6,6 +11,8 @@ export interface TaskTemplateStepPayload {
   title: string
   description?: string | null
   step_type?: string
+  assignment_mode?: string
+  join_mode?: string
   default_assignee_rule?: Record<string, unknown>
   default_due_offset_hours?: number | null
   sort_order?: number | null
@@ -73,6 +80,16 @@ export async function instantiateTaskTemplate(
     `/task-templates/${templateId}/instantiate`,
     payload,
   )
+  return data
+}
+
+export async function listTaskTemplateInstances(
+  templateId: string,
+  limit = 10,
+): Promise<TaskTemplateInstance[]> {
+  const { data } = await http.get<TaskTemplateInstance[]>(`/task-templates/${templateId}/instances`, {
+    params: { limit },
+  })
   return data
 }
 

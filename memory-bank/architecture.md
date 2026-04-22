@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.6.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 已完成并通过用户验测，Step 7 已实现并等待用户验测  
+**版本**: v3.8.0  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入回归、部署准备与后续深化  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -40,10 +40,10 @@
 - 字段定义、字段级权限策略与代理授权生效判断
 - 生命周期事件：入职、转岗、晋升、奖惩、离职、返聘
 - 代理授权：创建、撤销、按时间窗自动生效 / 过期
-- 任务创建、重新指派、前置依赖建模
+- 任务创建、重新指派、前置依赖建模与开始前依赖校验
 - 严格任务状态机：`Todo -> Doing -> Review -> Done`
 - 任务评论、内部备注、审计日志、评论附件、活动时间线
-- 任务模板、模板实例化、watcher / 抄送与周期调度
+- 任务模板、模板步骤依赖建模、模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚、watcher / 抄送与周期调度
 - 轻量审批流引擎：流程定义、实例、步骤执行、代理审批、打回 / 驳回
 - ARQ worker、逾期提醒扫描、通知消息落库、adapter 分发与异步入队
 - 消息中心收件箱、用户回执、审批提醒与系统消息聚合
@@ -63,6 +63,9 @@
 
 - 公开注册 / 邀请注册 / 审批式注册仍未落地
 - 生命周期事件与任务模板 / 审批流的自动联动
+- 工作流 E 首批已经落地，但模板 / 调度管理动作、更强设计器校验、全量回归与部署收口仍需继续完善
+- 生命周期事件与任务模板 / 审批流的自动联动仍未落地
+- 当前云部署仍缺 production compose；现有 Docker Compose 主要面向开发 / 集成环境
 - HR 字段权限的可视化规则管理页仍偏基础
 - 消息附件
 - Email / WebSocket 渠道的外部真实接入仍是最小实现后的下一步
@@ -76,15 +79,15 @@
 | Organization | 部门树、部门负责人、组织范围 | 已实现 Phase 3 增强版 | 被 Workflow / Messaging 消费 |
 | HR Profiles | 主档案、动态字段、基础资料 | 已实现 Phase 3 增强版 | 与模板 / 审批联动 |
 | HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现 | 事件与模板 / 审批联动 |
-| Workflow Core | 任务、依赖、状态机、统计 | 已实现 Phase 4 增强版 | 与 Knowledge / AI / 生命周期自动化联动 |
-| Workflow Engine | 模板、审批、自动触发、周期调度 | 已实现基础版 | 与 HR 生命周期 / AI 入口联动 |
+| Workflow Core | 任务、依赖、状态机、统计 | 已实现 Phase 4 增强版；任务开始前可阻止未满足依赖的流转 | 与模板实例运行态、Knowledge / AI / 生命周期自动化联动 |
+| Workflow Engine | 模板、审批、自动触发、周期调度 | 已实现增强版；模板实例运行态、逐步激活、多人扇出 / 汇聚、实例快照与结构化设计器首版已落地 | 模板 / 调度管理深化、生命周期联动与稳定性强化 |
 | Task Collaboration | 评论、日志、评论附件、时间线、watcher | 已实现 Phase 4 增强版 | 与消息中心、推送渠道打通 |
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现 Phase 4 增强版 | 真实渠道适配器、浏览器推送 |
 | Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现 Step 6 增强版 | 消息附件、渠道融合、推送 |
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
-| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 已完成并通过验测，Step 7 已实现待验测） | 文档收口完成后的进一步测试强化 |
+| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构 Step 1-7 已完成并通过验测 | 结构化模板设计器、模板实例快照与进一步测试强化 |
 | Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑
@@ -226,7 +229,7 @@
 | `backend/app/services/overview_service.py` | 总览聚合服务，整合看板、公告与任务投影 |
 | `backend/app/api/routes/overview.py` | 总览、看板、公告接口 |
 | `backend/app/api/routes/hr_governance.py` | Phase 3 岗位、字段定义、字段权限、授权管理接口 |
-| `backend/app/api/routes/task_templates.py` | 模板、实例化与 schedule 接口 |
+| `backend/app/api/routes/task_templates.py` | 工作流 E 模板 CRUD、实例化、实例快照与 schedule 接口 |
 | `backend/app/api/routes/task_center.py` | 任务中心聚合与备忘接口 |
 | `backend/app/api/routes/people_management.py` | Step 5 人员聚合接口，输出统一人员列表与详情工作台数据 |
 | `backend/app/api/routes/report_center.py` | 汇报中心聚合、创建与动作接口 |
@@ -249,6 +252,7 @@
 | `backend/alembic/versions/20260417_01_phase5_knowledge_push.py` | Phase 5 knowledge / push 迁移 |
 | `backend/alembic/versions/20260420_03_report_center.py` | Step 4 汇报中心迁移 |
 | `backend/alembic/versions/20260421_01_error_events.py` | Step 4 排障新增的 `error_events` 迁移 |
+| `backend/alembic/versions/20260422_01_template_runtime.py` | 工作流 E 模板运行态迁移，新增 template instances / step runs 与 task 回链 |
 | `backend/app/scripts/seed_sample_data.py` | 测试组织与 demo 账号初始化脚本 |
 
 ### 5.3 frontend 当前热点文件
@@ -268,7 +272,7 @@
 | `frontend/src/views/KnowledgeBaseView.vue` | 知识库页面 |
 | `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为六标签任务中心，承载模板 / 发布 / 待办 / 跟踪 / 历史 / 备忘；Step 6 起消费消息来源 `?selected=` |
 | `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用；Step 6 起支持外部来源指定初始选中任务 |
-| `frontend/src/views/TaskTemplatesView.vue` | 模板管理、实例化与 schedule 入口，Step 3 后由任务中心按权限透传能力 |
+| `frontend/src/views/TaskTemplatesView.vue` | 工作流 E 结构化设计器首版，支持步骤增删改、JSON 导入、实例快照与已有模板编辑 |
 | `frontend/src/views/ReportsView.vue` | Step 4 新增的汇报中心工作台，承载待处理、我发起、历史、向上汇报与向下传达；Step 6 起消费消息来源 `?selected=` 高亮 |
 | `frontend/src/views/MessagesView.vue` | Step 6 升级后的消息工作台：统计卡、未读 / 未确认 / 来源筛选、我的回执状态与“回到来源”入口 |
 | `frontend/src/api/overview.ts` | 总览、看板、公告 API client |
@@ -410,6 +414,14 @@
 4. `TaskService` 输出 `list_task_inbox()`、`list_task_tracking()` 与 `list_task_history()`，前端据此拆分待办 / 跟踪 / 历史三个标签。
 5. `TaskMemoService` 负责 `task_memos` 的新增、编辑、删除，并校验关联任务是否对当前用户可见。
 6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览，发布任务入口则收敛到单独标签。
+
+### 6.13A 工作流 E 模板运行态链路（当前）
+
+1. `TaskTemplatesView.vue` 以结构化表单编辑模板步骤，并通过 JSON 预览 / 导入保持高级入口。
+2. `POST /task-templates/{template_id}/instantiate` 由 `TaskTemplateService.instantiate_template()` 创建 `task_template_instances` 记录，并触发首批就绪步骤激活。
+3. `TaskService.activate_template_instance_steps()` 根据依赖、`assignment_mode` 与 `join_mode` 创建 `task_template_step_runs` 和真实任务；未来步骤保持为实例快照中的 `ready` / `blocked` 状态，而不会提前混入任务列表。
+4. 模板关联任务完成后，`TaskService` 会回写步骤运行态，并在满足 `all` / `any` 汇聚条件时自动激活下游步骤。
+5. `GET /task-templates/{template_id}/instances` 返回步骤快照、阻塞依赖、step run 与关联任务，前端据此展示当前激活步骤、未来步骤和实例任务。
 
 ### 6.14 汇报中心链路（Step 4 已完成并通过验测）
 
@@ -814,6 +826,8 @@
 | `started_at` | `timestamptz` | NULL | 开始时间 |
 | `completed_at` | `timestamptz` | NULL | 完成时间 |
 | `parent_task_id` | `uuid` | FK -> `tasks.id`, NULL | 父任务 |
+| `template_instance_id` | `uuid` | FK -> `task_template_instances.id`, NULL | 所属模板实例 |
+| `template_step_run_id` | `uuid` | FK -> `task_template_step_runs.id`, NULL | 所属模板步骤运行态 |
 | `source_type` | `task_source_type` | NOT NULL, DEFAULT `manual` | 来源 |
 | `metadata` | `jsonb` | NOT NULL, DEFAULT `'{}'::jsonb` | 扩展元数据 |
 | `created_at` | `timestamptz` | NOT NULL | 创建时间 |
@@ -882,6 +896,8 @@
 | `title` | `varchar(255)` | NOT NULL | 步骤标题 |
 | `description` | `text` | NULL | 步骤描述 |
 | `step_type` | `varchar(32)` | NOT NULL, DEFAULT `task` | 步骤类型 |
+| `assignment_mode` | `varchar(32)` | NOT NULL, DEFAULT `single` | 分配模式：单任务或多人扇出 |
+| `join_mode` | `varchar(32)` | NOT NULL, DEFAULT `all` | 汇聚规则：全部完成或任一完成 |
 | `default_assignee_rule` | `jsonb` | NOT NULL, DEFAULT `'{}'::jsonb` | 默认指派规则 |
 | `default_due_offset_hours` | `int4` | NULL | 相对超时时间 |
 | `sort_order` | `int4` | NOT NULL, DEFAULT `0` | 排序 |
@@ -893,6 +909,8 @@
 
 - `uq_task_template_steps_template_key (template_id, step_key)`
 - `idx_task_template_steps_template_order (template_id, sort_order)`
+- CHECK `assignment_mode in ('single', 'fan_out')`
+- CHECK `join_mode in ('all', 'any')`
 
 ### 10.18 `task_template_step_dependencies`
 
@@ -910,6 +928,50 @@
 - 主键：`(step_id, depends_on_step_id)`
 - CHECK `step_id <> depends_on_step_id`
 - `idx_task_tpl_step_deps_depends_on (depends_on_step_id)`
+
+### 10.18A `task_template_instances`
+
+**实现状态**: 已实现（工作流 E）
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 模板实例主键 |
+| `template_id` | `uuid` | FK -> `task_templates.id`, NOT NULL | 所属模板 |
+| `initiator_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 发起人 |
+| `department_id` | `uuid` | FK -> `departments.id`, NULL | 目标部门 |
+| `status` | `varchar(32)` | NOT NULL, DEFAULT `in_progress` | 实例状态 |
+| `payload` | `jsonb` | NOT NULL, DEFAULT `'{}'::jsonb` | 实例化上下文 |
+| `completed_at` | `timestamptz` | NULL | 实例完成时间 |
+| `created_at` | `timestamptz` | NOT NULL | 创建时间 |
+| `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
+
+**约束与索引**
+
+- CHECK `status in ('in_progress', 'completed', 'cancelled')`
+- `idx_task_tpl_instances_template_status (template_id, status)`
+- `idx_task_tpl_instances_initiator_created (initiator_user_id, created_at)`
+
+### 10.18B `task_template_step_runs`
+
+**实现状态**: 已实现（工作流 E）
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | `uuid` | PK | 步骤运行态主键 |
+| `instance_id` | `uuid` | FK -> `task_template_instances.id`, NOT NULL | 所属模板实例 |
+| `template_step_id` | `uuid` | FK -> `task_template_steps.id`, NOT NULL | 所属模板步骤 |
+| `assignee_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 当前执行人 |
+| `status` | `varchar(32)` | NOT NULL, DEFAULT `active` | step run 状态 |
+| `completed_at` | `timestamptz` | NULL | 完成时间 |
+| `created_at` | `timestamptz` | NOT NULL | 创建时间 |
+| `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
+
+**约束与索引**
+
+- `uq_task_tpl_step_runs_instance_step_assignee (instance_id, template_step_id, assignee_user_id)`
+- CHECK `status in ('active', 'completed', 'skipped', 'cancelled')`
+- `idx_task_tpl_step_runs_instance_status (instance_id, status)`
+- `idx_task_tpl_step_runs_assignee_status (assignee_user_id, status)`
 
 ### 10.19 `workflow_definitions`
 
@@ -1428,7 +1490,11 @@
 - `users 1:N task_memos`
 - `tasks 1:N task_memos`
 - `task_templates 1:N task_template_steps`
+- `task_templates 1:N task_template_instances`
 - `task_template_steps N:N task_template_steps` 通过 `task_template_step_dependencies`
+- `task_template_steps 1:N task_template_step_runs`
+- `task_template_instances 1:N task_template_step_runs`
+- `task_template_instances 1:N tasks`
 - `workflow_definitions 1:N workflow_steps`
 - `workflow_definitions 1:N workflow_instances`
 - `workflow_instances 1:N workflow_step_runs`
@@ -1447,7 +1513,7 @@
 
 - backend：
   - `pytest`（覆盖 models / migrations / services / api / workers）
-  - `python -m compileall app`
+  - `python -m compileall app tests`
 - frontend：
   - `npm run test:unit -- --run`
   - `npm run type-check`
