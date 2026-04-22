@@ -194,6 +194,18 @@
 1. 验证与部署收口
 	- 执行 backend / frontend 全量回归，确认工作流 E 首批实现与现有基线没有回归冲突
 	- 持续同步 `memory-bank`、README 与云服务器部署指南，避免文档继续漂移
+	- 已完成的部署工程化产物（可直接使用）：
+	  - `backend/scripts/start-prod.sh`：生产启动脚本，无 `--reload`，支持 `BIND_HOST` / `WORKERS` 调参
+	  - `backend/Dockerfile.prod`：生产后端镜像，仅安装 core 依赖
+	  - `frontend/Dockerfile.prod`：多阶段构建，`nginx:alpine` 托管静态产物
+	  - `frontend/nginx.frontend.conf`：SPA 感知的缓存策略（sw.js、assets、fallback）
+	  - `infra/docker/docker-compose.prod.yml`：生产 Compose，无 bind mount，无 `--reload`，Redis 持久化
+	  - `infra/docker/.env.prod.example`：Compose 生产 env 模板
+	  - `backend/.env.production.example`：systemd 部署 env 模板
+	  - `infra/nginx/nginx.prod.conf`：host-level Nginx 模板，含 HTTPS/TLS、gzip、SPA fallback、安全 headers
+	  - `infra/nginx/nginx.compose.prod.conf`：Compose 内部 gateway Nginx 配置
+	  - `scripts/check-release.sh`：发布前全量验证脚本（pytest、compileall、type-check、build、lint、alembic check）
+	- 全量回归与上线演练仍待执行；执行命令：`bash scripts/check-release.sh`
 2. 模板管理深化
 	- 继续补模板 / 调度更完整的管理动作与更强设计器校验，而不是停留在“可创建 / 可实例化”的首版能力
 3. 业务联动

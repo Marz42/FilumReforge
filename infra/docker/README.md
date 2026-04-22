@@ -28,6 +28,32 @@ docker compose -f docker-compose.yml up --build -d
 docker compose -f docker-compose.yml logs -f backend worker frontend nginx
 ```
 
+## 生产部署
+
+若要基于 Docker Compose 方式上线，请改用 `docker-compose.prod.yml`：
+
+```sh
+cp .env.prod.example .env.prod
+# 编辑 .env.prod，填入真实密钥与数据库连接
+docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
+```
+
+生产 Compose 与开发 Compose 的关键区别：
+
+- `backend` / `worker` 使用 `Dockerfile.prod`（仅安装 core 依赖，无 `[dev]` extras）
+- `backend` 通过 `start-prod.sh` 启动，禁止 `--reload`
+- `frontend` 采用多阶段构建，由 `nginx:alpine` 托管 `dist/` 静态文件
+- 无 bind mount，不挂载源码目录
+- `redis` 启用 RDB + AOF 持久化
+- 数据库 / Redis / ingress 端口均不对外暴露（除 Nginx 的 80 端口）
+
+**推荐在 Compose 前方再挂一层 host-level Nginx 做 HTTPS 终止**。  
+模板见 [`infra/nginx/nginx.prod.conf`](../nginx/nginx.prod.conf)，Nginx 内部转发配置见 [`infra/nginx/nginx.compose.prod.conf`](../nginx/nginx.compose.prod.conf)。
+
+---
+
+如果采用 Ubuntu + Nginx + systemd（不用 Compose），请参考根目录 [README.md](../../README.md) 的云服务器部署章节。
+
 ## Web Push 配置
 
 浏览器 Push 的标准配置路径如下：
