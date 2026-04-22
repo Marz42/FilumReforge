@@ -20,7 +20,8 @@
 | Step 3 / 任务中心重构 | done | 已完成任务中心六标签工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归，并通过用户手动验测 |
 | Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；已修复 PostgreSQL 500 根因，并通过用户手动验测 |
 | Step 5 / 档案管理 & 用户管理合并 | done | 已完成 `/api/v1/people-management` 聚合接口与统一人员工作台；已完成全量自动化回归，并通过用户手动验测 |
-| Step 6 / 消息中心联动与提醒收口 | in_review | 已完成消息中心聚合快照、来源 payload 规范化、用户级隔离、来源回跳与前后端全量回归；等待用户手动验测 |
+| Step 6 / 消息中心联动与提醒收口 | done | 已完成消息中心聚合快照、来源 payload 规范化、用户级隔离、来源回跳与前后端全量回归，并通过用户手动验测 |
+| Step 7 / 当前重构收口 | in_review | 已完成 memory-bank、README 与子目录 README 收口，已执行最终全量回归；等待用户手动验测 |
 
 ## 已完成里程碑
 
@@ -278,7 +279,15 @@
 - 已将消息中心后端严格收口为“当前用户自己的 inbox”，不再允许管理角色通过消息中心查看他人收件箱；同时把 `task` / `report` / `announcement` / `workflow` 的消息 payload 统一为可回跳协议。
 - 已将前端 `MessagesView.vue` 升级为真正的消息工作台，补齐统计卡、未读 / 未确认 / 来源筛选、我的回执状态与“回到来源”入口；`HomeView.vue`、`TaskCenterView.vue`、`TasksView.vue`、`ReportsView.vue` 已补齐来源 query 的高亮 / 选中消费。
 - 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 全量回归。
-- 当前状态：**Step 6 implemented / waiting for user validation**；当前停在 Step 6，不进入 Step 7。
+- 当前状态：**Step 6 done / user accepted**；已作为 Step 7 的进入基线。
+
+### Step 7 / 当前重构收口
+
+- 本轮目标是把当前重构成果正式收口为可交接、可验证、可继续迭代的稳定基线。
+- 当前计划包含：推进 `memory-bank`、同步根 `README.md`、修正明显过时的子目录 README、执行后端 / 前端全量回归、提交最终收口 commit。
+- 已完成根 `README.md`、`backend/README.md`、`frontend/README.md`、`infra/docker/README.md` 的当前基线同步，并把前端壳层中的阶段文案从旧的 Phase 5 / Knowledge 文案收口到 Step 7。
+- 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 全量回归。
+- 当前状态：**Step 7 implemented / waiting for user validation**；当前停在 Step 7，不进入注册能力等后续工作流。
 
 ### Phase 3 验测补记
 

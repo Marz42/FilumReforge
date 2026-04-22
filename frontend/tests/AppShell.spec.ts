@@ -49,7 +49,8 @@ describe('App shell', () => {
     })
 
     expect(wrapper.text()).toContain('Project Filum')
-    expect(wrapper.text()).toContain('Phase 5')
+    expect(wrapper.text()).toContain('Step 7')
+    expect(wrapper.text()).toContain('当前重构收口')
     expect(wrapper.text()).toContain('通用模块')
     expect(wrapper.text()).toContain('特殊模块')
     expect(wrapper.text()).toContain('总览')

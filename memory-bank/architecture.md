@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.4.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 / Step 4 / Step 5 已完成并通过用户验测，Step 6 已实现并等待用户验测  
+**版本**: v3.6.0  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；当前进入重构执行阶段，Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 已完成并通过用户验测，Step 7 已实现并等待用户验测  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -84,7 +84,7 @@
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
-| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 / Step 4 / Step 5 已完成并通过验测，Step 6 已实现待验测） | Step 7 文档收口与更深回归 |
+| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、六标签任务中心、汇报中心、知识库、消息中心、Push / PWA | 重构执行中（Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 已完成并通过验测，Step 7 已实现待验测） | 文档收口完成后的进一步测试强化 |
 | Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑

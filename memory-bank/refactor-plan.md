@@ -1,7 +1,7 @@
 # Project Filum 重构方案
 
 **版本**: v1.4  
-**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 / Step 4 / Step 5 已完成并通过用户验测；Step 6 已实现并等待用户验测  
+**状态**: 已确认并进入执行；Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 已完成并通过用户验测；Step 7 已实现并等待用户验测  
 **适用范围**: 基于当前 Phase 5 已完成基线，对前端信息架构、部分领域模型、页面边界与权限分层进行重构规划
 
 ## 1. 重构背景
@@ -738,7 +738,7 @@
 - 已完成用户级隔离收口：消息中心只展示当前用户自己的收件箱与自己的回执状态，不再沿用管理角色查看他人 inbox 的旧行为。
 - 已完成 `task` / `report` / `announcement` / `workflow` 的来源 payload 规范化，并将前端 `MessagesView.vue` 升级为带统计卡、筛选、回执与回到来源按钮的消息工作台。
 - 已完成后端 `pytest` / `compileall` 与前端 `test:unit`、`type-check`、`build`、`lint` 全量回归。
-- 当前状态：**Step 6 implemented / waiting for user validation**；在用户确认前不进入 Step 7。
+- 当前状态：**Step 6 done / user accepted**；已作为 Step 7 的进入基线。
 
 ## Step 7. 文档收口与全量回归
 
@@ -752,6 +752,13 @@
 - 更新 `implementation-plan.md`
 - 更新 `progress.md`
 - 更新 README 中导航、模块、测试说明
+- 按需修正 `backend/README.md`、`frontend/README.md`、`infra/docker/README.md` 中与当前实现冲突的内容
+
+**当前状态**
+
+- 已完成 `memory-bank`、根 README、子目录 README、全量回归与最终提交前收口。
+- 当前收口重点已全部落地，等待用户对最终基线做手动验测。
+- 本轮不进入注册能力、消息附件、生命周期自动化等后续工作流。
 
 **测试**
 

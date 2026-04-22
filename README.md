@@ -1,16 +1,17 @@
 # Project Filum
 
-Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管理平台，统一承载 **人事档案、事务协同、审批流、消息中心、知识库与 AI 指令入口**。当前仓库已经完成 **Phase A–Phase 5** 的主体实现，现阶段的重点从“搭骨架”转向 **文档收口、重构、测试强化与后续能力补齐**。
+Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管理平台，统一承载 **人事档案、事务协同、流程 / 汇报、消息中心、知识库与 AI 指令入口**。当前仓库已经完成 **Phase A–Phase 5** 与重构 **Step 1–Step 7**，当前处于 **Step 7 已实现 / 等待用户验测** 的交付状态，重点已经从“搭骨架”转向“稳定基线后的后续增强”。
 
 ## 当前状态
 
 - **已完成**
   - 用户与会话：管理员初始化、JWT access/refresh、角色控制
   - 组织与 HR：部门树、一人一档、字段级权限、多岗位、虚线汇报、生命周期事件、代理授权
-  - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计、多视图
-  - 消息与通知：通知总线、delivery 记录、消息中心、回执、浏览器推送订阅与 Web Push 链路
+  - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计、多视图、六标签任务中心
+  - 总览与汇报：总览看板 / 公告 / 当前任务、逐级向上汇报 / 向下传达、历史归档
+  - 消息与通知：通知总线、delivery 记录、消息中心、回执、浏览器推送订阅与 Web Push 链路，以及 Step 6 的来源回跳 / 用户级隔离
   - Knowledge / AI：Markdown 知识库、向量检索、`@系统` / `/` 路由、Tool Calling
-  - 前端体验：知识库页、消息页、推送订阅卡片、PWA manifest / service worker、用户管理页
+  - 前端体验：通用模块 / 特殊模块分组导航、统一人员工作台、消息工作台、Push 订阅卡片、PWA manifest / service worker
 - **仍待补齐**
   - 公开注册能力
   - 生命周期事件与模板 / 审批流联动
@@ -187,17 +188,23 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 | `demo.finance@example.com` | 员工 | 财务行政部 | active |
 | `demo.former@example.com` | 员工 | 客户成功部 | offboarded |
 
-## 当前主要页面
+## 当前主要页面与路由
 
 - `/login`：登录与管理员初始化
-- `/users`：用户管理
-- `/departments`：部门管理
-- `/profiles`：档案治理工作台
-- `/tasks`：任务中心（列表 / 看板 / 甘特图）
-- `/task-templates`：模板中心
-- `/approvals`：审批中心
+- `/overview`：总览（看板、公告、待办事项、任务跟踪）
+- `/task-center`：任务中心（模板、发布、待办、跟踪、历史、备忘）
+- `/reports`：汇报中心（待处理、我发起、历史、向上汇报、向下传达）
 - `/messages`：消息中心与 Push 订阅
 - `/knowledge-base`：知识库
+- `/people`：统一人员工作台（管理员 / HR）
+- `/departments`：部门管理（仅管理员）
+
+兼容旧入口仍然保留重定向：
+
+- `/dashboard` -> `/overview`
+- `/tasks`、`/task-templates` -> `/task-center`
+- `/approvals` -> `/reports`
+- `/users`、`/profiles` -> `/people`
 
 ## 浏览器推送说明
 
@@ -224,10 +231,11 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 - **不建设独立聊天系统**
 - Email / WebSocket 适配器当前为最小实现，重点先放在通知总线与 delivery 语义稳定
 - PWA 当前提供安装与 Push 基线，不追求复杂离线编辑
+- 当前重构收口已经完成，后续以用户对 Step 7 的最终验测结论为准
 
 ## 下一步
 
-当前文档已经对齐到最新实现基线。下一步建议在你确认后，围绕以下方向继续：
+当前重构主体已经完成，待你确认 Step 7 验测结论后，下一步建议围绕以下方向继续：
 
 1. 重构服务边界与页面状态管理
 2. 扩充集成测试 / E2E 验证
