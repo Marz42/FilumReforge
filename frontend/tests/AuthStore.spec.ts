@@ -5,11 +5,12 @@ import type { AuthSession, User } from '@/types/api'
 
 vi.mock('@/api/auth', () => ({
   bootstrapAdmin: vi.fn(),
+  getBootstrapStatus: vi.fn(),
   getCurrentUser: vi.fn(),
   login: vi.fn(),
 }))
 
-import { getCurrentUser, login } from '@/api/auth'
+import { bootstrapAdmin, getBootstrapStatus, getCurrentUser, login } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 
 const mockUser: User = {
@@ -62,5 +63,33 @@ describe('auth store', () => {
     expect(restored).toBe(true)
     expect(authStore.user?.id).toBe('user-1')
     expect(authStore.initialized).toBe(true)
+  })
+
+  it('loads bootstrap status from backend', async () => {
+    vi.mocked(getBootstrapStatus).mockResolvedValue({ bootstrap_required: false })
+
+    const authStore = useAuthStore()
+    const bootstrapRequired = await authStore.fetchBootstrapStatus()
+
+    expect(bootstrapRequired).toBe(false)
+    expect(authStore.bootstrapRequired).toBe(false)
+    expect(authStore.bootstrapStatusLoaded).toBe(true)
+  })
+
+  it('marks bootstrap as completed after admin initialization', async () => {
+    vi.mocked(bootstrapAdmin).mockResolvedValue(mockUser)
+    vi.mocked(login).mockResolvedValue(mockSession)
+
+    const authStore = useAuthStore()
+    await authStore.bootstrapAdmin({
+      email: 'admin@example.com',
+      password: 'StrongPassword123!',
+      real_name: '系统管理员',
+      employee_no: 'EMP-ROOT',
+    })
+
+    expect(authStore.bootstrapRequired).toBe(false)
+    expect(authStore.bootstrapStatusLoaded).toBe(true)
+    expect(authStore.isAuthenticated).toBe(true)
   })
 })

@@ -19,6 +19,7 @@ setUnauthorizedHandler(() => {
 })
 
 await authStore.restoreSession()
+await authStore.fetchBootstrapStatus().catch(() => undefined)
 
 app.use(pinia)
 app.use(ElementPlus)

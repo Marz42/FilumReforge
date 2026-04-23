@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
-import { createDepartment, listDepartments, listDepartmentTree } from '@/api/departments'
+import {
+  createDepartment,
+  deleteDepartment,
+  listDepartments,
+  listDepartmentTree,
+  updateDepartment,
+} from '@/api/departments'
 import { listUsers } from '@/api/users'
 import type { Department, DepartmentTreeNode, User } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
@@ -10,6 +16,7 @@ import { getErrorMessage } from '@/utils/errors'
 const loading = ref(false)
 const submitting = ref(false)
 const dialogVisible = ref(false)
+const editingDepartmentId = ref<string | null>(null)
 const departments = ref<Department[]>([])
 const departmentTree = ref<DepartmentTreeNode[]>([])
 const users = ref<User[]>([])
@@ -20,6 +27,7 @@ const form = reactive({
   parent_id: '',
   manager_id: '',
   sort_order: 0,
+  is_active: true,
 })
 
 const treeProps = {
@@ -32,6 +40,15 @@ const departmentNameMap = computed(
 )
 const userEmailMap = computed(() => new Map(users.value.map((user) => [user.id, user.email])))
 const activeUsers = computed(() => users.value.filter((user) => user.status === 'active'))
+const isEditing = computed(() => editingDepartmentId.value !== null)
+const currentDepartment = computed(
+  () => departments.value.find((department) => department.id === editingDepartmentId.value) ?? null,
+)
+const isEditingRootDepartment = computed(() => currentDepartment.value?.code === 'root')
+const dialogTitle = computed(() => (isEditing.value ? '编辑部门' : '新建部门'))
+const parentOptions = computed(() =>
+  departments.value.filter((department) => department.id !== editingDepartmentId.value),
+)
 
 function resolveDepartmentName(departmentId: string | null): string {
   if (!departmentId) {
@@ -50,11 +67,33 @@ function resolveUserEmail(userId: string | null): string {
 }
 
 function resetForm(): void {
+  editingDepartmentId.value = null
   form.name = ''
   form.code = ''
   form.parent_id = ''
   form.manager_id = ''
   form.sort_order = 0
+  form.is_active = true
+}
+
+function isRootDepartment(department: Department): boolean {
+  return department.code === 'root'
+}
+
+function openCreateDialog(): void {
+  resetForm()
+  dialogVisible.value = true
+}
+
+function openEditDialog(department: Department): void {
+  editingDepartmentId.value = department.id
+  form.name = department.name
+  form.code = department.code
+  form.parent_id = department.parent_id ?? ''
+  form.manager_id = department.manager_id ?? ''
+  form.sort_order = department.sort_order
+  form.is_active = department.is_active
+  dialogVisible.value = true
 }
 
 async function loadData(): Promise<void> {
@@ -77,19 +116,31 @@ async function loadData(): Promise<void> {
   }
 }
 
-async function handleCreate(): Promise<void> {
+async function handleSubmit(): Promise<void> {
   submitting.value = true
 
   try {
-    await createDepartment({
-      name: form.name.trim(),
-      code: form.code.trim(),
-      parent_id: form.parent_id || null,
-      manager_id: form.manager_id || null,
-      sort_order: form.sort_order,
-    })
+    if (isEditing.value && editingDepartmentId.value) {
+      await updateDepartment(editingDepartmentId.value, {
+        name: form.name.trim(),
+        code: form.code.trim(),
+        parent_id: form.parent_id || null,
+        manager_id: form.manager_id || null,
+        sort_order: form.sort_order,
+        is_active: form.is_active,
+      })
+      ElMessage.success('部门已更新')
+    } else {
+      await createDepartment({
+        name: form.name.trim(),
+        code: form.code.trim(),
+        parent_id: form.parent_id || null,
+        manager_id: form.manager_id || null,
+        sort_order: form.sort_order,
+      })
+      ElMessage.success('部门已创建')
+    }
 
-    ElMessage.success('部门已创建')
     dialogVisible.value = false
     resetForm()
     await loadData()
@@ -97,6 +148,28 @@ async function handleCreate(): Promise<void> {
     ElMessage.error(getErrorMessage(error))
   } finally {
     submitting.value = false
+  }
+}
+
+async function handleDelete(department: Department): Promise<void> {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除“${department.name}”吗？仅允许删除没有子部门和关联数据的空部门。`,
+      '删除部门',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      },
+    )
+    await deleteDepartment(department.id)
+    ElMessage.success('部门已删除')
+    await loadData()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    ElMessage.error(getErrorMessage(error))
   }
 }
 
@@ -113,12 +186,19 @@ onMounted(() => {
           <template #header>
             <div class="page__header">
               <span>部门列表</span>
-              <el-button type="primary" @click="dialogVisible = true">新建部门</el-button>
+              <el-button type="primary" @click="openCreateDialog">新建部门</el-button>
             </div>
           </template>
 
           <el-table :data="departments" stripe>
-            <el-table-column prop="name" label="部门名称" min-width="160" />
+            <el-table-column label="部门名称" min-width="180">
+              <template #default="{ row }: { row: Department }">
+                <el-space>
+                  <span>{{ row.name }}</span>
+                  <el-tag v-if="isRootDepartment(row)" size="small" type="warning">公司</el-tag>
+                </el-space>
+              </template>
+            </el-table-column>
             <el-table-column prop="code" label="编码" min-width="120" />
             <el-table-column label="上级部门" min-width="140">
               <template #default="{ row }: { row: Department }">
@@ -136,6 +216,21 @@ onMounted(() => {
                 <el-tag :type="row.is_active ? 'success' : 'info'">
                   {{ row.is_active ? '启用' : '停用' }}
                 </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="{ row }: { row: Department }">
+                <el-space>
+                  <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+                  <el-button
+                    v-if="!isRootDepartment(row)"
+                    link
+                    type="danger"
+                    @click="handleDelete(row)"
+                  >
+                    删除
+                  </el-button>
+                </el-space>
               </template>
             </el-table-column>
           </el-table>
@@ -159,18 +254,23 @@ onMounted(() => {
       </el-col>
     </el-row>
 
-    <el-dialog v-model="dialogVisible" title="新建部门" width="520px" @closed="resetForm">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="520px" @closed="resetForm">
       <el-form label-position="top">
         <el-form-item label="部门名称">
           <el-input v-model="form.name" />
         </el-form-item>
         <el-form-item label="编码">
-          <el-input v-model="form.code" />
+          <el-input v-model="form.code" :disabled="isEditingRootDepartment" />
         </el-form-item>
         <el-form-item label="上级部门">
-          <el-select v-model="form.parent_id" clearable placeholder="可选">
+          <el-select
+            v-model="form.parent_id"
+            clearable
+            placeholder="可选"
+            :disabled="isEditingRootDepartment"
+          >
             <el-option
-              v-for="department in departments"
+              v-for="department in parentOptions"
               :key="department.id"
               :label="department.name"
               :value="department.id"
@@ -190,11 +290,14 @@ onMounted(() => {
         <el-form-item label="排序">
           <el-input-number v-model="form.sort_order" :min="0" />
         </el-form-item>
+        <el-form-item v-if="isEditing" label="状态">
+          <el-switch v-model="form.is_active" :disabled="isEditingRootDepartment" />
+        </el-form-item>
       </el-form>
 
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleCreate">保存</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
       </template>
     </el-dialog>
   </div>

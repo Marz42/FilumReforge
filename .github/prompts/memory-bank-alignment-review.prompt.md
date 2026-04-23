@@ -5,14 +5,25 @@ description: 审查 memory-bank 与实际代码是否对齐，并输出结构化
 
 # 审查 memory-bank 与实现对齐
 
-你的任务是检查 `memory-bank/` 文档、README 体系和当前实际代码实现之间是否一致，并在需要时输出一份详细评估报告到 `memory-bank/`。
+你的任务是检查 `memory-bank/` 文档、README 体系、最近提交历史和当前实际代码实现之间是否一致，并在需要时输出一份详细评估报告到 `memory-bank/`。
 
 ## 目标
 
 - 确认当前实现和文档是否对齐
+- 确认最近提交已经落地的能力、部署工件和文档是否一致
 - 找出架构说明、阶段状态、运行命令、模块边界、数据库事实中的漂移点
 - 区分“文档过时”和“实现缺失”，不要混为一谈
 - 输出一份可执行的评估报告，报告中必须给出证据路径和建议动作
+
+## 先做的事情
+
+开始读文档前，先查看最近提交历史：
+
+```sh
+git log --oneline -n 20
+```
+
+如果最近提交明显涉及部署、发布、工作流 E、README 或 memory-bank，同步把相关文件纳入本次审查范围，不要只盯住旧文档。
 
 ## 必读资料
 
@@ -22,9 +33,11 @@ description: 审查 memory-bank 与实际代码是否对齐，并输出结构化
 - `memory-bank/design-document.md`
 - `memory-bank/progress.md`
 - `memory-bank/implementation-plan.md`
+- `memory-bank/deployment-runbook-ubuntu-2404.md`
 - `README.md`
 - `backend/README.md`
 - `frontend/README.md`
+- `infra/docker/README.md`
 
 ## 事实核对范围
 
@@ -35,7 +48,11 @@ description: 审查 memory-bank 与实际代码是否对齐，并输出结构化
 - `backend/app/services/` 中的核心服务
 - `backend/app/api/routes/` 中的接口入口
 - `backend/app/main.py` 与 `backend/pyproject.toml`
+- `backend/scripts/start-prod.sh`、`backend/Dockerfile.prod`
 - `frontend/src/router/`、`frontend/src/views/`、`frontend/package.json`
+- `frontend/Dockerfile.prod`
+- `infra/docker/docker-compose.prod.yml`、`infra/nginx/nginx.prod.conf`、`scripts/check-release.sh`
+- `.gitattributes`（尤其是脚本换行约束）
 - `backend/tests/` 与 `frontend/tests/` 中能够证明当前行为的测试
 
 ## 审查要求
@@ -46,6 +63,7 @@ description: 审查 memory-bank 与实际代码是否对齐，并输出结构化
    - 架构与模块边界
    - 数据库 / 模型 / 迁移
    - API 与前端入口
+   - 部署 / 发布工件与运行命令
    - 运行 / 测试 / 开发命令
    - 已知缺口与后续计划
 3. 每个问题都要标注：
@@ -75,4 +93,5 @@ description: 审查 memory-bank 与实际代码是否对齐，并输出结构化
 
 - 这项审查默认不修改业务代码，除非用户明确要求顺手修复
 - 不要把 `design-document.md` 中的目标态当作当前实现事实
+- 不要忽略最近提交已经新增但旧 README 仍未同步的事实；这类情况应明确标记为“文档漂移”
 - 如果 `memory-bank` 与代码冲突，必须以可验证的代码、迁移、测试和运行命令为准

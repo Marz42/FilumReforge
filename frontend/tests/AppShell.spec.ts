@@ -49,8 +49,8 @@ describe('App shell', () => {
     })
 
     expect(wrapper.text()).toContain('Project Filum')
-    expect(wrapper.text()).toContain('Step 7')
-    expect(wrapper.text()).toContain('当前重构收口')
+    expect(wrapper.text()).toContain('统一协同工作台')
+    expect(wrapper.text()).toContain('人事、任务、汇报、消息与知识库统一入口')
     expect(wrapper.text()).toContain('通用模块')
     expect(wrapper.text()).toContain('特殊模块')
     expect(wrapper.text()).toContain('总览')
@@ -63,6 +63,8 @@ describe('App shell', () => {
     expect(wrapper.text()).not.toContain('仪表盘')
     expect(wrapper.text()).not.toContain('模板中心')
     expect(wrapper.text()).not.toContain('审批中心')
+    expect(wrapper.text()).not.toContain('Step 7')
+    expect(wrapper.text()).not.toContain('当前重构收口')
   })
 
   it('hides admin-only modules from hr users', async () => {

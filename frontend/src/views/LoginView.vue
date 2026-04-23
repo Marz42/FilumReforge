@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -28,8 +28,18 @@ const bootstrapForm = reactive({
 
 const redirectTarget = computed(() => {
   const redirect = route.query.redirect
-  return typeof redirect === 'string' && redirect.length > 0 ? redirect : '/dashboard'
+  return typeof redirect === 'string' && redirect.length > 0 ? redirect : '/overview'
 })
+const showBootstrapEntry = computed(() => authStore.bootstrapRequired)
+
+watch(
+  () => authStore.bootstrapRequired,
+  (required) => {
+    if (!required && activeTab.value === 'bootstrap') {
+      activeTab.value = 'login'
+    }
+  },
+)
 
 async function handleLogin(): Promise<void> {
   loginSubmitting.value = true
@@ -51,13 +61,19 @@ async function handleBootstrap(): Promise<void> {
   try {
     await authStore.bootstrapAdmin(bootstrapForm)
     ElMessage.success('管理员初始化成功')
-    await router.replace('/dashboard')
+    await router.replace('/overview')
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
   } finally {
     bootstrapSubmitting.value = false
   }
 }
+
+onMounted(() => {
+  if (!authStore.bootstrapStatusLoaded) {
+    void authStore.fetchBootstrapStatus().catch(() => undefined)
+  }
+})
 </script>
 
 <template>
@@ -67,13 +83,14 @@ async function handleBootstrap(): Promise<void> {
         <div class="login-card__header">
           <div>
             <h1>Project Filum</h1>
-            <p>Phase 1 · 系统核心业务底座</p>
+            <p>统一协同与人事工作台</p>
           </div>
           <el-tag type="success" effect="dark">JWT + Refresh</el-tag>
         </div>
       </template>
 
       <el-alert
+        v-if="showBootstrapEntry"
         title="第一次进入系统时，请先初始化管理员账号；在此之前，请确保后端服务和 PostgreSQL 已启动。"
         type="info"
         :closable="false"
@@ -105,7 +122,7 @@ async function handleBootstrap(): Promise<void> {
           </el-form>
         </el-tab-pane>
 
-        <el-tab-pane label="初始化管理员" name="bootstrap">
+        <el-tab-pane v-if="showBootstrapEntry" label="初始化管理员" name="bootstrap">
           <el-form label-position="top" @submit.prevent="handleBootstrap">
             <el-form-item label="管理员邮箱">
               <el-input v-model="bootstrapForm.email" autocomplete="username" />

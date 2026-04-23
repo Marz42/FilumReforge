@@ -1,7 +1,14 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { bootstrapAdmin, getCurrentUser, login, type BootstrapAdminPayload, type LoginPayload } from '@/api/auth'
+import {
+  bootstrapAdmin,
+  getBootstrapStatus,
+  getCurrentUser,
+  login,
+  type BootstrapAdminPayload,
+  type LoginPayload,
+} from '@/api/auth'
 import { clearAuthSession, getAccessToken, getRefreshToken, setAuthSession } from '@/api/session'
 import type { User } from '@/types/api'
 
@@ -10,6 +17,8 @@ export const useAuthStore = defineStore('auth', () => {
   const refreshToken = ref<string | null>(getRefreshToken())
   const user = ref<User | null>(null)
   const initialized = ref(false)
+  const bootstrapRequired = ref(true)
+  const bootstrapStatusLoaded = ref(false)
 
   const isAuthenticated = computed(() => Boolean(user.value && accessToken.value))
   const isManagementRole = computed(
@@ -32,10 +41,19 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function bootstrapAdminAccount(payload: BootstrapAdminPayload): Promise<User> {
     await bootstrapAdmin(payload)
+    bootstrapRequired.value = false
+    bootstrapStatusLoaded.value = true
     return loginWithPassword({
       email: payload.email,
       password: payload.password,
     })
+  }
+
+  async function fetchBootstrapStatus(): Promise<boolean> {
+    const status = await getBootstrapStatus()
+    bootstrapRequired.value = status.bootstrap_required
+    bootstrapStatusLoaded.value = true
+    return status.bootstrap_required
   }
 
   async function restoreSession(): Promise<boolean> {
@@ -78,10 +96,13 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     user,
     initialized,
+    bootstrapRequired,
+    bootstrapStatusLoaded,
     isAuthenticated,
     isManagementRole,
     login: loginWithPassword,
     bootstrapAdmin: bootstrapAdminAccount,
+    fetchBootstrapStatus,
     restoreSession,
     clearSession,
     logout,

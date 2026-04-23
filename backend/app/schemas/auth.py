@@ -26,3 +26,7 @@ class AuthSessionRead(BaseModel):
   refresh_token: str
   token_type: str
   user: UserRead
+
+
+class BootstrapStatusRead(BaseModel):
+  bootstrap_required: bool

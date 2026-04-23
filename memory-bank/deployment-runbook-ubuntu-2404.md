@@ -25,14 +25,14 @@
 ```bash
 export FILUM_DOMAIN="projectfilum.com"
 export FILUM_WWW_DOMAIN="www.projectfilum.com"
-export FILUM_REPO_URL="<YOUR_GIT_REPO_URL>"
+export FILUM_REPO_URL="https://github.com/Marz42/FilumReforge.git"
 export FILUM_ROOT="/srv/filum"
 export FILUM_USER="filum"
 export FILUM_GROUP="filum"
 export FILUM_DB_NAME="filum"
 export FILUM_DB_USER="filum"
-export FILUM_DB_PASSWORD="<REPLACE_WITH_A_STRONG_DB_PASSWORD>"
-export FILUM_JWT_SECRET="<REPLACE_WITH_A_RANDOM_64+_HEX_SECRET>"
+export FILUM_DB_PASSWORD=""
+export FILUM_JWT_SECRET=""
 export FILUM_TIMEZONE="Asia/Shanghai"
 ```
 
@@ -555,7 +555,113 @@ curl -I "https://${FILUM_WWW_DOMAIN}"
 
 ## 21. 后续更新发布流程
 
-以后每次发布，按下面顺序执行：
+当前推荐的后续发布方式是：**本地完成修改并提交到 Git -> 服务器 `git pull` -> 按变更类型更新依赖 / 构建产物 -> 通过 systemd / Nginx 让修改生效**。
+
+不要在服务器上直接改业务代码；服务器只负责拉取已经验证过的提交并发布，这样后续回滚、排障和对比差异都更直接。
+
+### 21.1 发布前本地建议
+
+在本地或至少在一台非生产环境中先完成本轮修改，并尽量执行：
+
+```bash
+cd /path/to/FilumReforge
+bash scripts/check-release.sh
+```
+
+如果本轮只涉及前端或某个小范围后端修复，也至少执行与改动直接相关的测试、`type-check`、`build` 或 `compileall`，不要完全跳过验证就直接推到生产机。
+
+### 21.2 服务器拉取新代码
+
+```bash
+cd /srv/filum
+git pull
+```
+
+如果你平时不是直接在 `main` 上发布，而是用 tag 或固定 commit 发布，推荐改成：
+
+```bash
+cd /srv/filum
+git fetch --all --tags
+git checkout <tag-or-commit>
+```
+
+### 21.3 更新 backend 依赖并执行迁移
+
+```bash
+sudo -u "$FILUM_USER" -H bash -lc '
+cd /srv/filum/backend
+source .venv/bin/activate
+pip install -e .
+alembic upgrade head
+'
+```
+
+如果本轮后端依赖有变化，`pip install -e .` 不能省略。
+
+### 21.4 更新 frontend 依赖并重建静态产物
+
+```bash
+sudo -u "$FILUM_USER" -H bash -lc '
+cd /srv/filum/frontend
+npm ci
+npm run build
+'
+```
+
+`npm ci` 会按锁文件重装依赖；如果本轮完全没有前端和 Node 依赖变更，也可以按你的发布习惯改成只执行 `npm run build`，但默认建议保守一点，优先保证产物和锁文件一致。
+
+### 21.5 按变更类型让修改生效
+
+#### A. 只改前端页面、样式、静态资源
+
+通常执行完 `npm run build` 后，新静态文件就已经落到 `/srv/filum/frontend/dist`。保守起见可以再执行：
+
+```bash
+sudo systemctl reload nginx
+```
+
+#### B. 改 backend API、service、schema、鉴权、配置读取逻辑
+
+执行：
+
+```bash
+sudo systemctl restart filum-backend
+```
+
+#### C. 改 worker 任务、通知链路、embedding、定时任务或共享后端逻辑
+
+执行：
+
+```bash
+sudo systemctl restart filum-backend filum-worker
+```
+
+#### D. 改 Nginx 配置
+
+先验证配置：
+
+```bash
+sudo nginx -t
+```
+
+通过后再：
+
+```bash
+sudo systemctl reload nginx
+```
+
+#### E. 不确定本轮到底影响了哪些进程
+
+用最保守方式：
+
+```bash
+sudo systemctl restart filum-backend filum-worker
+sudo systemctl reload nginx
+```
+
+### 21.6 一次完整的手工发布示例
+
+如果你不想逐条判断，本仓库当前最稳的主机发布顺序就是：
 
 ```bash
 cd /srv/filum
@@ -584,12 +690,33 @@ sudo systemctl restart filum-backend filum-worker
 sudo systemctl reload nginx
 ```
 
-发布后快速验证：
+### 21.7 发布后快速验证
+
+至少执行：
 
 ```bash
 curl http://127.0.0.1:8000/healthz
 curl -I "https://${FILUM_DOMAIN}"
+sudo systemctl status filum-backend filum-worker nginx --no-pager
+sudo journalctl -u filum-backend -n 100 --no-pager
+sudo journalctl -u filum-worker -n 100 --no-pager
 ```
+
+如果本轮改动了前端登录、导航、任务中心、汇报中心、消息中心、部门管理等页面，浏览器里还要至少再点一遍对应入口，不要只看 `200 OK`。
+
+### 21.8 出问题时的最小回退原则
+
+如果发布后发现问题，优先回到上一版代码，再重新构建和重启服务：
+
+```bash
+cd /srv/filum
+git log --oneline -n 5
+git checkout <previous-good-commit>
+```
+
+然后重复本节中的 backend / frontend / systemd / Nginx 生效步骤。
+
+如果本轮已经执行了数据库迁移，回退前先确认这次迁移是否兼容旧代码；**不要在未确认数据兼容性的情况下直接执行 Alembic downgrade**。
 
 ## 22. 常用排障命令
 

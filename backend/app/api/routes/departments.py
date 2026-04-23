@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 
 from app.api.dependencies import get_current_user, get_department_service, get_management_user
 from app.models import User
@@ -75,6 +75,7 @@ async def update_department(
   department = await department_service.update_department(
     actor=actor,
     department_id=department_id,
+    fields_set=payload.model_fields_set,
     name=payload.name,
     code=payload.code,
     parent_id=payload.parent_id,
@@ -84,3 +85,18 @@ async def update_department(
     capabilities=payload.capabilities,
   )
   return DepartmentRead.model_validate(department)
+
+
+@router.delete(
+  "/{department_id}",
+  status_code=status.HTTP_204_NO_CONTENT,
+  response_model=None,
+  response_class=Response,
+)
+async def delete_department(
+  department_id: UUID,
+  actor: Annotated[User, Depends(get_management_user)],
+  department_service: Annotated[DepartmentService, Depends(get_department_service)],
+) -> Response:
+  await department_service.delete_department(actor=actor, department_id=department_id)
+  return Response(status_code=status.HTTP_204_NO_CONTENT)

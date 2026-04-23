@@ -251,10 +251,18 @@ async def login(client: AsyncClient, *, email: str, password: str) -> dict[str, 
 async def test_auth_and_users_api_flow(api_client) -> None:
   client, _ = api_client
 
+  bootstrap_status_response = await client.get("/api/v1/auth/bootstrap-status")
+  assert bootstrap_status_response.status_code == 200
+  assert bootstrap_status_response.json() == {"bootstrap_required": True}
+
   unauthorized_response = await client.get("/api/v1/users")
   assert unauthorized_response.status_code == 401
 
   headers, login_payload = await bootstrap_and_login(client)
+
+  bootstrap_status_response = await client.get("/api/v1/auth/bootstrap-status")
+  assert bootstrap_status_response.status_code == 200
+  assert bootstrap_status_response.json() == {"bootstrap_required": False}
 
   me_response = await client.get("/api/v1/auth/me", headers=headers)
   assert me_response.status_code == 200
@@ -628,6 +636,73 @@ async def test_department_profile_task_and_attachment_api_flow(api_client) -> No
 
   assert len(queue_publisher.payloads) == 1
   assert queue_publisher.payloads[0]["message_type"] == "task_assigned"
+
+
+@pytest.mark.asyncio
+async def test_department_update_and_delete_api_flow(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  root_departments_response = await client.get("/api/v1/departments", headers=headers)
+  assert root_departments_response.status_code == 200
+  root_department = next(item for item in root_departments_response.json() if item["code"] == "root")
+
+  manager_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "manager@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert manager_response.status_code == 201
+  manager_id = manager_response.json()["id"]
+
+  create_department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "市场部",
+      "code": "marketing",
+      "parent_id": root_department["id"],
+      "manager_id": manager_id,
+    },
+  )
+  assert create_department_response.status_code == 201
+  department_id = create_department_response.json()["id"]
+
+  update_department_response = await client.patch(
+    f"/api/v1/departments/{department_id}",
+    headers=headers,
+    json={
+      "name": "品牌市场部",
+      "manager_id": None,
+      "is_active": True,
+    },
+  )
+  assert update_department_response.status_code == 200
+  assert update_department_response.json()["name"] == "品牌市场部"
+  assert update_department_response.json()["manager_id"] is None
+
+  delete_root_response = await client.delete(
+    f"/api/v1/departments/{root_department['id']}",
+    headers=headers,
+  )
+  assert delete_root_response.status_code == 409
+
+  delete_department_response = await client.delete(
+    f"/api/v1/departments/{department_id}",
+    headers=headers,
+  )
+  assert delete_department_response.status_code == 204
+
+  missing_department_response = await client.get(
+    f"/api/v1/departments/{department_id}",
+    headers=headers,
+  )
+  assert missing_department_response.status_code == 404
 
 
 @pytest.mark.asyncio

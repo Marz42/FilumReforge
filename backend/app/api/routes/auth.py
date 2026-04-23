@@ -8,6 +8,7 @@ from app.api.dependencies import get_auth_service, get_current_user
 from app.models import User
 from app.schemas.auth import (
   AuthSessionRead,
+  BootstrapStatusRead,
   BootstrapAdminRequest,
   LoginRequest,
   RefreshTokenRequest,
@@ -43,6 +44,13 @@ async def bootstrap_admin(
     employee_no=payload.employee_no,
   )
   return UserRead.model_validate(user)
+
+
+@router.get("/bootstrap-status", response_model=BootstrapStatusRead)
+async def read_bootstrap_status(
+  auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> BootstrapStatusRead:
+  return BootstrapStatusRead(bootstrap_required=await auth_service.is_bootstrap_required())
 
 
 @router.post("/login", response_model=AuthSessionRead)

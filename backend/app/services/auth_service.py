@@ -68,6 +68,10 @@ class AuthService:
     await self._session.refresh(admin)
     return admin
 
+  async def is_bootstrap_required(self) -> bool:
+    existing_users = await self._session.scalar(select(func.count()).select_from(User))
+    return not bool(existing_users)
+
   async def authenticate(self, *, email: str, password: str) -> AuthSession:
     user = await self._session.scalar(select(User).where(func.lower(User.email) == email.lower()))
     if user is None or not verify_password(password, user.password_hash):

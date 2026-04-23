@@ -41,6 +41,7 @@ from app.core.enums import (
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import (
   AttachmentLink,
+  Department,
   NotificationDelivery,
   NotificationMessage as NotificationMessageModel,
   TaskDependency,
@@ -219,6 +220,109 @@ async def test_department_profile_and_user_services(db_session) -> None:
   assert department in departments
   assert profile in profiles
   assert profile.custom_fields["skills"] == ["recruiting"]
+
+
+@pytest.mark.asyncio
+async def test_department_service_supports_clearing_manager_and_deleting_empty_leaf(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  department_service = DepartmentService(db_session)
+  user_service = UserService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  department = await department_service.create_department(
+    actor=admin,
+    name="研发部",
+    code="engineering",
+    manager_id=manager.id,
+  )
+
+  updated_department = await department_service.update_department(
+    actor=admin,
+    department_id=department.id,
+    fields_set={"manager_id", "name"},
+    manager_id=None,
+    name="产品研发部",
+  )
+
+  assert updated_department.manager_id is None
+  assert updated_department.name == "产品研发部"
+
+  await department_service.delete_department(actor=admin, department_id=department.id)
+  deleted_department = await db_session.get(Department, department.id)
+
+  assert deleted_department is None
+
+
+@pytest.mark.asyncio
+async def test_department_service_rejects_invalid_parent_cycles_and_non_empty_delete(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+  user_service = UserService(db_session)
+
+  root_department = await db_session.scalar(select(Department).where(Department.code == "root"))
+  assert root_department is not None
+
+  parent_department = await department_service.create_department(
+    actor=admin,
+    name="一级部门",
+    code="level-one",
+    parent_id=root_department.id,
+  )
+  child_department = await department_service.create_department(
+    actor=admin,
+    name="二级部门",
+    code="level-two",
+    parent_id=parent_department.id,
+  )
+
+  with pytest.raises(ConflictError, match="自己的下级部门"):
+    await department_service.update_department(
+      actor=admin,
+      department_id=parent_department.id,
+      fields_set={"parent_id"},
+      parent_id=child_department.id,
+    )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="研发工程师",
+    department_id=child_department.id,
+  )
+
+  with pytest.raises(ConflictError, match="关联档案"):
+    await department_service.delete_department(actor=admin, department_id=child_department.id)
+
+  with pytest.raises(ConflictError, match="根节点"):
+    await department_service.delete_department(actor=admin, department_id=root_department.id)
 
 
 @pytest.mark.asyncio

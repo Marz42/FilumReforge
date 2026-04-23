@@ -11,6 +11,10 @@ export interface BootstrapAdminPayload extends LoginPayload {
   employee_no: string
 }
 
+export interface BootstrapStatus {
+  bootstrap_required: boolean
+}
+
 export async function bootstrapAdmin(payload: BootstrapAdminPayload): Promise<User> {
   const { data } = await rawHttp.post<User>('/auth/bootstrap-admin', payload)
   return data
@@ -23,5 +27,10 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
 
 export async function getCurrentUser(): Promise<User> {
   const { data } = await http.get<User>('/auth/me')
+  return data
+}
+
+export async function getBootstrapStatus(): Promise<BootstrapStatus> {
+  const { data } = await rawHttp.get<BootstrapStatus>('/auth/bootstrap-status')
   return data
 }

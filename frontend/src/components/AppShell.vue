@@ -79,7 +79,7 @@ function handleLogout(): void {
     <el-aside width="240px" class="app-shell__aside">
       <div class="app-shell__brand">
         <h1>{{ appStore.projectName }}</h1>
-        <p>{{ appStore.currentPhase }} · 当前重构收口</p>
+        <p>{{ appStore.currentPhase }}</p>
       </div>
 
       <el-menu
