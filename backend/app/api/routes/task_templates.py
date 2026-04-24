@@ -12,6 +12,7 @@ from app.api.dependencies import (
 )
 from app.models import TaskTemplate, TaskTemplateInstance, TaskTemplateStep, TaskTemplateStepRun, User
 from app.schemas.task_templates import (
+  StepRunDecideRequest,
   TaskTemplateInstanceRead,
   TaskTemplateInstanceStepRead,
   TaskScheduleCreateRequest,
@@ -271,3 +272,49 @@ async def update_task_schedule(
     is_active=payload.is_active,
   )
   return TaskScheduleRead.model_validate(schedule)
+
+
+@router.post(
+  "/{template_id}/instances/{instance_id}/step-runs/{step_run_id}/decide",
+  response_model=TaskTemplateInstanceRead,
+)
+async def decide_template_step_run(
+  template_id: UUID,
+  instance_id: UUID,
+  step_run_id: UUID,
+  payload: StepRunDecideRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
+) -> TaskTemplateInstanceRead:
+  instance = await task_template_service.decide_step_run(
+    actor=actor,
+    template_id=template_id,
+    instance_id=instance_id,
+    step_run_id=step_run_id,
+    decision=payload.decision,
+    comment=payload.comment,
+  )
+  return _build_template_instance_read(instance)
+
+
+@router.post(
+  "/{template_id}/instances/{instance_id}/step-runs/{step_run_id}/decide",
+  response_model=TaskTemplateInstanceRead,
+)
+async def decide_template_step_run(
+  template_id: UUID,
+  instance_id: UUID,
+  step_run_id: UUID,
+  payload: StepRunDecideRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
+) -> TaskTemplateInstanceRead:
+  instance = await task_template_service.decide_step_run(
+    actor=actor,
+    template_id=template_id,
+    instance_id=instance_id,
+    step_run_id=step_run_id,
+    decision=payload.decision,
+    comment=payload.comment,
+  )
+  return _build_template_instance_read(instance)

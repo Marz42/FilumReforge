@@ -4,8 +4,7 @@ import { ElMessage, type UploadFile } from 'element-plus'
 
 import { listAttachments, uploadAttachment } from '@/api/attachments'
 import { listDepartments } from '@/api/departments'
-import {
-  addTaskWatchers,
+import { addTaskWatchers,
   createTask,
   createTaskComment,
   getTaskStatsSummary,
@@ -17,6 +16,7 @@ import {
   listTaskWatchers,
   updateTaskStatus,
 } from '@/api/tasks'
+import { decideStepRun } from '@/api/task-templates'
 import { listUsers } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import type {
@@ -102,6 +102,9 @@ const submitting = ref(false)
 const taskAttachmentUploading = ref(false)
 const commentSubmitting = ref(false)
 const statusSubmitting = ref(false)
+const approvalSubmitting = ref(false)
+const rejectCommentDialogVisible = ref(false)
+const rejectCommentText = ref('')
 const dialogVisible = ref(false)
 const tasks = ref<Task[]>([])
 const taskBoard = ref<TaskBoardColumn[]>([])
@@ -168,6 +171,20 @@ const canAdvanceSelectedTask = computed(() => {
     return false
   }
 
+  return authStore.isManagementRole || user.id === task.assignee_id || user.id === task.creator_id
+})
+
+const isApprovalTask = computed(() => {
+  const meta = selectedTask.value?.extra_metadata as Record<string, unknown> | undefined
+  const approvalType = meta?.template_step_approval_type
+  return typeof approvalType === 'string' && approvalType !== 'none' && approvalType !== ''
+})
+
+const canDecideApproval = computed(() => {
+  const task = selectedTask.value
+  const user = authStore.user
+  if (!task || !user || !isApprovalTask.value) return false
+  if (task.status !== 'review') return false
   return authStore.isManagementRole || user.id === task.assignee_id || user.id === task.creator_id
 })
 const completionRateText = computed(() => formatRate(statsSummary.value?.completion_rate ?? 0))
@@ -450,6 +467,38 @@ async function handleStatusTransition(): Promise<void> {
   }
 }
 
+async function handleApprovalDecide(decision: 'approved' | 'rejected' | 'returned'): Promise<void> {
+  const task = selectedTask.value
+  if (!task) return
+  const meta = task.extra_metadata as Record<string, unknown>
+  const templateId = meta?.template_id as string | undefined
+  const instanceId = meta?.template_instance_id as string | undefined
+  const stepRunId = meta?.template_step_run_id as string | undefined
+  if (!templateId || !instanceId || !stepRunId) {
+    ElMessage.error('无法获取模板审核上下文，请联系管理员')
+    return
+  }
+
+  approvalSubmitting.value = true
+  try {
+    const comment = rejectCommentText.value.trim() || undefined
+    await decideStepRun(templateId, instanceId, stepRunId, decision, comment)
+    ElMessage.success(decision === 'approved' ? '已审核通过' : '已驳回，步骤将重新激活')
+    rejectCommentDialogVisible.value = false
+    rejectCommentText.value = ''
+    await loadData()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    approvalSubmitting.value = false
+  }
+}
+
+function openRejectDialog(): void {
+  rejectCommentText.value = ''
+  rejectCommentDialogVisible.value = true
+}
+
 onMounted(() => {
   resetTaskForm()
   void loadData()
@@ -638,14 +687,32 @@ watch(
           <template #header>
             <div class="page__header">
               <span>任务协同详情</span>
-              <el-button
-                v-if="selectedTask && nextStatusAction && canAdvanceSelectedTask"
-                :type="nextStatusAction.buttonType"
-                :loading="statusSubmitting"
-                @click="handleStatusTransition"
-              >
-                {{ nextStatusAction.label }}
-              </el-button>
+              <div style="display: flex; gap: 8px; align-items: center">
+                <template v-if="canDecideApproval">
+                  <el-button
+                    type="success"
+                    :loading="approvalSubmitting"
+                    @click="handleApprovalDecide('approved')"
+                  >
+                    审核通过
+                  </el-button>
+                  <el-button
+                    type="danger"
+                    :loading="approvalSubmitting"
+                    @click="openRejectDialog"
+                  >
+                    驳回修改
+                  </el-button>
+                </template>
+                <el-button
+                  v-else-if="selectedTask && nextStatusAction && canAdvanceSelectedTask"
+                  :type="nextStatusAction.buttonType"
+                  :loading="statusSubmitting"
+                  @click="handleStatusTransition"
+                >
+                  {{ nextStatusAction.label }}
+                </el-button>
+              </div>
             </div>
           </template>
 
@@ -928,6 +995,26 @@ watch(
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="submitting" @click="handleCreateTask">
           保存
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 驳回审核对话框 -->
+    <el-dialog v-model="rejectCommentDialogVisible" title="驳回说明" width="480px">
+      <el-form label-position="top">
+        <el-form-item label="驳回原因（可选）">
+          <el-input
+            v-model="rejectCommentText"
+            type="textarea"
+            :rows="3"
+            placeholder="说明本次驳回的原因，便于执行人修改"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rejectCommentDialogVisible = false">取消</el-button>
+        <el-button type="danger" :loading="approvalSubmitting" @click="handleApprovalDecide('rejected')">
+          确认驳回
         </el-button>
       </template>
     </el-dialog>

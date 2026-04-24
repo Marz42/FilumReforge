@@ -1,0 +1,39 @@
+[
+  {
+    "step_key": "propose_topics",
+    "title": "选题提案",
+    "description": "各参与人提交本期选题创意，说明选题方向、目标受众和核心内容要点，完成后提交到下一步审核。",
+    "step_type": "task",
+    "assignment_mode": "fan_out",
+    "join_mode": "all",
+    "default_assignee_rule": { "type": "initiator" },
+    "default_due_offset_hours": 48,
+    "sort_order": 1,
+    "config": {},
+    "depends_on_step_keys": [],
+    "approval_type": "none",
+    "reject_target_step_key": null,
+    "downstream_trigger": null
+  },
+  {
+    "step_key": "review_topics",
+    "title": "选题审核",
+    "description": "主编汇总所有选题提案，进行综合评审。审核通过后将为每位提案参与人各自创建一个【文案写作工作流】实例。驳回则要求参与人修改提案后重新提交。",
+    "step_type": "task",
+    "assignment_mode": "single",
+    "join_mode": "all",
+    "default_assignee_rule": { "type": "department_manager" },
+    "default_due_offset_hours": 24,
+    "sort_order": 2,
+    "config": {},
+    "depends_on_step_keys": ["propose_topics"],
+    "approval_type": "approve_reject",
+    "reject_target_step_key": "propose_topics",
+    "downstream_trigger": {
+      "template_code": "COPYWRITING_WF",
+      "trigger_condition": "approved",
+      "spawn_mode": "per_step_run",
+      "spawn_source_step_key": "propose_topics"
+    }
+  }
+]

@@ -18,6 +18,9 @@ export interface TaskTemplateStepPayload {
   sort_order?: number | null
   config?: Record<string, unknown>
   depends_on_step_keys?: string[]
+  approval_type?: string
+  reject_target_step_key?: string | null
+  downstream_trigger?: Record<string, unknown> | null
 }
 
 export interface CreateTaskTemplatePayload {
@@ -112,5 +115,19 @@ export async function updateTaskSchedule(
   payload: UpdateTaskSchedulePayload,
 ): Promise<TaskSchedule> {
   const { data } = await http.patch<TaskSchedule>(`/task-templates/schedules/${scheduleId}`, payload)
+  return data
+}
+
+export async function decideStepRun(
+  templateId: string,
+  instanceId: string,
+  stepRunId: string,
+  decision: 'approved' | 'rejected' | 'returned',
+  comment?: string | null,
+): Promise<TaskTemplateInstance> {
+  const { data } = await http.post<TaskTemplateInstance>(
+    `/task-templates/${templateId}/instances/${instanceId}/step-runs/${stepRunId}/decide`,
+    { decision, comment: comment ?? null },
+  )
   return data
 }

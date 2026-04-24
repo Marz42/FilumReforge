@@ -1,0 +1,38 @@
+[
+  {
+    "step_key": "write_copy",
+    "title": "文案撰写",
+    "description": "根据审核通过的选题方向完成正文文案、标题备选和关键词设置。完成后提交进入文案审核。",
+    "step_type": "task",
+    "assignment_mode": "single",
+    "join_mode": "all",
+    "default_assignee_rule": { "type": "initiator" },
+    "default_due_offset_hours": 72,
+    "sort_order": 1,
+    "config": {},
+    "depends_on_step_keys": [],
+    "approval_type": "none",
+    "reject_target_step_key": null,
+    "downstream_trigger": null
+  },
+  {
+    "step_key": "review_copy",
+    "title": "文案审核",
+    "description": "主编审核文案质量、合规性以及与选题的契合度。审核通过后自动触发【视频制作工作流】；驳回则要求文案作者修改后重新提交。",
+    "step_type": "task",
+    "assignment_mode": "single",
+    "join_mode": "all",
+    "default_assignee_rule": { "type": "department_manager" },
+    "default_due_offset_hours": 24,
+    "sort_order": 2,
+    "config": {},
+    "depends_on_step_keys": ["write_copy"],
+    "approval_type": "approve_reject",
+    "reject_target_step_key": "write_copy",
+    "downstream_trigger": {
+      "template_code": "VIDEO_PRODUCTION_WF",
+      "trigger_condition": "approved",
+      "spawn_mode": "single"
+    }
+  }
+]

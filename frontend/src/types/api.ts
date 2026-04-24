@@ -540,6 +540,9 @@ export interface TaskTemplateStep {
   default_due_offset_hours: number | null
   sort_order: number
   config: Record<string, unknown>
+  approval_type: string
+  reject_target_step_key: string | null
+  downstream_trigger: Record<string, unknown> | null
   created_at: string
   updated_at: string
   depends_on_step_keys: string[]
@@ -563,6 +566,7 @@ export interface TaskTemplate {
 
 export type TaskTemplateInstanceStatus = 'in_progress' | 'completed' | 'cancelled'
 export type TaskTemplateStepSnapshotStatus = 'blocked' | 'ready' | 'active' | 'completed'
+export type TaskTemplateStepRunDecision = 'approved' | 'rejected' | 'returned'
 export type TaskTemplateStepRunStatus = 'active' | 'completed' | 'skipped' | 'cancelled'
 
 export interface TaskTemplateStepRun {
@@ -571,7 +575,10 @@ export interface TaskTemplateStepRun {
   template_step_id: string
   assignee_user_id: string
   assignee_email: string | null
+  iteration: number
   status: TaskTemplateStepRunStatus
+  decision: TaskTemplateStepRunDecision | null
+  result_payload: Record<string, unknown> | null
   completed_at: string | null
   created_at: string
   updated_at: string

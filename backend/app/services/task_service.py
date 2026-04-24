@@ -198,9 +198,12 @@ class TaskService:
   def _is_template_step_satisfied(*, step: TaskTemplateStep, step_runs: list[TaskTemplateStepRun]) -> bool:
     if not step_runs:
       return False
+    if getattr(step, "approval_type", "none") not in {None, "none", ""}:
+      # Approval steps are satisfied only when approved (not merely completed with a rejection)
+      return any(sr.status == "completed" and sr.decision == "approved" for sr in step_runs)
     if step.join_mode == "any":
-      return any(step_run.status == "completed" for step_run in step_runs)
-    return all(step_run.status == "completed" for step_run in step_runs)
+      return any(sr.status == "completed" for sr in step_runs)
+    return all(sr.status == "completed" for sr in step_runs)
 
   async def _load_tasks_by_ids(self, *, task_ids: list[UUID]) -> list[Task]:
     if not task_ids:
@@ -319,6 +322,7 @@ class TaskService:
           "template_step_run_id": str(step_run.id),
           "template_step_key": step.step_key,
           "template_step_type": step.step_type,
+          "template_step_approval_type": getattr(step, "approval_type", "none"),
           "assignment_mode": step.assignment_mode,
           "join_mode": step.join_mode,
           "instantiation_payload": dict(instance.payload),
@@ -404,7 +408,12 @@ class TaskService:
     created_bindings: list[tuple[Task, User]] = []
     watcher_bindings: list[tuple[Task, User]] = []
     for step in sorted(template.steps, key=lambda current_step: (current_step.sort_order, current_step.created_at)):
-      if step_runs_by_step_id.get(step.id):
+      step_step_runs = step_runs_by_step_id.get(step.id, [])
+      # Skip steps that are currently being worked on (have an active run)
+      if any(sr.status == "active" for sr in step_step_runs):
+        continue
+      # Skip steps that are already positively satisfied
+      if self._is_template_step_satisfied(step=step, step_runs=step_step_runs):
         continue
       dependency_ids = {dependency.depends_on_step_id for dependency in step.dependencies}
       if not dependency_ids.issubset(satisfied_step_ids):

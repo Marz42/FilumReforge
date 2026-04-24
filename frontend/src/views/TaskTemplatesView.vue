@@ -51,6 +51,11 @@ interface StepFormState {
   assignee_user_ids: string[]
   default_due_offset_hours?: number
   depends_on_step_keys: string[]
+  approval_type: string
+  reject_target_step_key: string
+  downstream_template_code: string
+  downstream_spawn_mode: string
+  downstream_spawn_source_step_key: string
 }
 
 const authStore = useAuthStore()
@@ -101,6 +106,11 @@ function createStepState(overrides: Partial<StepFormState> = {}): StepFormState 
     assignee_user_ids: [...(overrides.assignee_user_ids ?? [])],
     default_due_offset_hours: overrides.default_due_offset_hours,
     depends_on_step_keys: [...(overrides.depends_on_step_keys ?? [])],
+    approval_type: overrides.approval_type ?? 'none',
+    reject_target_step_key: overrides.reject_target_step_key ?? '',
+    downstream_template_code: overrides.downstream_template_code ?? '',
+    downstream_spawn_mode: overrides.downstream_spawn_mode ?? 'single',
+    downstream_spawn_source_step_key: overrides.downstream_spawn_source_step_key ?? '',
   }
 }
 
@@ -236,6 +246,21 @@ function createStepStateFromPayload(payload: TaskTemplateStepPayload, index: num
     depends_on_step_keys: Array.isArray(payload.depends_on_step_keys)
       ? payload.depends_on_step_keys.map((value) => String(value)).filter(Boolean)
       : [],
+    approval_type: typeof payload.approval_type === 'string' ? payload.approval_type : 'none',
+    reject_target_step_key:
+      typeof payload.reject_target_step_key === 'string' ? payload.reject_target_step_key : '',
+    downstream_template_code:
+      typeof payload.downstream_trigger?.template_code === 'string'
+        ? payload.downstream_trigger.template_code
+        : '',
+    downstream_spawn_mode:
+      typeof payload.downstream_trigger?.spawn_mode === 'string'
+        ? payload.downstream_trigger.spawn_mode
+        : 'single',
+    downstream_spawn_source_step_key:
+      typeof payload.downstream_trigger?.spawn_source_step_key === 'string'
+        ? payload.downstream_trigger.spawn_source_step_key
+        : '',
   })
 }
 
@@ -304,6 +329,9 @@ function populateTemplateForm(template: TaskTemplate): void {
         sort_order: step.sort_order,
         config: step.config,
         depends_on_step_keys: step.depends_on_step_keys,
+        approval_type: step.approval_type,
+        reject_target_step_key: step.reject_target_step_key,
+        downstream_trigger: step.downstream_trigger ?? undefined,
       },
       index,
     ),
@@ -531,6 +559,22 @@ function buildStepPayloads(strict: boolean): TaskTemplateStepPayload[] {
       depends_on_step_keys: step.depends_on_step_keys.filter(
         (value) => value !== stepKey && availableStepKeys.has(value),
       ),
+      approval_type: step.approval_type || 'none',
+      reject_target_step_key:
+        step.approval_type !== 'none' && step.reject_target_step_key.trim()
+          ? step.reject_target_step_key.trim()
+          : null,
+      downstream_trigger:
+        step.downstream_template_code.trim()
+          ? {
+              template_code: step.downstream_template_code.trim(),
+              trigger_condition: 'approved',
+              spawn_mode: step.downstream_spawn_mode || 'single',
+              ...(step.downstream_spawn_mode === 'per_step_run' && step.downstream_spawn_source_step_key.trim()
+                ? { spawn_source_step_key: step.downstream_spawn_source_step_key.trim() }
+                : {}),
+            }
+          : null,
     }
   })
 }
@@ -927,11 +971,26 @@ onMounted(() => {
                 v-for="step in selectedTemplate.steps"
                 :key="step.id"
                 :timestamp="`排序 ${step.sort_order}`"
+                :type="step.approval_type !== 'none' ? 'warning' : 'primary'"
               >
                 <strong>{{ step.title }}</strong>
+                <el-tag
+                  v-if="step.approval_type !== 'none'"
+                  size="small"
+                  type="warning"
+                  effect="plain"
+                  style="margin-left: 6px"
+                >
+                  {{ step.approval_type === 'approve_reject' ? '审核（可驳回）' : '审核（可退回）' }}
+                </el-tag>
                 <p>{{ step.step_key }} · {{ formatStepMode(step) }}</p>
                 <p>负责人 {{ formatAssigneeRule(step.default_assignee_rule) }}</p>
                 <p>依赖 {{ step.depends_on_step_keys.join(', ') || '无' }}</p>
+                <p v-if="step.reject_target_step_key">驳回跳转 → {{ step.reject_target_step_key }}</p>
+                <p v-if="step.downstream_trigger?.template_code">
+                  下游触发 → {{ step.downstream_trigger.template_code }}
+                  （{{ step.downstream_trigger.spawn_mode === 'per_step_run' ? '按参与人' : '单实例' }}）
+                </p>
               </el-timeline-item>
             </el-timeline>
 
@@ -1192,6 +1251,31 @@ onMounted(() => {
                   <el-option label="任务步骤" value="task" />
                 </el-select>
               </el-form-item>
+              <el-form-item label="审核类型">
+                <el-select v-model="step.approval_type" :disabled="templateStructureLocked">
+                  <el-option label="普通任务（无审核）" value="none" />
+                  <el-option label="审核步骤（可驳回）" value="approve_reject" />
+                  <el-option label="审核步骤（可退回）" value="approve_return" />
+                </el-select>
+              </el-form-item>
+              <el-form-item
+                v-if="step.approval_type !== 'none'"
+                label="驳回目标步骤"
+              >
+                <el-select
+                  v-model="step.reject_target_step_key"
+                  :disabled="templateStructureLocked"
+                  clearable
+                  placeholder="驳回后跳回的步骤"
+                >
+                  <el-option
+                    v-for="option in getDependencyOptions(step.step_key)"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+              </el-form-item>
               <el-form-item label="分配模式">
                 <el-select v-model="step.assignment_mode" :disabled="templateStructureLocked" @change="handleAssignmentModeChange(step)">
                   <el-option label="单任务" value="single" />
@@ -1247,6 +1331,36 @@ onMounted(() => {
                   />
                 </el-select>
               </el-form-item>
+              <el-form-item class="page__designer-grid-full" label="下游触发模板（步骤完成后自动启动，留空则不触发）">
+                <el-input
+                  v-model="step.downstream_template_code"
+                  :disabled="templateStructureLocked"
+                  placeholder="例如：COPYWRITING_WF"
+                />
+              </el-form-item>
+              <template v-if="step.downstream_template_code.trim()">
+                <el-form-item label="派生模式">
+                  <el-select v-model="step.downstream_spawn_mode" :disabled="templateStructureLocked">
+                    <el-option label="仅派生一个实例" value="single" />
+                    <el-option label="按源步骤参与人各派生一个" value="per_step_run" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="step.downstream_spawn_mode === 'per_step_run'" label="参考源步骤">
+                  <el-select
+                    v-model="step.downstream_spawn_source_step_key"
+                    :disabled="templateStructureLocked"
+                    clearable
+                    placeholder="以哪个步骤的参与人为单位"
+                  >
+                    <el-option
+                      v-for="option in getDependencyOptions(step.step_key)"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
+                    />
+                  </el-select>
+                </el-form-item>
+              </template>
               <el-form-item class="page__designer-grid-full" label="步骤说明">
                 <el-input v-model="step.description" :disabled="templateStructureLocked" type="textarea" :rows="3" />
               </el-form-item>

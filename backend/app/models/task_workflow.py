@@ -84,6 +84,9 @@ class TaskTemplateStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   default_due_offset_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
   sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
   config: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  approval_type: Mapped[str] = mapped_column(String(32), default="none", nullable=False)
+  reject_target_step_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+  downstream_trigger: Mapped[dict[str, Any] | None] = mapped_column(build_json_type(), nullable=True)
 
   template = relationship("TaskTemplate", back_populates="steps")
   dependencies = relationship(
@@ -173,9 +176,14 @@ class TaskTemplateStepRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
       "instance_id",
       "template_step_id",
       "assignee_user_id",
-      name="uq_task_tpl_step_runs_instance_step_assignee",
+      "iteration",
+      name="uq_task_tpl_step_runs_iter",
     ),
     CheckConstraint("status in ('active', 'completed', 'skipped', 'cancelled')", name="task_tpl_step_runs_status_check"),
+    CheckConstraint(
+      "decision IS NULL OR decision IN ('approved', 'rejected', 'returned')",
+      name="task_tpl_step_runs_decision_check",
+    ),
     Index("idx_task_tpl_step_runs_instance_status", "instance_id", "status"),
     Index("idx_task_tpl_step_runs_assignee_status", "assignee_user_id", "status"),
   )
@@ -192,7 +200,10 @@ class TaskTemplateStepRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     ForeignKey("users.id", name="fk_task_tpl_step_runs_assignee"),
     nullable=False,
   )
+  iteration: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
   status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)
+  decision: Mapped[str | None] = mapped_column(String(32), nullable=True)
+  result_payload: Mapped[dict[str, Any] | None] = mapped_column(build_json_type(), nullable=True)
   completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
   instance = relationship("TaskTemplateInstance", back_populates="step_runs")

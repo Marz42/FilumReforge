@@ -21,6 +21,9 @@ class TaskTemplateStepInput(BaseModel):
   sort_order: int | None = None
   config: dict[str, Any] = Field(default_factory=dict)
   depends_on_step_keys: list[str] = Field(default_factory=list)
+  approval_type: str = Field(default="none", min_length=1, max_length=32)
+  reject_target_step_key: str | None = None
+  downstream_trigger: dict[str, Any] | None = None
 
 
 class TaskScheduleRead(BaseModel):
@@ -53,6 +56,9 @@ class TaskTemplateStepRead(BaseModel):
   default_due_offset_hours: int | None
   sort_order: int
   config: dict[str, Any]
+  approval_type: str
+  reject_target_step_key: str | None
+  downstream_trigger: dict[str, Any] | None
   created_at: datetime
   updated_at: datetime
   depends_on_step_keys: list[str] = Field(default_factory=list)
@@ -84,7 +90,10 @@ class TaskTemplateStepRunRead(BaseModel):
   template_step_id: UUID
   assignee_user_id: UUID
   assignee_email: str | None = None
+  iteration: int
   status: str
+  decision: str | None
+  result_payload: dict[str, Any] | None
   completed_at: datetime | None
   created_at: datetime
   updated_at: datetime
@@ -165,3 +174,8 @@ class TaskTemplateInstantiationRead(BaseModel):
   template: TaskTemplateRead
   instance: TaskTemplateInstanceRead
   tasks: list[TaskRead] = Field(default_factory=list)
+
+
+class StepRunDecideRequest(BaseModel):
+  decision: str = Field(min_length=1, max_length=32)
+  comment: str | None = None
