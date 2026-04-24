@@ -59,4 +59,11 @@ describe('router navigation refactor', () => {
     await router.push('/departments')
     expect(router.currentRoute.value.name).toBe('overview')
   })
+
+  it('allows authenticated users to enter settings', async () => {
+    await seedUser('employee')
+
+    await router.push('/settings')
+    expect(router.currentRoute.value.name).toBe('settings')
+  })
 })

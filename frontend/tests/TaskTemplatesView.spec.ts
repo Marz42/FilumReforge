@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElMessageBox } from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Department, Task, TaskSchedule, TaskTemplate, TaskTemplateInstance, User } from '@/types/api'
@@ -8,6 +8,7 @@ import type { Department, Task, TaskSchedule, TaskTemplate, TaskTemplateInstance
 vi.mock('@/api/task-templates', () => ({
   createTaskSchedule: vi.fn(),
   createTaskTemplate: vi.fn(),
+  deleteTaskTemplate: vi.fn(),
   instantiateTaskTemplate: vi.fn(),
   listTaskTemplateInstances: vi.fn(),
   listTaskSchedules: vi.fn(),
@@ -28,6 +29,7 @@ import { listDepartments } from '@/api/departments'
 import { listUsers } from '@/api/users'
 import {
   createTaskSchedule,
+  deleteTaskTemplate,
   instantiateTaskTemplate,
   listTaskTemplateInstances,
   listTaskSchedules,
@@ -212,8 +214,10 @@ describe('TaskTemplates view', () => {
       tasks: [mockTask],
     })
     vi.mocked(createTaskSchedule).mockResolvedValue(mockSchedule)
+    vi.mocked(deleteTaskTemplate).mockResolvedValue()
     vi.mocked(updateTaskSchedule).mockResolvedValue(mockSchedule)
     vi.mocked(updateTaskTemplate).mockResolvedValue(mockTemplate)
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
   })
 
   it('renders template details and instantiates a template', async () => {
@@ -414,5 +418,55 @@ describe('TaskTemplates view', () => {
     })
     expect(wrapper.text()).toContain('启用模板')
     expect(wrapper.text()).toContain('停用')
+  })
+
+  it('locks the step designer when the template already has instances', async () => {
+    vi.mocked(listTaskTemplateInstances).mockResolvedValue([mockTemplateInstance])
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('编辑模板'))
+    expect(editButton).toBeTruthy()
+    await editButton?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('该模板已有实例运行记录')
+
+    const addStepButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('添加步骤'))
+    expect(addStepButton?.attributes('disabled')).toBeDefined()
+  })
+
+  it('deletes a template after confirmation', async () => {
+    vi.mocked(listTaskTemplates)
+      .mockResolvedValueOnce([mockTemplate])
+      .mockResolvedValueOnce([])
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    const deleteButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('删除模板'))
+    expect(deleteButton).toBeTruthy()
+
+    await deleteButton?.trigger('click')
+    await flushPromises()
+
+    expect(deleteTaskTemplate).toHaveBeenCalledWith('template-1')
   })
 })

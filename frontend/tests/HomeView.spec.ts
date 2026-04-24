@@ -7,12 +7,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OverviewSnapshot } from '@/types/api'
 
 vi.mock('@/api/overview', () => ({
+  archiveBoardCard: vi.fn(),
   createAnnouncement: vi.fn(),
   createBoardCard: vi.fn(),
   getOverview: vi.fn(),
+  withdrawAnnouncement: vi.fn(),
 }))
 
-import { createAnnouncement, createBoardCard, getOverview } from '@/api/overview'
+import {
+  archiveBoardCard,
+  createAnnouncement,
+  createBoardCard,
+  getOverview,
+  withdrawAnnouncement,
+} from '@/api/overview'
 import { useAuthStore } from '@/stores/auth'
 import HomeView from '@/views/HomeView.vue'
 
@@ -31,6 +39,8 @@ type HomeViewVm = {
   openAnnouncementDialog: () => void
   submitBoardCard: () => Promise<void>
   submitAnnouncement: () => Promise<void>
+  handleArchiveBoardCard: (cardId: string) => Promise<void>
+  handleWithdrawAnnouncement: (announcementId: string) => Promise<void>
 }
 
 const overviewSnapshot: OverviewSnapshot = {
@@ -118,6 +128,8 @@ describe('Home view', () => {
     vi.mocked(getOverview).mockResolvedValue(overviewSnapshot)
     vi.mocked(createBoardCard).mockResolvedValue(overviewSnapshot.board_cards[0]!)
     vi.mocked(createAnnouncement).mockResolvedValue(overviewSnapshot.announcements[0]!)
+    vi.mocked(archiveBoardCard).mockResolvedValue()
+    vi.mocked(withdrawAnnouncement).mockResolvedValue()
   })
 
   async function createTestRouter() {
@@ -128,6 +140,13 @@ describe('Home view', () => {
           path: '/overview',
           name: 'overview',
           component: HomeView,
+        },
+        {
+          path: '/task-center',
+          name: 'task-center',
+          component: {
+            template: '<div>task-center</div>',
+          },
         },
       ],
     })
@@ -150,12 +169,39 @@ describe('Home view', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('有效看板')
     expect(wrapper.text()).toContain('本周值班安排')
     expect(wrapper.text()).toContain('办公区维护通知')
     expect(wrapper.text()).toContain('待办事项')
     expect(wrapper.text()).toContain('任务跟踪')
-    expect(wrapper.text()).toContain('进入任务中心')
+    expect(wrapper.text()).toContain('进入待办')
+    expect(wrapper.text()).toContain('查看跟踪')
+    wrapper.unmount()
+  })
+
+  it('navigates to the matching task center tab from summary cards', async () => {
+    const router = await createTestRouter()
+    const wrapper = mount(HomeView, {
+      attachTo: document.body,
+      global: {
+        plugins: [ElementPlus, router],
+        stubs: {
+          transition: false,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const trackingButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('查看跟踪'))
+    expect(trackingButton).toBeTruthy()
+
+    await trackingButton?.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.name).toBe('task-center')
+    expect(router.currentRoute.value.query.tab).toBe('tracking')
     wrapper.unmount()
   })
 
@@ -214,6 +260,30 @@ describe('Home view', () => {
       title: '全员通知',
       content_md: '请注意机房维护窗口。',
     })
+    wrapper.unmount()
+  })
+
+  it('archives a board card and withdraws an announcement', async () => {
+    const router = await createTestRouter()
+    const wrapper = mount(HomeView, {
+      attachTo: document.body,
+      global: {
+        plugins: [ElementPlus, router],
+        stubs: {
+          transition: false,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as HomeViewVm
+    await vm.handleArchiveBoardCard('board-1')
+    await vm.handleWithdrawAnnouncement('announcement-1')
+    await flushPromises()
+
+    expect(archiveBoardCard).toHaveBeenCalledWith('board-1')
+    expect(withdrawAnnouncement).toHaveBeenCalledWith('announcement-1')
     wrapper.unmount()
   })
 })

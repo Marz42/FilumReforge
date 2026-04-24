@@ -573,16 +573,22 @@ bash scripts/check-release.sh
 ### 21.2 服务器拉取新代码
 
 ```bash
+sudo -u "$FILUM_USER" -H bash -lc '
 cd /srv/filum
 git pull
+'
 ```
+
+这里不要直接用 `root` 在 `/srv/filum` 下执行 `git pull`。按本文前面的部署步骤，仓库目录属主是 `filum`，如果切到 `root` 再直接操作，Git 会报 `detected dubious ownership`。如果你已经在 `root` shell 里，继续使用 `sudo -u "$FILUM_USER" -H bash -lc '...'` 即可，不建议通过 `git config --global --add safe.directory /srv/filum` 长期绕过这个检查。
 
 如果你平时不是直接在 `main` 上发布，而是用 tag 或固定 commit 发布，推荐改成：
 
 ```bash
+sudo -u "$FILUM_USER" -H bash -lc '
 cd /srv/filum
 git fetch --all --tags
 git checkout <tag-or-commit>
+'
 ```
 
 ### 21.3 更新 backend 依赖并执行迁移
@@ -664,8 +670,10 @@ sudo systemctl reload nginx
 如果你不想逐条判断，本仓库当前最稳的主机发布顺序就是：
 
 ```bash
+sudo -u "$FILUM_USER" -H bash -lc '
 cd /srv/filum
 git pull
+'
 ```
 
 ```bash
@@ -709,9 +717,11 @@ sudo journalctl -u filum-worker -n 100 --no-pager
 如果发布后发现问题，优先回到上一版代码，再重新构建和重启服务：
 
 ```bash
+sudo -u "$FILUM_USER" -H bash -lc '
 cd /srv/filum
 git log --oneline -n 5
 git checkout <previous-good-commit>
+'
 ```
 
 然后重复本节中的 backend / frontend / systemd / Nginx 生效步骤。

@@ -38,6 +38,10 @@ describe('Login view', () => {
 
     expect(wrapper.text()).toContain('第一次进入系统时，请先初始化管理员账号')
     expect(wrapper.text()).toContain('初始化管理员')
+
+    const inputs = wrapper.findAll('input')
+    expect(inputs[0]?.element).toHaveProperty('value', '')
+    expect(inputs[1]?.element).toHaveProperty('value', '')
   })
 
   it('hides bootstrap entry after backend reports initialization completed', async () => {

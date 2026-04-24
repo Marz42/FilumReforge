@@ -46,6 +46,7 @@ from app.models import (
   NotificationMessage as NotificationMessageModel,
   TaskDependency,
   TaskLog,
+  TaskTemplate,
   TaskTemplateInstance,
   TaskTemplateStepRun,
   User,
@@ -601,6 +602,33 @@ async def test_board_service_limits_active_cards_and_archives_expired_cards(db_s
   assert archived_count == 1
   assert len(archived_cards) == 1
   assert archived_cards[0].original_card_id == first_card.id
+
+
+@pytest.mark.asyncio
+async def test_board_service_allows_admin_to_archive_card_manually(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  board_service = BoardService(db_session)
+  card = await board_service.create_card(
+    actor=admin,
+    scope_department_id=None,
+    title="人工归档测试",
+    content_md="测试管理员手工归档。",
+  )
+
+  await board_service.archive_card(actor=admin, card_id=card.id)
+
+  assert await db_session.get(BoardCard, card.id) is None
+  archived_cards = await board_service.list_archives(actor=admin)
+  assert len(archived_cards) == 1
+  assert archived_cards[0].original_card_id == card.id
 
 
 @pytest.mark.asyncio
@@ -1677,6 +1705,223 @@ async def test_task_template_dependencies_block_downstream_status_transition(db_
   )
 
   assert activated_task.status == TaskStatus.DOING
+
+
+@pytest.mark.asyncio
+async def test_task_template_delete_only_allows_templates_without_instances(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="模板部",
+    code="template-dept",
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=requester.id,
+    employee_no="EMP-TPL-001",
+    real_name="模板发起人",
+    department_id=department.id,
+  )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  deletable_template = await task_template_service.create_template(
+    actor=admin,
+    code="deletable-template",
+    name="可删除模板",
+    category="ops",
+    steps=[
+      {
+        "step_key": "draft",
+        "title": "整理草稿",
+        "default_assignee_rule": {"type": "initiator"},
+      }
+    ],
+  )
+
+  protected_template = await task_template_service.create_template(
+    actor=admin,
+    code="protected-template",
+    name="已使用模板",
+    category="ops",
+    steps=[
+      {
+        "step_key": "draft",
+        "title": "整理草稿",
+        "default_assignee_rule": {"type": "initiator"},
+      }
+    ],
+  )
+  await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=protected_template.id,
+    payload={"department_id": str(department.id)},
+  )
+
+  await task_template_service.delete_template(actor=admin, template_id=deletable_template.id)
+
+  assert await db_session.get(TaskTemplate, deletable_template.id) is None
+
+  with pytest.raises(ConflictError, match="已有实例运行记录"):
+    await task_template_service.delete_template(actor=admin, template_id=protected_template.id)
+
+
+@pytest.mark.asyncio
+async def test_task_template_update_preserves_metadata_but_blocks_step_changes_after_instantiation(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="流程模板部",
+    code="workflow-template-dept",
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=requester.id,
+    employee_no="EMP-TPL-UPD-001",
+    real_name="模板执行人",
+    department_id=department.id,
+  )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="template-update-guard",
+    name="模板更新保护",
+    category="ops",
+    description="旧说明",
+    steps=[
+      {
+        "step_key": "draft",
+        "title": "整理草稿",
+        "default_assignee_rule": {"type": "initiator"},
+      },
+      {
+        "step_key": "review",
+        "title": "主管复核",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["draft"],
+      },
+    ],
+  )
+  await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=template.id,
+    payload={"department_id": str(department.id)},
+  )
+
+  metadata_updated = await task_template_service.update_template(
+    actor=admin,
+    template_id=template.id,
+    name="模板更新保护 v2",
+    description="新说明",
+    steps=[
+      {
+        "step_key": "draft",
+        "title": "整理草稿",
+        "description": None,
+        "step_type": "task",
+        "assignment_mode": "single",
+        "join_mode": "all",
+        "default_assignee_rule": {"type": "initiator"},
+        "default_due_offset_hours": None,
+        "sort_order": 1,
+        "config": {},
+        "depends_on_step_keys": [],
+      },
+      {
+        "step_key": "review",
+        "title": "主管复核",
+        "description": None,
+        "step_type": "task",
+        "assignment_mode": "single",
+        "join_mode": "all",
+        "default_assignee_rule": {"type": "department_manager"},
+        "default_due_offset_hours": None,
+        "sort_order": 2,
+        "config": {},
+        "depends_on_step_keys": ["draft"],
+      },
+    ],
+  )
+  assert metadata_updated.name == "模板更新保护 v2"
+  assert metadata_updated.description == "新说明"
+
+  with pytest.raises(ConflictError, match="暂不支持修改步骤结构"):
+    await task_template_service.update_template(
+      actor=admin,
+      template_id=template.id,
+      steps=[
+        {
+          "step_key": "draft",
+          "title": "整理基础资料",
+          "description": None,
+          "step_type": "task",
+          "assignment_mode": "single",
+          "join_mode": "all",
+          "default_assignee_rule": {"type": "initiator"},
+          "default_due_offset_hours": None,
+          "sort_order": 1,
+          "config": {},
+          "depends_on_step_keys": [],
+        },
+        {
+          "step_key": "review",
+          "title": "主管复核",
+          "description": None,
+          "step_type": "task",
+          "assignment_mode": "single",
+          "join_mode": "all",
+          "default_assignee_rule": {"type": "department_manager"},
+          "default_due_offset_hours": None,
+          "sort_order": 2,
+          "config": {},
+          "depends_on_step_keys": ["draft"],
+        },
+      ],
+    )
 
 
 @pytest.mark.asyncio

@@ -1,15 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
-import { createAnnouncement, createBoardCard, getOverview } from '@/api/overview'
+import {
+  archiveBoardCard,
+  createAnnouncement,
+  createBoardCard,
+  getOverview,
+  withdrawAnnouncement,
+} from '@/api/overview'
 import { useAuthStore } from '@/stores/auth'
 import type { OverviewSnapshot, TaskPriority } from '@/types/api'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 import { getErrorMessage } from '@/utils/errors'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
 const boardDialogVisible = ref(false)
@@ -38,26 +45,50 @@ const summaryCards = computed(() => {
 
   return [
     {
-      label: '有效看板',
-      value: snapshot.board_cards.length,
-      description: '组织树范围内的共享信息卡片',
-    },
-    {
-      label: '进行中公告',
-      value: snapshot.announcements.length,
-      description: '全员可见的重要通知',
-    },
-    {
       label: '待办事项',
       value: snapshot.task_inbox.length,
       description: '当前流转到你的任务',
+      actionLabel: '进入待办',
+      tab: 'inbox' as const,
     },
     {
       label: '任务跟踪',
       value: snapshot.task_tracking.length,
       description: '与你相关的任务进度',
+      actionLabel: '查看跟踪',
+      tab: 'tracking' as const,
     },
   ]
+})
+
+const quickActions = computed(() => {
+  const items = [
+    {
+      label: '任务中心',
+      description: '查看待办、跟踪进度和个人备忘',
+      path: '/task-center',
+    },
+    {
+      label: '消息中心',
+      description: '处理站内消息与业务通知',
+      path: '/messages',
+    },
+    {
+      label: '知识库',
+      description: '浏览制度、文档与经验沉淀',
+      path: '/knowledge-base',
+    },
+  ]
+
+  if (authStore.isManagementRole) {
+    items.push({
+      label: '人员管理',
+      description: '管理员工、岗位与组织信息',
+      path: '/people',
+    })
+  }
+
+  return items
 })
 
 const permissions = computed(() => overview.value?.permissions ?? null)
@@ -65,6 +96,7 @@ const boardScopeOptions = computed(() => permissions.value?.board_scope_options 
 const announcementScopeOptions = computed(() => permissions.value?.announcement_scope_options ?? [])
 const canPublishBoard = computed(() => permissions.value?.can_publish_board ?? false)
 const canPublishAnnouncement = computed(() => permissions.value?.can_publish_announcement ?? false)
+const canArchiveOverviewItems = computed(() => authStore.user?.role === 'admin')
 const highlightedAnnouncementId = computed(() =>
   typeof route.query.announcement === 'string' ? route.query.announcement : '',
 )
@@ -112,6 +144,17 @@ function openBoardDialog(): void {
 function openAnnouncementDialog(): void {
   resetAnnouncementForm()
   announcementDialogVisible.value = true
+}
+
+function navigateToTaskCenter(tab: 'inbox' | 'tracking'): void {
+  void router.push({
+    name: 'task-center',
+    query: tab === 'inbox' ? {} : { tab },
+  })
+}
+
+function navigateToPath(path: string): void {
+  void router.push(path)
 }
 
 async function loadOverview(): Promise<void> {
@@ -164,6 +207,26 @@ async function submitAnnouncement(): Promise<void> {
   }
 }
 
+async function handleArchiveBoardCard(cardId: string): Promise<void> {
+  try {
+    await archiveBoardCard(cardId)
+    ElMessage.success('看板卡片已归档')
+    await loadOverview()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  }
+}
+
+async function handleWithdrawAnnouncement(announcementId: string): Promise<void> {
+  try {
+    await withdrawAnnouncement(announcementId)
+    ElMessage.success('公告已归档')
+    await loadOverview()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  }
+}
+
 onMounted(() => {
   void loadOverview()
 })
@@ -171,30 +234,15 @@ onMounted(() => {
 
 <template>
   <div class="overview">
-    <el-row :gutter="20" class="overview__summary">
-      <el-col
-        v-for="item in summaryCards"
-        :key="item.label"
-        :xs="24"
-        :sm="12"
-        :lg="6"
-      >
-        <el-card shadow="never">
-          <div class="summary-card">
-            <span class="summary-card__label">{{ item.label }}</span>
-            <strong class="summary-card__value">{{ item.value }}</strong>
-            <span class="summary-card__description">{{ item.description }}</span>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
     <el-row :gutter="20">
       <el-col :xs="24" :lg="16">
-        <el-card shadow="never" v-loading="loading">
+        <el-card shadow="never" class="overview__content-card" v-loading="loading">
           <template #header>
             <div class="overview__card-header">
-              <span>看板</span>
+              <div class="overview__card-heading">
+                <span>看板</span>
+                <small>共享提醒与时效信息</small>
+              </div>
               <el-button
                 v-if="canPublishBoard"
                 type="primary"
@@ -221,7 +269,18 @@ onMounted(() => {
             >
               <div class="overview__item-meta">
                 <el-tag effect="plain">{{ card.scope_label }}</el-tag>
-                <span>{{ card.author_name }}</span>
+                <div class="overview__item-actions">
+                  <span>{{ card.author_name }}</span>
+                  <el-button
+                    v-if="canArchiveOverviewItems"
+                    link
+                    type="primary"
+                    data-testid="archive-board-card-button"
+                    @click="handleArchiveBoardCard(card.id)"
+                  >
+                    归档
+                  </el-button>
+                </div>
               </div>
               <h3 class="overview__item-title">{{ card.title }}</h3>
               <p class="overview__item-content">{{ card.content_md }}</p>
@@ -232,10 +291,13 @@ onMounted(() => {
       </el-col>
 
       <el-col :xs="24" :lg="8">
-        <el-card shadow="never" class="overview__section" v-loading="loading">
+        <el-card shadow="never" class="overview__content-card overview__section" v-loading="loading">
           <template #header>
             <div class="overview__card-header">
-              <span>公告</span>
+              <div class="overview__card-heading">
+                <span>公告</span>
+                <small>当前正在生效的正式通知</small>
+              </div>
               <el-button
                 v-if="canPublishAnnouncement"
                 type="primary"
@@ -262,13 +324,45 @@ onMounted(() => {
             >
               <div class="overview__item-meta">
                 <strong>{{ announcement.publisher_department_name }}</strong>
-                <span>{{ formatDateTime(announcement.published_at) }}</span>
+                <div class="overview__item-actions">
+                  <span>{{ formatDateTime(announcement.published_at) }}</span>
+                  <el-button
+                    v-if="canArchiveOverviewItems"
+                    link
+                    type="primary"
+                    data-testid="withdraw-announcement-button"
+                    @click="handleWithdrawAnnouncement(announcement.id)"
+                  >
+                    归档
+                  </el-button>
+                </div>
               </div>
               <h3 class="overview__item-title">{{ announcement.title }}</h3>
               <p class="overview__item-content">{{ announcement.content_md }}</p>
               <span class="overview__item-footnote">发布人：{{ announcement.author_name }}</span>
             </article>
           </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" class="overview__summary overview__section-grid">
+      <el-col
+        v-for="item in summaryCards"
+        :key="item.label"
+        :xs="24"
+        :md="12"
+      >
+        <el-card shadow="never" class="summary-card summary-card--interactive">
+          <div class="summary-card__content">
+            <span class="summary-card__label">{{ item.label }}</span>
+            <strong class="summary-card__value">{{ item.value }}</strong>
+            <span class="summary-card__description">{{ item.description }}</span>
+          </div>
+
+          <el-button link type="primary" @click="navigateToTaskCenter(item.tab)">
+            {{ item.actionLabel }}
+          </el-button>
         </el-card>
       </el-col>
     </el-row>
@@ -347,15 +441,24 @@ onMounted(() => {
       <el-col :xs="24">
         <el-card shadow="never">
           <template #header>
-            <span>快捷入口</span>
+            <div class="overview__card-heading">
+              <span>快捷入口</span>
+              <small>按工作流快速跳转到常用模块</small>
+            </div>
           </template>
 
-          <el-space wrap>
-            <el-link href="/task-center" type="primary">进入任务中心</el-link>
-            <el-link href="/messages" type="primary">进入消息中心</el-link>
-            <el-link href="/knowledge-base" type="primary">进入知识库</el-link>
-            <el-link v-if="authStore.isManagementRole" href="/people" type="primary">进入人员管理</el-link>
-          </el-space>
+          <div class="overview__quick-actions">
+            <button
+              v-for="item in quickActions"
+              :key="item.path"
+              type="button"
+              class="overview__quick-action"
+              @click="navigateToPath(item.path)"
+            >
+              <strong>{{ item.label }}</strong>
+              <span>{{ item.description }}</span>
+            </button>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -458,6 +561,18 @@ onMounted(() => {
 }
 
 .summary-card {
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.summary-card--interactive {
+  min-height: 180px;
+}
+
+.summary-card__content {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -486,6 +601,21 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.overview__card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.overview__card-heading small {
+  color: #909399;
+  font-size: 12px;
+}
+
+.overview__content-card {
+  height: 100%;
 }
 
 .overview__list {
@@ -519,6 +649,12 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.overview__item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .overview__item-title {
   margin: 12px 0 8px;
   font-size: 16px;
@@ -537,5 +673,45 @@ onMounted(() => {
   margin-top: 12px;
   color: #909399;
   font-size: 13px;
+}
+
+.overview__quick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.overview__quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  text-align: left;
+  color: #303133;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.overview__quick-action strong {
+  font-size: 15px;
+}
+
+.overview__quick-action span {
+  color: #606266;
+  line-height: 1.5;
+}
+
+.overview__quick-action:hover {
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
 }
 </style>

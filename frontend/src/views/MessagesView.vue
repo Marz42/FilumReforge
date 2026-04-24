@@ -4,7 +4,6 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { createMessageReceipt, getMessageCenterSnapshot } from '@/api/messages'
-import PushSubscriptionCard from '@/components/PushSubscriptionCard.vue'
 import type { Message, MessageCenterSnapshot, MessageStateFilter } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
@@ -126,8 +125,6 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <PushSubscriptionCard />
-
     <el-row :gutter="16">
       <el-col v-for="item in summaryCards" :key="item.label" :xs="12" :lg="6">
         <el-card shadow="never">

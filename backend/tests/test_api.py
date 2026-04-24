@@ -493,6 +493,7 @@ async def test_overview_api_supports_board_cards_and_announcements(api_client) -
   )
   assert board_response.status_code == 201
   assert board_response.json()["scope_label"] == "公司"
+  board_id = board_response.json()["id"]
 
   announcement_response = await client.post(
     "/api/v1/announcements",
@@ -531,6 +532,12 @@ async def test_overview_api_supports_board_cards_and_announcements(api_client) -
     headers=headers,
   )
   assert withdraw_response.status_code == 204
+
+  archive_board_response = await client.post(
+    f"/api/v1/board-cards/{board_id}/archive",
+    headers=headers,
+  )
+  assert archive_board_response.status_code == 204
 
 
 @pytest.mark.asyncio
@@ -636,6 +643,251 @@ async def test_department_profile_task_and_attachment_api_flow(api_client) -> No
 
   assert len(queue_publisher.payloads) == 1
   assert queue_publisher.payloads[0]["message_type"] == "task_assigned"
+
+
+@pytest.mark.asyncio
+async def test_task_template_delete_api_respects_instance_history(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  create_department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "模板部",
+      "code": "template-api-dept",
+      "capabilities": ["publish_org_task"],
+    },
+  )
+  assert create_department_response.status_code == 201
+  department_id = create_department_response.json()["id"]
+
+  me_response = await client.get("/api/v1/auth/me", headers=headers)
+  assert me_response.status_code == 200
+  admin_user_id = me_response.json()["id"]
+
+  profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": admin_user_id,
+      "employee_no": "EMP-TPL-ROOT",
+      "real_name": "管理员",
+      "department_id": department_id,
+    },
+  )
+  assert profile_response.status_code in {201, 409}
+
+  deletable_response = await client.post(
+    "/api/v1/task-templates",
+    headers=headers,
+    json={
+      "code": "template-delete-open",
+      "name": "可删除模板",
+      "category": "ops",
+      "steps": [
+        {
+          "step_key": "draft",
+          "title": "整理草稿",
+          "default_assignee_rule": {"type": "initiator"},
+        }
+      ],
+    },
+  )
+  assert deletable_response.status_code == 201
+  deletable_template_id = deletable_response.json()["id"]
+
+  protected_response = await client.post(
+    "/api/v1/task-templates",
+    headers=headers,
+    json={
+      "code": "template-delete-locked",
+      "name": "已实例化模板",
+      "category": "ops",
+      "steps": [
+        {
+          "step_key": "draft",
+          "title": "整理草稿",
+          "default_assignee_rule": {"type": "initiator"},
+        }
+      ],
+    },
+  )
+  assert protected_response.status_code == 201
+  protected_template_id = protected_response.json()["id"]
+
+  instantiate_response = await client.post(
+    f"/api/v1/task-templates/{protected_template_id}/instantiate",
+    headers=headers,
+    json={
+      "department_id": department_id,
+      "payload": {"department_id": department_id},
+    },
+  )
+  assert instantiate_response.status_code == 200
+
+  delete_open_response = await client.delete(
+    f"/api/v1/task-templates/{deletable_template_id}",
+    headers=headers,
+  )
+  assert delete_open_response.status_code == 204
+
+  delete_protected_response = await client.delete(
+    f"/api/v1/task-templates/{protected_template_id}",
+    headers=headers,
+  )
+  assert delete_protected_response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_task_template_update_api_returns_conflict_for_step_changes_after_instantiation(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  create_department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "模板更新部",
+      "code": "template-update-api-dept",
+      "capabilities": ["publish_org_task"],
+    },
+  )
+  assert create_department_response.status_code == 201
+  department_id = create_department_response.json()["id"]
+
+  me_response = await client.get("/api/v1/auth/me", headers=headers)
+  assert me_response.status_code == 200
+  admin_user_id = me_response.json()["id"]
+
+  profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": admin_user_id,
+      "employee_no": "EMP-TPL-UPD-ROOT",
+      "real_name": "管理员",
+      "department_id": department_id,
+    },
+  )
+  assert profile_response.status_code in {201, 409}
+
+  template_response = await client.post(
+    "/api/v1/task-templates",
+    headers=headers,
+    json={
+      "code": "template-update-locked",
+      "name": "实例化模板",
+      "category": "ops",
+      "description": "旧说明",
+      "steps": [
+        {
+          "step_key": "draft",
+          "title": "整理草稿",
+          "default_assignee_rule": {"type": "initiator"},
+        },
+        {
+          "step_key": "review",
+          "title": "主管复核",
+          "default_assignee_rule": {"type": "department_manager"},
+          "depends_on_step_keys": ["draft"],
+        },
+      ],
+    },
+  )
+  assert template_response.status_code == 201
+  template_id = template_response.json()["id"]
+
+  instantiate_response = await client.post(
+    f"/api/v1/task-templates/{template_id}/instantiate",
+    headers=headers,
+    json={
+      "department_id": department_id,
+      "payload": {"department_id": department_id},
+    },
+  )
+  assert instantiate_response.status_code == 200
+
+  metadata_update_response = await client.patch(
+    f"/api/v1/task-templates/{template_id}",
+    headers=headers,
+    json={
+      "code": "template-update-locked",
+      "name": "实例化模板 v2",
+      "category": "ops",
+      "description": "新说明",
+      "steps": [
+        {
+          "step_key": "draft",
+          "title": "整理草稿",
+          "description": None,
+          "step_type": "task",
+          "assignment_mode": "single",
+          "join_mode": "all",
+          "default_assignee_rule": {"type": "initiator"},
+          "default_due_offset_hours": None,
+          "sort_order": 1,
+          "config": {},
+          "depends_on_step_keys": [],
+        },
+        {
+          "step_key": "review",
+          "title": "主管复核",
+          "description": None,
+          "step_type": "task",
+          "assignment_mode": "single",
+          "join_mode": "all",
+          "default_assignee_rule": {"type": "department_manager"},
+          "default_due_offset_hours": None,
+          "sort_order": 2,
+          "config": {},
+          "depends_on_step_keys": ["draft"],
+        },
+      ],
+    },
+  )
+  assert metadata_update_response.status_code == 200
+  assert metadata_update_response.json()["name"] == "实例化模板 v2"
+
+  step_change_response = await client.patch(
+    f"/api/v1/task-templates/{template_id}",
+    headers=headers,
+    json={
+      "code": "template-update-locked",
+      "name": "实例化模板 v2",
+      "category": "ops",
+      "description": "新说明",
+      "steps": [
+        {
+          "step_key": "draft",
+          "title": "整理基础资料",
+          "description": None,
+          "step_type": "task",
+          "assignment_mode": "single",
+          "join_mode": "all",
+          "default_assignee_rule": {"type": "initiator"},
+          "default_due_offset_hours": None,
+          "sort_order": 1,
+          "config": {},
+          "depends_on_step_keys": [],
+        },
+        {
+          "step_key": "review",
+          "title": "主管复核",
+          "description": None,
+          "step_type": "task",
+          "assignment_mode": "single",
+          "join_mode": "all",
+          "default_assignee_rule": {"type": "department_manager"},
+          "default_due_offset_hours": None,
+          "sort_order": 2,
+          "config": {},
+          "depends_on_step_keys": ["draft"],
+        },
+      ],
+    },
+  )
+  assert step_change_response.status_code == 409
 
 
 @pytest.mark.asyncio

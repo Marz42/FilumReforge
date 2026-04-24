@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | Step 1 / 壳层导航重构 | done | 用户已确认通过，已完成分组导航、主入口改名、旧路由兼容跳转与聚合入口壳层 |
 | Step 2 / 总览模块 | done | 已完成看板、公告、当前任务投影、总览聚合接口、总览页前端、归档 cron 与自动化回归，并通过用户手动验测 |
-| Step 3 / 任务中心重构 | done | 已完成任务中心六标签工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归，并通过用户手动验测 |
+| Step 3 / 任务中心重构 | done | 已完成任务中心聚合工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归；后续体验收口已将主标签调整为待办 / 跟踪 / 发布 / 模板 / 备忘，历史任务并入跟踪视图 |
 | Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；已修复 PostgreSQL 500 根因，并通过用户手动验测 |
 | Step 5 / 档案管理 & 用户管理合并 | done | 已完成 `/api/v1/people-management` 聚合接口与统一人员工作台；已完成全量自动化回归，并通过用户手动验测 |
 | Step 6 / 消息中心联动与提醒收口 | done | 已完成消息中心聚合快照、来源 payload 规范化、用户级隔离、来源回跳与前后端全量回归，并通过用户手动验测 |
@@ -303,8 +303,10 @@
 - 已完成服务层切换：`TaskTemplateService.instantiate_template()` 改为“创建实例 + 激活首批就绪步骤”；`TaskService` 在任务完成后回写步骤运行态并自动激活下游，支持 `single` / `fan_out` 与 `all` / `any` 汇聚语义。
 - 已完成 API 协议扩展：模板步骤显式暴露 `assignment_mode` / `join_mode`；实例化接口返回实例快照；新增 `GET /task-templates/{template_id}/instances`。
 - 已完成前端结构化设计器首版：支持步骤增删改、依赖选择、负责人规则、JSON 导入、实例快照展示，以及已有模板的结构化编辑。
-- 已完成定向验证：`docker compose exec backend pytest -q /app/tests/test_services.py /app/tests/test_api.py`、`npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run type-check`。
-- 当前下一步：继续做前后端全量回归、云部署收口、模板 / 调度管理深化，以及生命周期事件与模板 / 审批流联动。
+- 已完成模板管理补丁：仅允许删除从未实例化过的模板；已有实例时允许元数据更新，但禁止步骤结构改写，并在前端锁定结构设计器，修复更新模板 `500`。
+- 已完成工作台体验收口：总览页补齐看板 / 公告人工归档、任务中心快捷跳转与快捷入口卡片；消息中心已拆分出设置页承载 Push / PWA；任务中心主标签收口为待办 / 跟踪 / 发布 / 模板 / 备忘，历史任务并入跟踪视图；登录页不再预填默认管理员邮箱和密码。
+- 已完成定向验证：后端 `pytest -q tests/test_services.py tests/test_api.py`、后端 `python -m compileall app tests`、前端 `npm run test:unit -- --run tests/TaskTemplatesView.spec.ts tests/HomeView.spec.ts tests/TaskCenterView.spec.ts tests/LoginView.spec.ts tests/SettingsView.spec.ts tests/AppShell.spec.ts tests/Router.spec.ts`、前端 `npm run type-check`。
+- 当前下一步：继续做前后端全量回归、云部署收口、模板 / 调度管理深化，以及岗位编辑器 / JSON 治理与生命周期事件联动。
 
 ### Phase 3 验测补记
 

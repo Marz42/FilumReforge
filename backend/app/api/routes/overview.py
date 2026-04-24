@@ -154,6 +154,16 @@ async def list_board_card_archives(
   ]
 
 
+@router.post("/board-cards/{card_id}/archive", status_code=status.HTTP_204_NO_CONTENT)
+async def archive_board_card(
+  card_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  board_service: Annotated[BoardService, Depends(get_board_service)],
+) -> Response:
+  await board_service.archive_card(actor=actor, card_id=card_id)
+  return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/announcements", response_model=AnnouncementRead, status_code=status.HTTP_201_CREATED)
 async def create_announcement(
   payload: AnnouncementCreateRequest,

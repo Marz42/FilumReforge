@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { listDepartments } from '@/api/departments'
 import {
   type TaskTemplateStepPayload,
   createTaskSchedule,
   createTaskTemplate,
+  deleteTaskTemplate,
   instantiateTaskTemplate,
   listTaskSchedules,
   listTaskTemplateInstances,
@@ -144,6 +145,7 @@ const selectedInstanceTasks = computed(() =>
 const isEditingTemplate = computed(() => templateDialogMode.value === 'edit')
 const templateDialogTitle = computed(() => (isEditingTemplate.value ? '编辑模板' : '新建模板'))
 const templateDialogSubmitLabel = computed(() => (isEditingTemplate.value ? '更新模板' : '保存模板'))
+const templateStructureLocked = computed(() => isEditingTemplate.value && templateInstances.value.length > 0)
 const isEditingSchedule = computed(() => scheduleFormMode.value === 'edit')
 const scheduleSubmitLabel = computed(() => (isEditingSchedule.value ? '更新调度' : '创建调度'))
 const canManageTemplates = computed(() => props.canManageTemplates ?? authStore.isManagementRole)
@@ -762,6 +764,30 @@ async function handleToggleTemplateActive(): Promise<void> {
   }
 }
 
+async function handleDeleteTemplate(): Promise<void> {
+  if (!selectedTemplate.value) {
+    ElMessage.warning('请先选择模板')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm('删除后无法恢复；若模板已有实例运行记录将被拒绝。是否继续？', '删除模板', {
+      type: 'warning',
+    })
+    await deleteTaskTemplate(selectedTemplate.value.id)
+    ElMessage.success('模板已删除')
+    await loadData()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    if (error instanceof Error && (error.message === 'cancel' || error.message === 'close')) {
+      return
+    }
+    ElMessage.error(getErrorMessage(error))
+  }
+}
+
 async function handleInstantiateTemplate(): Promise<void> {
   if (!selectedTemplate.value) {
     ElMessage.warning('请先选择模板')
@@ -877,6 +903,9 @@ onMounted(() => {
                 </el-button>
                 <el-button plain @click="openEditDialog">
                   编辑模板
+                </el-button>
+                <el-button plain type="danger" @click="handleDeleteTemplate">
+                  删除模板
                 </el-button>
               </div>
             </div>
@@ -1117,12 +1146,20 @@ onMounted(() => {
           :closable="false"
           title="当前未加载可选用户列表；仍可使用发起人或部门负责人规则。"
         />
+        <el-alert
+          v-if="templateStructureLocked"
+          class="page__designer-tip"
+          type="warning"
+          show-icon
+          :closable="false"
+          title="该模板已有实例运行记录。当前只允许更新模板名称、分类和说明，步骤结构不可再编辑。"
+        />
 
         <div class="page__steps-toolbar">
           <span>已配置 {{ createForm.steps.length }} 个步骤</span>
           <div class="page__steps-toolbar-actions">
-            <el-button plain @click="openImportDialog">导入 JSON</el-button>
-            <el-button type="primary" plain @click="addStep">添加步骤</el-button>
+            <el-button plain :disabled="templateStructureLocked" @click="openImportDialog">导入 JSON</el-button>
+            <el-button type="primary" plain :disabled="templateStructureLocked" @click="addStep">添加步骤</el-button>
           </div>
         </div>
 
@@ -1135,40 +1172,40 @@ onMounted(() => {
                   <span>{{ step.title || '未命名步骤' }}</span>
                 </div>
                 <div class="page__step-card-actions">
-                  <el-button text :disabled="index === 0" @click="moveStep(index, -1)">上移</el-button>
-                  <el-button text :disabled="index === createForm.steps.length - 1" @click="moveStep(index, 1)">下移</el-button>
-                  <el-button text @click="duplicateStep(index)">复制</el-button>
-                  <el-button text type="danger" @click="removeStep(index)">删除</el-button>
+                  <el-button text :disabled="templateStructureLocked || index === 0" @click="moveStep(index, -1)">上移</el-button>
+                  <el-button text :disabled="templateStructureLocked || index === createForm.steps.length - 1" @click="moveStep(index, 1)">下移</el-button>
+                  <el-button text :disabled="templateStructureLocked" @click="duplicateStep(index)">复制</el-button>
+                  <el-button text type="danger" :disabled="templateStructureLocked" @click="removeStep(index)">删除</el-button>
                 </div>
               </div>
             </template>
 
             <div class="page__designer-grid">
               <el-form-item label="步骤编码">
-                <el-input v-model="step.step_key" placeholder="例如：collect_assets" />
+                <el-input v-model="step.step_key" :disabled="templateStructureLocked" placeholder="例如：collect_assets" />
               </el-form-item>
               <el-form-item label="步骤名称">
-                <el-input v-model="step.title" placeholder="例如：多人提交素材" />
+                <el-input v-model="step.title" :disabled="templateStructureLocked" placeholder="例如：多人提交素材" />
               </el-form-item>
               <el-form-item label="步骤类型">
-                <el-select v-model="step.step_type">
+                <el-select v-model="step.step_type" :disabled="templateStructureLocked">
                   <el-option label="任务步骤" value="task" />
                 </el-select>
               </el-form-item>
               <el-form-item label="分配模式">
-                <el-select v-model="step.assignment_mode" @change="handleAssignmentModeChange(step)">
+                <el-select v-model="step.assignment_mode" :disabled="templateStructureLocked" @change="handleAssignmentModeChange(step)">
                   <el-option label="单任务" value="single" />
                   <el-option label="多人扇出" value="fan_out" />
                 </el-select>
               </el-form-item>
               <el-form-item label="汇聚规则">
-                <el-select v-model="step.join_mode" :disabled="step.assignment_mode === 'single'">
+                <el-select v-model="step.join_mode" :disabled="templateStructureLocked || step.assignment_mode === 'single'">
                   <el-option label="全部完成后推进" value="all" />
                   <el-option label="任一完成后推进" value="any" />
                 </el-select>
               </el-form-item>
               <el-form-item label="负责人规则">
-                <el-select v-model="step.assignee_rule_type" @change="handleAssigneeRuleTypeChange(step)">
+                <el-select v-model="step.assignee_rule_type" :disabled="templateStructureLocked" @change="handleAssigneeRuleTypeChange(step)">
                   <el-option
                     v-for="option in assigneeRuleOptions"
                     :key="option.value"
@@ -1178,7 +1215,7 @@ onMounted(() => {
                 </el-select>
               </el-form-item>
               <el-form-item v-if="step.assignee_rule_type === 'user'" label="指定负责人">
-                <el-select v-model="step.assignee_user_id" filterable placeholder="请选择用户">
+                <el-select v-model="step.assignee_user_id" :disabled="templateStructureLocked" filterable placeholder="请选择用户">
                   <el-option
                     v-for="user in userOptions"
                     :key="user.id"
@@ -1188,7 +1225,7 @@ onMounted(() => {
                 </el-select>
               </el-form-item>
               <el-form-item v-if="step.assignee_rule_type === 'user_ids'" label="指定多人">
-                <el-select v-model="step.assignee_user_ids" multiple filterable placeholder="请选择用户">
+                <el-select v-model="step.assignee_user_ids" :disabled="templateStructureLocked" multiple filterable placeholder="请选择用户">
                   <el-option
                     v-for="user in userOptions"
                     :key="user.id"
@@ -1198,10 +1235,10 @@ onMounted(() => {
                 </el-select>
               </el-form-item>
               <el-form-item label="默认时限（小时，可选）">
-                <el-input-number v-model="step.default_due_offset_hours" :min="1" controls-position="right" />
+                <el-input-number v-model="step.default_due_offset_hours" :disabled="templateStructureLocked" :min="1" controls-position="right" />
               </el-form-item>
               <el-form-item class="page__designer-grid-full" label="前置步骤">
-                <el-select v-model="step.depends_on_step_keys" multiple clearable placeholder="无前置步骤">
+                <el-select v-model="step.depends_on_step_keys" :disabled="templateStructureLocked" multiple clearable placeholder="无前置步骤">
                   <el-option
                     v-for="option in getDependencyOptions(step.step_key)"
                     :key="option.value"
@@ -1211,7 +1248,7 @@ onMounted(() => {
                 </el-select>
               </el-form-item>
               <el-form-item class="page__designer-grid-full" label="步骤说明">
-                <el-input v-model="step.description" type="textarea" :rows="3" />
+                <el-input v-model="step.description" :disabled="templateStructureLocked" type="textarea" :rows="3" />
               </el-form-item>
             </div>
           </el-card>

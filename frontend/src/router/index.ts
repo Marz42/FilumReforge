@@ -10,6 +10,7 @@ import DepartmentsView from '@/views/DepartmentsView.vue'
 import MessagesView from '@/views/MessagesView.vue'
 import PeopleManagementView from '@/views/PeopleManagementView.vue'
 import ReportsView from '@/views/ReportsView.vue'
+import SettingsView from '@/views/SettingsView.vue'
 import TaskCenterView from '@/views/TaskCenterView.vue'
 
 const router = createRouter({
@@ -130,6 +131,11 @@ const router = createRouter({
           path: 'messages',
           name: 'messages',
           component: MessagesView,
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: SettingsView,
         },
       ],
     },

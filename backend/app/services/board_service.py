@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.enums import UserRole
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import BoardCard, BoardCardArchive, Department, User
 from app.services.access_control import ensure_active_user, get_actor_department_path_ids
@@ -182,3 +183,34 @@ class BoardService:
     await self._session.execute(delete(BoardCard).where(BoardCard.id.in_([card.id for card in expired_cards])))
     await self._session.commit()
     return len(expired_cards)
+
+  async def archive_card(self, *, actor: User, card_id: UUID) -> None:
+    ensure_active_user(actor)
+    if actor.role != UserRole.ADMIN:
+      raise AuthorizationError("仅管理员可以归档看板卡片。")
+
+    card = await self._session.scalar(
+      select(BoardCard)
+      .options(
+        selectinload(BoardCard.author).selectinload(User.profile),
+        selectinload(BoardCard.scope_department),
+      )
+      .where(BoardCard.id == card_id)
+    )
+    if card is None:
+      raise NotFoundError("看板卡片不存在。")
+
+    self._session.add(
+      BoardCardArchive(
+        original_card_id=card.id,
+        scope_department_id=card.scope_department_id,
+        author_user_id=card.author_user_id,
+        title=card.title,
+        content_md=card.content_md,
+        published_at=card.created_at,
+        expires_at=card.expires_at,
+        archived_at=datetime.now(UTC),
+      )
+    )
+    await self._session.execute(delete(BoardCard).where(BoardCard.id == card.id))
+    await self._session.commit()

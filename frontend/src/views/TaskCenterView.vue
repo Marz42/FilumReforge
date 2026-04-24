@@ -20,7 +20,7 @@ import type {
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
-type TaskCenterTab = 'templates' | 'publish' | 'inbox' | 'tracking' | 'history' | 'memos'
+type TaskCenterTab = 'templates' | 'publish' | 'inbox' | 'tracking' | 'memos'
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: '待办',
@@ -60,6 +60,7 @@ const SOURCE_TYPE_LABELS: Record<TaskSourceType, string> = {
 const LEGACY_TAB_MAP: Record<string, TaskCenterTab> = {
   tasks: 'tracking',
   templates: 'templates',
+  history: 'tracking',
 }
 
 const route = useRoute()
@@ -134,7 +135,6 @@ function normalizeTab(rawTab: unknown): TaskCenterTab {
     rawTab === 'publish' ||
     rawTab === 'inbox' ||
     rawTab === 'tracking' ||
-    rawTab === 'history' ||
     rawTab === 'memos'
   ) {
     return rawTab
@@ -328,7 +328,7 @@ onMounted(() => {
         <div class="task-center-view__header">
           <div>
             <strong>任务中心</strong>
-            <p class="task-center-view__subtitle">覆盖模板、发布、待办、跟踪、历史与个人备忘。</p>
+            <p class="task-center-view__subtitle">覆盖模板、发布、待办、跟踪与个人备忘，历史任务并入跟踪视图。</p>
           </div>
           <el-space wrap>
             <el-tag :type="permissions.can_publish_task ? 'success' : 'info'" effect="plain">
@@ -342,11 +342,10 @@ onMounted(() => {
       </template>
 
       <el-tabs :model-value="activeTab" @update:model-value="handleTabChange">
-        <el-tab-pane label="任务模板" name="templates" />
-        <el-tab-pane label="发布任务" name="publish" />
         <el-tab-pane label="待办事项" name="inbox" />
         <el-tab-pane label="任务跟踪" name="tracking" />
-        <el-tab-pane label="历史任务" name="history" />
+        <el-tab-pane label="发布任务" name="publish" />
+        <el-tab-pane label="任务模板" name="templates" />
         <el-tab-pane label="备忘" name="memos" />
       </el-tabs>
     </el-card>
@@ -483,9 +482,7 @@ onMounted(() => {
       </el-card>
 
       <TasksView :show-create-task-composer="false" :initial-selected-task-id="selectedTaskId" />
-    </template>
 
-    <template v-else-if="activeTab === 'history'">
       <el-card shadow="never">
         <template #header>
           <span>历史任务</span>

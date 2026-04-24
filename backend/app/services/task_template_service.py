@@ -71,6 +71,14 @@ class TaskTemplateService:
     if not await can_manage_task_templates(self._session, actor):
       raise AuthorizationError("当前账号不能管理任务模板。")
 
+  async def _template_has_instances(self, *, template_id: UUID) -> bool:
+    existing_instance_id = await self._session.scalar(
+      select(TaskTemplateInstance.id)
+      .where(TaskTemplateInstance.template_id == template_id)
+      .limit(1)
+    )
+    return existing_instance_id is not None
+
   async def _get_template_or_raise(self, *, actor: User, template_id: UUID) -> TaskTemplate:
     statement = self._statement().where(TaskTemplate.id == template_id)
     if not await can_manage_task_templates(self._session, actor):
@@ -85,6 +93,59 @@ class TaskTemplateService:
     if not steps:
       raise ConflictError("任务模板至少需要一个步骤。")
     return steps
+
+  @staticmethod
+  def _canonicalize_step_payloads(steps: list[dict[str, object]]) -> list[dict[str, object]]:
+    canonical_steps: list[dict[str, object]] = []
+    for index, step_payload in enumerate(steps, start=1):
+      assignment_mode = str(step_payload.get("assignment_mode") or "single").strip()
+      join_mode = str(step_payload.get("join_mode") or "all").strip()
+      canonical_steps.append(
+        {
+          "step_key": str(step_payload.get("step_key") or "").strip(),
+          "title": str(step_payload.get("title") or "").strip(),
+          "description": str(step_payload.get("description") or "").strip() or None,
+          "step_type": str(step_payload.get("step_type") or "task").strip(),
+          "assignment_mode": assignment_mode,
+          "join_mode": "all" if assignment_mode == "single" else join_mode,
+          "default_assignee_rule": dict(step_payload.get("default_assignee_rule") or {"type": "initiator"}),
+          "default_due_offset_hours": (
+            int(step_payload["default_due_offset_hours"])
+            if step_payload.get("default_due_offset_hours") is not None
+            else None
+          ),
+          "sort_order": int(step_payload.get("sort_order") or index),
+          "config": dict(step_payload.get("config") or {}),
+          "depends_on_step_keys": sorted(
+            dict.fromkeys(str(raw_key) for raw_key in (step_payload.get("depends_on_step_keys") or []))
+          ),
+        }
+      )
+    return canonical_steps
+
+  @staticmethod
+  def _serialize_existing_steps(template: TaskTemplate) -> list[dict[str, object]]:
+    ordered_steps = sorted(template.steps, key=lambda current_step: (current_step.sort_order, current_step.created_at))
+    return [
+      {
+        "step_key": step.step_key,
+        "title": step.title,
+        "description": step.description,
+        "step_type": step.step_type,
+        "assignment_mode": step.assignment_mode,
+        "join_mode": step.join_mode,
+        "default_assignee_rule": dict(step.default_assignee_rule or {}),
+        "default_due_offset_hours": step.default_due_offset_hours,
+        "sort_order": step.sort_order,
+        "config": dict(step.config or {}),
+        "depends_on_step_keys": sorted(
+          dependency.depends_on_step.step_key
+          for dependency in step.dependencies
+          if dependency.depends_on_step is not None
+        ),
+      }
+      for step in ordered_steps
+    ]
 
   async def _replace_steps(
     self,
@@ -280,11 +341,26 @@ class TaskTemplateService:
     if is_active is not None:
       template.is_active = is_active
     if steps is not None:
-      await self._replace_steps(template=template, steps=steps)
+      canonical_steps = self._canonicalize_step_payloads(steps)
+      if canonical_steps != self._serialize_existing_steps(template):
+        if await self._template_has_instances(template_id=template.id):
+          raise ConflictError("模板已有实例运行记录，暂不支持修改步骤结构，请新建模板版本。")
+        await self._replace_steps(template=template, steps=canonical_steps)
 
     template.updated_at = datetime.now(UTC)
     await self._session.commit()
     return await self.get_template(actor=actor, template_id=template.id)
+
+  async def delete_template(self, *, actor: User, template_id: UUID) -> None:
+    ensure_active_user(actor)
+    await self._ensure_manage_templates(actor=actor)
+    template = await self._get_template_or_raise(actor=actor, template_id=template_id)
+
+    if await self._template_has_instances(template_id=template.id):
+      raise ConflictError("模板已有实例运行记录，不能删除。")
+
+    await self._session.delete(template)
+    await self._session.commit()
 
   async def instantiate_template(
     self,

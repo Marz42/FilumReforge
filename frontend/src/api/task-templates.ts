@@ -72,6 +72,10 @@ export async function updateTaskTemplate(
   return data
 }
 
+export async function deleteTaskTemplate(templateId: string): Promise<void> {
+  await http.delete(`/task-templates/${templateId}`)
+}
+
 export async function instantiateTaskTemplate(
   templateId: string,
   payload: InstantiateTaskTemplatePayload,

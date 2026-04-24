@@ -15,13 +15,13 @@ const loginSubmitting = ref(false)
 const bootstrapSubmitting = ref(false)
 
 const loginForm = reactive({
-  email: 'admin@example.com',
-  password: 'StrongPassword123!',
+  email: '',
+  password: '',
 })
 
 const bootstrapForm = reactive({
-  email: 'admin@example.com',
-  password: 'StrongPassword123!',
+  email: '',
+  password: '',
   real_name: '系统管理员',
   employee_no: 'EMP-ROOT',
 })

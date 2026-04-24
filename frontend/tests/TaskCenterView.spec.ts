@@ -195,4 +195,25 @@ describe('TaskCenter view', () => {
       },
     })
   })
+
+  it('maps legacy history tab to tracking and keeps history visible in the tracking view', async () => {
+    route.query = { tab: 'history' }
+
+    const wrapper = mount(TaskCenterView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          TaskTemplatesView: { template: '<div>templates-stub</div>' },
+          TasksView: { template: '<div>tracking-detail-stub</div>' },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('任务跟踪')
+    expect(wrapper.text()).toContain('历史任务')
+    expect(wrapper.text()).toContain('归档旧公告')
+    expect(wrapper.text()).toContain('tracking-detail-stub')
+  })
 })

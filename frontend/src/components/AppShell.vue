@@ -24,6 +24,7 @@ const generalNavigationItems = computed(() => [
   { label: '知识库', routeName: 'knowledge-base' },
   { label: '汇报中心', routeName: 'reports' },
   { label: '消息中心', routeName: 'messages' },
+  { label: '设置', routeName: 'settings' },
 ])
 
 const specialNavigationItems = computed(() => {

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import (
   get_current_user,
@@ -195,6 +195,16 @@ async def update_task_template(
     steps=[step.model_dump() for step in payload.steps] if payload.steps is not None else None,
   )
   return _build_template_read(template)
+
+
+@router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_template(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
+) -> Response:
+  await task_template_service.delete_template(actor=actor, template_id=template_id)
+  return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{template_id}/instantiate", response_model=TaskTemplateInstantiationRead)

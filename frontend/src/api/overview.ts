@@ -23,9 +23,17 @@ export async function createBoardCard(payload: CreateBoardCardPayload): Promise<
   return data
 }
 
+export async function archiveBoardCard(boardCardId: string): Promise<void> {
+  await http.post(`/board-cards/${boardCardId}/archive`)
+}
+
 export async function createAnnouncement(
   payload: CreateAnnouncementPayload,
 ): Promise<OverviewAnnouncement> {
   const { data } = await http.post<OverviewAnnouncement>('/announcements', payload)
   return data
+}
+
+export async function withdrawAnnouncement(announcementId: string): Promise<void> {
+  await http.post(`/announcements/${announcementId}/withdraw`)
 }
