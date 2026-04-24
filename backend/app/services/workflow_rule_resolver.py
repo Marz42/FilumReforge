@@ -94,6 +94,21 @@ async def resolve_user_targets_from_rule(
     if department is None or department.manager_id is None:
       raise ConflictError("目标部门尚未配置负责人。")
     user_ids = [department.manager_id]
+  elif rule_type == "department_members":
+    target_department_id = assignee_rule.get("department_id")
+    resolved_department_id = (
+      parse_uuid_value(target_department_id, field_name="department_id")
+      if target_department_id is not None
+      else department_id
+    )
+    if resolved_department_id is None:
+      raise ConflictError("department_members 规则需要明确部门。")
+    member_user_ids = list(await session.scalars(
+      select(Profile.user_id).where(Profile.department_id == resolved_department_id)
+    ))
+    if not member_user_ids:
+      raise ConflictError("目标部门没有成员。")
+    return await _load_users(session, user_ids=member_user_ids)
   else:
     raise ConflictError(f"暂不支持的步骤负责人规则：{rule_type}")
 

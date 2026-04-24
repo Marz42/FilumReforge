@@ -35,7 +35,7 @@ interface Props {
   departmentOptions?: TaskCenterDepartmentOption[]
 }
 
-type StepAssigneeRuleType = 'initiator' | 'department_manager' | 'user' | 'user_ids'
+type StepAssigneeRuleType = 'initiator' | 'department_manager' | 'department_members' | 'user' | 'user_ids'
 type StepAssignmentMode = 'single' | 'fan_out'
 type StepJoinMode = 'all' | 'any'
 
@@ -179,6 +179,7 @@ const assigneeRuleOptions = computed(() => {
   const options = [
     { value: 'initiator', label: '发起人' },
     { value: 'department_manager', label: '部门负责人' },
+    { value: 'department_members', label: '部门全员' },
   ]
   if (userOptions.value.length > 0) {
     options.push(
@@ -203,7 +204,7 @@ function createStepStateFromPayload(payload: TaskTemplateStepPayload, index: num
   const joinMode = assignmentMode === 'single' ? 'all' : normalizeJoinMode(payload.join_mode)
   const defaultAssigneeRule = payload.default_assignee_rule ?? {}
   let assigneeRuleType = String(defaultAssigneeRule.type ?? 'initiator') as StepAssigneeRuleType
-  if (!['initiator', 'department_manager', 'user', 'user_ids'].includes(assigneeRuleType)) {
+  if (!['initiator', 'department_manager', 'department_members', 'user', 'user_ids'].includes(assigneeRuleType)) {
     assigneeRuleType = 'initiator'
   }
 
@@ -456,6 +457,9 @@ function handleAssigneeRuleTypeChange(step: StepFormState): void {
   if (step.assignee_rule_type !== 'user_ids') {
     step.assignee_user_ids = []
   }
+  if (step.assignee_rule_type === 'department_members') {
+    step.assignment_mode = 'fan_out'
+  }
   if (step.assignment_mode === 'fan_out' && step.assignee_rule_type === 'user') {
     step.assignee_rule_type = 'user_ids'
   }
@@ -521,6 +525,9 @@ function buildAssigneeRule(step: StepFormState, strict: boolean): Record<string,
   if (step.assignee_rule_type === 'department_manager') {
     return { type: 'department_manager' }
   }
+  if (step.assignee_rule_type === 'department_members') {
+    return { type: 'department_members' }
+  }
   return { type: 'initiator' }
 }
 
@@ -583,6 +590,9 @@ function formatAssigneeRule(rule: Record<string, unknown>): string {
   const ruleType = String(rule.type ?? 'initiator')
   if (ruleType === 'department_manager') {
     return '部门负责人'
+  }
+  if (ruleType === 'department_members') {
+    return '部门全员'
   }
   if (ruleType === 'user') {
     return '指定单人'

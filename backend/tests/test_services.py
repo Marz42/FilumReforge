@@ -2872,3 +2872,144 @@ async def test_phase5_llm_router_handles_slash_commands_and_tool_calls(db_sessio
   assert mention_result.tool_results[0]["tool_name"] == "search_documents"
   assert "入职流程需要先提交材料" in mention_result.reply_text
   assert mention_result.knowledge_hits
+
+
+@pytest.mark.asyncio
+async def test_task_template_department_members_fan_out(db_session) -> None:
+  """department_members 规则结合 fan_out 模式，应为部门每位成员各创建一个任务。"""
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@dept-members.example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  member_a = await user_service.create_user(
+    actor=admin,
+    email="member-a@dept-members.example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  member_b = await user_service.create_user(
+    actor=admin,
+    email="member-b@dept-members.example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  department = await department_service.create_department(
+    actor=admin,
+    name="全员部门",
+    code="all-members-dept",
+    manager_id=manager.id,
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  for user_id, employee_no, real_name in [
+    (manager.id, "EMP-MGR-DM", "部门主管"),
+    (member_a.id, "EMP-MA-DM", "成员甲"),
+    (member_b.id, "EMP-MB-DM", "成员乙"),
+  ]:
+    await profile_service.create_profile(
+      actor=admin,
+      user_id=user_id,
+      employee_no=employee_no,
+      real_name=real_name,
+      department_id=department.id,
+    )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="dept-broadcast-sop",
+    name="部门全员下发",
+    category="ops",
+    steps=[
+      {
+        "step_key": "broadcast",
+        "title": "全员执行",
+        "assignment_mode": "fan_out",
+        "join_mode": "all",
+        "default_assignee_rule": {"type": "department_members"},
+      },
+    ],
+  )
+
+  instantiation = await task_template_service.instantiate_template(
+    actor=manager,
+    template_id=template.id,
+    payload={"department_id": str(department.id)},
+  )
+  tasks = instantiation.tasks
+
+  assert len(tasks) == 3
+  assignee_ids = {task.assignee_id for task in tasks}
+  assert manager.id in assignee_ids
+  assert member_a.id in assignee_ids
+  assert member_b.id in assignee_ids
+  for task in tasks:
+    assert task.extra_metadata.get("template_step_key") == "broadcast"
+    assert task.extra_metadata.get("assignment_mode") == "fan_out"
+
+
+@pytest.mark.asyncio
+async def test_task_template_department_members_empty_department_raises(db_session) -> None:
+  """department_members 规则在部门无成员时应抛出 ConflictError。"""
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  department_service = DepartmentService(db_session)
+  # 建一个空部门（无任何 profile 归属）
+  empty_department = await department_service.create_department(
+    actor=admin,
+    name="空部门",
+    code="empty-dept",
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="dept-broadcast-empty",
+    name="全员下发（空部门）",
+    category="ops",
+    steps=[
+      {
+        "step_key": "broadcast",
+        "title": "全员执行",
+        "assignment_mode": "fan_out",
+        "join_mode": "all",
+        "default_assignee_rule": {"type": "department_members"},
+      },
+    ],
+  )
+
+  with pytest.raises(ConflictError):
+    await task_template_service.instantiate_template(
+      actor=admin,
+      template_id=template.id,
+      payload={"department_id": str(empty_department.id)},
+    )
