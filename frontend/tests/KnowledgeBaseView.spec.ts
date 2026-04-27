@@ -61,7 +61,6 @@ describe('Knowledge base view', () => {
     const authStore = useAuthStore()
     authStore.initialized = true
     authStore.accessToken = 'token'
-    authStore.refreshToken = 'refresh-token'
     authStore.user = {
       id: 'user-1',
       email: 'admin@example.com',

@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.error_tracking import GENERIC_INTERNAL_ERROR_CODE, record_unhandled_exception
 from app.core.exceptions import (
+  AppValidationError,
   AuthenticationError,
   AuthorizationError,
   ConfigurationError,
@@ -39,6 +40,10 @@ def _build_error_response(
 
 async def handle_authentication_error(request: Request, exc: AuthenticationError) -> JSONResponse:
   return _build_error_response(request=request, status_code=401, detail=str(exc))
+
+
+async def handle_validation_error(request: Request, exc: AppValidationError) -> JSONResponse:
+  return _build_error_response(request=request, status_code=422, detail=str(exc))
 
 
 async def handle_authorization_error(request: Request, exc: AuthorizationError) -> JSONResponse:
@@ -81,6 +86,7 @@ async def handle_unhandled_exception(request: Request, exc: Exception) -> JSONRe
 
 
 def register_exception_handlers(application: FastAPI) -> None:
+  application.add_exception_handler(AppValidationError, handle_validation_error)
   application.add_exception_handler(AuthenticationError, handle_authentication_error)
   application.add_exception_handler(AuthorizationError, handle_authorization_error)
   application.add_exception_handler(NotFoundError, handle_not_found_error)

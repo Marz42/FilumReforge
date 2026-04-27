@@ -31,7 +31,7 @@
 
 ### 已实现
 
-- 认证与会话：JWT access / refresh、管理员初始化、基础角色
+- 认证与会话：JWT access token + HttpOnly refresh cookie、管理员初始化、基础角色
 - 组织结构：部门树、部门负责人、范围查询
 - 人事档案：一人一档、基础字段、`custom_fields JSONB`
 - HR 治理：生命周期事件、字段级权限、多岗位、虚线汇报、代理授权
@@ -212,7 +212,8 @@
 	  - `infra/nginx/nginx.prod.conf`：host-level Nginx 模板，含 HTTPS/TLS、gzip、SPA fallback、安全 headers
 	  - `infra/nginx/nginx.compose.prod.conf`：Compose 内部 gateway Nginx 配置
 	  - `scripts/check-release.sh`：发布前全量验证脚本（pytest、compileall、type-check、build、lint、alembic check）
-	- 全量回归与上线演练仍待执行；执行命令：`bash scripts/check-release.sh`
+	- 近期已完成核心回归：backend `pytest -q`、`python -m compileall app tests`，frontend `npm run test:unit -- --run`、`npm run type-check`
+	- 发布前一键校验与上线演练仍待执行；执行命令：`bash scripts/check-release.sh`
 2. 模板管理深化
 	- 继续补模板 / 调度更完整的管理动作与更强设计器校验，而不是停留在“可创建 / 可实例化”的首版能力
 3. 业务联动
@@ -222,8 +223,8 @@
 
 **测试出口**
 
-- 当前已完成定向验证：backend `pytest -q /app/tests/test_services.py /app/tests/test_api.py`、frontend `npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run type-check`
-- 下一步全量验证：backend `pytest -q`、`python -m compileall app tests`；frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`
+- 当前已完成验证：backend `pytest -q /app/tests/test_services.py /app/tests/test_api.py`、`pytest -q`、`python -m compileall app tests`；frontend `npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run test:unit -- --run`、`npm run type-check`
+- 发布前补充验证：frontend `npm run build`；如需一键收口，执行 `bash scripts/check-release.sh`
 - 前端 lint 若仅做只读校验，优先执行 `npm exec oxlint .` 与 `npm exec eslint .`，避免 `npm run lint` 的 `--fix` 副作用混入回归结果
 
 ## 7. 跨阶段通用规则

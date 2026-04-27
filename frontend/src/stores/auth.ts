@@ -4,17 +4,17 @@ import { defineStore } from 'pinia'
 import {
   bootstrapAdmin,
   getBootstrapStatus,
-  getCurrentUser,
   login,
+  logout as logoutSession,
+  refreshSession,
   type BootstrapAdminPayload,
   type LoginPayload,
 } from '@/api/auth'
-import { clearAuthSession, getAccessToken, getRefreshToken, setAuthSession } from '@/api/session'
-import type { User } from '@/types/api'
+import { clearAuthSession, getAccessToken, setAccessToken } from '@/api/session'
+import type { AuthSession, User } from '@/types/api'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(getAccessToken())
-  const refreshToken = ref<string | null>(getRefreshToken())
   const user = ref<User | null>(null)
   const initialized = ref(false)
   const bootstrapRequired = ref(true)
@@ -25,11 +25,10 @@ export const useAuthStore = defineStore('auth', () => {
     () => user.value?.role === 'admin' || user.value?.role === 'hr',
   )
 
-  function applySession(session: { access_token: string; refresh_token: string; user: User }) {
+  function applySession(session: AuthSession) {
     accessToken.value = session.access_token
-    refreshToken.value = session.refresh_token
     user.value = session.user
-    setAuthSession(session.access_token, session.refresh_token)
+    setAccessToken(session.access_token)
     initialized.value = true
   }
 
@@ -61,17 +60,8 @@ export const useAuthStore = defineStore('auth', () => {
       return isAuthenticated.value
     }
 
-    accessToken.value = getAccessToken()
-    refreshToken.value = getRefreshToken()
-
-    if (!accessToken.value || !refreshToken.value) {
-      initialized.value = true
-      return false
-    }
-
     try {
-      user.value = await getCurrentUser()
-      initialized.value = true
+      applySession(await refreshSession())
       return true
     } catch {
       clearSession()
@@ -81,19 +71,21 @@ export const useAuthStore = defineStore('auth', () => {
 
   function clearSession(): void {
     accessToken.value = null
-    refreshToken.value = null
     user.value = null
     initialized.value = true
     clearAuthSession()
   }
 
-  function logout(): void {
-    clearSession()
+  async function logout(): Promise<void> {
+    try {
+      await logoutSession()
+    } finally {
+      clearSession()
+    }
   }
 
   return {
     accessToken,
-    refreshToken,
     user,
     initialized,
     bootstrapRequired,

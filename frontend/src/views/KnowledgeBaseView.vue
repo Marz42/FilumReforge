@@ -264,13 +264,17 @@ defineExpose({
 </script>
 
 <template>
-  <div class="knowledge-page">
+  <div class="knowledge-page filum-page">
     <el-row :gutter="20">
       <el-col :xs="24" :xl="8">
-        <el-card shadow="never" v-loading="loading">
+        <el-card shadow="never" class="filum-panel-card" v-loading="loading">
           <template #header>
-            <div class="knowledge-page__card-header">
-              <span>知识库文档</span>
+            <div class="knowledge-page__card-header filum-page-header">
+              <div class="filum-page-header__copy">
+                <span class="filum-page-header__eyebrow">Knowledge</span>
+                <span class="filum-page-header__title">知识库文档</span>
+                <p class="filum-page-header__subtitle">统一管理制度、SOP 与公告文档，支持检索与 RAG 问答上下文。</p>
+              </div>
               <el-button
                 v-if="authStore.isManagementRole"
                 size="small"
@@ -315,7 +319,7 @@ defineExpose({
       </el-col>
 
       <el-col :xs="24" :xl="16">
-        <el-card shadow="never" class="knowledge-page__detail">
+        <el-card shadow="never" class="knowledge-page__detail filum-panel-card">
           <template #header>
             <div class="knowledge-page__card-header">
               <span>{{ selectedDocument?.title ?? '文档详情' }}</span>
@@ -403,7 +407,7 @@ defineExpose({
 
     <el-row :gutter="20">
       <el-col :xs="24" :xl="12">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-panel-card">
           <template #header>
             <span>语义检索</span>
           </template>
@@ -432,7 +436,7 @@ defineExpose({
       </el-col>
 
       <el-col :xs="24" :xl="12">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-panel-card">
           <template #header>
             <span>RAG 问答上下文</span>
           </template>
@@ -536,6 +540,7 @@ defineExpose({
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .knowledge-page__detail {
@@ -548,6 +553,7 @@ defineExpose({
   word-break: break-word;
   font-family: inherit;
   line-height: 1.7;
+  color: var(--filum-text-secondary);
 }
 
 .knowledge-page__attachment-upload {

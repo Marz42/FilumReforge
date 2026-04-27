@@ -72,13 +72,16 @@ class AuthService:
     existing_users = await self._session.scalar(select(func.count()).select_from(User))
     return not bool(existing_users)
 
-  async def authenticate(self, *, email: str, password: str) -> AuthSession:
-    user = await self._session.scalar(select(User).where(func.lower(User.email) == email.lower()))
-    if user is None or not verify_password(password, user.password_hash):
-      raise AuthenticationError("邮箱或密码错误。")
+  @staticmethod
+  def _normalize_expires_at(token_record: RefreshToken | None) -> datetime | None:
+    if token_record is None:
+      return None
+    expires_at = token_record.expires_at
+    if expires_at.tzinfo is None:
+      return expires_at.replace(tzinfo=UTC)
+    return expires_at
 
-    ensure_active_user(user)
-
+  async def _issue_session_for_user(self, *, user: User) -> AuthSession:
     refresh_token_value, refresh_token_id = create_refresh_token(
       settings=self._settings,
       user_id=user.id,
@@ -89,8 +92,6 @@ class AuthService:
       user_id=user.id,
       role=user.role,
     )
-
-    user.last_login_at = datetime.now(UTC)
     self._session.add(
       RefreshToken(
         user_id=user.id,
@@ -98,9 +99,6 @@ class AuthService:
         expires_at=datetime.now(UTC) + timedelta(days=self._settings.jwt_refresh_token_days),
       )
     )
-    await self._session.commit()
-    await self._session.refresh(user)
-
     return AuthSession(
       access_token=access_token_value,
       refresh_token=refresh_token_value,
@@ -108,7 +106,7 @@ class AuthService:
       user=user,
     )
 
-  async def refresh(self, *, refresh_token: str) -> AuthSession:
+  async def _get_active_refresh_token_record(self, *, refresh_token: str) -> tuple[RefreshToken, UUID]:
     payload = decode_token(
       settings=self._settings,
       token=refresh_token,
@@ -119,50 +117,54 @@ class AuthService:
     if token_id is None or user_id is None:
       raise AuthenticationError("刷新令牌缺少必要字段。")
 
+    user_uuid = UUID(user_id)
     token_record = await self._session.scalar(
       select(RefreshToken).where(
         RefreshToken.token_id == token_id,
-        RefreshToken.user_id == UUID(user_id),
+        RefreshToken.user_id == user_uuid,
       )
     )
-    expires_at = token_record.expires_at if token_record is not None else None
-    if expires_at is not None and expires_at.tzinfo is None:
-      expires_at = expires_at.replace(tzinfo=UTC)
-
-    if token_record is None or token_record.revoked_at is not None or expires_at <= datetime.now(UTC):
+    expires_at = self._normalize_expires_at(token_record)
+    if token_record is None or token_record.revoked_at is not None or expires_at is None or expires_at <= datetime.now(UTC):
       raise AuthenticationError("刷新令牌已失效。")
+    return token_record, user_uuid
 
-    user = await self._session.get(User, UUID(user_id))
+  async def authenticate(self, *, email: str, password: str) -> AuthSession:
+    user = await self._session.scalar(select(User).where(func.lower(User.email) == email.lower()))
+    if user is None or not verify_password(password, user.password_hash):
+      raise AuthenticationError("邮箱或密码错误。")
+
+    ensure_active_user(user)
+
+    user.last_login_at = datetime.now(UTC)
+    auth_session = await self._issue_session_for_user(user=user)
+    await self._session.commit()
+    await self._session.refresh(user)
+    auth_session.user = user
+    return auth_session
+
+  async def refresh(self, *, refresh_token: str) -> AuthSession:
+    token_record, user_id = await self._get_active_refresh_token_record(refresh_token=refresh_token)
+
+    user = await self._session.get(User, user_id)
     if user is None:
       raise NotFoundError("用户不存在。")
     ensure_active_user(user)
 
     token_record.revoked_at = datetime.now(UTC)
-    next_refresh_token, next_refresh_token_id = create_refresh_token(
-      settings=self._settings,
-      user_id=user.id,
-      role=user.role,
-    )
-    next_access_token = create_access_token(
-      settings=self._settings,
-      user_id=user.id,
-      role=user.role,
-    )
-    self._session.add(
-      RefreshToken(
-        user_id=user.id,
-        token_id=next_refresh_token_id,
-        expires_at=datetime.now(UTC) + timedelta(days=self._settings.jwt_refresh_token_days),
-      )
-    )
+    auth_session = await self._issue_session_for_user(user=user)
     await self._session.commit()
+    return auth_session
 
-    return AuthSession(
-      access_token=next_access_token,
-      refresh_token=next_refresh_token,
-      token_type="bearer",
-      user=user,
-    )
+  async def revoke_refresh_token(self, *, refresh_token: str) -> bool:
+    try:
+      token_record, _ = await self._get_active_refresh_token_record(refresh_token=refresh_token)
+    except (AuthenticationError, NotFoundError, ValueError):
+      return False
+
+    token_record.revoked_at = datetime.now(UTC)
+    await self._session.commit()
+    return True
 
   async def get_user_from_access_token(self, token: str) -> User:
     payload = decode_token(

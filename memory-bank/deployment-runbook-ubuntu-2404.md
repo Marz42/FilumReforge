@@ -190,10 +190,18 @@ APP_ENV=production
 POSTGRES_DSN=postgresql+asyncpg://${FILUM_DB_USER}:${FILUM_DB_PASSWORD}@127.0.0.1:5432/${FILUM_DB_NAME}
 REDIS_DSN=redis://127.0.0.1:6379/0
 JWT_SECRET_KEY=${FILUM_JWT_SECRET}
+CORS_ALLOWED_ORIGINS=https://app.example.com
 STORAGE_PROVIDER=local
 STORAGE_BUCKET=filum-prod
 STORAGE_BASE_PATH=${FILUM_ROOT}/data/storage
 WORKERS=2
+
+# Optional: refresh cookie tuning
+# AUTH_REFRESH_COOKIE_NAME=filum_refresh_token
+# AUTH_REFRESH_COOKIE_PATH=/api/v1/auth
+# AUTH_REFRESH_COOKIE_DOMAIN=
+# AUTH_REFRESH_COOKIE_SAMESITE=strict
+# AUTH_REFRESH_COOKIE_SECURE=true
 
 # Optional: AI features
 # OPENAI_API_KEY=
@@ -212,6 +220,8 @@ EOF"
 
 - `backend` 和 `worker` 必须共用同一份 `.env`
 - `STORAGE_BASE_PATH` 必须对 `backend` 和 `worker` 都可读写
+- 当前会话模型为“前端内存态 access token + HttpOnly refresh cookie”；若前后端跨站点部署，需要显式配置 `CORS_ALLOWED_ORIGINS`，并按域名 / SameSite 策略调整 `AUTH_REFRESH_COOKIE_*`
+- 若采用同域名 Nginx 反代 `/api/` 的部署方式，默认 `AUTH_REFRESH_COOKIE_SAMESITE=strict` 即可；若采用跨站点前后端分离，需要把 `AUTH_REFRESH_COOKIE_SAMESITE` 调整为 `none` 且同时启用 `AUTH_REFRESH_COOKIE_SECURE=true`
 - 不启用 AI 或 Web Push 时，对应配置可以留空
 
 ## 10. 写入前端生产环境变量并构建

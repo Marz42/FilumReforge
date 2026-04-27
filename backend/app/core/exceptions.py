@@ -2,6 +2,10 @@ class AppError(Exception):
   """Base application error."""
 
 
+class AppValidationError(AppError):
+  """Raised when request payload or content is invalid at the business layer."""
+
+
 class AuthenticationError(AppError):
   """Raised when authentication credentials are invalid."""
 

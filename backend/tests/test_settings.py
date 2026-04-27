@@ -1,13 +1,71 @@
-from app.core.config import get_settings
+import pytest
+from pydantic import ValidationError
+
+from app.core.config import Settings, get_settings
 
 
 def test_default_settings_align_with_phase_a_baseline() -> None:
   settings = get_settings()
 
   assert settings.api_v1_prefix == "/api/v1"
+  assert settings.jwt_secret_key == "test-jwt-secret-key-for-suite-123456"
   assert settings.storage_provider == "local"
   assert settings.redis_dsn.startswith("redis://")
+  assert "http://127.0.0.1:5173" in settings.cors_allowed_origins
+  assert settings.cors_allow_credentials is True
+  assert settings.auth_refresh_cookie_name == "filum_refresh_token"
+  assert settings.auth_refresh_cookie_samesite == "strict"
+  assert settings.auth_refresh_cookie_secure is False
   assert settings.openai_chat_model == "gpt-5-mini"
   assert settings.openai_embedding_model == "text-embedding-3-small"
   assert settings.openai_embedding_dimensions == 1536
   assert settings.web_push_subject.startswith("mailto:")
+
+
+def test_settings_require_explicit_non_placeholder_jwt_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+  monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
+
+  with pytest.raises(ValidationError):
+    Settings()
+
+  with pytest.raises(ValidationError):
+    Settings(jwt_secret_key="change-me-in-production")
+
+  with pytest.raises(ValidationError):
+    Settings(jwt_secret_key="too-short")
+
+
+def test_settings_parse_cors_lists_from_csv() -> None:
+  settings = Settings(
+    jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+    cors_allowed_origins="https://app.example.com, https://ops.example.com",
+    cors_allowed_headers="Authorization, Content-Type",
+  )
+
+  assert settings.cors_allowed_origins == ["https://app.example.com", "https://ops.example.com"]
+  assert settings.cors_allowed_headers == ["Authorization", "Content-Type"]
+
+
+def test_production_settings_do_not_fall_back_to_local_dev_cors_defaults() -> None:
+  settings = Settings(
+    app_env="production",
+    jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+  )
+
+  assert settings.cors_allowed_origins == []
+  assert settings.auth_refresh_cookie_secure is True
+
+
+def test_settings_validate_refresh_cookie_options() -> None:
+  with pytest.raises(ValidationError):
+    Settings(
+      jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+      auth_refresh_cookie_samesite="invalid",
+    )
+
+  with pytest.raises(ValidationError):
+    Settings(
+      jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+      auth_refresh_cookie_samesite="none",
+      auth_refresh_cookie_secure=False,
+    )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -15,6 +16,8 @@ from app.services.message_center_service import MessageCenterService
 from app.services.profile_service import ProfileService
 from app.services.task_service import TaskService
 from app.services.workflow_engine_service import WorkflowEngineService
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_value(value):  # noqa: ANN001
@@ -155,6 +158,11 @@ class ToolRegistryService:
     payload = tool.input_model.model_validate(arguments or {})
     executor = getattr(self, tool.executor_name)
     result = await executor(actor=actor, payload=payload)
+    logger.info(
+      "AI tool executed: actor_id=%s tool=%s",
+      getattr(actor, "id", "unknown"),
+      tool.name,
+    )
     return {
       "tool_name": tool.name,
       "arguments": _serialize_value(payload.model_dump(mode="python")),
@@ -209,7 +217,6 @@ class ToolRegistryService:
           "priority": task.priority,
           "due_date": task.due_date,
           "department_name": task.department.name if task.department is not None else None,
-          "assignee_email": task.assignee.email if task.assignee is not None else None,
         }
         for task in filtered_tasks[: payload.limit]
       ]
@@ -275,13 +282,10 @@ class ToolRegistryService:
     return {
       "profile": {
         "user_id": profile_view["user_id"],
-        "user_email": profile_view["user_email"],
         "user_status": profile_view["user_status"],
-        "employee_no": profile_view["employee_no"],
         "real_name": profile_view["real_name"],
         "department_id": profile_view["department_id"],
         "job_title": profile_view["job_title"],
-        "custom_fields": profile_view["custom_fields"],
         "positions_count": len(profile_view["positions"]),
         "visible_fields_count": len(profile_view["visible_fields"]),
       }

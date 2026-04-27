@@ -29,6 +29,7 @@ from app.workers.arq_worker import (
 from app.workers.jobs import rebuild_all_document_embeddings, rebuild_document_embeddings
 
 TEST_JWT_SECRET = "test-secret-key-with-32-bytes-minimum!!"
+TEST_REFRESH_COOKIE_NAME = "filum_refresh_token"
 
 
 class FakeRouterOpenAIClient:
@@ -230,6 +231,10 @@ async def bootstrap_and_login(client: AsyncClient) -> tuple[dict[str, str], dict
   )
   assert login_response.status_code == 200
   payload = login_response.json()
+  assert "refresh_token" not in payload
+  set_cookie_header = login_response.headers.get("set-cookie", "")
+  assert TEST_REFRESH_COOKIE_NAME in set_cookie_header
+  assert "HttpOnly" in set_cookie_header
   headers = {"Authorization": f"Bearer {payload['access_token']}"}
   return headers, payload
 
@@ -268,12 +273,13 @@ async def test_auth_and_users_api_flow(api_client) -> None:
   assert me_response.status_code == 200
   assert me_response.json()["email"] == "admin@example.com"
 
-  refresh_response = await client.post(
-    "/api/v1/auth/refresh",
-    json={"refresh_token": login_payload["refresh_token"]},
-  )
+  assert client.cookies.get(TEST_REFRESH_COOKIE_NAME) is not None
+
+  refresh_response = await client.post("/api/v1/auth/refresh")
   assert refresh_response.status_code == 200
   assert refresh_response.json()["token_type"] == "bearer"
+  assert "refresh_token" not in refresh_response.json()
+  assert refresh_response.json()["access_token"] != login_payload["access_token"]
 
   create_user_response = await client.post(
     "/api/v1/users",
@@ -303,6 +309,64 @@ async def test_auth_and_users_api_flow(api_client) -> None:
   openapi_response = await client.get("/openapi.json")
   assert openapi_response.status_code == 200
   assert "/api/v1/auth/login" in openapi_response.json()["paths"]
+  assert "/api/v1/auth/logout" in openapi_response.json()["paths"]
+
+  logout_response = await client.post("/api/v1/auth/logout")
+  assert logout_response.status_code == 204
+  assert client.cookies.get(TEST_REFRESH_COOKIE_NAME) is None
+
+  refresh_after_logout_response = await client.post("/api/v1/auth/refresh")
+  assert refresh_after_logout_response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_password_policy_rejects_weak_passwords_on_write_paths(api_client) -> None:
+  client, _ = api_client
+
+  weak_bootstrap_response = await client.post(
+    "/api/v1/auth/bootstrap-admin",
+    json={
+      "email": "admin@example.com",
+      "password": "12345678",
+      "real_name": "管理员",
+      "employee_no": "EMP-ROOT",
+    },
+  )
+  assert weak_bootstrap_response.status_code == 422
+
+  headers, _ = await bootstrap_and_login(client)
+
+  weak_create_user_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "hr@example.com",
+      "password": "abcdefgh",
+      "role": "hr",
+      "status": "active",
+    },
+  )
+  assert weak_create_user_response.status_code == 422
+
+  create_user_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "hr@example.com",
+      "password": "StrongPassword123!",
+      "role": "hr",
+      "status": "active",
+    },
+  )
+  assert create_user_response.status_code == 201
+  user_id = create_user_response.json()["id"]
+
+  weak_update_user_response = await client.patch(
+    f"/api/v1/users/{user_id}",
+    headers=headers,
+    json={"password": "87654321"},
+  )
+  assert weak_update_user_response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -459,6 +523,68 @@ async def test_people_management_api_returns_aggregated_people_workspace(api_cli
   )
   forbidden_response = await client.get("/api/v1/people-management", headers=employee_headers)
   assert forbidden_response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_auth_login_rate_limit_returns_429(api_client) -> None:
+  client, _ = api_client
+
+  bootstrap_response = await client.post(
+    "/api/v1/auth/bootstrap-admin",
+    json={
+      "email": "admin@example.com",
+      "password": "StrongPassword123!",
+      "real_name": "管理员",
+      "employee_no": "EMP-ROOT",
+    },
+  )
+  assert bootstrap_response.status_code == 201
+
+  last_response = None
+  for _ in range(11):
+    last_response = await client.post(
+      "/api/v1/auth/login",
+      json={
+        "email": "admin@example.com",
+        "password": "wrong-password",
+      },
+    )
+
+  assert last_response is not None
+  assert last_response.status_code == 429
+  assert last_response.json()["detail"] == "请求过于频繁，请稍后再试。"
+
+
+@pytest.mark.asyncio
+async def test_auth_refresh_rate_limit_returns_429(api_client) -> None:
+  client, _ = api_client
+
+  await bootstrap_and_login(client)
+
+  last_response = None
+  for _ in range(21):
+    last_response = await client.post("/api/v1/auth/refresh")
+
+  assert last_response is not None
+  assert last_response.status_code == 429
+  assert last_response.json()["detail"] == "请求过于频繁，请稍后再试。"
+
+
+@pytest.mark.asyncio
+async def test_auth_logout_clears_cookie_even_when_refresh_token_is_invalid(api_client) -> None:
+  client, _ = api_client
+
+  await bootstrap_and_login(client)
+
+  logout_response = await client.post(
+    "/api/v1/auth/logout",
+    cookies={TEST_REFRESH_COOKIE_NAME: "invalid-token"},
+  )
+
+  assert logout_response.status_code == 204
+  cleared_cookie_header = logout_response.headers.get("set-cookie", "")
+  assert TEST_REFRESH_COOKIE_NAME in cleared_cookie_header
+  assert "Max-Age=0" in cleared_cookie_header or "expires=" in cleared_cookie_header.lower()
 
 
 @pytest.mark.asyncio
@@ -640,6 +766,20 @@ async def test_department_profile_task_and_attachment_api_flow(api_client) -> No
   )
   assert delete_attachment_response.status_code == 200
   assert delete_attachment_response.json()["status"] == "deleted"
+
+  invalid_upload_response = await client.post(
+    "/api/v1/attachments",
+    headers=headers,
+    data={
+      "target_type": "task",
+      "target_id": task_id,
+      "visibility": "private",
+      "relation": "primary",
+    },
+    files={"file": ("fake.pdf", b"not-a-real-pdf", "application/pdf")},
+  )
+  assert invalid_upload_response.status_code == 422
+  assert "附件内容与声明类型不匹配" in invalid_upload_response.json()["detail"]
 
   assert len(queue_publisher.payloads) == 1
   assert queue_publisher.payloads[0]["message_type"] == "task_assigned"

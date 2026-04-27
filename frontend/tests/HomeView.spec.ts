@@ -114,7 +114,6 @@ describe('Home view', () => {
     const authStore = useAuthStore()
     authStore.initialized = true
     authStore.accessToken = 'test-access-token'
-    authStore.refreshToken = 'test-refresh-token'
     authStore.user = {
       id: 'user-1',
       email: 'admin@example.com',

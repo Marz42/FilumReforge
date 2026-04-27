@@ -244,9 +244,10 @@ class LLMRouterService:
 
   @staticmethod
   def _format_profile_reply(profile: dict[str, object]) -> str:
+    display_name = profile["real_name"] or "当前用户"
     return (
-      f"档案摘要：{profile['real_name'] or profile['user_email']}\n"
-      f"员工编号：{profile['employee_no'] or '未设置'}\n"
+      f"档案摘要：{display_name}\n"
+      f"账号状态：{profile['user_status']}\n"
       f"岗位：{profile['job_title'] or '未设置'}\n"
       f"可见字段数：{profile['visible_fields_count']}"
     )

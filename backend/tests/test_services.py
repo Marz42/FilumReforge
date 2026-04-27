@@ -38,7 +38,7 @@ from app.core.enums import (
   WorkflowDefinitionStatus,
   WorkflowInstanceStatus,
 )
-from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.exceptions import AppValidationError, AuthenticationError, AuthorizationError, ConflictError, NotFoundError
 from app.models import (
   AttachmentLink,
   Department,
@@ -169,12 +169,16 @@ async def test_auth_service_bootstrap_login_and_refresh(db_session) -> None:
   )
   session = await auth_service.authenticate(email="admin@example.com", password="StrongPassword123!")
   refreshed = await auth_service.refresh(refresh_token=session.refresh_token)
+  revoked = await auth_service.revoke_refresh_token(refresh_token=refreshed.refresh_token)
   access_user = await auth_service.get_user_from_access_token(session.access_token)
 
   assert admin.role == UserRole.ADMIN
   assert session.token_type == "bearer"
   assert refreshed.access_token != session.access_token
+  assert revoked is True
   assert access_user.id == admin.id
+  with pytest.raises(AuthenticationError):
+    await auth_service.refresh(refresh_token=refreshed.refresh_token)
 
 
 @pytest.mark.asyncio
@@ -449,7 +453,7 @@ async def test_attachment_service_upload_and_soft_delete(db_session) -> None:
       actor=admin,
       filename="spec.pdf",
       content_type="application/pdf",
-      content=b"pdf-content",
+      content=b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF",
       target_type=AttachmentTargetType.TASK,
       target_id=admin.id,
     )
@@ -459,6 +463,32 @@ async def test_attachment_service_upload_and_soft_delete(db_session) -> None:
     assert attachment.original_filename == "spec.pdf"
     assert deleted.status == AttachmentStatus.DELETED
     assert not file_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_attachment_service_rejects_mismatched_binary_content(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  with TemporaryDirectory() as tmp_dir:
+    storage_service = ObjectStorageService(
+      LocalStorageAdapter(base_path=tmp_dir, bucket="filum-test")
+    )
+    attachment_service = AttachmentService(db_session, storage_service)
+
+    with pytest.raises(AppValidationError):
+      await attachment_service.upload_attachment(
+        actor=admin,
+        filename="fake.pdf",
+        content_type="application/pdf",
+        content=b"not-a-real-pdf",
+      )
 
 
 @pytest.mark.asyncio
@@ -2635,7 +2665,7 @@ async def test_phase5_document_service_controls_visibility_and_document_attachme
       actor=admin,
       filename="onboarding.pdf",
       content_type="application/pdf",
-      content=b"document-attachment",
+      content=b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF",
       target_type=AttachmentTargetType.DOCUMENT,
       target_id=document.id,
       relation="reference",
@@ -2861,11 +2891,22 @@ async def test_phase5_llm_router_handles_slash_commands_and_tool_calls(db_sessio
 
   slash_result = await router_service.route_text(actor=admin, text="/profile")
   mention_result = await router_service.route_text(actor=admin, text="@系统 入职流程是什么？")
+  profile_tool_result = await tool_registry_service.execute_tool(
+    actor=admin,
+    tool_name="get_profile_summary",
+    arguments={},
+  )
 
   assert slash_result.mode == "slash_command"
   assert slash_result.command_name == "profile"
   assert slash_result.tool_results[0]["tool_name"] == "get_profile_summary"
   assert "档案摘要" in slash_result.reply_text
+  assert "员工编号" not in slash_result.reply_text
+
+  assert profile_tool_result["result"]["profile"]["real_name"] == "管理员"
+  assert "user_email" not in profile_tool_result["result"]["profile"]
+  assert "employee_no" not in profile_tool_result["result"]["profile"]
+  assert "custom_fields" not in profile_tool_result["result"]["profile"]
 
   assert mention_result.mode == "mention"
   assert mention_result.tool_results

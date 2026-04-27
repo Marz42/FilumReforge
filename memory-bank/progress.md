@@ -28,7 +28,13 @@
 | 工作流 | 状态 | 结论 |
 | --- | --- | --- |
 | 工作流 E / 结构化任务模板与多步骤协作 | in_progress | 首批实现已落地：模板实例 / 步骤运行态、逐步激活、多人扇出 / 汇聚、结构化设计器与实例快照已完成；当前进入回归、部署准备与后续深化 |
-| 部署工程化收口 | in_progress | 生产运行形态已收口：`start-prod.sh`（无 --reload）、`Dockerfile.prod`（后端 + 前端多阶段构建）、`docker-compose.prod.yml`、Nginx 生产配置（host + compose）、环境变量模板、发布前验证脚本已完成；全量回归与上线演练待执行 |
+| 部署工程化收口 | in_progress | 生产运行形态已收口：`start-prod.sh`（无 --reload）、`Dockerfile.prod`（后端 + 前端多阶段构建）、`docker-compose.prod.yml`、Nginx 生产配置（host + compose）、环境变量模板、发布前验证脚本已完成；核心回归已执行，发布前一键校验与上线演练待执行 |
+
+## 近期补丁 / 会话安全改造
+
+| 项目 | 状态 | 结论 |
+| --- | --- | --- |
+| 第二批会话安全改造 | done | refresh token 已切换为 HttpOnly cookie，前端 access token 改为内存态，`/auth/logout` 已支持服务端撤销与清 cookie；已执行 backend `pytest -q`、`python -m compileall app tests` 与 frontend `npm run test:unit -- --run`、`npm run type-check` |
 
 ## 已完成里程碑
 
@@ -71,7 +77,7 @@
 
 | 步骤 | 状态 | 产出 | 验证 |
 | --- | --- | --- | --- |
-| 会话层与路由守卫 | done | token 持久化、自动 refresh、受保护路由 | 已执行单元测试 |
+| 会话层与路由守卫 | done | access token 内存态、HttpOnly refresh cookie 恢复、受保护路由 | 已执行单元测试 |
 | 基础后台页面 | done | 仪表盘、部门页、档案页、任务页、附件上传 | 已执行 `type-check`、`build`、`lint` |
 | 联调修复 | done | 修复开发代理 404、本地 / Compose 启动链路 | 已完成用户实际点击验证 |
 
@@ -350,7 +356,7 @@
 
 ## 当前可用能力
 
-- 管理员初始化、登录、JWT access / refresh 会话
+- 管理员初始化、登录、JWT access token + HttpOnly refresh cookie 会话
 - 用户管理
 - 部门树与组织范围查询
 - 员工档案基础 CRUD（含 `custom_fields`）

@@ -39,25 +39,48 @@ def _timestamp_columns() -> list[sa.Column]:
   ]
 
 
+def _is_sqlite() -> bool:
+  return op.get_bind().dialect.name == "sqlite"
+
+
 def upgrade() -> None:
-  op.add_column(
-    "task_template_steps",
-    sa.Column("assignment_mode", sa.String(length=32), nullable=False, server_default=sa.text("'single'")),
-  )
-  op.add_column(
-    "task_template_steps",
-    sa.Column("join_mode", sa.String(length=32), nullable=False, server_default=sa.text("'all'")),
-  )
-  op.create_check_constraint(
-    "task_tpl_steps_assignment_mode_check",
-    "task_template_steps",
-    "assignment_mode in ('single', 'fan_out')",
-  )
-  op.create_check_constraint(
-    "task_tpl_steps_join_mode_check",
-    "task_template_steps",
-    "join_mode in ('all', 'any')",
-  )
+  is_sqlite = _is_sqlite()
+
+  if is_sqlite:
+    with op.batch_alter_table("task_template_steps") as batch_op:
+      batch_op.add_column(
+        sa.Column("assignment_mode", sa.String(length=32), nullable=False, server_default=sa.text("'single'"))
+      )
+      batch_op.add_column(
+        sa.Column("join_mode", sa.String(length=32), nullable=False, server_default=sa.text("'all'"))
+      )
+      batch_op.create_check_constraint(
+        "task_tpl_steps_assignment_mode_check",
+        "assignment_mode in ('single', 'fan_out')",
+      )
+      batch_op.create_check_constraint(
+        "task_tpl_steps_join_mode_check",
+        "join_mode in ('all', 'any')",
+      )
+  else:
+    op.add_column(
+      "task_template_steps",
+      sa.Column("assignment_mode", sa.String(length=32), nullable=False, server_default=sa.text("'single'")),
+    )
+    op.add_column(
+      "task_template_steps",
+      sa.Column("join_mode", sa.String(length=32), nullable=False, server_default=sa.text("'all'")),
+    )
+    op.create_check_constraint(
+      "task_tpl_steps_assignment_mode_check",
+      "task_template_steps",
+      "assignment_mode in ('single', 'fan_out')",
+    )
+    op.create_check_constraint(
+      "task_tpl_steps_join_mode_check",
+      "task_template_steps",
+      "join_mode in ('all', 'any')",
+    )
 
   op.create_table(
     "task_template_instances",
@@ -97,21 +120,33 @@ def upgrade() -> None:
   op.create_index("idx_task_tpl_step_runs_instance_status", "task_template_step_runs", ["instance_id", "status"], unique=False)
   op.create_index("idx_task_tpl_step_runs_assignee_status", "task_template_step_runs", ["assignee_user_id", "status"], unique=False)
 
-  op.add_column("tasks", sa.Column("template_instance_id", sa.Uuid(), nullable=True))
-  op.add_column("tasks", sa.Column("template_step_run_id", sa.Uuid(), nullable=True))
-  op.create_foreign_key("fk_tasks_template_instance", "tasks", "task_template_instances", ["template_instance_id"], ["id"], ondelete="SET NULL")
-  op.create_foreign_key("fk_tasks_template_step_run", "tasks", "task_template_step_runs", ["template_step_run_id"], ["id"], ondelete="SET NULL")
+  if is_sqlite:
+    with op.batch_alter_table("tasks") as batch_op:
+      batch_op.add_column(sa.Column("template_instance_id", sa.Uuid(), nullable=True))
+      batch_op.add_column(sa.Column("template_step_run_id", sa.Uuid(), nullable=True))
+  else:
+    op.add_column("tasks", sa.Column("template_instance_id", sa.Uuid(), nullable=True))
+    op.add_column("tasks", sa.Column("template_step_run_id", sa.Uuid(), nullable=True))
+    op.create_foreign_key("fk_tasks_template_instance", "tasks", "task_template_instances", ["template_instance_id"], ["id"], ondelete="SET NULL")
+    op.create_foreign_key("fk_tasks_template_step_run", "tasks", "task_template_step_runs", ["template_step_run_id"], ["id"], ondelete="SET NULL")
   op.create_index("idx_tasks_template_instance_id", "tasks", ["template_instance_id"], unique=False)
   op.create_index("idx_tasks_template_step_run_id", "tasks", ["template_step_run_id"], unique=False)
 
 
 def downgrade() -> None:
+  is_sqlite = _is_sqlite()
+
   op.drop_index("idx_tasks_template_step_run_id", table_name="tasks")
   op.drop_index("idx_tasks_template_instance_id", table_name="tasks")
-  op.drop_constraint("fk_tasks_template_step_run", "tasks", type_="foreignkey")
-  op.drop_constraint("fk_tasks_template_instance", "tasks", type_="foreignkey")
-  op.drop_column("tasks", "template_step_run_id")
-  op.drop_column("tasks", "template_instance_id")
+  if is_sqlite:
+    with op.batch_alter_table("tasks") as batch_op:
+      batch_op.drop_column("template_step_run_id")
+      batch_op.drop_column("template_instance_id")
+  else:
+    op.drop_constraint("fk_tasks_template_step_run", "tasks", type_="foreignkey")
+    op.drop_constraint("fk_tasks_template_instance", "tasks", type_="foreignkey")
+    op.drop_column("tasks", "template_step_run_id")
+    op.drop_column("tasks", "template_instance_id")
 
   op.drop_index("idx_task_tpl_step_runs_assignee_status", table_name="task_template_step_runs")
   op.drop_index("idx_task_tpl_step_runs_instance_status", table_name="task_template_step_runs")
@@ -121,7 +156,14 @@ def downgrade() -> None:
   op.drop_index("idx_task_tpl_instances_template_status", table_name="task_template_instances")
   op.drop_table("task_template_instances")
 
-  op.drop_constraint("task_tpl_steps_join_mode_check", "task_template_steps", type_="check")
-  op.drop_constraint("task_tpl_steps_assignment_mode_check", "task_template_steps", type_="check")
-  op.drop_column("task_template_steps", "join_mode")
-  op.drop_column("task_template_steps", "assignment_mode")
+  if is_sqlite:
+    with op.batch_alter_table("task_template_steps") as batch_op:
+      batch_op.drop_constraint("task_tpl_steps_join_mode_check", type_="check")
+      batch_op.drop_constraint("task_tpl_steps_assignment_mode_check", type_="check")
+      batch_op.drop_column("join_mode")
+      batch_op.drop_column("assignment_mode")
+  else:
+    op.drop_constraint("task_tpl_steps_join_mode_check", "task_template_steps", type_="check")
+    op.drop_constraint("task_tpl_steps_assignment_mode_check", "task_template_steps", type_="check")
+    op.drop_column("task_template_steps", "join_mode")
+    op.drop_column("task_template_steps", "assignment_mode")

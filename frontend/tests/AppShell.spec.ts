@@ -1,5 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it } from 'vitest'
 import ElementPlus from 'element-plus'
 
@@ -7,11 +9,39 @@ import AppShell from '@/components/AppShell.vue'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
 
+const RoutedViewStub = defineComponent({
+  name: 'RoutedViewStub',
+  template: '<div class="router-view-stub">Route Content</div>',
+})
+
+const RouterViewStub = defineComponent({
+  name: 'RouterViewStub',
+  setup(_, { slots }) {
+    return () => slots.default?.({ Component: RoutedViewStub })
+  },
+})
+
+const DrawerStub = defineComponent({
+  name: 'ElDrawer',
+  props: {
+    modelValue: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  template: '<div v-if="modelValue" class="drawer-stub"><slot /></div>',
+})
+
 describe('App shell', () => {
   let pinia: ReturnType<typeof createPinia>
 
   beforeEach(() => {
     window.localStorage.clear()
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: 1280,
+    })
     pinia = createPinia()
     setActivePinia(pinia)
   })
@@ -20,7 +50,6 @@ describe('App shell', () => {
     const authStore = useAuthStore()
     authStore.initialized = true
     authStore.accessToken = 'test-access-token'
-    authStore.refreshToken = 'test-refresh-token'
     authStore.user = {
       id: 'user-1',
       email: 'admin@example.com',
@@ -43,7 +72,9 @@ describe('App shell', () => {
         plugins: [pinia, router, ElementPlus],
         stubs: {
           CommandBar: true,
-          RouterView: true,
+          RouterView: RouterViewStub,
+          ElDrawer: DrawerStub,
+          teleport: true,
         },
       },
     })
@@ -61,6 +92,8 @@ describe('App shell', () => {
     expect(wrapper.text()).toContain('设置')
     expect(wrapper.text()).toContain('人员管理')
     expect(wrapper.text()).toContain('部门管理')
+    expect(wrapper.findAll('.el-menu-item .el-icon').length).toBeGreaterThan(0)
+    expect(wrapper.find('.router-view-stub').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('仪表盘')
     expect(wrapper.text()).not.toContain('模板中心')
     expect(wrapper.text()).not.toContain('审批中心')
@@ -76,7 +109,9 @@ describe('App shell', () => {
         plugins: [pinia, router, ElementPlus],
         stubs: {
           CommandBar: true,
-          RouterView: true,
+          RouterView: RouterViewStub,
+          ElDrawer: DrawerStub,
+          teleport: true,
         },
       },
     })
@@ -93,7 +128,9 @@ describe('App shell', () => {
         plugins: [pinia, router, ElementPlus],
         stubs: {
           CommandBar: true,
-          RouterView: true,
+          RouterView: RouterViewStub,
+          ElDrawer: DrawerStub,
+          teleport: true,
         },
       },
     })
@@ -105,5 +142,42 @@ describe('App shell', () => {
     expect(wrapper.text()).not.toContain('特殊模块')
     expect(wrapper.text()).not.toContain('人员管理')
     expect(wrapper.text()).not.toContain('部门管理')
+  })
+
+  it('uses a drawer trigger for narrow screens', async () => {
+    Object.defineProperty(window, 'innerWidth', {
+      configurable: true,
+      writable: true,
+      value: 720,
+    })
+    window.dispatchEvent(new Event('resize'))
+
+    await seedUser('admin')
+
+    const wrapper = mount(AppShell, {
+      attachTo: document.body,
+      global: {
+        plugins: [pinia, router, ElementPlus],
+        stubs: {
+          CommandBar: true,
+          RouterView: RouterViewStub,
+          ElDrawer: DrawerStub,
+          teleport: true,
+        },
+      },
+    })
+
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="mobile-nav-trigger"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="mobile-nav-trigger"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('.drawer-stub').exists()).toBe(true)
+    expect(wrapper.text()).toContain('通用模块')
+    expect(wrapper.text()).toContain('特殊模块')
+
+    wrapper.unmount()
   })
 })

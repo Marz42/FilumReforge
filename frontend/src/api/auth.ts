@@ -25,6 +25,15 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
   return data
 }
 
+export async function refreshSession(): Promise<AuthSession> {
+  const { data } = await rawHttp.post<AuthSession>('/auth/refresh')
+  return data
+}
+
+export async function logout(): Promise<void> {
+  await rawHttp.post('/auth/logout')
+}
+
 export async function getCurrentUser(): Promise<User> {
   const { data } = await http.get<User>('/auth/me')
   return data

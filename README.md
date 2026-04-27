@@ -5,7 +5,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 ## 当前状态
 
 - **已完成**
-  - 用户与会话：管理员初始化、JWT access/refresh、角色控制
+  - 用户与会话：管理员初始化、JWT access token、HttpOnly refresh cookie 轮换 / logout 撤销、角色控制
   - 组织与 HR：部门树、一人一档、字段级权限、多岗位、虚线汇报、生命周期事件、代理授权
   - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计、多视图、五主标签任务中心（历史任务并入跟踪视图）
   - 工作流 E 首批：模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚（`all` / `any`）、模板实例快照、结构化设计器首版与已有模板编辑
@@ -95,6 +95,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 ```sh
 cd infra/docker
 cp .env.example .env 2>/dev/null || true
+# 编辑 infra/docker/.env，至少填入 JWT_SECRET_KEY
 docker compose -f docker-compose.yml up --build -d
 ```
 
@@ -122,6 +123,7 @@ python -m venv .venv
 . .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
+# 编辑 backend/.env，至少填入 JWT_SECRET_KEY
 alembic upgrade head
 ./scripts/start-dev.sh
 ```
@@ -144,7 +146,12 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 ## 云服务器部署（推荐 Ubuntu + Nginx + systemd）
 
-当前仓库已经具备实际部署基础，但还没有开箱即用的 production compose 文件。若要部署到云服务器，推荐采用“**前端静态文件 + Nginx + backend/worker systemd + PostgreSQL/Redis**”这条路径，而不是直接把开发态 Compose 暴露到公网。
+当前仓库已经具备两条可用的生产部署路径：
+
+- **主机部署**：`前端静态文件 + Nginx + backend/worker systemd + PostgreSQL/Redis`，适合直接落到 Ubuntu 主机。
+- **容器部署**：`infra/docker/docker-compose.prod.yml` + `backend/frontend Dockerfile.prod`，适合走容器编排。
+
+推荐优先使用主机部署路径；如果偏好容器编排，可直接使用生产 Compose，而不是把开发态 Compose 暴露到公网。
 
 如果需要一份按真实成功部署整理、可以逐条复制执行的完整操作手册，请直接看 [memory-bank/deployment-runbook-ubuntu-2404.md](memory-bank/deployment-runbook-ubuntu-2404.md)。该文档覆盖 Ubuntu 24.04 LTS 全新服务器初始化、PostgreSQL/Redis/Nginx/systemd 配置、前端静态文件权限、HTTP/HTTPS 验证、推送通知验证以及后续更新发布流程。
 
@@ -190,6 +197,7 @@ APP_ENV=production
 POSTGRES_DSN=postgresql+asyncpg://<user>:<password>@<db-host>:5432/<db-name>
 REDIS_DSN=redis://<redis-host>:6379/0
 JWT_SECRET_KEY=<至少 32 字节随机串>
+CORS_ALLOWED_ORIGINS=https://app.example.com
 OPENAI_API_KEY=<可选，不使用 AI 时可留空>
 WEB_PUSH_PUBLIC_KEY=<可选，不使用浏览器推送时可留空>
 WEB_PUSH_PRIVATE_KEY=<可选，不使用浏览器推送时可留空>
@@ -197,12 +205,20 @@ WEB_PUSH_SUBJECT=mailto:ops@example.com
 STORAGE_PROVIDER=local
 STORAGE_BUCKET=filum-prod
 STORAGE_BASE_PATH=/srv/filum/data/storage
+
+# 可选：refresh cookie 调优
+# AUTH_REFRESH_COOKIE_NAME=filum_refresh_token
+# AUTH_REFRESH_COOKIE_PATH=/api/v1/auth
+# AUTH_REFRESH_COOKIE_DOMAIN=
+# AUTH_REFRESH_COOKIE_SAMESITE=strict
+# AUTH_REFRESH_COOKIE_SECURE=true
 ```
 
 约束说明：
 
 - `backend` 与 `worker` 必须使用同一份 `.env`
 - `STORAGE_BASE_PATH` 必须对 `backend` 和 `worker` 都可读写
+- 当前会话模型为“前端内存态 access token + HttpOnly refresh cookie”；如前后端跨站点部署，需要同时核对 `CORS_ALLOWED_ORIGINS` 与 `AUTH_REFRESH_COOKIE_*` 相关配置
 - 当前如果继续使用本地对象存储，需要把 `/srv/filum/data/storage` 纳入云盘快照或备份策略
 
 ### 4. 初始化数据库与管理员

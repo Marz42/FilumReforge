@@ -12,6 +12,7 @@
 
 ```sh
 cp .env.example .env
+# Edit .env and set JWT_SECRET_KEY before starting.
 docker compose -f docker-compose.yml up --build -d
 ```
 

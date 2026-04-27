@@ -8,6 +8,7 @@ from app.api.error_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.database import get_session_factory
+from app.core.rate_limit import InMemoryRateLimiter
 from app.core.request_context import REQUEST_ID_HEADER, bind_request_context, reset_request_context
 
 
@@ -42,6 +43,18 @@ class RequestContextMiddleware:
       reset_request_context(token)
 
 
+def _configure_cors(application: FastAPI) -> None:
+  settings = get_settings()
+  application.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_origin_regex=settings.cors_allowed_origin_regex,
+    allow_credentials=settings.cors_allow_credentials,
+    allow_methods=settings.cors_allowed_methods,
+    allow_headers=settings.cors_allowed_headers,
+  )
+
+
 def create_app() -> FastAPI:
   settings = get_settings()
 
@@ -50,15 +63,9 @@ def create_app() -> FastAPI:
     version=settings.app_version,
   )
   application.state.error_tracking_session_factory = get_session_factory()
+  application.state.auth_rate_limiter = InMemoryRateLimiter()
   application.add_middleware(RequestContextMiddleware)
-  if settings.app_env == "development":
-    application.add_middleware(
-      CORSMiddleware,
-      allow_origin_regex=r"https?://[^/]+(?::\d+)?$",
-      allow_credentials=False,
-      allow_methods=["*"],
-      allow_headers=["*"],
-    )
+  _configure_cors(application)
   register_exception_handlers(application)
 
   application.include_router(api_router, prefix=settings.api_v1_prefix)

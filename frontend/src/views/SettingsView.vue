@@ -3,12 +3,15 @@ import PushSubscriptionCard from '@/components/PushSubscriptionCard.vue'
 </script>
 
 <template>
-  <div class="settings-view">
+  <div class="settings-view filum-page">
     <el-row :gutter="20">
       <el-col :xs="24" :xl="18">
-        <el-card shadow="never" class="settings-view__intro">
+        <el-card shadow="never" class="settings-view__intro filum-panel-card">
           <template #header>
-            <span>设置</span>
+            <div class="filum-page-header__copy">
+              <span class="filum-page-header__eyebrow">Preferences</span>
+              <span class="filum-page-header__title">设置</span>
+            </div>
           </template>
 
           <p class="settings-view__description">
@@ -34,7 +37,7 @@ import PushSubscriptionCard from '@/components/PushSubscriptionCard.vue'
 
 .settings-view__description {
   margin: 0;
-  color: #606266;
+  color: var(--filum-text-secondary);
   line-height: 1.7;
 }
 </style>

@@ -15,7 +15,6 @@ describe('router navigation refactor', () => {
     const authStore = useAuthStore()
     authStore.initialized = true
     authStore.accessToken = 'test-access-token'
-    authStore.refreshToken = 'test-refresh-token'
     authStore.user = {
       id: 'user-1',
       email: 'tester@example.com',

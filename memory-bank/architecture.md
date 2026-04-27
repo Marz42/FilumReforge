@@ -33,7 +33,7 @@
 
 ### 2.2 当前已实现能力
 
-- 用户、JWT access / refresh、管理员初始化
+- 用户、JWT access token、HttpOnly refresh cookie 轮换 / logout 撤销、管理员初始化
 - 部门树、部门负责人、组织范围查询
 - 员工档案基础 CRUD、字段裁剪视图与 `custom_fields JSONB`
 - 岗位目录、多岗位关系、直属 / 虚线汇报线
@@ -311,18 +311,26 @@
 | 路径 | 作用 |
 | --- | --- |
 | `infra/docker/docker-compose.yml` | 本地开发编排：postgres / redis / backend / worker / frontend / nginx |
+| `infra/docker/docker-compose.prod.yml` | 生产编排：无 bind mount、无 `--reload`、前后端使用生产镜像 |
+| `backend/Dockerfile.prod` | 后端生产镜像构建 |
+| `frontend/Dockerfile.prod` | 前端生产镜像构建 |
 | `infra/nginx/default.conf` | `/api/` 到 backend，其余到 frontend |
 | `backend/scripts/start-dev.sh` | API 启动脚本 |
+| `backend/scripts/start-prod.sh` | API 生产启动脚本 |
 | `backend/scripts/start-worker.sh` | Worker 启动脚本 |
+| `infra/nginx/nginx.prod.conf` | 主机部署 Nginx 生产模板 |
+| `infra/nginx/nginx.compose.prod.conf` | Compose 内部 gateway Nginx 生产配置 |
+| `scripts/check-release.sh` | 发布前验证脚本 |
 
 ## 6. 核心流程
 
 ### 6.1 JWT 会话链路（当前）
 
 1. `/api/v1/auth/bootstrap-admin` 初始化管理员。
-2. 登录由 `AuthService.authenticate()` 校验密码并签发 access / refresh token。
-3. refresh token 落库到 `refresh_tokens`。
-4. 前端由 `http.ts` 注入 access token，401 时自动尝试 refresh。
+2. 登录由 `AuthService.authenticate()` 校验密码并签发 access token，同时通过 `/api/v1/auth/login` 写入 HttpOnly refresh cookie。
+3. refresh token 的 `jti` 落库到 `refresh_tokens`；`/api/v1/auth/refresh` 从 cookie 读取 refresh token 并执行轮换。
+4. 前端由 `http.ts` 只注入内存态 access token，401 时通过 `withCredentials` 自动尝试 refresh。
+5. `/api/v1/auth/logout` 会撤销当前 refresh token，并清理 refresh cookie。
 
 ### 6.2 任务协同链路（当前）
 

@@ -12,11 +12,17 @@
 - 知识库：文档、发布、RAG 查询
 - 人员工作台 / 部门管理：管理角色专用
 
+## 当前会话模型
+
+- access token 只保存在前端内存，不再写入 `localStorage`
+- 页面初始化通过 `/api/v1/auth/refresh` + HttpOnly refresh cookie 恢复会话
+- Axios 默认开启 `withCredentials`，更适合同源部署或已正确配置 CORS / cookie 的反向代理场景
+
 ## 当前已知边界
 
 - `TaskTemplatesView.vue` 已支持结构化步骤设计、JSON 导入与实例快照；已有实例的模板当前锁定结构编辑，建议通过新建模板版本承接结构变更
 - 模板 / 调度管理动作、更多设计器校验与更大范围回归仍在继续补齐
-- 当前 Dockerfile 与 Compose 运行的是 Vite dev server；正式部署应构建静态 `dist/` 并由 Nginx 提供
+- 开发 Compose 运行的是 Vite dev server；生产部署请改用 `Dockerfile.prod`、`frontend/nginx.frontend.conf` 与 `infra/docker/docker-compose.prod.yml`，或直接构建静态 `dist/` 后交给 Nginx 托管
 
 ## 开发命令
 
@@ -27,9 +33,9 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 ## 生产部署提醒
 
-- 当前前端上线建议执行 `npm install && npm run build`，再由 Nginx 直接托管 `dist/`
-- [../Dockerfile](../Dockerfile) 与 [../infra/docker/docker-compose.yml](../infra/docker/docker-compose.yml) 仍以开发联调为主，不建议把 Vite dev server 直接暴露到公网
-- 详细云部署方式请以仓库根目录 [README.md](README.md) 的“云服务器部署”章节为准
+- 当前前端上线可选两条路径：执行 `npm install && npm run build` 后由 Nginx 直接托管 `dist/`，或使用 `Dockerfile.prod` 配合 `infra/docker/docker-compose.prod.yml`
+- `Dockerfile` 与 `infra/docker/docker-compose.yml` 仍以开发联调为主，不建议把 Vite dev server 直接暴露到公网
+- 详细云部署方式请以仓库根目录 [README.md](README.md) 的“云服务器部署”章节或 `infra/docker/README.md` 为准
 
 ## 验证命令
 

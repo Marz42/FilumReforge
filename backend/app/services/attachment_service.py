@@ -5,15 +5,29 @@ from hashlib import sha256
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import filetype
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import AttachmentStatus, AttachmentTargetType, AttachmentVisibility, UserRole
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AppValidationError, NotFoundError
 from app.models import Attachment, AttachmentLink, User
 from app.services.access_control import ensure_active_user
 from app.services.object_storage_service import ObjectStorageService
+
+ALLOWED_ATTACHMENT_MIME_TYPES = frozenset(
+  {
+    "text/plain",
+    "text/markdown",
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+  }
+)
+TEXT_ATTACHMENT_MIME_TYPES = frozenset({"text/plain", "text/markdown"})
 
 
 class AttachmentService:
@@ -34,13 +48,18 @@ class AttachmentService:
     relation: str = "primary",
   ) -> Attachment:
     ensure_active_user(actor)
+    validated_content_type = self._validate_attachment_content(
+      filename=filename,
+      content_type=content_type,
+      content=content,
+    )
 
     safe_name = Path(filename).name.replace(" ", "_")
     object_key = f"{uuid4().hex}/{safe_name}"
     descriptor = await self._object_storage_service.upload(
       object_key=object_key,
       content=content,
-      content_type=content_type,
+      content_type=validated_content_type,
     )
 
     attachment = Attachment(
@@ -48,7 +67,7 @@ class AttachmentService:
       bucket=descriptor.bucket,
       object_key=descriptor.object_key,
       original_filename=safe_name,
-      mime_type=content_type,
+      mime_type=validated_content_type,
       size_bytes=len(content),
       checksum_sha256=sha256(content).hexdigest(),
       uploader_id=actor.id,
@@ -71,6 +90,32 @@ class AttachmentService:
     await self._session.commit()
     await self._session.refresh(attachment)
     return attachment
+
+  @staticmethod
+  def _validate_attachment_content(*, filename: str, content_type: str, content: bytes) -> str:
+    normalized_content_type = content_type.split(";", 1)[0].strip().lower()
+    if not normalized_content_type:
+      raise AppValidationError("附件必须声明 MIME 类型。")
+    if normalized_content_type not in ALLOWED_ATTACHMENT_MIME_TYPES:
+      raise AppValidationError(f"不支持的附件类型：{normalized_content_type}。")
+    if not content:
+      raise AppValidationError("附件内容不能为空。")
+
+    if normalized_content_type in TEXT_ATTACHMENT_MIME_TYPES:
+      if b"\x00" in content:
+        raise AppValidationError("文本附件包含无效的二进制内容。")
+      try:
+        content.decode("utf-8")
+      except UnicodeDecodeError as exc:
+        raise AppValidationError("文本附件必须使用 UTF-8 编码。") from exc
+      return normalized_content_type
+
+    kind = filetype.guess(content)
+    if kind is None or kind.mime != normalized_content_type:
+      raise AppValidationError(
+        f"附件内容与声明类型不匹配：filename={Path(filename).suffix or '<none>'} content_type={normalized_content_type}。"
+      )
+    return normalized_content_type
 
   async def list_attachments(
     self,

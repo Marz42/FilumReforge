@@ -2,15 +2,17 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthSession, User } from '@/types/api'
+import { clearAuthSession, getAccessToken } from '@/api/session'
 
 vi.mock('@/api/auth', () => ({
   bootstrapAdmin: vi.fn(),
   getBootstrapStatus: vi.fn(),
-  getCurrentUser: vi.fn(),
   login: vi.fn(),
+  logout: vi.fn(),
+  refreshSession: vi.fn(),
 }))
 
-import { bootstrapAdmin, getBootstrapStatus, getCurrentUser, login } from '@/api/auth'
+import { bootstrapAdmin, getBootstrapStatus, login, logout, refreshSession } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 
 const mockUser: User = {
@@ -25,19 +27,19 @@ const mockUser: User = {
 
 const mockSession: AuthSession = {
   access_token: 'access-token',
-  refresh_token: 'refresh-token',
   token_type: 'bearer',
   user: mockUser,
 }
 
 describe('auth store', () => {
   beforeEach(() => {
+    clearAuthSession()
     window.localStorage.clear()
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('stores token pair after login', async () => {
+  it('stores access token in memory after login', async () => {
     vi.mocked(login).mockResolvedValue(mockSession)
 
     const authStore = useAuthStore()
@@ -48,21 +50,38 @@ describe('auth store', () => {
 
     expect(authStore.isAuthenticated).toBe(true)
     expect(authStore.user?.email).toBe('admin@example.com')
-    expect(window.localStorage.getItem('filum.access-token')).toBe('access-token')
-    expect(window.localStorage.getItem('filum.refresh-token')).toBe('refresh-token')
+    expect(getAccessToken()).toBe('access-token')
+    expect(window.localStorage.getItem('filum.access-token')).toBeNull()
+    expect(window.localStorage.getItem('filum.refresh-token')).toBeNull()
   })
 
-  it('restores persisted session', async () => {
-    window.localStorage.setItem('filum.access-token', 'access-token')
-    window.localStorage.setItem('filum.refresh-token', 'refresh-token')
-    vi.mocked(getCurrentUser).mockResolvedValue(mockUser)
+  it('restores session by calling refresh endpoint', async () => {
+    vi.mocked(refreshSession).mockResolvedValue(mockSession)
 
     const authStore = useAuthStore()
     const restored = await authStore.restoreSession()
 
     expect(restored).toBe(true)
     expect(authStore.user?.id).toBe('user-1')
+    expect(getAccessToken()).toBe('access-token')
     expect(authStore.initialized).toBe(true)
+  })
+
+  it('clears in-memory session after logout', async () => {
+    vi.mocked(login).mockResolvedValue(mockSession)
+    vi.mocked(logout).mockResolvedValue()
+
+    const authStore = useAuthStore()
+    await authStore.login({
+      email: 'admin@example.com',
+      password: 'StrongPassword123!',
+    })
+
+    await authStore.logout()
+
+    expect(authStore.isAuthenticated).toBe(false)
+    expect(getAccessToken()).toBeNull()
+    expect(vi.mocked(logout)).toHaveBeenCalledTimes(1)
   })
 
   it('loads bootstrap status from backend', async () => {

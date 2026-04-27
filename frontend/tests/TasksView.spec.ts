@@ -213,7 +213,6 @@ describe('Tasks view', () => {
     const authStore = useAuthStore()
     authStore.initialized = true
     authStore.accessToken = 'test-access-token'
-    authStore.refreshToken = 'test-refresh-token'
     authStore.user = mockUsers[0] ?? null
 
     vi.mocked(listTasks).mockResolvedValue(mockTasks)

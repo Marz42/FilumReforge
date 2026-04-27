@@ -201,29 +201,29 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page reports-page" v-loading="loading">
+  <div class="page reports-page filum-page" v-loading="loading">
     <el-row :gutter="16" class="reports-page__summary">
       <el-col :xs="24" :md="8">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-metric-card">
           <div class="reports-page__metric-label">待处理</div>
           <div class="reports-page__metric-value">{{ pendingReports.length }}</div>
         </el-card>
       </el-col>
       <el-col :xs="24" :md="8">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-metric-card">
           <div class="reports-page__metric-label">我发起的</div>
           <div class="reports-page__metric-value">{{ initiatedReports.length }}</div>
         </el-card>
       </el-col>
       <el-col :xs="24" :md="8">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-metric-card">
           <div class="reports-page__metric-label">历史归档</div>
           <div class="reports-page__metric-value">{{ historyReports.length }}</div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-card shadow="never">
+    <el-card shadow="never" class="filum-panel-card">
       <el-tabs :model-value="activeTab" @tab-change="handleTabChange">
         <el-tab-pane label="待处理" name="pending">
           <el-empty v-if="pendingReports.length === 0" description="暂无待处理汇报" />
@@ -475,14 +475,17 @@ onMounted(() => {
 }
 
 .reports-page__metric-label {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
+  color: var(--filum-text-secondary);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .reports-page__metric-value {
   font-size: 28px;
   font-weight: 600;
   margin-top: 8px;
+  color: var(--filum-text);
 }
 
 .reports-page__list {
@@ -505,7 +508,7 @@ onMounted(() => {
 
 .reports-page__subtitle {
   margin-top: 4px;
-  color: var(--el-text-color-secondary);
+  color: var(--filum-text-secondary);
   font-size: 13px;
 }
 
@@ -520,7 +523,7 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--filum-text-secondary);
   font-size: 13px;
 }
 
@@ -534,7 +537,7 @@ onMounted(() => {
 
 .reports-page__route-note {
   margin-top: 4px;
-  color: var(--el-text-color-secondary);
+  color: var(--filum-text-secondary);
   font-size: 13px;
 }
 </style>

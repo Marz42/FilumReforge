@@ -1,7 +1,7 @@
 import axios, { AxiosHeaders } from 'axios'
 
 import type { AuthSession } from '@/types/api'
-import { clearAuthSession, getAccessToken, getRefreshToken, notifyUnauthorized, setAuthSession } from './session'
+import { clearAuthSession, getAccessToken, notifyUnauthorized, setAccessToken } from './session'
 
 type RetriableRequest = {
   _retry?: boolean
@@ -30,11 +30,13 @@ const baseURL = resolveBaseURL()
 export const rawHttp = axios.create({
   baseURL,
   timeout: 10_000,
+  withCredentials: true,
 })
 
 export const http = axios.create({
   baseURL,
   timeout: 10_000,
+  withCredentials: true,
 })
 
 http.interceptors.request.use((config) => {
@@ -49,18 +51,11 @@ http.interceptors.request.use((config) => {
 let refreshPromise: Promise<string | null> | null = null
 
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken()
-  if (!refreshToken) {
-    return null
-  }
-
   if (!refreshPromise) {
     refreshPromise = rawHttp
-      .post<AuthSession>('/auth/refresh', {
-        refresh_token: refreshToken,
-      })
+      .post<AuthSession>('/auth/refresh')
       .then(({ data }) => {
-        setAuthSession(data.access_token, data.refresh_token)
+        setAccessToken(data.access_token)
         return data.access_token
       })
       .catch(() => {

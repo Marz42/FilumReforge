@@ -2,29 +2,67 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.api.dependencies import get_auth_service, get_current_user
+from app.core.config import Settings, get_settings
+from app.core.exceptions import AuthenticationError
+from app.core.rate_limit import build_auth_rate_limit_dependency
 from app.models import User
 from app.schemas.auth import (
   AuthSessionRead,
   BootstrapStatusRead,
   BootstrapAdminRequest,
   LoginRequest,
-  RefreshTokenRequest,
 )
 from app.schemas.users import UserRead
 from app.services.auth_service import AuthService, AuthSession
 
 router = APIRouter(prefix="/auth")
 
+bootstrap_rate_limit = build_auth_rate_limit_dependency(
+  scope="auth:bootstrap-admin",
+  limit_field="auth_bootstrap_rate_limit",
+)
+login_rate_limit = build_auth_rate_limit_dependency(
+  scope="auth:login",
+  limit_field="auth_login_rate_limit",
+)
+refresh_rate_limit = build_auth_rate_limit_dependency(
+  scope="auth:refresh",
+  limit_field="auth_refresh_rate_limit",
+)
+
 
 def _build_auth_session_read(auth_session: AuthSession) -> AuthSessionRead:
   return AuthSessionRead(
     access_token=auth_session.access_token,
-    refresh_token=auth_session.refresh_token,
     token_type=auth_session.token_type,
     user=UserRead.model_validate(auth_session.user),
+  )
+
+
+def _set_refresh_cookie(*, response: Response, settings: Settings, refresh_token: str) -> None:
+  response.set_cookie(
+    key=settings.auth_refresh_cookie_name,
+    value=refresh_token,
+    httponly=True,
+    secure=settings.auth_refresh_cookie_secure,
+    samesite=settings.auth_refresh_cookie_samesite,
+    path=settings.auth_refresh_cookie_path,
+    domain=settings.auth_refresh_cookie_domain,
+    max_age=settings.jwt_refresh_token_days * 24 * 60 * 60,
+  )
+
+
+def _clear_refresh_cookie(*, response: Response, settings: Settings) -> None:
+  response.delete_cookie(
+    key=settings.auth_refresh_cookie_name,
+    path=settings.auth_refresh_cookie_path,
+    domain=settings.auth_refresh_cookie_domain,
+    secure=settings.auth_refresh_cookie_secure,
+    httponly=True,
+    samesite=settings.auth_refresh_cookie_samesite,
   )
 
 
@@ -32,6 +70,7 @@ def _build_auth_session_read(auth_session: AuthSession) -> AuthSessionRead:
   "/bootstrap-admin",
   response_model=UserRead,
   status_code=status.HTTP_201_CREATED,
+  dependencies=[Depends(bootstrap_rate_limit)],
 )
 async def bootstrap_admin(
   payload: BootstrapAdminRequest,
@@ -53,25 +92,49 @@ async def read_bootstrap_status(
   return BootstrapStatusRead(bootstrap_required=await auth_service.is_bootstrap_required())
 
 
-@router.post("/login", response_model=AuthSessionRead)
+@router.post("/login", response_model=AuthSessionRead, dependencies=[Depends(login_rate_limit)])
 async def login(
   payload: LoginRequest,
+  response: Response,
   auth_service: Annotated[AuthService, Depends(get_auth_service)],
+  settings: Annotated[Settings, Depends(get_settings)],
 ) -> AuthSessionRead:
   auth_session = await auth_service.authenticate(
     email=payload.email,
     password=payload.password,
   )
+  _set_refresh_cookie(response=response, settings=settings, refresh_token=auth_session.refresh_token)
   return _build_auth_session_read(auth_session)
 
 
-@router.post("/refresh", response_model=AuthSessionRead)
+@router.post("/refresh", response_model=AuthSessionRead, dependencies=[Depends(refresh_rate_limit)])
 async def refresh_session(
-  payload: RefreshTokenRequest,
+  request: Request,
+  response: Response,
   auth_service: Annotated[AuthService, Depends(get_auth_service)],
+  settings: Annotated[Settings, Depends(get_settings)],
 ) -> AuthSessionRead:
-  auth_session = await auth_service.refresh(refresh_token=payload.refresh_token)
+  refresh_token = request.cookies.get(settings.auth_refresh_cookie_name)
+  if not refresh_token:
+    raise AuthenticationError("缺少刷新令牌。")
+  auth_session = await auth_service.refresh(refresh_token=refresh_token)
+  _set_refresh_cookie(response=response, settings=settings, refresh_token=auth_session.refresh_token)
   return _build_auth_session_read(auth_session)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+  request: Request,
+  auth_service: Annotated[AuthService, Depends(get_auth_service)],
+  settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+  refresh_token = request.cookies.get(settings.auth_refresh_cookie_name)
+  if refresh_token:
+    await auth_service.revoke_refresh_token(refresh_token=refresh_token)
+
+  response = Response(status_code=status.HTTP_204_NO_CONTENT)
+  _clear_refresh_cookie(response=response, settings=settings)
+  return response
 
 
 @router.get("/me", response_model=UserRead)

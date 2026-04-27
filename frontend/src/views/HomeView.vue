@@ -233,10 +233,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="overview">
+  <div class="overview filum-page">
     <el-row :gutter="20">
       <el-col :xs="24" :lg="16">
-        <el-card shadow="never" class="overview__content-card" v-loading="loading">
+        <el-card shadow="never" class="overview__content-card filum-panel-card" v-loading="loading">
           <template #header>
             <div class="overview__card-header">
               <div class="overview__card-heading">
@@ -291,7 +291,7 @@ onMounted(() => {
       </el-col>
 
       <el-col :xs="24" :lg="8">
-        <el-card shadow="never" class="overview__content-card overview__section" v-loading="loading">
+        <el-card shadow="never" class="overview__content-card overview__section filum-panel-card" v-loading="loading">
           <template #header>
             <div class="overview__card-header">
               <div class="overview__card-heading">
@@ -353,7 +353,7 @@ onMounted(() => {
         :xs="24"
         :md="12"
       >
-        <el-card shadow="never" class="summary-card summary-card--interactive">
+        <el-card shadow="never" class="summary-card summary-card--interactive filum-metric-card">
           <div class="summary-card__content">
             <span class="summary-card__label">{{ item.label }}</span>
             <strong class="summary-card__value">{{ item.value }}</strong>
@@ -369,7 +369,7 @@ onMounted(() => {
 
     <el-row :gutter="20" class="overview__section-grid">
       <el-col :xs="24" :lg="12">
-        <el-card shadow="never" v-loading="loading">
+        <el-card shadow="never" class="filum-panel-card" v-loading="loading">
           <template #header>
             <span>待办事项</span>
           </template>
@@ -404,7 +404,7 @@ onMounted(() => {
       </el-col>
 
       <el-col :xs="24" :lg="12">
-        <el-card shadow="never" v-loading="loading">
+        <el-card shadow="never" class="filum-panel-card" v-loading="loading">
           <template #header>
             <span>任务跟踪</span>
           </template>
@@ -439,7 +439,7 @@ onMounted(() => {
 
     <el-row :gutter="20" class="overview__section-grid">
       <el-col :xs="24">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-panel-card">
           <template #header>
             <div class="overview__card-heading">
               <span>快捷入口</span>
@@ -579,16 +579,19 @@ onMounted(() => {
 }
 
 .summary-card__label {
-  color: #909399;
+  color: var(--filum-text-secondary);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .summary-card__value {
   font-size: 32px;
-  color: #303133;
+  color: var(--filum-text);
 }
 
 .summary-card__description {
-  color: #606266;
+  color: var(--filum-text-secondary);
 }
 
 .overview__section,
@@ -610,7 +613,7 @@ onMounted(() => {
 }
 
 .overview__card-heading small {
-  color: #909399;
+  color: var(--filum-text-secondary);
   font-size: 12px;
 }
 
@@ -631,9 +634,10 @@ onMounted(() => {
 
 .overview__item-card,
 .overview__compact-item {
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--filum-border-strong);
   border-radius: 12px;
   padding: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
 .overview__compact-item--highlighted {
@@ -645,7 +649,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: #606266;
+  color: var(--filum-text-secondary);
   font-size: 13px;
 }
 
@@ -658,12 +662,12 @@ onMounted(() => {
 .overview__item-title {
   margin: 12px 0 8px;
   font-size: 16px;
-  color: #303133;
+  color: var(--filum-text);
 }
 
 .overview__item-content {
   margin: 0;
-  color: #606266;
+  color: var(--filum-text-secondary);
   line-height: 1.6;
   white-space: pre-wrap;
 }
@@ -671,7 +675,7 @@ onMounted(() => {
 .overview__item-footnote {
   display: inline-block;
   margin-top: 12px;
-  color: #909399;
+  color: var(--filum-text-muted);
   font-size: 13px;
 }
 
@@ -688,11 +692,11 @@ onMounted(() => {
   gap: 8px;
   width: 100%;
   padding: 16px;
-  border: 1px solid var(--el-border-color-light);
+  border: 1px solid var(--filum-border-strong);
   border-radius: 12px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   text-align: left;
-  color: #303133;
+  color: var(--filum-text);
   cursor: pointer;
   transition:
     border-color 0.2s ease,
@@ -705,7 +709,7 @@ onMounted(() => {
 }
 
 .overview__quick-action span {
-  color: #606266;
+  color: var(--filum-text-secondary);
   line-height: 1.5;
 }
 

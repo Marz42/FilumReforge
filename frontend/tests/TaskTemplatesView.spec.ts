@@ -200,7 +200,6 @@ describe('TaskTemplates view', () => {
     const authStore = useAuthStore()
     authStore.initialized = true
     authStore.accessToken = 'test-access-token'
-    authStore.refreshToken = 'test-refresh-token'
     authStore.user = mockUser
 
     vi.mocked(listTaskTemplates).mockResolvedValue([mockTemplate])
@@ -301,6 +300,9 @@ describe('TaskTemplates view', () => {
           title: '收集资料',
           description: null,
           step_type: 'task',
+          approval_type: 'none',
+          reject_target_step_key: null,
+          downstream_trigger: null,
           assignment_mode: 'single',
           join_mode: 'all',
           default_assignee_rule: { type: 'initiator' },
@@ -314,6 +316,9 @@ describe('TaskTemplates view', () => {
           title: '经理复核',
           description: null,
           step_type: 'task',
+          approval_type: 'none',
+          reject_target_step_key: null,
+          downstream_trigger: null,
           assignment_mode: 'single',
           join_mode: 'all',
           default_assignee_rule: { type: 'department_manager' },

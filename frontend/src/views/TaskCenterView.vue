@@ -299,35 +299,36 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="task-center-view">
+  <div class="task-center-view filum-page">
     <el-row :gutter="16" class="task-center-view__summary">
       <el-col :xs="12" :lg="6">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-metric-card">
           <el-statistic title="待办事项" :value="snapshot?.task_inbox.length ?? 0" />
         </el-card>
       </el-col>
       <el-col :xs="12" :lg="6">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-metric-card">
           <el-statistic title="任务跟踪" :value="snapshot?.task_tracking.length ?? 0" />
         </el-card>
       </el-col>
       <el-col :xs="12" :lg="6">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-metric-card">
           <el-statistic title="历史任务" :value="snapshot?.task_history.length ?? 0" />
         </el-card>
       </el-col>
       <el-col :xs="12" :lg="6">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-metric-card">
           <el-statistic title="任务模板" :value="snapshot?.template_summaries.length ?? 0" />
         </el-card>
       </el-col>
     </el-row>
 
-    <el-card shadow="never" v-loading="loading">
+    <el-card shadow="never" class="filum-panel-card" v-loading="loading">
       <template #header>
-        <div class="task-center-view__header">
-          <div>
-            <strong>任务中心</strong>
+        <div class="task-center-view__header filum-page-header">
+          <div class="filum-page-header__copy">
+            <span class="filum-page-header__eyebrow">Workflow</span>
+            <strong class="filum-page-header__title">任务中心</strong>
             <p class="task-center-view__subtitle">覆盖模板、发布、待办、跟踪与个人备忘，历史任务并入跟踪视图。</p>
           </div>
           <el-space wrap>
@@ -358,7 +359,7 @@ onMounted(() => {
     />
 
     <template v-else-if="activeTab === 'publish'">
-      <el-card shadow="never">
+      <el-card shadow="never" class="filum-panel-card">
         <template #header>
           <span>发布任务</span>
         </template>
@@ -422,7 +423,7 @@ onMounted(() => {
     </template>
 
     <template v-else-if="activeTab === 'inbox'">
-      <el-card shadow="never">
+      <el-card shadow="never" class="filum-panel-card">
         <template #header>
           <span>待办事项</span>
         </template>
@@ -457,7 +458,7 @@ onMounted(() => {
     </template>
 
     <template v-else-if="activeTab === 'tracking'">
-      <el-card shadow="never">
+      <el-card shadow="never" class="filum-panel-card">
         <template #header>
           <span>任务跟踪</span>
         </template>
@@ -483,7 +484,7 @@ onMounted(() => {
 
       <TasksView :show-create-task-composer="false" :initial-selected-task-id="selectedTaskId" />
 
-      <el-card shadow="never">
+      <el-card shadow="never" class="filum-panel-card">
         <template #header>
           <span>历史任务</span>
         </template>
@@ -526,7 +527,7 @@ onMounted(() => {
     <template v-else>
       <el-row :gutter="20">
         <el-col :xs="24" :xl="10">
-          <el-card shadow="never">
+          <el-card shadow="never" class="filum-panel-card">
             <template #header>
               <div class="task-center-view__memo-header">
                 <span>{{ memoForm.memo_id ? '编辑备忘' : '新增备忘' }}</span>
@@ -564,7 +565,7 @@ onMounted(() => {
         </el-col>
 
         <el-col :xs="24" :xl="14">
-          <el-card shadow="never">
+          <el-card shadow="never" class="filum-panel-card">
             <template #header>
               <span>我的备忘</span>
             </template>
@@ -651,7 +652,7 @@ onMounted(() => {
 
 .task-center-view__subtitle {
   margin: 6px 0 0;
-  color: #606266;
+  color: var(--filum-text-secondary);
   font-size: 13px;
 }
 
@@ -677,12 +678,14 @@ onMounted(() => {
 }
 
 .task-center-view__memo-section-title {
-  color: #606266;
+  color: var(--filum-text-secondary);
   font-size: 13px;
 }
 
 .task-center-view__memo-card {
   border-radius: 10px;
+  border: 1px solid var(--filum-border-strong);
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 }
 
 .task-center-view__memo-actions {
@@ -700,7 +703,7 @@ onMounted(() => {
 
 .task-center-view__memo-meta,
 .task-center-view__memo-time {
-  color: #909399;
+  color: var(--filum-text-muted);
   font-size: 13px;
 }
 

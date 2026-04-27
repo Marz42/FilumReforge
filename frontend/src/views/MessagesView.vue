@@ -124,10 +124,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page">
+  <div class="page filum-page">
     <el-row :gutter="16">
       <el-col v-for="item in summaryCards" :key="item.label" :xs="12" :lg="6">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-metric-card">
           <div class="page__metric-label">{{ item.label }}</div>
           <div class="page__metric-value">{{ item.value }}</div>
         </el-card>
@@ -136,9 +136,9 @@ onMounted(() => {
 
     <el-row :gutter="20">
       <el-col :xs="24" :xl="12">
-        <el-card shadow="never" v-loading="loading">
+        <el-card shadow="never" class="filum-panel-card" v-loading="loading">
           <template #header>
-            <div class="page__header">
+            <div class="page__header filum-page-header">
               <span>消息收件箱</span>
               <el-space wrap>
                 <el-select
@@ -195,9 +195,9 @@ onMounted(() => {
       </el-col>
 
       <el-col :xs="24" :xl="12">
-        <el-card shadow="never">
+        <el-card shadow="never" class="filum-panel-card">
           <template #header>
-            <div class="page__header">
+            <div class="page__header filum-page-header">
               <span>消息详情</span>
               <el-space v-if="selectedMessage">
                 <el-button
@@ -287,14 +287,17 @@ onMounted(() => {
 }
 
 .page__metric-label {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
+  color: var(--filum-text-secondary);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .page__metric-value {
   font-size: 28px;
   font-weight: 600;
   margin-top: 8px;
+  color: var(--filum-text);
 }
 
 .page__header {

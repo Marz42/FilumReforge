@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
+
+
+os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret-key-for-suite-123456")
 
 from app.core.config import get_settings
 from app.core.database import get_async_engine, get_session_factory
@@ -11,7 +16,8 @@ from app.models import Base
 
 
 @pytest.fixture(autouse=True)
-def clear_cached_settings() -> None:
+def clear_cached_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+  monkeypatch.setenv("JWT_SECRET_KEY", "test-jwt-secret-key-for-suite-123456")
   get_settings.cache_clear()
   get_async_engine.cache_clear()
   get_session_factory.cache_clear()

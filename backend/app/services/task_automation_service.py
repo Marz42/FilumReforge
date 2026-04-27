@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone as dt_timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
@@ -34,14 +34,23 @@ class TaskAutomationService:
       raise AuthorizationError("当前账号不能管理自动化调度。")
 
   @staticmethod
-  def _compute_next_run_at(*, cron_expr: str, timezone_name: str, base_time: datetime) -> datetime:
+  def _resolve_timezone(timezone_name: str):
+    normalized_timezone = timezone_name.strip()
+    if not normalized_timezone:
+      raise ConflictError("无效的时区配置。")
+    if normalized_timezone.upper() == "UTC":
+      return dt_timezone.utc
     try:
-      zone = ZoneInfo(timezone_name)
+      return ZoneInfo(normalized_timezone)
     except ZoneInfoNotFoundError as exc:
       raise ConflictError("无效的时区配置。") from exc
 
+  @staticmethod
+  def _compute_next_run_at(*, cron_expr: str, timezone_name: str, base_time: datetime) -> datetime:
+    zone = TaskAutomationService._resolve_timezone(timezone_name)
+
     if base_time.tzinfo is None:
-      base_time = base_time.replace(tzinfo=UTC)
+      base_time = base_time.replace(tzinfo=dt_timezone.utc)
     localized_base = base_time.astimezone(zone)
     try:
       next_localized = croniter(cron_expr, localized_base).get_next(datetime)
@@ -49,7 +58,7 @@ class TaskAutomationService:
       raise ConflictError("无效的 cron 表达式。") from exc
     if next_localized.tzinfo is None:
       next_localized = next_localized.replace(tzinfo=zone)
-    return next_localized.astimezone(UTC)
+    return next_localized.astimezone(dt_timezone.utc)
 
   async def _get_schedule_or_raise(self, *, actor: User, schedule_id) -> TaskSchedule:
     statement = self._statement().where(TaskSchedule.id == schedule_id)
@@ -89,7 +98,7 @@ class TaskAutomationService:
     next_run_at = self._compute_next_run_at(
       cron_expr=cron_expr,
       timezone_name=timezone,
-      base_time=datetime.now(UTC),
+      base_time=datetime.now(dt_timezone.utc),
     )
     schedule = TaskSchedule(
       template_id=template.id,
@@ -131,7 +140,7 @@ class TaskAutomationService:
       self._compute_next_run_at(
         cron_expr=schedule.cron_expr,
         timezone_name=schedule.timezone,
-        base_time=datetime.now(UTC),
+        base_time=datetime.now(dt_timezone.utc),
       )
       if schedule.is_active
       else None
@@ -140,11 +149,11 @@ class TaskAutomationService:
     return await self._get_schedule_or_raise(actor=actor, schedule_id=schedule.id)
 
   async def run_due_schedules(self, *, now: datetime | None = None) -> int:
-    current_time = now.astimezone(UTC) if now is not None and now.tzinfo is not None else now
+    current_time = now.astimezone(dt_timezone.utc) if now is not None and now.tzinfo is not None else now
     if current_time is None:
-      current_time = datetime.now(UTC)
+      current_time = datetime.now(dt_timezone.utc)
     elif current_time.tzinfo is None:
-      current_time = current_time.replace(tzinfo=UTC)
+      current_time = current_time.replace(tzinfo=dt_timezone.utc)
 
     schedules = list(
       await self._session.scalars(
