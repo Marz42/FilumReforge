@@ -317,4 +317,19 @@ describe('Tasks view', () => {
 
     expect(wrapper.text()).toContain('task-0')
   })
+
+  it('hides the standalone task composer when embedded in task center tracking', async () => {
+    const wrapper = mount(TasksView, {
+      props: {
+        showCreateTaskComposer: false,
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('新建任务')
+  })
 })

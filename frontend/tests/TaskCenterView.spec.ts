@@ -146,7 +146,7 @@ describe('TaskCenter view', () => {
     vi.mocked(getTaskCenterSnapshot).mockResolvedValue(mockSnapshot)
   })
 
-  it('renders tracking by default and keeps inbox as secondary entry', async () => {
+  it('renders inbox by default and exposes global task creation from the page header', async () => {
     const wrapper = mount(TaskCenterView, {
       global: {
         plugins: [ElementPlus],
@@ -160,11 +160,12 @@ describe('TaskCenter view', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('任务中心')
-    expect(wrapper.text()).toContain('跟进视频发布')
-    expect(wrapper.text()).toContain('我的待办')
-    expect(wrapper.text()).toContain('我的备忘')
+    expect(wrapper.text()).toContain('默认聚焦待处理、任务跟踪、个人备忘与任务模板')
+    expect(wrapper.text()).toContain('整理四月周报')
     expect(wrapper.text()).toContain('待处理')
-    expect(wrapper.text()).toContain('tracking-detail-stub')
+    expect(wrapper.text()).toContain('建立任务')
+    expect(wrapper.text()).not.toContain('我的待办')
+    expect(wrapper.text()).not.toContain('tracking-detail-stub')
   })
 
   it('maps legacy tasks tab to tracking and updates route when tab changes', async () => {
@@ -216,9 +217,7 @@ describe('TaskCenter view', () => {
 
     expect(replace).toHaveBeenCalledWith({
       name: 'task-center',
-      query: {
-        tab: 'inbox',
-      },
+      query: undefined,
     })
   })
 

@@ -20,7 +20,7 @@ import type {
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
-type TaskCenterTab = 'templates' | 'publish' | 'inbox' | 'tracking' | 'memos'
+type TaskCenterTab = 'templates' | 'inbox' | 'tracking' | 'memos'
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: '待办',
@@ -61,11 +61,13 @@ const LEGACY_TAB_MAP: Record<string, TaskCenterTab> = {
   tasks: 'tracking',
   templates: 'templates',
   history: 'tracking',
+  publish: 'inbox',
 }
 
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
+const taskDrawerVisible = ref(false)
 const publishSubmitting = ref(false)
 const memoSubmitting = ref(false)
 const snapshot = ref<TaskCenterSnapshot | null>(null)
@@ -122,28 +124,9 @@ const memoTaskOptions = computed(() => {
   return Array.from(options.values())
 })
 
-const workspaceCards = computed(() => [
-  {
-    title: '我的待办',
-    value: snapshot.value?.task_inbox.length ?? 0,
-  },
-  {
-    title: '跟踪任务',
-    value: snapshot.value?.task_tracking.length ?? 0,
-  },
-  {
-    title: '任务模板',
-    value: snapshot.value?.template_summaries.length ?? 0,
-  },
-  {
-    title: '我的备忘',
-    value: snapshot.value?.task_memos.length ?? 0,
-  },
-])
-
 function normalizeTab(rawTab: unknown): TaskCenterTab {
   if (typeof rawTab !== 'string') {
-    return 'tracking'
+    return 'inbox'
   }
   const legacyTab = LEGACY_TAB_MAP[rawTab]
   if (legacyTab) {
@@ -151,14 +134,13 @@ function normalizeTab(rawTab: unknown): TaskCenterTab {
   }
   if (
     rawTab === 'templates' ||
-    rawTab === 'publish' ||
     rawTab === 'inbox' ||
     rawTab === 'tracking' ||
     rawTab === 'memos'
   ) {
     return rawTab
   }
-  return 'tracking'
+  return 'inbox'
 }
 
 function resolveStatusLabel(status: TaskStatus): string {
@@ -189,6 +171,14 @@ function resetMemoForm(): void {
   memoForm.is_pinned = false
 }
 
+function openTaskDrawer(): void {
+  if (!permissions.value.can_publish_task) {
+    return
+  }
+  resetPublishForm()
+  taskDrawerVisible.value = true
+}
+
 async function loadSnapshot(): Promise<void> {
   loading.value = true
   try {
@@ -205,9 +195,18 @@ async function loadSnapshot(): Promise<void> {
 
 function handleTabChange(value: string): void {
   const nextTab = normalizeTab(value)
+  const selectedQuery = typeof route.query.selected === 'string' ? route.query.selected : undefined
+  const nextQuery = nextTab === 'inbox'
+    ? undefined
+    : nextTab === 'tracking'
+      ? selectedQuery
+        ? { tab: nextTab, selected: selectedQuery }
+        : { tab: nextTab }
+      : { tab: nextTab }
+
   void router.replace({
     name: 'task-center',
-    query: nextTab === 'tracking' ? {} : { tab: nextTab },
+    query: nextQuery,
   })
 }
 
@@ -232,6 +231,7 @@ async function handlePublishTask(): Promise<void> {
       due_date: publishForm.due_date ? publishForm.due_date.toISOString() : null,
     })
     ElMessage.success('任务已发布')
+    taskDrawerVisible.value = false
     resetPublishForm()
     await loadSnapshot()
     handleTabChange('inbox')
@@ -319,26 +319,13 @@ onMounted(() => {
 
 <template>
   <div class="task-center-view filum-page">
-    <el-row :gutter="16" class="task-center-view__summary">
-      <el-col
-        v-for="card in workspaceCards"
-        :key="card.title"
-        :xs="12"
-        :lg="6"
-      >
-        <el-card shadow="never" class="filum-metric-card">
-          <el-statistic :title="card.title" :value="card.value" />
-        </el-card>
-      </el-col>
-    </el-row>
-
     <el-card shadow="never" class="filum-panel-card" v-loading="loading">
       <template #header>
         <div class="task-center-view__header filum-page-header">
           <div class="filum-page-header__copy">
             <span class="filum-page-header__eyebrow">Workflow</span>
             <strong class="filum-page-header__title">任务中心</strong>
-            <p class="task-center-view__subtitle">默认聚焦跟踪、发布、模板与个人备忘，待处理事项保留为快速入口。</p>
+            <p class="task-center-view__subtitle">默认聚焦待处理、任务跟踪、个人备忘与任务模板，建立任务改为全局入口。</p>
           </div>
           <el-space wrap>
             <el-tag :type="permissions.can_publish_task ? 'success' : 'info'" effect="plain">
@@ -347,16 +334,18 @@ onMounted(() => {
             <el-tag :type="permissions.can_manage_templates ? 'success' : 'info'" effect="plain">
               {{ permissions.can_manage_templates ? '可管理模板' : '仅查看模板' }}
             </el-tag>
+            <el-button type="primary" :disabled="!permissions.can_publish_task" @click="openTaskDrawer">
+              建立任务
+            </el-button>
           </el-space>
         </div>
       </template>
 
       <el-tabs :model-value="activeTab" @update:model-value="handleTabChange">
-        <el-tab-pane label="任务跟踪" name="tracking" />
-        <el-tab-pane label="发布任务" name="publish" />
-        <el-tab-pane label="任务模板" name="templates" />
-        <el-tab-pane label="备忘" name="memos" />
         <el-tab-pane label="待处理" name="inbox" />
+        <el-tab-pane label="任务跟踪" name="tracking" />
+        <el-tab-pane label="备忘" name="memos" />
+        <el-tab-pane label="任务模板" name="templates" />
       </el-tabs>
     </el-card>
 
@@ -366,70 +355,6 @@ onMounted(() => {
       :can-publish-task="permissions.can_publish_task"
       :department-options="publishDepartmentOptions"
     />
-
-    <template v-else-if="activeTab === 'publish'">
-      <el-card shadow="never" class="filum-panel-card">
-        <template #header>
-          <span>发布任务</span>
-        </template>
-
-        <el-alert
-          v-if="!permissions.can_publish_task"
-          type="info"
-          show-icon
-          :closable="false"
-          title="当前账号没有组织任务发布权限，可在任务模板中查看执行路径。"
-        />
-
-        <el-form v-else label-position="top" class="task-center-view__form">
-          <el-form-item label="任务标题">
-            <el-input v-model="publishForm.title" placeholder="例如：完成四月客户复盘" />
-          </el-form-item>
-          <el-form-item label="任务说明">
-            <el-input v-model="publishForm.description" type="textarea" :rows="4" />
-          </el-form-item>
-          <el-form-item label="执行人">
-            <el-select v-model="publishForm.assignee_user_id" placeholder="请选择执行人">
-              <el-option
-                v-for="user in publishUserOptions"
-                :key="user.user_id"
-                :label="user.label"
-                :value="user.user_id"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="所属部门">
-            <el-select v-model="publishForm.department_id" clearable placeholder="可选">
-              <el-option
-                v-for="department in publishDepartmentOptions"
-                :key="department.id"
-                :label="department.label"
-                :value="department.id"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="优先级">
-            <el-select v-model="publishForm.priority">
-              <el-option label="低" value="low" />
-              <el-option label="中" value="medium" />
-              <el-option label="高" value="high" />
-              <el-option label="紧急" value="urgent" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="截止时间">
-            <el-date-picker
-              v-model="publishForm.due_date"
-              type="datetime"
-              placeholder="可选"
-              class="task-center-view__date-picker"
-            />
-          </el-form-item>
-          <el-button type="primary" :loading="publishSubmitting" @click="handlePublishTask">
-            发布任务
-          </el-button>
-        </el-form>
-      </el-card>
-    </template>
 
     <template v-else-if="activeTab === 'inbox'">
       <el-card shadow="never" class="filum-panel-card">
@@ -536,7 +461,7 @@ onMounted(() => {
       </el-card>
     </template>
 
-    <template v-else>
+    <template v-else-if="activeTab === 'memos'">
       <el-row :gutter="20">
         <el-col :xs="24" :xl="10">
           <el-card shadow="never" class="filum-panel-card">
@@ -641,6 +566,68 @@ onMounted(() => {
         </el-col>
       </el-row>
     </template>
+
+    <el-drawer
+      v-model="taskDrawerVisible"
+      title="建立任务"
+      size="460px"
+      destroy-on-close
+      @closed="resetPublishForm"
+    >
+      <el-form label-position="top" class="task-center-view__form">
+        <el-form-item label="任务标题">
+          <el-input v-model="publishForm.title" placeholder="例如：完成四月客户复盘" />
+        </el-form-item>
+        <el-form-item label="任务说明">
+          <el-input v-model="publishForm.description" type="textarea" :rows="4" />
+        </el-form-item>
+        <el-form-item label="执行人">
+          <el-select v-model="publishForm.assignee_user_id" placeholder="请选择执行人">
+            <el-option
+              v-for="user in publishUserOptions"
+              :key="user.user_id"
+              :label="user.label"
+              :value="user.user_id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所属部门">
+          <el-select v-model="publishForm.department_id" clearable placeholder="可选">
+            <el-option
+              v-for="department in publishDepartmentOptions"
+              :key="department.id"
+              :label="department.label"
+              :value="department.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="优先级">
+          <el-select v-model="publishForm.priority">
+            <el-option label="低" value="low" />
+            <el-option label="中" value="medium" />
+            <el-option label="高" value="high" />
+            <el-option label="紧急" value="urgent" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="截止时间">
+          <el-date-picker
+            v-model="publishForm.due_date"
+            type="datetime"
+            placeholder="可选"
+            class="task-center-view__date-picker"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="task-center-view__drawer-footer">
+          <el-button @click="taskDrawerVisible = false">取消</el-button>
+          <el-button type="primary" :loading="publishSubmitting" @click="handlePublishTask">
+            建立任务
+          </el-button>
+        </div>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
@@ -649,10 +636,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.task-center-view__summary {
-  margin-bottom: 4px;
 }
 
 .task-center-view__header {
@@ -685,6 +668,12 @@ onMounted(() => {
 
 .task-center-view__date-picker {
   width: 100%;
+}
+
+.task-center-view__drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .task-center-view__memo-header {

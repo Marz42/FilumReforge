@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.8.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化  
+**版本**: v3.8.1  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化；工作流重构 Phase 1 / 任务中心信息架构重排 已完成并通过用户验收  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -63,7 +63,7 @@
 - Stage 2 Phase 5 首轮实现：认证已补邀请制注册，管理员可创建未启用账号并生成邀请链接；登录页支持邀请预览与设置密码激活；人员工作台“新建账号”对话框支持“直接创建 / 邀请注册”双路径
 - Stage 2 Phase 6 补丁增强：人员工作台账号页已明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；管理员可删除未建档且未被业务数据引用的账号
 - Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
-- 五主标签任务中心：待办 / 跟踪 / 发布 / 模板 / 备忘，历史任务并入跟踪视图
+- Inbox-first 任务中心：待处理 / 跟踪 / 备忘 / 模板四主标签，建立任务改为页头全局 Drawer，历史任务并入跟踪视图
 - 汇报中心：向上汇报、向下传达、逐级流转、历史归档与可选审批挂接
 - 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
 - 任务完成率 / 逾期率 / 负载统计
@@ -101,7 +101,7 @@
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
-| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、五主标签任务中心、汇报中心、消息中心、设置模块、Push / PWA | 重构 Step 1-7 已完成并通过验测 | 结构化模板设计器、模板实例快照与进一步测试强化 |
+| Frontend Experience | 浏览器后台、分组导航、总览模块、统一人员工作台、Inbox-first 任务中心、汇报中心、消息中心、设置模块、Push / PWA | 重构 Step 1-7 与工作流重构 Phase 1 已完成并通过验测 | 图引擎核心模型落库、结构化模板设计器与模板实例快照深化 |
 | Platform Tools | 内置工具注册与暴露 | 已实现基础版 | 工具面扩展与治理 |
 
 ## 4. 运行时拓扑
@@ -287,7 +287,7 @@
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
 | `frontend/src/views/ProfilesView.vue` | 原 Phase 3 档案治理工作台，当前保留为回归参考与兼容底座 |
 | `frontend/src/views/KnowledgeBaseView.vue` | 知识库页面 |
-| `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为任务中心聚合页，当前主标签为待办 / 跟踪 / 发布 / 模板 / 备忘，历史任务并入跟踪视图；Step 6 起消费消息来源 `?selected=` |
+| `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为任务中心聚合页；工作流重构 Phase 1 后默认落在“待处理”，主标签为待处理 / 跟踪 / 备忘 / 模板，建立任务改为页头全局 Drawer，历史任务并入跟踪视图；Step 6 起消费消息来源 `?selected=` |
 | `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用；Step 6 起支持外部来源指定初始选中任务 |
 | `frontend/src/views/TaskTemplatesView.vue` | 工作流 E 结构化设计器首版，支持步骤增删改、JSON 导入、实例快照、模板删除与已有模板编辑 |
 | `frontend/src/views/ReportsView.vue` | Step 4 新增的汇报中心工作台，承载待处理、我发起、历史、向上汇报与向下传达；Step 6 起消费消息来源 `?selected=` 高亮 |
@@ -300,7 +300,7 @@
 | `frontend/src/components/AppShell.vue` | 全局壳层导航；Step 1 后改为“通用模块 / 特殊模块”分组结构 |
 | `frontend/src/router/index.ts` | 路由表；Step 1 后主入口改为 `/overview`、`/task-center`、`/reports`、`/people`，并保留旧地址兼容跳转 |
 | `frontend/tests/HomeView.spec.ts` | 总览展示与发布动作单测 |
-| `frontend/tests/TaskCenterView.spec.ts` | Step 3 任务中心标签与旧路由兼容单测 |
+| `frontend/tests/TaskCenterView.spec.ts` | Step 3 与工作流重构 Phase 1 的任务中心单测，覆盖默认 tab、旧 query 兼容与页头建立任务入口 |
 | `frontend/src/api/task-center.ts` | 任务中心聚合与备忘 API client |
 | `frontend/src/api/tasks.ts` | 任务、状态流转、评论、活动流、统计、watcher、多视图 API client |
 | `frontend/src/api/task-templates.ts` | 模板、实例化与 schedule API client |
@@ -315,13 +315,13 @@
 | `frontend/tests/UsersView.spec.ts` | 用户管理页回归测试 |
 | `frontend/tests/ProfilesView.spec.ts` | Phase 3 档案治理页回归测试 |
 | `frontend/tests/PeopleManagementView.spec.ts` | Step 5 统一人员工作台单测 |
-| `frontend/tests/TasksView.spec.ts` | Phase 4 任务多视图与 watcher 回归测试 |
+| `frontend/tests/TasksView.spec.ts` | Phase 4 任务多视图与 watcher 回归测试；工作流重构 Phase 1 起补充嵌入任务中心 tracking 时隐藏独立创建入口的断言 |
 | `frontend/tests/TaskTemplatesView.spec.ts` | 模板工作台回归测试 |
 | `frontend/tests/ApprovalsView.spec.ts` | Step 4 汇报中心工作台回归测试 |
 | `frontend/tests/MessagesView.spec.ts` | 消息中心回归测试 |
 | `frontend/tests/KnowledgeBaseView.spec.ts` | 知识库页回归测试 |
 | `frontend/tests/PushSubscriptionCard.spec.ts` | Push 订阅卡片回归测试 |
-| `frontend/tests/Router.spec.ts` | Step 1 新增的路由兼容跳转与导航权限回归测试 |
+| `frontend/tests/Router.spec.ts` | Step 1 与工作流重构 Phase 1 的路由兼容跳转与导航权限回归测试，覆盖 `/task-center` 默认落点与旧 `/tasks` 兼容 |
 
 ### 5.4 infra
 
@@ -439,12 +439,12 @@
 
 ### 6.13 任务中心链路（已完成并通过验测）
 
-1. `TaskCenterView.vue` 进入 `/task-center` 后调用 `GET /task-center`，默认落在“待办事项”，并兼容旧的 `?tab=tasks` / `?tab=history` -> `tracking`。
+1. `TaskCenterView.vue` 进入 `/task-center` 后调用 `GET /task-center`，默认落在“待处理”，并兼容旧的 `?tab=tasks` / `?tab=history` -> `tracking`、`?tab=publish` -> 默认入口。
 2. `TaskCenterService` 聚合模板摘要、发布权限、发布部门 / 用户选项、待办、跟踪、历史与个人备忘。
 3. `TaskTemplateService` 与 `TaskAutomationService` 使用“管理角色 + 部门负责人 + 部门能力”判断模板管理与组织任务发布权限。
 4. `TaskService` 输出 `list_task_inbox()`、`list_task_tracking()` 与 `list_task_history()`，前端据此拆分待办 / 跟踪，并在跟踪视图中附带历史任务区块。
 5. `TaskMemoService` 负责 `task_memos` 的新增、编辑、删除，并校验关联任务是否对当前用户可见。
-6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览，发布任务入口则收敛到单独标签。
+6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览；建立任务入口已收敛到任务中心页头全局 Drawer，`TasksView.vue` 在嵌入 tracking 时不再暴露第二个创建入口。
 
 ### 6.13A 工作流 E 模板运行态链路（当前）
 

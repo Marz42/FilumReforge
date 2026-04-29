@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | Step 1 / 壳层导航重构 | done | 用户已确认通过，已完成分组导航、主入口改名、旧路由兼容跳转与聚合入口壳层 |
 | Step 2 / 总览模块 | done | 已完成看板、公告、当前任务投影、总览聚合接口、总览页前端、归档 cron 与自动化回归，并通过用户手动验测 |
-| Step 3 / 任务中心重构 | done | 已完成任务中心聚合工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归；后续体验收口已将主标签调整为待办 / 跟踪 / 发布 / 模板 / 备忘，历史任务并入跟踪视图 |
+| Step 3 / 任务中心重构 | done | 已完成任务中心聚合工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归；后续体验收口已演进为 Inbox-first 入口：默认标签为待处理，主标签调整为待处理 / 跟踪 / 备忘 / 模板，建立任务收敛到页头 Drawer，历史任务并入跟踪视图 |
 | Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；已修复 PostgreSQL 500 根因，并通过用户手动验测 |
 | Step 5 / 档案管理 & 用户管理合并 | done | 已完成 `/api/v1/people-management` 聚合接口与统一人员工作台；已完成全量自动化回归，并通过用户手动验测 |
 | Step 6 / 消息中心联动与提醒收口 | done | 已完成消息中心聚合快照、来源 payload 规范化、用户级隔离、来源回跳与前后端全量回归，并通过用户手动验测 |
@@ -29,6 +29,14 @@
 | --- | --- | --- |
 | 工作流 E / 结构化任务模板与多步骤协作 | in_progress | 首批实现已落地：模板实例 / 步骤运行态、逐步激活、多人扇出 / 汇聚、结构化设计器与实例快照已完成；当前进入回归、部署准备与后续深化 |
 | 部署工程化收口 | in_progress | 生产运行形态已收口：`start-prod.sh`（无 --reload）、`Dockerfile.prod`（后端 + 前端多阶段构建）、`docker-compose.prod.yml`、Nginx 生产配置（host + compose）、环境变量模板、发布前验证脚本已完成；核心回归已执行，发布前一键校验与上线演练待执行 |
+
+## 工作流重构 / 当前执行状态
+
+| 阶段 | 状态 | 结论 |
+| --- | --- | --- |
+| Phase 0 / 基线冻结与术语对齐 | done | 已确认双层状态模型、旧任务映射口径、渐进切换策略与阶段测试出口，并形成 `memory-bank/workflow-refactor-implementation-plan.md` 作为当前工作流重构基线 |
+| Phase 1 / 任务中心信息架构重排 | done | 已移除任务中心顶部统计卡片；默认入口切到“待处理”；发布任务从独立标签收敛为页头“建立任务” Drawer；任务中心主标签调整为待处理 / 跟踪 / 备忘 / 模板；保留 tracking 历史区块与 `?selected=` 深链。已执行 frontend `npm run test:unit -- --run tests/TaskCenterView.spec.ts tests/TasksView.spec.ts tests/Router.spec.ts`、`npm run type-check`、`npm run build`，并通过用户验收 |
+| Phase 2 / 图引擎核心模型落库 | in_progress | 已在 Phase 1 验收后启动执行规划；下一步先收口 schema 边界、枚举设计、Alembic 迁移草案与模型/迁移测试锚点，再开始后端落库实现 |
 
 ## Stage 2 / 当前实施周期
 

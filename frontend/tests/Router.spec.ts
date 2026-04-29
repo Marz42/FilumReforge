@@ -32,6 +32,10 @@ describe('router navigation refactor', () => {
     await router.push('/dashboard')
     expect(router.currentRoute.value.name).toBe('overview')
 
+    await router.push('/task-center')
+    expect(router.currentRoute.value.name).toBe('task-center')
+    expect(router.currentRoute.value.query.tab).toBeUndefined()
+
     await router.push('/tasks')
     expect(router.currentRoute.value.name).toBe('task-center')
     expect(router.currentRoute.value.query.tab).toBe('tracking')
