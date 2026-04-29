@@ -1,9 +1,9 @@
 import json
 from functools import lru_cache
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 def _parse_list_setting(value: Any) -> list[str]:
@@ -57,13 +57,13 @@ class Settings(BaseSettings):
   auth_refresh_cookie_samesite: str = "strict"
   auth_refresh_cookie_secure: bool | None = None
   frontend_app_url: str = "http://localhost:5173"
-  cors_allowed_origins: list[str] = Field(default_factory=list)
+  cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
   cors_allowed_origin_regex: str | None = None
   cors_allow_credentials: bool = True
-  cors_allowed_methods: list[str] = Field(
+  cors_allowed_methods: Annotated[list[str], NoDecode] = Field(
     default_factory=lambda: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
   )
-  cors_allowed_headers: list[str] = Field(
+  cors_allowed_headers: Annotated[list[str], NoDecode] = Field(
     default_factory=lambda: ["Authorization", "Content-Type", "X-Request-ID"]
   )
   auth_rate_limit_window_seconds: int = 60
@@ -71,6 +71,10 @@ class Settings(BaseSettings):
   auth_refresh_rate_limit: int = 20
   auth_bootstrap_rate_limit: int = 5
   redis_notification_queue: str = "notification:outbox"
+  workflow_graph_engine_enabled: bool = False
+  task_center_v2_enabled: bool = False
+  workflow_wait_any_enabled: bool = False
+  workflow_deep_rejection_enabled: bool = False
   openai_api_key: str | None = None
   openai_base_url: str | None = None
   openai_chat_model: str = "gpt-5-mini"

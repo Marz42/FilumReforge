@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 from typing import Any
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -68,6 +68,26 @@ class TaskUpdateRequest(BaseModel):
 
 class TaskStatusUpdateRequest(BaseModel):
   status: TaskStatus
+
+
+class TaskDeliverableSubmitRequest(BaseModel):
+  summary: str | None = None
+  attachment_ids: list[UUID] = Field(default_factory=list)
+
+
+class TaskAssignmentRejectRequest(BaseModel):
+  reason: str | None = None
+
+
+class TaskAssignmentDelegateRequest(BaseModel):
+  assignee_id: UUID
+  reason: str | None = None
+
+
+class TaskDeliverableReviewRequest(BaseModel):
+  action: Literal["approve", "return_for_rework"]
+  comment: str | None = None
+  quality_score: int | None = Field(default=None, ge=1, le=5)
 
 
 class TaskCommentRead(BaseModel):

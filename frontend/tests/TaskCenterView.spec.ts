@@ -98,6 +98,10 @@ const mockSnapshot: TaskCenterSnapshot = {
       relation_types: ['执行'],
       current_stage_label: '制作中',
       current_handler_label: '内容成员',
+      latest_deliverable_submitted_at: '2025-01-04T08:00:00Z',
+      rework_count: 1,
+      review_quality_score: 4,
+      is_pending_review: true,
     },
   ],
   task_history: [
@@ -184,6 +188,9 @@ describe('TaskCenter view', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('跟进视频发布')
+    expect(wrapper.text()).toContain('待验收')
+    expect(wrapper.text()).toContain('返工 1 次')
+    expect(wrapper.text()).toContain('质量 4/5')
     expect(wrapper.text()).toContain('tracking-detail-stub')
 
     const tabs = wrapper.findComponent({ name: 'ElTabs' })

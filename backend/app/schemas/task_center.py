@@ -52,6 +52,10 @@ class TaskCenterTrackingItemRead(BaseModel):
   relation_types: list[str] = Field(default_factory=list)
   current_stage_label: str
   current_handler_label: str | None
+  latest_deliverable_submitted_at: datetime | None = None
+  rework_count: int = 0
+  review_quality_score: int | None = None
+  is_pending_review: bool = False
 
 
 class TaskCenterHistoryItemRead(BaseModel):

@@ -16,9 +16,11 @@ import type {
 } from '@/types/api'
 
 vi.mock('@/api/tasks', () => ({
+  acceptTaskAssignment: vi.fn(),
   addTaskWatchers: vi.fn(),
   createTask: vi.fn(),
   createTaskComment: vi.fn(),
+  delegateTaskAssignment: vi.fn(),
   getTaskStatsSummary: vi.fn(),
   getTaskWorkload: vi.fn(),
   listTaskActivity: vi.fn(),
@@ -26,6 +28,9 @@ vi.mock('@/api/tasks', () => ({
   listTaskGantt: vi.fn(),
   listTasks: vi.fn(),
   listTaskWatchers: vi.fn(),
+  rejectTaskAssignment: vi.fn(),
+  reviewTaskDeliverable: vi.fn(),
+  submitTaskDeliverable: vi.fn(),
   updateTaskStatus: vi.fn(),
 }))
 
@@ -45,7 +50,9 @@ vi.mock('@/api/attachments', () => ({
 import { listAttachments } from '@/api/attachments'
 import { listDepartments } from '@/api/departments'
 import {
+  acceptTaskAssignment,
   createTaskComment,
+  delegateTaskAssignment,
   getTaskStatsSummary,
   getTaskWorkload,
   listTaskActivity,
@@ -53,6 +60,9 @@ import {
   listTaskGantt,
   listTasks,
   listTaskWatchers,
+  rejectTaskAssignment,
+  reviewTaskDeliverable,
+  submitTaskDeliverable,
   updateTaskStatus,
 } from '@/api/tasks'
 import { listUsers } from '@/api/users'
@@ -229,6 +239,49 @@ describe('Tasks view', () => {
       ...mockTasks[0],
       status: 'doing',
     })
+    vi.mocked(acceptTaskAssignment).mockResolvedValue({
+      ...mockTasks[0],
+      extra_metadata: {
+        workflow_graph_instance_id: 'graph-1',
+        workflow_node_instance_id: 'node-1',
+        workflow_handshake_state: 'accepted',
+      },
+    })
+    vi.mocked(rejectTaskAssignment).mockResolvedValue({
+      ...mockTasks[0],
+      extra_metadata: {
+        workflow_graph_instance_id: 'graph-1',
+        workflow_node_instance_id: 'node-1',
+        workflow_handshake_state: 'rejected',
+        latest_reject_reason: '目标需要再明确',
+      },
+    })
+    vi.mocked(delegateTaskAssignment).mockResolvedValue({
+      ...mockTasks[0],
+      assignee_id: 'user-3',
+      extra_metadata: {
+        workflow_graph_instance_id: 'graph-1',
+        workflow_node_instance_id: 'node-1',
+        workflow_handshake_state: 'assigned',
+        latest_delegate_reason: '请更熟悉客户的人继续处理',
+      },
+    })
+    vi.mocked(submitTaskDeliverable).mockResolvedValue({
+      ...mockTasks[0],
+      status: 'review',
+      extra_metadata: {
+        latest_deliverable_summary: '已完成第一版交付',
+      },
+    })
+    vi.mocked(reviewTaskDeliverable).mockResolvedValue({
+      ...mockTasks[0],
+      status: 'done',
+      completed_at: '2025-01-02T11:00:00Z',
+      extra_metadata: {
+        latest_review_state: 'approved',
+        latest_review_quality_score: 5,
+      },
+    })
     vi.mocked(createTaskComment).mockResolvedValue({
       id: 'comment-1',
       task_id: 'task-1',
@@ -331,5 +384,110 @@ describe('Tasks view', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('新建任务')
+  })
+
+  it('shows deliverable review actions instead of generic review completion for manual review tasks', async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      {
+        ...mockTasks[0],
+        status: 'review',
+        extra_metadata: {
+          latest_deliverable_summary: '已完成第一版交付',
+        },
+      },
+    ])
+
+    const wrapper = mount(TasksView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('验收通过')
+    expect(wrapper.text()).toContain('打回返工')
+    expect(wrapper.text()).toContain('完成质量评分')
+    expect(wrapper.text()).not.toContain('标记完成')
+
+    const approveButton = wrapper.findAll('button').find((button) => button.text().includes('验收通过'))
+    expect(approveButton).toBeTruthy()
+    await approveButton?.trigger('click')
+    await flushPromises()
+
+    expect(reviewTaskDeliverable).toHaveBeenCalledWith('task-1', {
+      action: 'approve',
+      comment: null,
+      quality_score: 5,
+    })
+  })
+
+  it('shows handshake actions for assigned graph manual tasks and accepts assignment', async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      {
+        ...mockTasks[0],
+        extra_metadata: {
+          workflow_graph_instance_id: 'graph-1',
+          workflow_node_instance_id: 'node-1',
+          workflow_handshake_state: 'assigned',
+        },
+      },
+    ])
+
+    const wrapper = mount(TasksView, {
+      props: {
+        delegateUserOptions: [
+          {
+            user_id: 'user-3',
+            email: 'watcher@example.com',
+            real_name: null,
+            department_id: 'dept-1',
+            department_name: '研发部',
+            label: 'watcher@example.com',
+          },
+        ],
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('接受任务')
+    expect(wrapper.text()).toContain('退回协商')
+    expect(wrapper.text()).toContain('转办')
+    expect(wrapper.text()).not.toContain('开始处理')
+
+    const acceptButton = wrapper.findAll('button').find((button) => button.text().includes('接受任务'))
+    expect(acceptButton).toBeTruthy()
+    await acceptButton?.trigger('click')
+    await flushPromises()
+
+    expect(acceptTaskAssignment).toHaveBeenCalledWith('task-1')
+  })
+
+  it('shows start action after graph manual task has been accepted', async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      {
+        ...mockTasks[0],
+        extra_metadata: {
+          workflow_graph_instance_id: 'graph-1',
+          workflow_node_instance_id: 'node-1',
+          workflow_handshake_state: 'accepted',
+        },
+      },
+    ])
+
+    const wrapper = mount(TasksView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('开始处理')
+    expect(wrapper.text()).not.toContain('接受任务')
   })
 })

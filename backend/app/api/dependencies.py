@@ -48,6 +48,7 @@ from app.services.task_service import TaskService
 from app.services.task_template_service import TaskTemplateService
 from app.services.tool_registry_service import ToolRegistryService
 from app.services.user_service import UserService
+from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_engine_service import WorkflowEngineService
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -162,12 +163,26 @@ def get_attachment_service(
   return AttachmentService(session, object_storage_service)
 
 
+def get_workflow_graph_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> WorkflowGraphService:
+  return WorkflowGraphService(session)
+
+
 def get_task_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
+  settings: Annotated[Settings, Depends(get_settings)],
   notification_service: Annotated[NotificationService, Depends(get_notification_service)],
   attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
 ) -> TaskService:
-  return TaskService(session, notification_service, attachment_service)
+  return TaskService(
+    session,
+    notification_service,
+    attachment_service,
+    settings=settings,
+    workflow_graph_service=workflow_graph_service,
+  )
 
 
 def get_task_memo_service(

@@ -36,6 +36,8 @@ from app.core.enums import (
   UserRole,
   UserStatus,
   WorkflowDefinitionStatus,
+  WorkflowNodeBusinessState,
+  WorkflowNodeEngineState,
   WorkflowInstanceStatus,
 )
 from app.core.exceptions import AppValidationError, AuthenticationError, AuthorizationError, ConflictError, NotFoundError
@@ -45,13 +47,17 @@ from app.models import (
   Department,
   NotificationDelivery,
   NotificationMessage as NotificationMessageModel,
+  Task,
   TaskDependency,
+  WorkflowDeliverable,
   TaskLog,
   TaskTemplate,
   TaskTemplateInstance,
   TaskTemplateStepRun,
   User,
+  WorkflowGraphInstance,
   WorkflowInstance,
+  WorkflowNodeInstance,
 )
 from app.models import Announcement, BoardCard
 from app.integrations.storage.local import LocalStorageAdapter
@@ -83,6 +89,7 @@ from app.services.task_service import CommentAttachmentInput, TaskService
 from app.services.task_template_service import TaskTemplateService
 from app.services.tool_registry_service import ToolRegistryService
 from app.services.user_service import UserService
+from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_engine_service import WorkflowEngineService
 
 
@@ -669,6 +676,392 @@ async def test_task_service_creates_task_and_enqueues_notification(db_session) -
   assert notification_queue.payloads[0]["message_type"] == "task_assigned"
   assert [log.action_type for log in task_logs] == [TaskActionType.CREATED, TaskActionType.ASSIGNED]
   assert {delivery.channel for delivery in deliveries} == set(DEFAULT_USER_NOTIFICATION_CHANNELS)
+
+
+@pytest.mark.asyncio
+async def test_phase3_single_node_workflow_creation_projects_task_and_graph_entities(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    workflow_graph_engine_enabled=True,
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  notification_queue = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, notification_queue)
+  task_service = TaskService(
+    db_session,
+    notification_service,
+    settings=settings,
+    workflow_graph_service=WorkflowGraphService(db_session),
+  )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="普通员工",
+    department_id=admin_profile.department_id,
+  )
+
+  dependency = await task_service.create_task(
+    actor=admin,
+    title="先完成前置校验",
+    assignee_id=employee.id,
+  )
+  task = await task_service.create_task(
+    actor=admin,
+    title="完成图引擎试点任务",
+    assignee_id=employee.id,
+    dependency_ids=[dependency.id],
+  )
+
+  stored_task = await db_session.get(Task, task.id)
+  stored_instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  )
+  stored_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == stored_instance.id)
+  )
+  stored_dependency = await db_session.scalar(
+    select(TaskDependency).where(TaskDependency.task_id == task.id, TaskDependency.depends_on_task_id == dependency.id)
+  )
+
+  assert stored_task is not None
+  assert stored_task.extra_metadata["workflow_graph_instance_id"] == str(stored_instance.id)
+  assert stored_task.extra_metadata["workflow_node_instance_id"] == str(stored_node.id)
+  assert stored_instance is not None
+  assert stored_instance.source_type == "manual"
+  assert stored_instance.context["title"] == "完成图引擎试点任务"
+  assert stored_node is not None
+  assert stored_node.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert stored_node.business_state == WorkflowNodeBusinessState.ACCEPTED
+  assert stored_node.assignee_user_id == employee.id
+  assert stored_node.config["task_id"] == str(task.id)
+  assert stored_dependency is not None
+  assert len(notification_queue.payloads) == 2
+
+
+@pytest.mark.asyncio
+async def test_phase5_graph_task_supports_deliverable_review_and_rework_cycle(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    workflow_graph_engine_enabled=True,
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(
+    db_session,
+    notification_service,
+    settings=settings,
+    workflow_graph_service=WorkflowGraphService(db_session),
+  )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="普通员工",
+    department_id=admin_profile.department_id,
+  )
+
+  task = await task_service.create_task(
+    actor=admin,
+    title="完成交付闭环",
+    assignee_id=employee.id,
+  )
+  await task_service.accept_task_assignment(
+    actor=employee,
+    task_id=task.id,
+  )
+  doing_task = await task_service.transition_task_status(
+    actor=employee,
+    task_id=task.id,
+    target_status=TaskStatus.DOING,
+  )
+  assert doing_task.status == TaskStatus.DOING
+
+  review_task = await task_service.submit_task_deliverable(
+    actor=employee,
+    task_id=task.id,
+    summary="第一版交付说明",
+  )
+  assert review_task.status == TaskStatus.REVIEW
+  assert review_task.extra_metadata["latest_deliverable_summary"] == "第一版交付说明"
+
+  reworked_task = await task_service.review_task_deliverable(
+    actor=admin,
+    task_id=task.id,
+    approve=False,
+    comment="请补充风险评估",
+  )
+  assert reworked_task.status == TaskStatus.DOING
+  assert reworked_task.extra_metadata["rework_count"] == 1
+  assert reworked_task.extra_metadata["latest_rework_reason"] == "请补充风险评估"
+
+  second_review_task = await task_service.submit_task_deliverable(
+    actor=employee,
+    task_id=task.id,
+    summary="第二版交付说明",
+  )
+  assert second_review_task.status == TaskStatus.REVIEW
+  tracking_before_approve = await task_service.list_task_tracking(actor=employee)
+  approved_task = await task_service.review_task_deliverable(
+    actor=admin,
+    task_id=task.id,
+    approve=True,
+    comment="验收通过",
+    quality_score=5,
+  )
+
+  stored_instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  )
+  stored_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == stored_instance.id)
+  )
+  stored_deliverable = await db_session.scalar(
+    select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == stored_node.id)
+  )
+  task_logs = list(
+    await db_session.scalars(select(TaskLog).where(TaskLog.task_id == task.id).order_by(TaskLog.created_at.asc()))
+  )
+
+  tracked_review_item = next(item for item in tracking_before_approve if item.task_id == task.id)
+  assert tracked_review_item.is_pending_review is True
+  assert tracked_review_item.rework_count == 1
+  assert tracked_review_item.latest_deliverable_submitted_at is not None
+  assert approved_task.status == TaskStatus.DONE
+  assert approved_task.completed_at is not None
+  assert approved_task.extra_metadata["latest_review_quality_score"] == 5
+  assert stored_instance is not None
+  assert stored_instance.status.value == "completed"
+  assert stored_node is not None
+  assert stored_node.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert stored_node.business_state == WorkflowNodeBusinessState.DONE
+  assert stored_deliverable is not None
+  assert stored_deliverable.summary == "第二版交付说明"
+  assert stored_deliverable.payload["latest_review"]["action"] == "approve_completion"
+  assert approved_task.extra_metadata["latest_review_quality_score"] == 5
+  assert len(stored_deliverable.payload["submission_history"]) == 2
+  assert [log.detail.get("action") for log in task_logs if log.action_type == TaskActionType.STATUS_CHANGED][-4:] == [
+    "submit_deliverable",
+    "return_for_rework",
+    "submit_deliverable",
+    "approve_completion",
+  ]
+  assert task_logs[-1].detail.get("quality_score") == 5
+
+
+@pytest.mark.asyncio
+async def test_phase4_graph_task_requires_accept_before_start_and_updates_inbox_context(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    workflow_graph_engine_enabled=True,
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=settings,
+    workflow_graph_service=WorkflowGraphService(db_session),
+  )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="普通员工",
+    department_id=admin_profile.department_id,
+  )
+
+  task = await task_service.create_task(
+    actor=admin,
+    title="等待接单的图任务",
+    assignee_id=employee.id,
+  )
+
+  inbox_before_accept = await task_service.list_task_inbox(actor=employee)
+  assert any(entry.task_id == task.id and entry.current_stage_label == "任务：待确认" for entry in inbox_before_accept)
+
+  with pytest.raises(ConflictError, match="先由执行人接受任务"):
+    await task_service.transition_task_status(
+      actor=employee,
+      task_id=task.id,
+      target_status=TaskStatus.DOING,
+    )
+
+  accepted_task = await task_service.accept_task_assignment(
+    actor=employee,
+    task_id=task.id,
+  )
+  accepted_inbox = await task_service.list_task_inbox(actor=employee)
+  stored_instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  )
+  stored_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == stored_instance.id)
+  )
+
+  assert accepted_task.status == TaskStatus.TODO
+  assert accepted_task.extra_metadata["workflow_handshake_state"] == "accepted"
+  assert any(entry.task_id == task.id and entry.current_stage_label == "任务：已接受待开工" for entry in accepted_inbox)
+  assert stored_node is not None
+  assert stored_node.engine_state == WorkflowNodeEngineState.ACKNOWLEDGED
+  assert stored_node.business_state == WorkflowNodeBusinessState.ACCEPTED
+
+  doing_task = await task_service.transition_task_status(
+    actor=employee,
+    task_id=task.id,
+    target_status=TaskStatus.DOING,
+  )
+  assert doing_task.status == TaskStatus.DOING
+
+
+@pytest.mark.asyncio
+async def test_phase4_graph_task_reject_and_delegate_refresh_runtime_projection(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    workflow_graph_engine_enabled=True,
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=settings,
+    workflow_graph_service=WorkflowGraphService(db_session),
+  )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  delegate_target = await user_service.create_user(
+    actor=admin,
+    email="delegate@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="普通员工",
+    department_id=admin_profile.department_id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=delegate_target.id,
+    employee_no="EMP-002",
+    real_name="代理执行人",
+    department_id=admin_profile.department_id,
+  )
+
+  delegated_task = await task_service.create_task(
+    actor=admin,
+    title="待转办图任务",
+    assignee_id=employee.id,
+  )
+  delegated_task = await task_service.delegate_task_assignment(
+    actor=employee,
+    task_id=delegated_task.id,
+    assignee_id=delegate_target.id,
+    reason="请由更熟悉客户的人处理",
+  )
+
+  delegate_inbox = await task_service.list_task_inbox(actor=delegate_target)
+  creator_tracking = await task_service.list_task_tracking(actor=admin)
+
+  assert delegated_task.assignee_id == delegate_target.id
+  assert delegated_task.extra_metadata["workflow_handshake_state"] == "assigned"
+  assert delegated_task.extra_metadata["latest_delegate_reason"] == "请由更熟悉客户的人处理"
+  assert any(entry.task_id == delegated_task.id and entry.current_stage_label == "任务：已转办待确认" for entry in delegate_inbox)
+  assert any(entry.task_id == delegated_task.id and entry.current_handler_label == "代理执行人" for entry in creator_tracking)
+
+  rejected_task = await task_service.create_task(
+    actor=admin,
+    title="待退回协商图任务",
+    assignee_id=employee.id,
+  )
+  rejected_task = await task_service.reject_task_assignment(
+    actor=employee,
+    task_id=rejected_task.id,
+    reason="目标和截止时间都需要重谈",
+  )
+
+  creator_inbox = await task_service.list_task_inbox(actor=admin)
+  employee_inbox = await task_service.list_task_inbox(actor=employee)
+  stored_instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == rejected_task.id)
+  )
+  stored_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == stored_instance.id)
+  )
+
+  assert rejected_task.extra_metadata["workflow_handshake_state"] == "rejected"
+  assert rejected_task.extra_metadata["latest_reject_reason"] == "目标和截止时间都需要重谈"
+  assert any(entry.task_id == rejected_task.id and entry.current_stage_label == "任务：已拒绝待调整" for entry in creator_inbox)
+  assert all(entry.task_id != rejected_task.id for entry in employee_inbox)
+  assert stored_node is not None
+  assert stored_node.business_state == WorkflowNodeBusinessState.REJECTED
 
 
 @pytest.mark.asyncio

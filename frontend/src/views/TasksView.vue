@@ -4,16 +4,21 @@ import { ElMessage, type UploadFile } from 'element-plus'
 
 import { listAttachments, uploadAttachment } from '@/api/attachments'
 import { listDepartments } from '@/api/departments'
-import { addTaskWatchers,
+import { acceptTaskAssignment,
+  addTaskWatchers,
   createTask,
   createTaskComment,
+  delegateTaskAssignment,
   getTaskStatsSummary,
   getTaskWorkload,
-  listTaskBoard,
   listTaskActivity,
+  listTaskBoard,
   listTaskGantt,
   listTasks,
   listTaskWatchers,
+  rejectTaskAssignment,
+  reviewTaskDeliverable,
+  submitTaskDeliverable,
   updateTaskStatus,
 } from '@/api/tasks'
 import { decideStepRun } from '@/api/task-templates'
@@ -27,6 +32,7 @@ import type {
   TaskBoardColumn,
   TaskGanttEntry,
   TaskPriority,
+  TaskCenterUserOption,
   TaskStatus,
   TaskStatsSummary,
   TaskWatcher,
@@ -39,6 +45,7 @@ import { formatDateTime } from '@/utils/formatters'
 interface Props {
   showCreateTaskComposer?: boolean
   initialSelectedTaskId?: string
+  delegateUserOptions?: TaskCenterUserOption[]
 }
 
 type StatusAction = {
@@ -96,15 +103,23 @@ const NEXT_STATUS_ACTIONS: Record<Exclude<TaskStatus, 'done'>, StatusAction> = {
 const authStore = useAuthStore()
 const props = withDefaults(defineProps<Props>(), {
   showCreateTaskComposer: true,
+  delegateUserOptions: () => [],
 })
 const loading = ref(false)
 const submitting = ref(false)
 const taskAttachmentUploading = ref(false)
 const commentSubmitting = ref(false)
+const deliverableSubmitting = ref(false)
 const statusSubmitting = ref(false)
 const approvalSubmitting = ref(false)
+const handshakeSubmitting = ref(false)
 const rejectCommentDialogVisible = ref(false)
 const rejectCommentText = ref('')
+const reworkDialogVisible = ref(false)
+const reworkCommentText = ref('')
+const handshakeRejectDialogVisible = ref(false)
+const handshakeRejectReason = ref('')
+const delegateDialogVisible = ref(false)
 const dialogVisible = ref(false)
 const tasks = ref<Task[]>([])
 const taskBoard = ref<TaskBoardColumn[]>([])
@@ -123,6 +138,11 @@ const watcherUserId = ref('')
 const selectedTaskFile = ref<File | null>(null)
 const commentFiles = ref<File[]>([])
 
+const delegateForm = reactive({
+  assignee_id: '',
+  reason: '',
+})
+
 const form = reactive({
   title: '',
   description: '',
@@ -137,6 +157,15 @@ const commentForm = reactive({
   is_internal: false,
 })
 
+const deliverableForm = reactive({
+  summary: '',
+})
+
+const deliverableReviewForm = reactive({
+  comment: '',
+  quality_score: 5 as number | null,
+})
+
 const departmentNameMap = computed(
   () => new Map(departments.value.map((department) => [department.id, department.name])),
 )
@@ -149,6 +178,61 @@ const assigneeOptions = computed(() => {
   return authStore.user ? [authStore.user] : []
 })
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value) ?? null)
+const selectedTaskMetadata = computed<Record<string, unknown>>(
+  () => (selectedTask.value?.extra_metadata as Record<string, unknown> | undefined) ?? {},
+)
+const isGraphHandshakeTask = computed(() => {
+  const task = selectedTask.value
+  if (!task || task.source_type !== 'manual') {
+    return false
+  }
+
+  return typeof selectedTaskMetadata.value.workflow_graph_instance_id === 'string'
+    && typeof selectedTaskMetadata.value.workflow_node_instance_id === 'string'
+})
+const currentHandshakeState = computed<'assigned' | 'accepted' | 'rejected' | null>(() => {
+  if (!isGraphHandshakeTask.value) {
+    return null
+  }
+
+  const value = selectedTaskMetadata.value.workflow_handshake_state
+  if (value === 'assigned' || value === 'accepted' || value === 'rejected') {
+    return value
+  }
+  if (selectedTask.value?.status === 'todo') {
+    return 'accepted'
+  }
+  return null
+})
+const handshakeStateLabel = computed(() => {
+  if (currentHandshakeState.value === 'assigned') {
+    return '待确认'
+  }
+  if (currentHandshakeState.value === 'accepted') {
+    return '已接受待开工'
+  }
+  if (currentHandshakeState.value === 'rejected') {
+    return '已拒绝待调整'
+  }
+  return '—'
+})
+const delegateCandidateOptions = computed(() => {
+  const currentAssigneeId = selectedTask.value?.assignee_id ?? ''
+  if (props.delegateUserOptions.length > 0) {
+    return props.delegateUserOptions.filter((option) => option.user_id !== currentAssigneeId)
+  }
+
+  return users.value
+    .filter((user) => user.status === 'active' && user.id !== currentAssigneeId)
+    .map((user) => ({
+      user_id: user.id,
+      email: user.email,
+      real_name: null,
+      department_id: null,
+      department_name: null,
+      label: user.email,
+    }))
+})
 const watcherOptions = computed(() =>
   users.value.filter(
     (user) =>
@@ -174,6 +258,55 @@ const canAdvanceSelectedTask = computed(() => {
   return authStore.isManagementRole || user.id === task.assignee_id || user.id === task.creator_id
 })
 
+const canAdvanceSelectedTaskByStatus = computed(() => {
+  const task = selectedTask.value
+  if (!task || !canAdvanceSelectedTask.value) {
+    return false
+  }
+
+  if (isGraphHandshakeTask.value && task.status === 'todo') {
+    return currentHandshakeState.value === 'accepted'
+  }
+
+  if (task.source_type === 'manual' && !isApprovalTask.value && task.status !== 'todo') {
+    return false
+  }
+
+  return true
+})
+
+const canHandleHandshakeAction = computed(() => {
+  const task = selectedTask.value
+  const user = authStore.user
+  if (!task || !user || !isGraphHandshakeTask.value || task.status !== 'todo') {
+    return false
+  }
+
+  return authStore.isManagementRole || user.id === task.assignee_id
+})
+
+const canAcceptTask = computed(
+  () => canHandleHandshakeAction.value && currentHandshakeState.value === 'assigned',
+)
+
+const canRejectTask = computed(
+  () => canHandleHandshakeAction.value && currentHandshakeState.value !== 'rejected',
+)
+
+const canDelegateTask = computed(
+  () => canHandleHandshakeAction.value && currentHandshakeState.value !== 'rejected' && delegateCandidateOptions.value.length > 0,
+)
+
+const canSubmitDeliverable = computed(() => {
+  const task = selectedTask.value
+  const user = authStore.user
+  if (!task || !user || task.status !== 'doing') {
+    return false
+  }
+
+  return authStore.isManagementRole || user.id === task.assignee_id
+})
+
 const isApprovalTask = computed(() => {
   const meta = selectedTask.value?.extra_metadata as Record<string, unknown> | undefined
   const approvalType = meta?.template_step_approval_type
@@ -187,8 +320,63 @@ const canDecideApproval = computed(() => {
   if (task.status !== 'review') return false
   return authStore.isManagementRole || user.id === task.assignee_id || user.id === task.creator_id
 })
+const canReviewDeliverable = computed(() => {
+  const task = selectedTask.value
+  const user = authStore.user
+  if (!task || !user || isApprovalTask.value || task.status !== 'review') {
+    return false
+  }
+
+  return authStore.isManagementRole || user.id === task.creator_id
+})
 const completionRateText = computed(() => formatRate(statsSummary.value?.completion_rate ?? 0))
 const overdueRateText = computed(() => formatRate(statsSummary.value?.overdue_rate ?? 0))
+const latestDeliverableSummary = computed(() => {
+  const value = selectedTaskMetadata.value.latest_deliverable_summary
+  return typeof value === 'string' && value.trim() ? value : '—'
+})
+const latestDeliverableSubmittedAt = computed(() => {
+  const value = selectedTaskMetadata.value.latest_deliverable_submitted_at
+  return typeof value === 'string' ? value : null
+})
+const latestReworkReason = computed(() => {
+  const value = selectedTaskMetadata.value.latest_rework_reason
+  return typeof value === 'string' && value.trim() ? value : '—'
+})
+const latestRejectReason = computed(() => {
+  const value = selectedTaskMetadata.value.latest_reject_reason
+  return typeof value === 'string' && value.trim() ? value : '—'
+})
+const latestDelegateReason = computed(() => {
+  const value = selectedTaskMetadata.value.latest_delegate_reason
+  return typeof value === 'string' && value.trim() ? value : '—'
+})
+const latestReviewQualityScore = computed(() => {
+  const value = selectedTaskMetadata.value.latest_review_quality_score
+  if (typeof value === 'number') {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isNaN(parsed) ? null : parsed
+  }
+  return null
+})
+const reworkCount = computed(() => {
+  const value = selectedTaskMetadata.value.rework_count
+  if (typeof value === 'number') {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isNaN(parsed) ? 0 : parsed
+  }
+  return 0
+})
+
+function normalizeTagType(value: '' | 'info' | 'warning' | 'success' | 'danger'): 'info' | 'warning' | 'success' | 'danger' | undefined {
+  return value || undefined
+}
 
 function resolveDepartmentName(departmentId: string | null): string {
   if (!departmentId) {
@@ -218,6 +406,32 @@ function renderLogSummary(entry: TaskActivityEntry): string {
   const log = entry.log
   if (!log) {
     return ''
+  }
+
+  const detailAction = typeof log.detail.action === 'string' ? log.detail.action : null
+  if (detailAction === 'submit_deliverable') {
+    return '提交了交付物，等待验收'
+  }
+  if (detailAction === 'assigned') {
+    return '发布了任务，等待执行人确认'
+  }
+  if (detailAction === 'accepted') {
+    return '接受了任务，等待开工'
+  }
+  if (detailAction === 'rejected') {
+    return `退回协商：${String(log.detail.reason ?? '请重新确认任务目标')}`
+  }
+  if (detailAction === 'delegated') {
+    return `转办了任务：${String(log.detail.reason ?? '请由更合适的人继续处理')}`
+  }
+  if (detailAction === 'approve_completion') {
+    const qualityScore = log.detail.quality_score
+    return typeof qualityScore === 'number'
+      ? `完成交付已通过验收，质量 ${qualityScore}/5`
+      : '完成交付已通过验收'
+  }
+  if (detailAction === 'return_for_rework') {
+    return `打回返工：${String(log.detail.comment ?? '请补充修改')}`
   }
 
   switch (log.action_type) {
@@ -253,6 +467,10 @@ function resetCommentForm(): void {
   commentForm.content = ''
   commentForm.is_internal = false
   commentFiles.value = []
+}
+
+function resetDeliverableForm(): void {
+  deliverableForm.summary = ''
 }
 
 async function loadSelectedTaskDetails(taskId: string): Promise<void> {
@@ -467,6 +685,59 @@ async function handleStatusTransition(): Promise<void> {
   }
 }
 
+async function handleSubmitDeliverable(): Promise<void> {
+  if (!selectedTask.value) {
+    ElMessage.warning('请先选择任务')
+    return
+  }
+  if (!deliverableForm.summary.trim()) {
+    ElMessage.warning('请填写交付说明')
+    return
+  }
+
+  deliverableSubmitting.value = true
+
+  try {
+    await submitTaskDeliverable(selectedTask.value.id, {
+      summary: deliverableForm.summary.trim(),
+    })
+    ElMessage.success('交付物已提交，等待验收')
+    resetDeliverableForm()
+    await loadData()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    deliverableSubmitting.value = false
+  }
+}
+
+async function handleDeliverableReview(action: 'approve' | 'return_for_rework', comment?: string): Promise<void> {
+  if (!selectedTask.value) {
+    return
+  }
+
+  approvalSubmitting.value = true
+  try {
+    await reviewTaskDeliverable(selectedTask.value.id, {
+      action,
+      comment: comment?.trim() || null,
+      quality_score: action === 'approve' ? deliverableReviewForm.quality_score : null,
+    })
+    ElMessage.success(action === 'approve' ? '验收已通过' : '任务已打回返工')
+    reworkDialogVisible.value = false
+    reworkCommentText.value = ''
+    if (action === 'approve') {
+      deliverableReviewForm.comment = ''
+      deliverableReviewForm.quality_score = 5
+    }
+    await loadData()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    approvalSubmitting.value = false
+  }
+}
+
 async function handleApprovalDecide(decision: 'approved' | 'rejected' | 'returned'): Promise<void> {
   const task = selectedTask.value
   if (!task) return
@@ -497,6 +768,98 @@ async function handleApprovalDecide(decision: 'approved' | 'rejected' | 'returne
 function openRejectDialog(): void {
   rejectCommentText.value = ''
   rejectCommentDialogVisible.value = true
+}
+
+function openHandshakeRejectDialog(): void {
+  handshakeRejectReason.value = ''
+  handshakeRejectDialogVisible.value = true
+}
+
+function openDelegateDialog(): void {
+  delegateForm.assignee_id = delegateCandidateOptions.value[0]?.user_id ?? ''
+  delegateForm.reason = ''
+  delegateDialogVisible.value = true
+}
+
+function openReworkDialog(): void {
+  reworkCommentText.value = ''
+  reworkDialogVisible.value = true
+}
+
+async function handleAcceptAssignment(): Promise<void> {
+  if (!selectedTask.value) {
+    return
+  }
+
+  handshakeSubmitting.value = true
+
+  try {
+    await acceptTaskAssignment(selectedTask.value.id)
+    ElMessage.success('任务已接受，可以开始处理')
+    await loadData()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    handshakeSubmitting.value = false
+  }
+}
+
+async function handleRejectAssignment(): Promise<void> {
+  if (!selectedTask.value) {
+    return
+  }
+  if (!handshakeRejectReason.value.trim()) {
+    ElMessage.warning('请填写退回协商原因')
+    return
+  }
+
+  handshakeSubmitting.value = true
+
+  try {
+    await rejectTaskAssignment(selectedTask.value.id, {
+      reason: handshakeRejectReason.value.trim(),
+    })
+    ElMessage.success('任务已退回协商')
+    handshakeRejectDialogVisible.value = false
+    handshakeRejectReason.value = ''
+    await loadData()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    handshakeSubmitting.value = false
+  }
+}
+
+async function handleDelegateAssignment(): Promise<void> {
+  if (!selectedTask.value) {
+    return
+  }
+  if (!delegateForm.assignee_id) {
+    ElMessage.warning('请选择转办目标')
+    return
+  }
+  if (!delegateForm.reason.trim()) {
+    ElMessage.warning('请填写转办原因')
+    return
+  }
+
+  handshakeSubmitting.value = true
+
+  try {
+    await delegateTaskAssignment(selectedTask.value.id, {
+      assignee_id: delegateForm.assignee_id,
+      reason: delegateForm.reason.trim(),
+    })
+    ElMessage.success('任务已转办，等待新执行人确认')
+    delegateDialogVisible.value = false
+    delegateForm.assignee_id = ''
+    delegateForm.reason = ''
+    await loadData()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    handshakeSubmitting.value = false
+  }
 }
 
 onMounted(() => {
@@ -598,14 +961,14 @@ watch(
               </el-table-column>
               <el-table-column label="优先级" width="120">
                 <template #default="{ row }: { row: Task }">
-                  <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
+                  <el-tag :type="normalizeTagType(PRIORITY_TAG_TYPES[row.priority])" effect="plain">
                     {{ resolvePriorityLabel(row.priority) }}
                   </el-tag>
                 </template>
               </el-table-column>
               <el-table-column label="状态" width="120">
                 <template #default="{ row }: { row: Task }">
-                  <el-tag :type="STATUS_TAG_TYPES[row.status]" effect="plain">
+                  <el-tag :type="normalizeTagType(STATUS_TAG_TYPES[row.status])" effect="plain">
                     {{ resolveStatusLabel(row.status) }}
                   </el-tag>
                 </template>
@@ -704,8 +1067,68 @@ watch(
                     驳回修改
                   </el-button>
                 </template>
+                <template v-else-if="canReviewDeliverable">
+                  <el-button
+                    type="success"
+                    :loading="approvalSubmitting"
+                    @click="handleDeliverableReview('approve', deliverableReviewForm.comment)"
+                  >
+                    验收通过
+                  </el-button>
+                  <el-button
+                    type="danger"
+                    :loading="approvalSubmitting"
+                    @click="openReworkDialog"
+                  >
+                    打回返工
+                  </el-button>
+                </template>
+                <template v-else-if="selectedTask && isGraphHandshakeTask && selectedTask.status === 'todo'">
+                  <el-button
+                    v-if="canAcceptTask"
+                    type="primary"
+                    :loading="handshakeSubmitting"
+                    @click="handleAcceptAssignment"
+                  >
+                    接受任务
+                  </el-button>
+                  <el-button
+                    v-if="canRejectTask"
+                    type="danger"
+                    plain
+                    :loading="handshakeSubmitting"
+                    @click="openHandshakeRejectDialog"
+                  >
+                    退回协商
+                  </el-button>
+                  <el-button
+                    v-if="canDelegateTask"
+                    type="warning"
+                    plain
+                    :loading="handshakeSubmitting"
+                    @click="openDelegateDialog"
+                  >
+                    转办
+                  </el-button>
+                  <el-button
+                    v-if="nextStatusAction && canAdvanceSelectedTaskByStatus"
+                    :type="nextStatusAction.buttonType"
+                    :loading="statusSubmitting"
+                    @click="handleStatusTransition"
+                  >
+                    {{ nextStatusAction.label }}
+                  </el-button>
+                </template>
                 <el-button
-                  v-else-if="selectedTask && nextStatusAction && canAdvanceSelectedTask"
+                  v-else-if="canSubmitDeliverable"
+                  type="warning"
+                  :loading="deliverableSubmitting"
+                  @click="handleSubmitDeliverable"
+                >
+                  提交交付物
+                </el-button>
+                <el-button
+                  v-else-if="selectedTask && nextStatusAction && canAdvanceSelectedTaskByStatus"
                   :type="nextStatusAction.buttonType"
                   :loading="statusSubmitting"
                   @click="handleStatusTransition"
@@ -725,12 +1148,12 @@ watch(
                 {{ resolveUserLabel(selectedTask.assignee_id) }}
               </el-descriptions-item>
               <el-descriptions-item label="状态">
-                <el-tag :type="STATUS_TAG_TYPES[selectedTask.status]" effect="plain">
+                <el-tag :type="normalizeTagType(STATUS_TAG_TYPES[selectedTask.status])" effect="plain">
                   {{ resolveStatusLabel(selectedTask.status) }}
                 </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="优先级">
-                <el-tag :type="PRIORITY_TAG_TYPES[selectedTask.priority]" effect="plain">
+                <el-tag :type="normalizeTagType(PRIORITY_TAG_TYPES[selectedTask.priority])" effect="plain">
                   {{ resolvePriorityLabel(selectedTask.priority) }}
                 </el-tag>
               </el-descriptions-item>
@@ -743,7 +1166,64 @@ watch(
               <el-descriptions-item label="任务描述">
                 {{ selectedTask.description || '—' }}
               </el-descriptions-item>
+              <el-descriptions-item label="握手状态">
+                {{ handshakeStateLabel }}
+              </el-descriptions-item>
+              <el-descriptions-item label="最近协商原因">
+                {{ latestRejectReason }}
+              </el-descriptions-item>
+              <el-descriptions-item label="最近转办原因">
+                {{ latestDelegateReason }}
+              </el-descriptions-item>
+              <el-descriptions-item label="最新交付说明">
+                {{ latestDeliverableSummary }}
+              </el-descriptions-item>
+              <el-descriptions-item label="最近提交时间">
+                {{ formatDateTime(latestDeliverableSubmittedAt) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="完成质量评分">
+                {{ latestReviewQualityScore ? `${latestReviewQualityScore}/5` : '—' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="返工次数">
+                {{ reworkCount }}
+              </el-descriptions-item>
+              <el-descriptions-item label="最近返工原因">
+                {{ latestReworkReason }}
+              </el-descriptions-item>
             </el-descriptions>
+
+            <el-divider>交付与验收</el-divider>
+
+            <el-form v-if="canSubmitDeliverable" label-position="top">
+              <el-form-item label="交付说明">
+                <el-input
+                  v-model="deliverableForm.summary"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="说明本次交付内容、完成情况与需要验收的要点"
+                />
+              </el-form-item>
+            </el-form>
+
+            <el-form v-else-if="canReviewDeliverable" label-position="top">
+              <el-form-item label="验收评价（可选）">
+                <el-input
+                  v-model="deliverableReviewForm.comment"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="补充本次验收结论，便于留痕"
+                />
+              </el-form-item>
+              <el-form-item label="完成质量评分">
+                <el-select v-model="deliverableReviewForm.quality_score" placeholder="可选">
+                  <el-option label="5 分" :value="5" />
+                  <el-option label="4 分" :value="4" />
+                  <el-option label="3 分" :value="3" />
+                  <el-option label="2 分" :value="2" />
+                  <el-option label="1 分" :value="1" />
+                </el-select>
+              </el-form-item>
+            </el-form>
 
             <el-divider>关注人与抄送</el-divider>
 
@@ -1015,6 +1495,73 @@ watch(
         <el-button @click="rejectCommentDialogVisible = false">取消</el-button>
         <el-button type="danger" :loading="approvalSubmitting" @click="handleApprovalDecide('rejected')">
           确认驳回
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="reworkDialogVisible" title="返工说明" width="480px">
+      <el-form label-position="top">
+        <el-form-item label="返工原因（必填）">
+          <el-input
+            v-model="reworkCommentText"
+            type="textarea"
+            :rows="3"
+            placeholder="请填写需要补充或修改的内容"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="reworkDialogVisible = false">取消</el-button>
+        <el-button type="danger" :loading="approvalSubmitting" @click="handleDeliverableReview('return_for_rework', reworkCommentText)">
+          确认打回
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="handshakeRejectDialogVisible" title="退回协商" width="480px">
+      <el-form label-position="top">
+        <el-form-item label="协商原因（必填）">
+          <el-input
+            v-model="handshakeRejectReason"
+            type="textarea"
+            :rows="3"
+            placeholder="请说明当前不能接单的原因，便于发起人调整"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="handshakeRejectDialogVisible = false">取消</el-button>
+        <el-button type="danger" :loading="handshakeSubmitting" @click="handleRejectAssignment">
+          确认退回
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="delegateDialogVisible" title="转办任务" width="520px">
+      <el-form label-position="top">
+        <el-form-item label="转办给">
+          <el-select v-model="delegateForm.assignee_id" placeholder="请选择转办目标">
+            <el-option
+              v-for="option in delegateCandidateOptions"
+              :key="option.user_id"
+              :label="option.label"
+              :value="option.user_id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="转办原因（必填）">
+          <el-input
+            v-model="delegateForm.reason"
+            type="textarea"
+            :rows="3"
+            placeholder="说明转办原因，便于新执行人理解背景"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="delegateDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="handshakeSubmitting" @click="handleDelegateAssignment">
+          确认转办
         </el-button>
       </template>
     </el-dialog>

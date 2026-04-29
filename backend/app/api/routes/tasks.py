@@ -14,19 +14,23 @@ from app.models import Attachment, AttachmentLink, User
 from app.schemas.attachments import AttachmentRead
 from app.schemas.tasks import (
   TaskActivityEntryRead,
-    TaskCommentRead,
-    TaskCreateRequest,
-    TaskGanttEntryRead,
-    TaskLogRead,
-    TaskBoardColumnRead,
-    TaskRead,
-    TaskStatsSummaryRead,
-    TaskStatusUpdateRequest,
-    TaskUpdateRequest,
-    TaskWatcherBatchRequest,
-    TaskWatcherRead,
-    TaskWorkloadEntryRead,
-  )
+  TaskAssignmentDelegateRequest,
+  TaskAssignmentRejectRequest,
+  TaskBoardColumnRead,
+  TaskCommentRead,
+  TaskCreateRequest,
+  TaskDeliverableReviewRequest,
+  TaskDeliverableSubmitRequest,
+  TaskGanttEntryRead,
+  TaskLogRead,
+  TaskRead,
+  TaskStatsSummaryRead,
+  TaskStatusUpdateRequest,
+  TaskUpdateRequest,
+  TaskWatcherBatchRequest,
+  TaskWatcherRead,
+  TaskWorkloadEntryRead,
+)
 from app.services.object_storage_service import ObjectStorageService
 from app.services.task_service import CommentAttachmentInput, TaskActivityEntry, TaskService
 
@@ -271,6 +275,83 @@ async def update_task_status(
     actor=actor,
     task_id=task_id,
     target_status=payload.status,
+  )
+  return TaskRead.model_validate(task)
+
+
+@router.post("/{task_id}/accept", response_model=TaskRead)
+async def accept_task_assignment(
+  task_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskRead:
+  task = await task_service.accept_task_assignment(
+    actor=actor,
+    task_id=task_id,
+  )
+  return TaskRead.model_validate(task)
+
+
+@router.post("/{task_id}/reject", response_model=TaskRead)
+async def reject_task_assignment(
+  task_id: UUID,
+  payload: TaskAssignmentRejectRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskRead:
+  task = await task_service.reject_task_assignment(
+    actor=actor,
+    task_id=task_id,
+    reason=payload.reason or "",
+  )
+  return TaskRead.model_validate(task)
+
+
+@router.post("/{task_id}/delegate", response_model=TaskRead)
+async def delegate_task_assignment(
+  task_id: UUID,
+  payload: TaskAssignmentDelegateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskRead:
+  task = await task_service.delegate_task_assignment(
+    actor=actor,
+    task_id=task_id,
+    assignee_id=payload.assignee_id,
+    reason=payload.reason or "",
+  )
+  return TaskRead.model_validate(task)
+
+
+@router.post("/{task_id}/deliverable", response_model=TaskRead)
+async def submit_task_deliverable(
+  task_id: UUID,
+  payload: TaskDeliverableSubmitRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskRead:
+  task = await task_service.submit_task_deliverable(
+    actor=actor,
+    task_id=task_id,
+    summary=payload.summary,
+    attachment_ids=payload.attachment_ids,
+  )
+  return TaskRead.model_validate(task)
+
+
+@router.post("/{task_id}/review", response_model=TaskRead)
+async def review_task_deliverable(
+  task_id: UUID,
+  payload: TaskDeliverableReviewRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskRead:
+  task = await task_service.review_task_deliverable(
+    actor=actor,
+    task_id=task_id,
+    approve=payload.action == "approve",
+    comment=payload.comment,
+    quality_score=payload.quality_score,
   )
   return TaskRead.model_validate(task)
 

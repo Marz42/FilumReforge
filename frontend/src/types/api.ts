@@ -501,6 +501,10 @@ export interface TaskCenterTrackingItem {
   relation_types: string[]
   current_stage_label: string
   current_handler_label: string | null
+  latest_deliverable_submitted_at?: string | null
+  rework_count?: number
+  review_quality_score?: number | null
+  is_pending_review?: boolean
 }
 
 export interface TaskCenterHistoryItem {

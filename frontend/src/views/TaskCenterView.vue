@@ -307,6 +307,20 @@ function renderRelationTypes(item: TaskCenterTrackingItem | TaskCenterHistoryIte
   return item.relation_types.join(' / ') || '—'
 }
 
+function renderTrackingSignals(item: TaskCenterTrackingItem): string {
+  const signals: string[] = []
+  if (item.is_pending_review) {
+    signals.push('待验收')
+  }
+  if ((item.rework_count ?? 0) > 0) {
+    signals.push(`返工 ${item.rework_count} 次`)
+  }
+  if (typeof item.review_quality_score === 'number') {
+    signals.push(`质量 ${item.review_quality_score}/5`)
+  }
+  return signals.join(' / ') || '—'
+}
+
 function rowKey(item: TaskCenterInboxItem | TaskCenterTrackingItem | TaskCenterHistoryItem): string {
   return item.task_id
 }
@@ -411,6 +425,16 @@ onMounted(() => {
           </el-table-column>
           <el-table-column prop="current_stage_label" label="当前阶段" min-width="160" />
           <el-table-column prop="current_handler_label" label="当前处理人" min-width="180" />
+          <el-table-column label="交付信号" min-width="180">
+            <template #default="{ row }: { row: TaskCenterTrackingItem }">
+              {{ renderTrackingSignals(row) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="最近提交" min-width="180">
+            <template #default="{ row }: { row: TaskCenterTrackingItem }">
+              {{ formatDateTime(row.latest_deliverable_submitted_at ?? null) }}
+            </template>
+          </el-table-column>
           <el-table-column label="截止时间" min-width="180">
             <template #default="{ row }: { row: TaskCenterTrackingItem }">
               {{ formatDateTime(row.due_date) }}
@@ -419,7 +443,11 @@ onMounted(() => {
         </el-table>
       </el-card>
 
-      <TasksView :show-create-task-composer="false" :initial-selected-task-id="selectedTaskId" />
+      <TasksView
+        :show-create-task-composer="false"
+        :initial-selected-task-id="selectedTaskId"
+        :delegate-user-options="publishUserOptions"
+      />
 
       <el-card shadow="never" class="filum-panel-card">
         <template #header>

@@ -30,6 +30,26 @@ export interface CreateTaskCommentPayload {
   files?: File[]
 }
 
+export interface SubmitTaskDeliverablePayload {
+  summary?: string | null
+  attachment_ids?: string[]
+}
+
+export interface ReviewTaskDeliverablePayload {
+  action: 'approve' | 'return_for_rework'
+  comment?: string | null
+  quality_score?: number | null
+}
+
+export interface RejectTaskAssignmentPayload {
+  reason?: string | null
+}
+
+export interface DelegateTaskAssignmentPayload {
+  assignee_id: string
+  reason?: string | null
+}
+
 export async function listTasks(): Promise<Task[]> {
   const { data } = await http.get<Task[]>('/tasks')
   return data
@@ -52,6 +72,55 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
 
 export async function updateTaskStatus(taskId: string, status: TaskStatus): Promise<Task> {
   const { data } = await http.patch<Task>(`/tasks/${taskId}/status`, { status })
+  return data
+}
+
+export async function acceptTaskAssignment(taskId: string): Promise<Task> {
+  const { data } = await http.post<Task>(`/tasks/${taskId}/accept`)
+  return data
+}
+
+export async function rejectTaskAssignment(
+  taskId: string,
+  payload: RejectTaskAssignmentPayload,
+): Promise<Task> {
+  const { data } = await http.post<Task>(`/tasks/${taskId}/reject`, {
+    reason: payload.reason ?? null,
+  })
+  return data
+}
+
+export async function delegateTaskAssignment(
+  taskId: string,
+  payload: DelegateTaskAssignmentPayload,
+): Promise<Task> {
+  const { data } = await http.post<Task>(`/tasks/${taskId}/delegate`, {
+    assignee_id: payload.assignee_id,
+    reason: payload.reason ?? null,
+  })
+  return data
+}
+
+export async function submitTaskDeliverable(
+  taskId: string,
+  payload: SubmitTaskDeliverablePayload,
+): Promise<Task> {
+  const { data } = await http.post<Task>(`/tasks/${taskId}/deliverable`, {
+    summary: payload.summary ?? null,
+    attachment_ids: payload.attachment_ids ?? [],
+  })
+  return data
+}
+
+export async function reviewTaskDeliverable(
+  taskId: string,
+  payload: ReviewTaskDeliverablePayload,
+): Promise<Task> {
+  const { data } = await http.post<Task>(`/tasks/${taskId}/review`, {
+    action: payload.action,
+    comment: payload.comment ?? null,
+    quality_score: payload.quality_score ?? null,
+  })
   return data
 }
 

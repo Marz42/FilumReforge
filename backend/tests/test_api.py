@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 import pytest_asyncio
@@ -21,7 +22,7 @@ from app.api.dependencies import (
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.main import create_app
-from app.models import Base, ErrorEvent
+from app.models import Base, ErrorEvent, WorkflowDeliverable, WorkflowGraphInstance, WorkflowNodeInstance
 from app.workers.arq_worker import (
   PROCESS_EMPLOYMENT_EVENT_JOB,
   REBUILD_ALL_DOCUMENT_EMBEDDINGS_JOB,
@@ -887,6 +888,451 @@ async def test_department_profile_task_and_attachment_api_flow(api_client) -> No
 
   assert len(queue_publisher.payloads) == 1
   assert queue_publisher.payloads[0]["message_type"] == "task_assigned"
+
+
+@pytest.mark.asyncio
+async def test_phase3_create_task_api_uses_graph_engine(api_client) -> None:
+  client, queue_publisher = api_client
+  queue_publisher._settings.workflow_graph_engine_enabled = True
+  headers, _ = await bootstrap_and_login(client)
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+  employee_uuid = UUID(employee_id)
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": employee_id,
+      "employee_no": "EMP-001",
+      "real_name": "研发工程师",
+      "department_id": root_department["id"],
+      "custom_fields": {},
+    },
+  )
+  assert profile_response.status_code == 201
+
+  task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "完成图引擎 API 测试任务",
+      "assignee_id": employee_id,
+      "priority": "high",
+    },
+  )
+  assert task_response.status_code == 201
+  payload = task_response.json()
+  assert payload["status"] == "todo"
+  assert payload["source_type"] == "manual"
+  task_id = UUID(payload["id"])
+
+  async with queue_publisher._session_factory() as session:
+    stored_instance = await session.scalar(
+      select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task_id)
+    )
+    stored_node = await session.scalar(
+      select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == stored_instance.id)
+    )
+
+  assert stored_instance is not None
+  assert stored_instance.source_type == "manual"
+  assert stored_instance.context["title"] == "完成图引擎 API 测试任务"
+  assert stored_node is not None
+  assert stored_node.assignee_user_id == employee_uuid
+
+
+@pytest.mark.asyncio
+async def test_phase5_task_deliverable_review_api_flow(api_client) -> None:
+  client, queue_publisher = api_client
+  queue_publisher._settings.workflow_graph_engine_enabled = True
+  headers, _ = await bootstrap_and_login(client)
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": employee_id,
+      "employee_no": "EMP-001",
+      "real_name": "研发工程师",
+      "department_id": root_department["id"],
+      "custom_fields": {},
+    },
+  )
+  assert profile_response.status_code == 201
+
+  task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "完成 Phase 5 API 验收",
+      "assignee_id": employee_id,
+      "priority": "high",
+    },
+  )
+  assert task_response.status_code == 201
+  task_id = task_response.json()["id"]
+
+  employee_headers = await login(client, email="employee@example.com", password="StrongPassword123!")
+  accept_response = await client.post(
+    f"/api/v1/tasks/{task_id}/accept",
+    headers=employee_headers,
+  )
+  assert accept_response.status_code == 200
+  doing_response = await client.patch(
+    f"/api/v1/tasks/{task_id}/status",
+    headers=employee_headers,
+    json={"status": "doing"},
+  )
+  assert doing_response.status_code == 200
+
+  submit_response = await client.post(
+    f"/api/v1/tasks/{task_id}/deliverable",
+    headers=employee_headers,
+    json={"summary": "第一版交付说明"},
+  )
+  assert submit_response.status_code == 200
+  assert submit_response.json()["status"] == "review"
+  assert submit_response.json()["extra_metadata"]["latest_deliverable_summary"] == "第一版交付说明"
+
+  return_response = await client.post(
+    f"/api/v1/tasks/{task_id}/review",
+    headers=headers,
+    json={"action": "return_for_rework", "comment": "请补充边界场景"},
+  )
+  assert return_response.status_code == 200
+  assert return_response.json()["status"] == "doing"
+  assert return_response.json()["extra_metadata"]["rework_count"] == 1
+
+  second_submit_response = await client.post(
+    f"/api/v1/tasks/{task_id}/deliverable",
+    headers=employee_headers,
+    json={"summary": "第二版交付说明"},
+  )
+  assert second_submit_response.status_code == 200
+  assert second_submit_response.json()["status"] == "review"
+
+  tracking_snapshot = await client.get("/api/v1/task-center", headers=employee_headers)
+  assert tracking_snapshot.status_code == 200
+  tracked_review_item = next(item for item in tracking_snapshot.json()["task_tracking"] if item["task_id"] == task_id)
+  assert tracked_review_item["is_pending_review"] is True
+  assert tracked_review_item["rework_count"] == 1
+  assert tracked_review_item["latest_deliverable_submitted_at"] is not None
+
+  approve_response = await client.post(
+    f"/api/v1/tasks/{task_id}/review",
+    headers=headers,
+    json={"action": "approve", "comment": "验收通过", "quality_score": 5},
+  )
+  assert approve_response.status_code == 200
+  assert approve_response.json()["status"] == "done"
+  assert approve_response.json()["extra_metadata"]["latest_review_quality_score"] == 5
+
+  async with queue_publisher._session_factory() as session:
+    task_uuid = UUID(task_id)
+    stored_instance = await session.scalar(
+      select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task_uuid)
+    )
+    stored_node = await session.scalar(
+      select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == stored_instance.id)
+    )
+    stored_deliverable = await session.scalar(
+      select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == stored_node.id)
+    )
+
+  assert stored_instance is not None
+  assert stored_instance.status == "completed"
+  assert stored_node is not None
+  assert stored_node.business_state == "done"
+  assert stored_deliverable is not None
+  assert stored_deliverable.summary == "第二版交付说明"
+  assert len(stored_deliverable.payload["submission_history"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_phase5_task_status_api_blocks_direct_review_and_done_for_graph_tasks(api_client) -> None:
+  client, queue_publisher = api_client
+  queue_publisher._settings.workflow_graph_engine_enabled = True
+  headers, _ = await bootstrap_and_login(client)
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": employee_id,
+      "employee_no": "EMP-001",
+      "real_name": "研发工程师",
+      "department_id": root_department["id"],
+      "custom_fields": {},
+    },
+  )
+  assert profile_response.status_code == 201
+
+  task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "检查 Phase 5 状态旁路",
+      "assignee_id": employee_id,
+      "priority": "high",
+    },
+  )
+  assert task_response.status_code == 201
+  task_id = task_response.json()["id"]
+
+  employee_headers = await login(client, email="employee@example.com", password="StrongPassword123!")
+  doing_response = await client.patch(
+    f"/api/v1/tasks/{task_id}/status",
+    headers=employee_headers,
+    json={"status": "doing"},
+  )
+  assert doing_response.status_code == 200
+
+  direct_review_response = await client.patch(
+    f"/api/v1/tasks/{task_id}/status",
+    headers=employee_headers,
+    json={"status": "review"},
+  )
+  assert direct_review_response.status_code == 409
+  assert "提交交付物" in direct_review_response.json()["detail"]
+
+  submit_response = await client.post(
+    f"/api/v1/tasks/{task_id}/deliverable",
+    headers=employee_headers,
+    json={"summary": "第一版交付说明"},
+  )
+  assert submit_response.status_code == 200
+
+  direct_done_response = await client.patch(
+    f"/api/v1/tasks/{task_id}/status",
+    headers=headers,
+    json={"status": "done"},
+  )
+  assert direct_done_response.status_code == 409
+  assert "验收动作" in direct_done_response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_phase4_task_acceptance_and_task_center_snapshot_flow(api_client) -> None:
+  client, queue_publisher = api_client
+  queue_publisher._settings.workflow_graph_engine_enabled = True
+  headers, _ = await bootstrap_and_login(client)
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": employee_id,
+      "employee_no": "EMP-001",
+      "real_name": "研发工程师",
+      "department_id": root_department["id"],
+      "custom_fields": {},
+    },
+  )
+  assert profile_response.status_code == 201
+
+  task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "等待接单的 API 图任务",
+      "assignee_id": employee_id,
+      "priority": "high",
+    },
+  )
+  assert task_response.status_code == 201
+  task_id = task_response.json()["id"]
+
+  employee_headers = await login(client, email="employee@example.com", password="StrongPassword123!")
+  inbox_before_accept = await client.get("/api/v1/task-center", headers=employee_headers)
+  assert inbox_before_accept.status_code == 200
+  assert any(item["task_id"] == task_id and item["current_stage_label"] == "任务：待确认" for item in inbox_before_accept.json()["task_inbox"])
+
+  direct_doing_response = await client.patch(
+    f"/api/v1/tasks/{task_id}/status",
+    headers=employee_headers,
+    json={"status": "doing"},
+  )
+  assert direct_doing_response.status_code == 409
+  assert "先由执行人接受任务" in direct_doing_response.json()["detail"]
+
+  accept_response = await client.post(
+    f"/api/v1/tasks/{task_id}/accept",
+    headers=employee_headers,
+  )
+  assert accept_response.status_code == 200
+  assert accept_response.json()["extra_metadata"]["workflow_handshake_state"] == "accepted"
+
+  accepted_inbox = await client.get("/api/v1/task-center", headers=employee_headers)
+  assert accepted_inbox.status_code == 200
+  assert any(item["task_id"] == task_id and item["current_stage_label"] == "任务：已接受待开工" for item in accepted_inbox.json()["task_inbox"])
+
+  doing_response = await client.patch(
+    f"/api/v1/tasks/{task_id}/status",
+    headers=employee_headers,
+    json={"status": "doing"},
+  )
+  assert doing_response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_phase4_task_reject_and_delegate_api_refresh_task_center_snapshot(api_client) -> None:
+  client, queue_publisher = api_client
+  queue_publisher._settings.workflow_graph_engine_enabled = True
+  headers, _ = await bootstrap_and_login(client)
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  delegate_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "delegate@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert delegate_response.status_code == 201
+  delegate_id = delegate_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  for user_id, employee_no, real_name in [
+    (employee_id, "EMP-001", "研发工程师"),
+    (delegate_id, "EMP-002", "代理执行人"),
+  ]:
+    profile_response = await client.post(
+      "/api/v1/profiles",
+      headers=headers,
+      json={
+        "user_id": user_id,
+        "employee_no": employee_no,
+        "real_name": real_name,
+        "department_id": root_department["id"],
+        "custom_fields": {},
+      },
+    )
+    assert profile_response.status_code == 201
+
+  delegated_task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "等待转办的 API 图任务",
+      "assignee_id": employee_id,
+      "priority": "high",
+    },
+  )
+  assert delegated_task_response.status_code == 201
+  delegated_task_id = delegated_task_response.json()["id"]
+
+  employee_headers = await login(client, email="employee@example.com", password="StrongPassword123!")
+  delegate_headers = await login(client, email="delegate@example.com", password="StrongPassword123!")
+  delegated_response = await client.post(
+    f"/api/v1/tasks/{delegated_task_id}/delegate",
+    headers=employee_headers,
+    json={"assignee_id": delegate_id, "reason": "请由更熟悉客户的人处理"},
+  )
+  assert delegated_response.status_code == 200
+  assert delegated_response.json()["assignee_id"] == delegate_id
+
+  delegate_snapshot = await client.get("/api/v1/task-center", headers=delegate_headers)
+  assert delegate_snapshot.status_code == 200
+  assert any(item["task_id"] == delegated_task_id and item["current_stage_label"] == "任务：已转办待确认" for item in delegate_snapshot.json()["task_inbox"])
+
+  rejected_task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "等待退回协商的 API 图任务",
+      "assignee_id": employee_id,
+      "priority": "high",
+    },
+  )
+  assert rejected_task_response.status_code == 201
+  rejected_task_id = rejected_task_response.json()["id"]
+
+  rejected_response = await client.post(
+    f"/api/v1/tasks/{rejected_task_id}/reject",
+    headers=employee_headers,
+    json={"reason": "目标和截止时间都需要重谈"},
+  )
+  assert rejected_response.status_code == 200
+  assert rejected_response.json()["extra_metadata"]["workflow_handshake_state"] == "rejected"
+
+  admin_snapshot = await client.get("/api/v1/task-center", headers=headers)
+  assert admin_snapshot.status_code == 200
+  assert any(item["task_id"] == rejected_task_id and item["current_stage_label"] == "任务：已拒绝待调整" for item in admin_snapshot.json()["task_inbox"])
 
 
 @pytest.mark.asyncio

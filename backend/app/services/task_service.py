@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import (
+  AttachmentStatus,
   AttachmentTargetType,
   AttachmentVisibility,
   CommentFormat,
@@ -17,10 +19,15 @@ from app.core.enums import (
   TaskPriority,
   TaskSourceType,
   TaskStatus,
+  WorkflowNodeBusinessState,
+  WorkflowNodeEngineState,
+  WorkflowGraphInstanceStatus,
   WorkflowStepRunStatus,
 )
+from app.core.config import Settings
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import (
+  Attachment,
   Department,
   Profile,
   Task,
@@ -33,12 +40,16 @@ from app.models import (
   TaskTemplateStepRun,
   TaskWatcher,
   User,
+  WorkflowDeliverable,
+  WorkflowGraphInstance,
   WorkflowInstance,
+  WorkflowNodeInstance,
   WorkflowStep,
   WorkflowStepRun,
 )
 from app.schemas.messages import NotificationMessage
 from app.services.notification_source import build_task_source_payload
+from app.services.workflow_graph_service import SingleNodeWorkflowSeed, WorkflowGraphService
 from app.services.workflow_rule_resolver import resolve_user_targets_from_rule
 from app.services.access_control import (
   MANAGEMENT_ROLES,
@@ -123,6 +134,10 @@ class TaskTrackingEntry:
   relation_types: list[str]
   current_stage_label: str
   current_handler_label: str | None
+  latest_deliverable_submitted_at: datetime | None = None
+  rework_count: int = 0
+  review_quality_score: int | None = None
+  is_pending_review: bool = False
 
 
 @dataclass(slots=True)
@@ -183,16 +198,137 @@ def _task_status_label(status: TaskStatus) -> str:
   return labels[status]
 
 
+HANDSHAKE_ASSIGNED = "assigned"
+HANDSHAKE_ACCEPTED = "accepted"
+HANDSHAKE_REJECTED = "rejected"
+
+
+def _user_display_label(user: User | None) -> str | None:
+  if user is None:
+    return None
+  if user.profile and user.profile.real_name:
+    return user.profile.real_name
+  return user.email
+
+
 class TaskService:
   def __init__(
     self,
     session: AsyncSession,
     notification_service: NotificationService | None = None,
     attachment_service=None,  # noqa: ANN001
+    settings: Settings | None = None,
+    workflow_graph_service: WorkflowGraphService | None = None,
   ) -> None:
     self._session = session
     self._notification_service = notification_service
     self._attachment_service = attachment_service
+    self._settings = settings
+    self._workflow_graph_service = workflow_graph_service
+
+  def _workflow_graph_engine_enabled(self) -> bool:
+    return bool(self._settings is not None and self._settings.workflow_graph_engine_enabled)
+
+  async def _create_single_node_workflow_projection(
+    self,
+    *,
+    actor: User,
+    title: str,
+    assignee_id: UUID,
+    description: str | None,
+    department_id: UUID | None,
+    due_date: datetime | None,
+    priority: TaskPriority,
+    dependency_ids: list[UUID] | None,
+    source_type: TaskSourceType,
+    extra_metadata: dict[str, object] | None,
+  ) -> Task:
+    if self._workflow_graph_service is None:
+      raise ConflictError("图引擎开关已开启，但 WorkflowGraphService 尚未注入。")
+
+    instance, node_instance = await self._workflow_graph_service.create_single_node_instance(
+      seed=SingleNodeWorkflowSeed(
+        title=title,
+        creator_id=actor.id,
+        assignee_id=assignee_id,
+        department_id=department_id,
+        description=description,
+        due_date=due_date,
+        priority=priority,
+      )
+    )
+
+    metadata = dict(extra_metadata or {})
+    metadata.update(
+      {
+        "workflow_graph_instance_id": str(instance.id),
+        "workflow_node_instance_id": str(node_instance.id),
+        "workflow_handshake_state": HANDSHAKE_ASSIGNED,
+        "latest_handshake_action": HANDSHAKE_ASSIGNED,
+        "latest_handshake_actor_user_id": str(actor.id),
+      }
+    )
+
+    task = Task(
+      title=title,
+      description=description,
+      creator_id=actor.id,
+      assignee_id=assignee_id,
+      department_id=department_id,
+      due_date=due_date,
+      priority=priority,
+      source_type=source_type,
+      extra_metadata=metadata,
+    )
+    self._session.add(task)
+    await self._session.flush()
+
+    instance.source_id = task.id
+    instance.source_type = source_type.value
+    instance.status = WorkflowGraphInstanceStatus.ACTIVE
+    node_instance.config = {
+      **node_instance.config,
+      "task_id": str(task.id),
+    }
+
+    if dependency_ids:
+      dependency_task_ids = set(await self._session.scalars(select(Task.id).where(Task.id.in_(dependency_ids))))
+      if dependency_task_ids != set(dependency_ids):
+        raise NotFoundError("存在无效的前置任务。")
+      for dependency_id in dependency_ids:
+        self._session.add(
+          TaskDependency(
+            task_id=task.id,
+            depends_on_task_id=dependency_id,
+          )
+        )
+
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.CREATED,
+      detail={
+        "assignee_id": str(assignee_id),
+        "priority": priority.value,
+        "source_type": source_type.value,
+        "dependency_ids": [str(dependency_id) for dependency_id in dependency_ids or []],
+        "template_instance_id": str(task.template_instance_id) if task.template_instance_id is not None else None,
+        "template_step_run_id": str(task.template_step_run_id) if task.template_step_run_id is not None else None,
+        "workflow_graph_instance_id": str(instance.id),
+        "workflow_node_instance_id": str(node_instance.id),
+      },
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.ASSIGNED,
+      detail={
+        "action": HANDSHAKE_ASSIGNED,
+        "assignee_id": str(assignee_id),
+        "workflow_node_instance_id": str(node_instance.id),
+      },
+    )
+    return task
 
   @staticmethod
   def _is_template_step_satisfied(*, step: TaskTemplateStep, step_runs: list[TaskTemplateStepRun]) -> bool:
@@ -591,6 +727,25 @@ class TaskService:
       department_id=department_id,
     )
 
+    if self._workflow_graph_engine_enabled() and source_type == TaskSourceType.MANUAL:
+      task = await self._create_single_node_workflow_projection(
+        actor=actor,
+        title=title,
+        assignee_id=assignee_id,
+        description=description,
+        department_id=resolved_department_id,
+        due_date=due_date,
+        priority=priority,
+        dependency_ids=dependency_ids,
+        source_type=source_type,
+        extra_metadata=extra_metadata,
+      )
+      if commit:
+        await self._session.commit()
+        await self._session.refresh(task)
+        await self._send_assignment_notification(task=task, assignee=assignee)
+      return task, assignee
+
     task = Task(
       title=title,
       description=description,
@@ -650,8 +805,8 @@ class TaskService:
     statement = (
       select(Task)
       .options(
-        selectinload(Task.creator),
-        selectinload(Task.assignee),
+        selectinload(Task.creator).selectinload(User.profile),
+        selectinload(Task.assignee).selectinload(User.profile),
         selectinload(Task.department),
       )
       .order_by(Task.created_at.desc())
@@ -716,17 +871,18 @@ class TaskService:
       )
     return context_map
 
-  @staticmethod
   def _build_inbox_entry(
+    self,
     *,
     task: Task,
     step_context_map: dict[UUID, tuple[str, str | None]],
   ) -> TaskInboxEntry:
     current_stage_label, current_handler_label = step_context_map.get(
       task.id,
-      (
+      self._manual_graph_context(task=task)
+      or (
         f"任务：{_task_status_label(task.status)}",
-        task.assignee.profile.real_name if task.assignee and task.assignee.profile and task.assignee.profile.real_name else task.assignee.email if task.assignee else None,
+        _user_display_label(task.assignee),
       ),
     )
     return TaskInboxEntry(
@@ -740,18 +896,24 @@ class TaskService:
       current_handler_label=current_handler_label,
     )
 
-  @staticmethod
   def _build_tracking_entry(
+    self,
     *,
     task: Task,
     relation_types: list[str],
     step_context_map: dict[UUID, tuple[str, str | None]],
   ) -> TaskTrackingEntry:
+    metadata = self._copy_task_metadata(task)
+    review_quality_score = None
+    if metadata.get("latest_review_quality_score") is not None:
+      review_quality_score = self._read_int_metadata(metadata, "latest_review_quality_score")
+
     current_stage_label, current_handler_label = step_context_map.get(
       task.id,
-      (
+      self._manual_graph_context(task=task)
+      or (
         f"任务：{_task_status_label(task.status)}",
-        task.assignee.profile.real_name if task.assignee and task.assignee.profile and task.assignee.profile.real_name else task.assignee.email if task.assignee else None,
+        _user_display_label(task.assignee),
       ),
     )
     return TaskTrackingEntry(
@@ -764,6 +926,10 @@ class TaskService:
       relation_types=relation_types,
       current_stage_label=current_stage_label,
       current_handler_label=current_handler_label,
+      latest_deliverable_submitted_at=self._read_datetime_metadata(metadata, "latest_deliverable_submitted_at"),
+      rework_count=self._read_int_metadata(metadata, "rework_count"),
+      review_quality_score=review_quality_score,
+      is_pending_review=task.status == TaskStatus.REVIEW,
     )
 
   @staticmethod
@@ -822,6 +988,364 @@ class TaskService:
       return False
     managed_department_ids = await get_managed_department_ids(self._session, actor.id)
     return task.department_id in managed_department_ids
+
+  @staticmethod
+  def _read_uuid_metadata(metadata: dict[str, Any], key: str) -> UUID | None:
+    raw_value = metadata.get(key)
+    if not isinstance(raw_value, str) or not raw_value:
+      return None
+    try:
+      return UUID(raw_value)
+    except ValueError:
+      return None
+
+  @staticmethod
+  def _copy_task_metadata(task: Task) -> dict[str, Any]:
+    return dict(task.extra_metadata or {})
+
+  @staticmethod
+  def _read_str_metadata(metadata: dict[str, Any], key: str) -> str | None:
+    raw_value = metadata.get(key)
+    if isinstance(raw_value, str) and raw_value.strip():
+      return raw_value.strip()
+    return None
+
+  @staticmethod
+  def _read_int_metadata(metadata: dict[str, Any], key: str, *, default: int = 0) -> int:
+    raw_value = metadata.get(key)
+    if isinstance(raw_value, bool):
+      return int(raw_value)
+    if isinstance(raw_value, int):
+      return raw_value
+    if isinstance(raw_value, str):
+      try:
+        return int(raw_value)
+      except ValueError:
+        return default
+    return default
+
+  @staticmethod
+  def _read_datetime_metadata(metadata: dict[str, Any], key: str) -> datetime | None:
+    raw_value = metadata.get(key)
+    if not isinstance(raw_value, str) or not raw_value.strip():
+      return None
+    try:
+      return datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    except ValueError:
+      return None
+  async def _load_workflow_graph_projection(
+    self,
+    *,
+    task: Task,
+  ) -> tuple[WorkflowGraphInstance | None, WorkflowNodeInstance | None]:
+    metadata = self._copy_task_metadata(task)
+    instance_id = self._read_uuid_metadata(metadata, "workflow_graph_instance_id")
+    node_id = self._read_uuid_metadata(metadata, "workflow_node_instance_id")
+
+    instance: WorkflowGraphInstance | None = None
+    node_instance: WorkflowNodeInstance | None = None
+    if instance_id is not None:
+      instance = await self._session.get(WorkflowGraphInstance, instance_id)
+    if instance is None:
+      instance = await self._session.scalar(
+        select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+      )
+
+    if node_id is not None:
+      node_instance = await self._session.get(WorkflowNodeInstance, node_id)
+      if node_instance is not None and instance is not None and node_instance.instance_id != instance.id:
+        node_instance = None
+    if node_instance is None and instance is not None:
+      node_instance = await self._session.scalar(
+        select(WorkflowNodeInstance)
+        .where(WorkflowNodeInstance.instance_id == instance.id)
+        .order_by(WorkflowNodeInstance.created_at.asc())
+      )
+
+    return instance, node_instance
+
+  def _uses_graph_projection(self, *, task: Task) -> bool:
+    metadata = self._copy_task_metadata(task)
+    return (
+      self._read_uuid_metadata(metadata, "workflow_graph_instance_id") is not None
+      and self._read_uuid_metadata(metadata, "workflow_node_instance_id") is not None
+    )
+
+  def _uses_graph_handshake_cycle(self, *, task: Task) -> bool:
+    return task.source_type == TaskSourceType.MANUAL and self._uses_graph_projection(task=task)
+
+  def _handshake_state_for_task(self, *, task: Task) -> str | None:
+    if not self._uses_graph_handshake_cycle(task=task):
+      return None
+
+    metadata = self._copy_task_metadata(task)
+    state = self._read_str_metadata(metadata, "workflow_handshake_state")
+    if state in {HANDSHAKE_ASSIGNED, HANDSHAKE_ACCEPTED, HANDSHAKE_REJECTED}:
+      return state
+    if task.status == TaskStatus.TODO:
+      return HANDSHAKE_ACCEPTED
+    return None
+
+  def _manual_graph_current_handler_id(self, *, task: Task) -> UUID | None:
+    if not self._uses_graph_handshake_cycle(task=task):
+      return None
+    handshake_state = self._handshake_state_for_task(task=task)
+    if task.status == TaskStatus.REVIEW:
+      return task.creator_id
+    if task.status == TaskStatus.TODO and handshake_state == HANDSHAKE_REJECTED:
+      return task.creator_id
+    return task.assignee_id
+
+  def _manual_graph_context(self, *, task: Task) -> tuple[str, str | None] | None:
+    if not self._uses_graph_handshake_cycle(task=task):
+      return None
+
+    metadata = self._copy_task_metadata(task)
+    latest_action = self._read_str_metadata(metadata, "latest_handshake_action")
+    handshake_state = self._handshake_state_for_task(task=task)
+    assignee_label = _user_display_label(task.assignee)
+    creator_label = _user_display_label(task.creator)
+
+    if task.status == TaskStatus.TODO:
+      if handshake_state == HANDSHAKE_REJECTED:
+        return ("任务：已拒绝待调整", creator_label)
+      if latest_action == "delegated":
+        return ("任务：已转办待确认", assignee_label)
+      if latest_action == "reassigned":
+        return ("任务：重新派发待确认", assignee_label)
+      if handshake_state == HANDSHAKE_ACCEPTED:
+        return ("任务：已接受待开工", assignee_label)
+      return ("任务：待确认", assignee_label)
+
+    if task.status == TaskStatus.DOING:
+      latest_review_state = self._read_str_metadata(metadata, "latest_review_state")
+      if latest_review_state == "returned_for_rework":
+        return ("任务：返工中", assignee_label)
+      return (f"任务：{_task_status_label(task.status)}", assignee_label)
+
+    if task.status == TaskStatus.REVIEW:
+      return ("任务：待验收", creator_label)
+
+    return (f"任务：{_task_status_label(task.status)}", assignee_label)
+
+  async def _uses_graph_deliverable_review_cycle(self, *, task: Task) -> bool:
+    if task.source_type != TaskSourceType.MANUAL:
+      return False
+
+    instance, node_instance = await self._load_workflow_graph_projection(task=task)
+    return instance is not None and node_instance is not None
+
+  async def _validate_task_attachment_ids(
+    self,
+    *,
+    task_id: UUID,
+    attachment_ids: list[UUID],
+  ) -> list[str]:
+    if not attachment_ids:
+      return []
+
+    stored_attachment_ids = set(
+      await self._session.scalars(
+        select(Attachment.id).where(
+          Attachment.id.in_(attachment_ids),
+          Attachment.status != AttachmentStatus.DELETED,
+          Attachment.links.any(
+            Attachment.target_type == AttachmentTargetType.TASK,
+            Attachment.target_id == task_id,
+          ),
+        )
+      )
+    )
+    if stored_attachment_ids != set(attachment_ids):
+      raise NotFoundError("存在无效的任务附件，无法作为交付物提交。")
+    return [str(attachment_id) for attachment_id in attachment_ids]
+
+  async def _upsert_task_deliverable(
+    self,
+    *,
+    task: Task,
+    actor: User,
+    summary: str | None,
+    attachment_ids: list[str],
+    submitted_at: datetime,
+  ) -> None:
+    instance, node_instance = await self._load_workflow_graph_projection(task=task)
+    if instance is None or node_instance is None:
+      return
+
+    submission_entry: dict[str, Any] = {
+      "submitted_at": submitted_at.isoformat(),
+      "submitted_by_user_id": str(actor.id),
+      "summary": summary,
+      "attachment_ids": attachment_ids,
+    }
+    deliverable = await self._session.scalar(
+      select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id)
+    )
+    if deliverable is None:
+      deliverable = WorkflowDeliverable(
+        node_instance_id=node_instance.id,
+        submitted_by_user_id=actor.id,
+        submitted_at=submitted_at,
+        summary=summary,
+        payload={
+          "latest_submission": submission_entry,
+          "submission_history": [submission_entry],
+        },
+        signature=f"task:{task.id}:submission:1",
+      )
+      self._session.add(deliverable)
+      await self._session.flush()
+      return
+
+    payload = dict(deliverable.payload or {})
+    history_raw = payload.get("submission_history")
+    history: list[dict[str, Any]] = list(history_raw) if isinstance(history_raw, list) else []
+    history.append(submission_entry)
+    payload["latest_submission"] = submission_entry
+    payload["submission_history"] = history
+    deliverable.submitted_by_user_id = actor.id
+    deliverable.submitted_at = submitted_at
+    deliverable.summary = summary
+    deliverable.payload = payload
+    deliverable.signature = f"task:{task.id}:submission:{len(history)}"
+
+  async def _record_task_review_result(
+    self,
+    *,
+    task: Task,
+    actor: User,
+    action: str,
+    comment: str | None,
+    reviewed_at: datetime,
+    rework_count: int | None = None,
+  ) -> None:
+    instance, node_instance = await self._load_workflow_graph_projection(task=task)
+    if instance is None or node_instance is None:
+      return
+
+    deliverable = await self._session.scalar(
+      select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id)
+    )
+    if deliverable is None:
+      return
+
+    review_entry: dict[str, Any] = {
+      "action": action,
+      "comment": comment,
+      "reviewed_at": reviewed_at.isoformat(),
+      "reviewed_by_user_id": str(actor.id),
+    }
+    if rework_count is not None:
+      review_entry["rework_count"] = rework_count
+
+    payload = dict(deliverable.payload or {})
+    payload["latest_review"] = review_entry
+    if rework_count is not None:
+      payload["rework_count"] = rework_count
+    deliverable.payload = payload
+
+  async def _sync_graph_projection_for_task_status(
+    self,
+    *,
+    task: Task,
+    target_status: TaskStatus,
+    reference_time: datetime,
+    force_business_state: WorkflowNodeBusinessState | None = None,
+  ) -> None:
+    instance, node_instance = await self._load_workflow_graph_projection(task=task)
+    if instance is None or node_instance is None:
+      return
+
+    instance.status = WorkflowGraphInstanceStatus.ACTIVE
+    instance.completed_at = None
+    instance.current_node_key = node_instance.node_key
+
+    if target_status == TaskStatus.DOING:
+      node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
+      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
+      node_instance.completed_at = None
+      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.DOING
+      return
+
+    if target_status == TaskStatus.REVIEW:
+      node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
+      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
+      node_instance.completed_at = None
+      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.PENDING_REVIEW
+      return
+
+    if target_status == TaskStatus.DONE:
+      node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
+      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
+      node_instance.completed_at = reference_time
+      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.DONE
+      instance.status = WorkflowGraphInstanceStatus.COMPLETED
+      instance.completed_at = reference_time
+      instance.current_node_key = None
+
+  async def _sync_graph_projection_for_handshake_state(
+    self,
+    *,
+    task: Task,
+    business_state: WorkflowNodeBusinessState,
+    reference_time: datetime,
+    assignee_id: UUID | None = None,
+    reset_acknowledged_at: bool = False,
+  ) -> None:
+    instance, node_instance = await self._load_workflow_graph_projection(task=task)
+    if instance is None or node_instance is None:
+      return
+
+    instance.status = WorkflowGraphInstanceStatus.ACTIVE
+    instance.completed_at = None
+    instance.current_node_key = node_instance.node_key
+    node_instance.completed_at = None
+    if assignee_id is not None:
+      node_instance.assignee_user_id = assignee_id
+
+    if business_state == WorkflowNodeBusinessState.ASSIGNED:
+      node_instance.engine_state = WorkflowNodeEngineState.ACTIVATED
+      node_instance.business_state = WorkflowNodeBusinessState.ASSIGNED
+      if reset_acknowledged_at:
+        node_instance.acknowledged_at = None
+      return
+
+    node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
+    node_instance.business_state = business_state
+    node_instance.acknowledged_at = reference_time
+
+  async def _ensure_task_assignee_or_manager(self, *, actor: User, task: Task) -> None:
+    if actor.role in MANAGEMENT_ROLES or actor.id == task.assignee_id:
+      return
+    raise AuthorizationError("当前账号不能提交该任务交付物。")
+
+  async def _ensure_task_reviewer(self, *, actor: User, task: Task) -> None:
+    if actor.role in MANAGEMENT_ROLES or actor.id == task.creator_id:
+      return
+    raise AuthorizationError("当前账号不能验收该任务。")
+
+  async def _ensure_task_handshake_actor(self, *, actor: User, task: Task) -> None:
+    if actor.role in MANAGEMENT_ROLES or actor.id == task.assignee_id:
+      return
+    raise AuthorizationError("当前账号不能处理该任务的握手动作。")
+
+  async def _resolve_delegate_assignee(
+    self,
+    *,
+    actor: User,
+    task: Task,
+    assignee_id: UUID,
+  ) -> User:
+    assignee = await self._session.get(User, assignee_id)
+    if assignee is None:
+      raise NotFoundError("转办目标不存在。")
+    ensure_active_user(assignee)
+    if assignee.id == task.assignee_id:
+      raise ConflictError("转办目标不能与当前执行人相同。")
+    if actor.id != task.assignee_id and not await can_manage_assignee(self._session, actor, assignee_id):
+      raise AuthorizationError("当前账号不能转办给该执行人。")
+    return assignee
 
   async def create_task(
     self,
@@ -885,26 +1409,27 @@ class TaskService:
       for task_id in pending_workflow_task_ids
       if task_id is not None
     }
-    task_filters = [Task.assignee_id == actor.id]
-    if candidate_task_ids:
-      task_filters.append(Task.id.in_(candidate_task_ids))
-
     tasks = list(
       await self._session.scalars(
-        select(Task)
-        .options(
-          selectinload(Task.assignee).selectinload(User.profile),
-          selectinload(Task.department),
-        )
-        .where(
-          or_(*task_filters),
-          Task.status != TaskStatus.DONE,
-        )
+        (await self._build_visible_task_statement(actor=actor)).where(Task.status != TaskStatus.DONE)
       )
     )
     step_context_map = await self._task_step_context_map(task_ids=[task.id for task in tasks])
+    inbox_tasks = [
+      task
+      for task in tasks
+      if task.id in candidate_task_ids
+      or (
+        self._uses_graph_handshake_cycle(task=task)
+        and self._manual_graph_current_handler_id(task=task) == actor.id
+      )
+      or (
+        not self._uses_graph_handshake_cycle(task=task)
+        and task.assignee_id == actor.id
+      )
+    ]
     sorted_tasks = sorted(
-      tasks,
+      inbox_tasks,
       key=lambda task: (
         task.due_date is None,
         _normalize_datetime(task.due_date) if task.due_date is not None else datetime.max.replace(tzinfo=UTC),
@@ -936,7 +1461,6 @@ class TaskService:
           )
         )
       )
-      if task_id is not None
     }
 
     tracking_filters = [
@@ -951,6 +1475,7 @@ class TaskService:
       await self._session.scalars(
         select(Task)
         .options(
+          selectinload(Task.creator).selectinload(User.profile),
           selectinload(Task.assignee).selectinload(User.profile),
           selectinload(Task.department),
           selectinload(Task.watchers),
@@ -1110,6 +1635,26 @@ class TaskService:
         },
       )
 
+    if assignee_id is not None and assignee_id != previous_assignee_id and self._uses_graph_handshake_cycle(task=task):
+      metadata = self._copy_task_metadata(task)
+      metadata.update(
+        {
+          "workflow_handshake_state": HANDSHAKE_ASSIGNED,
+          "latest_handshake_action": "reassigned",
+          "latest_handshake_actor_user_id": str(actor.id),
+          "latest_delegate_to_user_id": str(assignee_id),
+        }
+      )
+      task.extra_metadata = metadata
+      if task.status == TaskStatus.TODO:
+        await self._sync_graph_projection_for_handshake_state(
+          task=task,
+          business_state=WorkflowNodeBusinessState.ASSIGNED,
+          reference_time=task.updated_at,
+          assignee_id=assignee_id,
+          reset_acknowledged_at=True,
+        )
+
     await self._session.commit()
     await self._session.refresh(task)
 
@@ -1150,6 +1695,15 @@ class TaskService:
     allowed_statuses = ALLOWED_TASK_STATUS_TRANSITIONS[task.status]
     if target_status not in allowed_statuses:
       raise ConflictError("不支持的任务状态流转。")
+    if self._uses_graph_handshake_cycle(task=task):
+      handshake_state = self._handshake_state_for_task(task=task)
+      if task.status == TaskStatus.TODO and target_status == TaskStatus.DOING and handshake_state != HANDSHAKE_ACCEPTED:
+        raise ConflictError("图引擎任务必须先由执行人接受任务，才能开始处理。")
+    if (
+      self._uses_graph_handshake_cycle(task=task)
+      and target_status in {TaskStatus.REVIEW, TaskStatus.DONE}
+    ):
+      raise ConflictError("图引擎任务必须通过提交交付物和验收动作推进到评审或完成状态。")
     if target_status == TaskStatus.DOING:
       await self._ensure_task_dependencies_ready(task=task)
 
@@ -1161,6 +1715,12 @@ class TaskService:
       task.started_at = now
     if target_status == TaskStatus.DONE:
       task.completed_at = now
+
+    await self._sync_graph_projection_for_task_status(
+      task=task,
+      target_status=target_status,
+      reference_time=now,
+    )
 
     await self._create_task_log(
       task_id=task.id,
@@ -1177,6 +1737,356 @@ class TaskService:
     await self._session.refresh(task)
     if target_status == TaskStatus.DONE:
       await self._progress_template_instance_after_task_completion(task=task)
+    return task
+
+  async def submit_task_deliverable(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    summary: str | None,
+    attachment_ids: list[UUID] | None = None,
+  ) -> Task:
+    task = await self.get_task(actor=actor, task_id=task_id)
+    await self._ensure_task_assignee_or_manager(actor=actor, task=task)
+    if task.status != TaskStatus.DOING:
+      raise ConflictError("只有进行中的任务才能提交交付物。")
+
+    normalized_summary = summary.strip() if summary is not None else None
+    validated_attachment_ids = await self._validate_task_attachment_ids(
+      task_id=task.id,
+      attachment_ids=attachment_ids or [],
+    )
+    if not normalized_summary and not validated_attachment_ids:
+      raise ConflictError("交付说明或附件至少提供一项。")
+
+    now = datetime.now(UTC)
+    await self._upsert_task_deliverable(
+      task=task,
+      actor=actor,
+      summary=normalized_summary,
+      attachment_ids=validated_attachment_ids,
+      submitted_at=now,
+    )
+
+    metadata = self._copy_task_metadata(task)
+    metadata.update(
+      {
+        "latest_deliverable_summary": normalized_summary,
+        "latest_deliverable_attachment_ids": validated_attachment_ids,
+        "latest_deliverable_submitted_at": now.isoformat(),
+        "latest_deliverable_submitted_by_user_id": str(actor.id),
+        "latest_review_state": "pending_review",
+      }
+    )
+    task.extra_metadata = metadata
+    task.status = TaskStatus.REVIEW
+    task.updated_at = now
+    task.started_at = task.started_at or now
+    task.completed_at = None
+    await self._sync_graph_projection_for_task_status(
+      task=task,
+      target_status=TaskStatus.REVIEW,
+      reference_time=now,
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.STATUS_CHANGED,
+      from_status=TaskStatus.DOING,
+      to_status=TaskStatus.REVIEW,
+      detail={
+        "action": "submit_deliverable",
+        "summary": normalized_summary,
+        "attachment_ids": validated_attachment_ids,
+        "status": TaskStatus.REVIEW.value,
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(task)
+    return task
+
+  async def accept_task_assignment(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+  ) -> Task:
+    task = await self.get_task(actor=actor, task_id=task_id)
+    if not self._uses_graph_handshake_cycle(task=task):
+      raise ConflictError("当前任务不使用图引擎握手流程。")
+    await self._ensure_task_handshake_actor(actor=actor, task=task)
+    if task.status != TaskStatus.TODO:
+      raise ConflictError("只有待处理任务才能执行接受动作。")
+
+    handshake_state = self._handshake_state_for_task(task=task)
+    if handshake_state != HANDSHAKE_ASSIGNED:
+      raise ConflictError("当前任务已不处于待确认状态。")
+
+    now = datetime.now(UTC)
+    metadata = self._copy_task_metadata(task)
+    metadata.update(
+      {
+        "workflow_handshake_state": HANDSHAKE_ACCEPTED,
+        "latest_handshake_action": HANDSHAKE_ACCEPTED,
+        "latest_handshake_actor_user_id": str(actor.id),
+        "latest_handshake_at": now.isoformat(),
+      }
+    )
+    task.extra_metadata = metadata
+    task.updated_at = now
+    await self._sync_graph_projection_for_handshake_state(
+      task=task,
+      business_state=WorkflowNodeBusinessState.ACCEPTED,
+      reference_time=now,
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.ASSIGNED,
+      detail={
+        "action": HANDSHAKE_ACCEPTED,
+        "status": task.status.value,
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(task)
+    return task
+
+  async def reject_task_assignment(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    reason: str,
+  ) -> Task:
+    task = await self.get_task(actor=actor, task_id=task_id)
+    if not self._uses_graph_handshake_cycle(task=task):
+      raise ConflictError("当前任务不使用图引擎握手流程。")
+    await self._ensure_task_handshake_actor(actor=actor, task=task)
+    if task.status != TaskStatus.TODO:
+      raise ConflictError("只有待处理任务才能执行退回协商。")
+
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+      raise ConflictError("退回协商时必须填写原因。")
+
+    handshake_state = self._handshake_state_for_task(task=task)
+    if handshake_state not in {HANDSHAKE_ASSIGNED, HANDSHAKE_ACCEPTED}:
+      raise ConflictError("当前任务不能执行退回协商。")
+
+    now = datetime.now(UTC)
+    metadata = self._copy_task_metadata(task)
+    metadata.update(
+      {
+        "workflow_handshake_state": HANDSHAKE_REJECTED,
+        "latest_handshake_action": HANDSHAKE_REJECTED,
+        "latest_handshake_actor_user_id": str(actor.id),
+        "latest_handshake_at": now.isoformat(),
+        "latest_reject_reason": normalized_reason,
+      }
+    )
+    task.extra_metadata = metadata
+    task.updated_at = now
+    await self._sync_graph_projection_for_handshake_state(
+      task=task,
+      business_state=WorkflowNodeBusinessState.REJECTED,
+      reference_time=now,
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.ASSIGNED,
+      detail={
+        "action": HANDSHAKE_REJECTED,
+        "reason": normalized_reason,
+        "status": task.status.value,
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(task)
+    return task
+
+  async def delegate_task_assignment(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    assignee_id: UUID,
+    reason: str,
+  ) -> Task:
+    task = await self.get_task(actor=actor, task_id=task_id)
+    if not self._uses_graph_handshake_cycle(task=task):
+      raise ConflictError("当前任务不使用图引擎握手流程。")
+    await self._ensure_task_handshake_actor(actor=actor, task=task)
+    if task.status != TaskStatus.TODO:
+      raise ConflictError("只有待处理任务才能执行转办。")
+
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+      raise ConflictError("转办时必须填写原因。")
+
+    handshake_state = self._handshake_state_for_task(task=task)
+    if handshake_state not in {HANDSHAKE_ASSIGNED, HANDSHAKE_ACCEPTED}:
+      raise ConflictError("当前任务不能执行转办。")
+
+    next_assignee = await self._resolve_delegate_assignee(actor=actor, task=task, assignee_id=assignee_id)
+    previous_assignee_id = task.assignee_id
+    now = datetime.now(UTC)
+    task.assignee_id = next_assignee.id
+    task.updated_at = now
+    metadata = self._copy_task_metadata(task)
+    metadata.update(
+      {
+        "workflow_handshake_state": HANDSHAKE_ASSIGNED,
+        "latest_handshake_action": "delegated",
+        "latest_handshake_actor_user_id": str(actor.id),
+        "latest_handshake_at": now.isoformat(),
+        "latest_delegate_reason": normalized_reason,
+        "latest_delegate_from_user_id": str(previous_assignee_id),
+        "latest_delegate_to_user_id": str(next_assignee.id),
+      }
+    )
+    task.extra_metadata = metadata
+    await self._sync_graph_projection_for_handshake_state(
+      task=task,
+      business_state=WorkflowNodeBusinessState.ASSIGNED,
+      reference_time=now,
+      assignee_id=next_assignee.id,
+      reset_acknowledged_at=True,
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.ASSIGNED,
+      detail={
+        "action": "delegated",
+        "reason": normalized_reason,
+        "previous_assignee_id": str(previous_assignee_id),
+        "assignee_id": str(next_assignee.id),
+        "assignee_email": next_assignee.email,
+        "status": task.status.value,
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(task)
+    await self._send_assignment_notification(task=task, assignee=next_assignee)
+    return task
+
+  async def review_task_deliverable(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    approve: bool,
+    comment: str | None = None,
+    quality_score: int | None = None,
+  ) -> Task:
+    task = await self.get_task(actor=actor, task_id=task_id)
+    await self._ensure_task_reviewer(actor=actor, task=task)
+    if task.status != TaskStatus.REVIEW:
+      raise ConflictError("只有评审中的任务才能执行验收动作。")
+
+    normalized_comment = comment.strip() if comment is not None else None
+    now = datetime.now(UTC)
+    metadata = self._copy_task_metadata(task)
+    metadata.update(
+      {
+        "latest_reviewed_at": now.isoformat(),
+        "latest_reviewer_user_id": str(actor.id),
+      }
+    )
+
+    if approve:
+      if quality_score is not None and quality_score not in {1, 2, 3, 4, 5}:
+        raise ConflictError("完成质量评分必须在 1 到 5 之间。")
+      metadata.update(
+        {
+          "latest_review_state": "approved",
+          "latest_review_comment": normalized_comment,
+          "latest_review_quality_score": quality_score,
+        }
+      )
+      task.extra_metadata = metadata
+      task.status = TaskStatus.DONE
+      task.updated_at = now
+      task.completed_at = now
+      await self._record_task_review_result(
+        task=task,
+        actor=actor,
+        action="approve_completion",
+        comment=normalized_comment,
+        reviewed_at=now,
+      )
+      await self._sync_graph_projection_for_task_status(
+        task=task,
+        target_status=TaskStatus.DONE,
+        reference_time=now,
+      )
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.STATUS_CHANGED,
+        from_status=TaskStatus.REVIEW,
+        to_status=TaskStatus.DONE,
+        detail={
+          "action": "approve_completion",
+          "comment": normalized_comment,
+          "quality_score": quality_score,
+          "status": TaskStatus.DONE.value,
+        },
+      )
+      await self._session.commit()
+      await self._session.refresh(task)
+      await self._progress_template_instance_after_task_completion(task=task)
+      return task
+
+    if not normalized_comment:
+      raise ConflictError("打回返工时必须填写返工原因。")
+
+    rework_count = self._read_int_metadata(metadata, "rework_count") + 1
+    metadata.update(
+      {
+        "latest_review_state": "returned_for_rework",
+        "latest_review_comment": normalized_comment,
+        "latest_rework_reason": normalized_comment,
+        "rework_count": rework_count,
+      }
+    )
+    task.extra_metadata = metadata
+    task.status = TaskStatus.DOING
+    task.updated_at = now
+    task.completed_at = None
+    task.started_at = task.started_at or now
+    await self._record_task_review_result(
+      task=task,
+      actor=actor,
+      action="return_for_rework",
+      comment=normalized_comment,
+      reviewed_at=now,
+      rework_count=rework_count,
+    )
+    await self._sync_graph_projection_for_task_status(
+      task=task,
+      target_status=TaskStatus.DOING,
+      reference_time=now,
+      force_business_state=WorkflowNodeBusinessState.RETURNED_FOR_REWORK,
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.STATUS_CHANGED,
+      from_status=TaskStatus.REVIEW,
+      to_status=TaskStatus.DOING,
+      detail={
+        "action": "return_for_rework",
+        "comment": normalized_comment,
+        "rework_count": rework_count,
+        "status": TaskStatus.DOING.value,
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(task)
     return task
 
   async def create_task_comment(

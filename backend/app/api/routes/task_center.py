@@ -112,6 +112,10 @@ async def read_task_center(
         relation_types=item.relation_types,
         current_stage_label=item.current_stage_label,
         current_handler_label=item.current_handler_label,
+        latest_deliverable_submitted_at=item.latest_deliverable_submitted_at,
+        rework_count=item.rework_count,
+        review_quality_score=item.review_quality_score,
+        is_pending_review=item.is_pending_review,
       )
       for item in snapshot.task_tracking
     ],

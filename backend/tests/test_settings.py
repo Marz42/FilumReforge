@@ -18,6 +18,10 @@ def test_default_settings_align_with_phase_a_baseline() -> None:
   assert settings.auth_refresh_cookie_secure is False
   assert settings.auth_invitation_expiry_hours == 72
   assert settings.frontend_app_url == "http://localhost:5173"
+  assert settings.workflow_graph_engine_enabled is False
+  assert settings.task_center_v2_enabled is False
+  assert settings.workflow_wait_any_enabled is False
+  assert settings.workflow_deep_rejection_enabled is False
   assert settings.openai_chat_model == "gpt-5-mini"
   assert settings.openai_embedding_model == "text-embedding-3-small"
   assert settings.openai_embedding_dimensions == 1536
@@ -48,8 +52,43 @@ def test_settings_parse_cors_lists_from_csv() -> None:
   assert settings.cors_allowed_headers == ["Authorization", "Content-Type"]
 
 
+def test_settings_parse_cors_lists_from_dotenv_csv(tmp_path: pytest.TempPathFactory) -> None:
+  env_file = tmp_path / ".env"
+  env_file.write_text(
+    "\n".join(
+      [
+        "JWT_SECRET_KEY=test-jwt-secret-key-for-suite-123456",
+        "CORS_ALLOWED_ORIGINS=https://app.example.com, https://ops.example.com",
+        "CORS_ALLOWED_HEADERS=Authorization, Content-Type",
+      ]
+    ),
+    encoding="utf-8",
+  )
+
+  settings = Settings(_env_file=env_file)
+
+  assert settings.cors_allowed_origins == ["https://app.example.com", "https://ops.example.com"]
+  assert settings.cors_allowed_headers == ["Authorization", "Content-Type"]
+
+
+def test_settings_parse_workflow_feature_flags() -> None:
+  settings = Settings(
+    jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+    workflow_graph_engine_enabled=True,
+    task_center_v2_enabled=True,
+    workflow_wait_any_enabled=True,
+    workflow_deep_rejection_enabled=True,
+  )
+
+  assert settings.workflow_graph_engine_enabled is True
+  assert settings.task_center_v2_enabled is True
+  assert settings.workflow_wait_any_enabled is True
+  assert settings.workflow_deep_rejection_enabled is True
+
+
 def test_production_settings_do_not_fall_back_to_local_dev_cors_defaults() -> None:
   settings = Settings(
+    _env_file=None,
     app_env="production",
     jwt_secret_key="test-jwt-secret-key-for-suite-123456",
   )
