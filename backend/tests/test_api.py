@@ -16,11 +16,13 @@ from sqlalchemy.pool import StaticPool
 from app.api.dependencies import (
   get_job_queue_publisher,
   get_notification_queue_publisher,
+  get_workflow_graph_service,
   get_report_service,
   get_openai_client,
 )
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
+from app.core.exceptions import ConflictError
 from app.main import create_app
 from app.models import Base, ErrorEvent, WorkflowDeliverable, WorkflowGraphInstance, WorkflowNodeInstance
 from app.workers.arq_worker import (
@@ -3572,3 +3574,138 @@ async def test_phase6_node_completion_triggers_downstream_activation(api_client)
     json={},
   )
   assert complete_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_phase8_node_completion_api_blocks_terminated_node_submission(api_client) -> None:
+  """Phase 8: 节点被系统撤权后，complete API 应返回 409 冲突。"""
+  client, _ = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+
+  class _FakeWorkflowGraphService:
+    async def complete_node_instance(self, **kwargs):  # noqa: ANN003, ANN201
+      raise ConflictError("当前节点已被系统撤权，不能继续提交。")
+
+  application = client._transport.app  # type: ignore[attr-defined]
+  application.dependency_overrides[get_workflow_graph_service] = lambda: _FakeWorkflowGraphService()
+
+  try:
+    response = await client.post(
+      "/api/v1/workflow-graph/node-instances/00000000-0000-0000-0000-000000000000/complete",
+      headers=admin_headers,
+      json={},
+    )
+  finally:
+    application.dependency_overrides.pop(get_workflow_graph_service, None)
+
+  assert response.status_code == 409
+  assert "已被系统撤权" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_phase7_smart_notice_candidates_api_returns_intermediate_managers(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  me_response = await client.get("/api/v1/auth/me", headers=headers)
+  assert me_response.status_code == 200
+  admin_id = me_response.json()["id"]
+
+  manager_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "phase7-manager@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert manager_response.status_code == 201
+  manager_id = manager_response.json()["id"]
+
+  assignee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "phase7-assignee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert assignee_response.status_code == 201
+  assignee_id = assignee_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=headers,
+    json={
+      "name": "Phase7 智能抄送测试部",
+      "code": "phase7-smart-notice-dept",
+      "parent_id": root_department["id"],
+      "manager_id": admin_id,
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  for user_id, employee_no, real_name in [
+    (manager_id, "EMP-P7-M1", "中间经理"),
+    (assignee_id, "EMP-P7-A1", "执行人"),
+  ]:
+    profile_response = await client.post(
+      "/api/v1/profiles",
+      headers=headers,
+      json={
+        "user_id": user_id,
+        "employee_no": employee_no,
+        "real_name": real_name,
+        "department_id": department_id,
+        "custom_fields": {},
+      },
+    )
+    assert profile_response.status_code == 201
+
+  assignee_reporting_line = await client.post(
+    f"/api/v1/profiles/{assignee_id}/reporting-lines",
+    headers=headers,
+    json={
+      "manager_user_id": manager_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert assignee_reporting_line.status_code == 201
+
+  manager_reporting_line = await client.post(
+    f"/api/v1/profiles/{manager_id}/reporting-lines",
+    headers=headers,
+    json={
+      "manager_user_id": admin_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert manager_reporting_line.status_code == 201
+
+  candidate_response = await client.post(
+    "/api/v1/workflow-graph/smart-notice-candidates",
+    headers=headers,
+    json={
+      "initiator_user_id": admin_id,
+      "target_user_id": assignee_id,
+      "include_user_ids": [],
+      "exclude_user_ids": [],
+    },
+  )
+  assert candidate_response.status_code == 200
+  payload = candidate_response.json()
+  assert payload["reached_initiator"] is True
+  assert payload["candidate_user_ids"] == [manager_id]

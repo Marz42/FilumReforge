@@ -42,6 +42,7 @@ class WorkflowGraphInstanceRead(BaseModel):
   source_type: str | None
   status: WorkflowGraphInstanceStatus
   current_node_key: str | None
+  context: dict[str, object]
   context_version: int
   max_iterations: int
   completed_at: datetime | None
@@ -59,3 +60,16 @@ class WorkflowGraphInstanceDetailRead(WorkflowGraphInstanceRead):
 
 class WorkflowNodeCompleteRequest(BaseModel):
   summary: str | None = None
+  context_updates: dict[str, object] | None = None
+
+
+class WorkflowSmartNoticeCandidatesRequest(BaseModel):
+  initiator_user_id: UUID
+  target_user_id: UUID
+  include_user_ids: list[UUID] = []
+  exclude_user_ids: list[UUID] = []
+
+
+class WorkflowSmartNoticeCandidatesResponse(BaseModel):
+  candidate_user_ids: list[UUID]
+  reached_initiator: bool

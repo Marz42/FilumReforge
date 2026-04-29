@@ -3,7 +3,7 @@
 .vscode/
 *.log
 *.pid
-
+.venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/

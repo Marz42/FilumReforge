@@ -688,4 +688,74 @@ describe('TaskTemplates view', () => {
     expect(createTaskTemplate).not.toHaveBeenCalled()
     expect(messageErrorSpy).toHaveBeenCalledWith('步骤「多人提交素材」使用单任务模式时不能选择多人负责人规则')
   })
+
+  it('shows wait-any warning and race-cancelled run hint', async () => {
+    const waitAnyTemplate: TaskTemplate = {
+      ...mockTemplate,
+      steps: [
+        {
+          ...mockTemplate.steps[0],
+          step_key: 'parallel_review',
+          title: '并行审核',
+          assignment_mode: 'fan_out',
+          join_mode: 'any',
+          default_assignee_rule: { type: 'user_ids', user_ids: ['user-1', 'user-2'] },
+        },
+      ],
+    }
+
+    const waitAnyInstance: TaskTemplateInstance = {
+      ...mockTemplateInstance,
+      step_snapshots: [
+        {
+          ...mockTemplateInstance.step_snapshots[0],
+          step: waitAnyTemplate.steps[0],
+          status: 'active',
+          total_run_count: 2,
+          active_run_count: 0,
+          completed_run_count: 1,
+          step_runs: [
+            {
+              ...mockTemplateInstance.step_snapshots[0]!.step_runs[0]!,
+              id: 'run-completed',
+              assignee_user_id: 'user-1',
+              assignee_email: 'admin@example.com',
+              status: 'completed',
+            },
+            {
+              ...mockTemplateInstance.step_snapshots[0]!.step_runs[0]!,
+              id: 'run-cancelled',
+              assignee_user_id: 'user-2',
+              assignee_email: 'employee@example.com',
+              status: 'cancelled',
+              task: null,
+            },
+          ],
+        },
+      ],
+    }
+
+    vi.mocked(listTaskTemplates).mockResolvedValue([waitAnyTemplate])
+    vi.mocked(listTaskTemplateInstances).mockResolvedValue([waitAnyInstance])
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('任一完成推进')
+    expect(wrapper.text()).toContain('已因或签命中被系统撤权')
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('编辑模板'))
+    expect(editButton).toBeTruthy()
+    await editButton?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('该步骤启用或签/抢单模式')
+  })
 })

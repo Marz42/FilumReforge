@@ -818,6 +818,23 @@ function formatStepMode(step: TaskTemplate['steps'][number]): string {
   return '单任务步骤'
 }
 
+function isWaitAnyStep(step: TaskTemplate['steps'][number]): boolean {
+  return step.assignment_mode === 'fan_out' && step.join_mode === 'any'
+}
+
+function formatStepRunCancellationHint(
+  snapshot: TaskTemplateInstance['step_snapshots'][number],
+  stepRun: TaskTemplateInstance['step_snapshots'][number]['step_runs'][number],
+): string {
+  if (stepRun.status !== 'cancelled') {
+    return ''
+  }
+  if (isWaitAnyStep(snapshot.step)) {
+    return '已因或签命中被系统撤权'
+  }
+  return '该执行项已取消'
+}
+
 function formatTemplateInstanceStatus(status: TaskTemplateInstance['status']): string {
   if (status === 'completed') {
     return '已完成'
@@ -1352,11 +1369,19 @@ onMounted(() => {
                               <strong>{{ stepRun.assignee_email || stepRun.assignee_user_id }}</strong>
                               <p>{{ stepRun.task?.title || '任务生成中' }}</p>
                             </div>
-                            <div class="page__instance-run-status">
-                              <el-tag size="small" :type="resolveStepRunTagType(stepRun.status)" effect="plain">
-                                {{ formatStepRunStatus(stepRun.status) }}
-                              </el-tag>
-                              <span v-if="stepRun.task">{{ formatTaskStatus(stepRun.task.status) }}</span>
+                            <div>
+                              <div class="page__instance-run-status">
+                                <el-tag size="small" :type="resolveStepRunTagType(stepRun.status)" effect="plain">
+                                  {{ formatStepRunStatus(stepRun.status) }}
+                                </el-tag>
+                                <span v-if="stepRun.task">{{ formatTaskStatus(stepRun.task.status) }}</span>
+                              </div>
+                              <p
+                                v-if="formatStepRunCancellationHint(snapshot, stepRun)"
+                                class="page__instance-run-hint"
+                              >
+                                {{ formatStepRunCancellationHint(snapshot, stepRun) }}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -1577,6 +1602,18 @@ onMounted(() => {
                   <el-option label="全部完成后推进" value="all" />
                   <el-option label="任一完成后推进" value="any" />
                 </el-select>
+              </el-form-item>
+              <el-form-item
+                v-if="step.assignment_mode === 'fan_out' && step.join_mode === 'any'"
+                class="page__designer-grid-full"
+                label="或签提示"
+              >
+                <el-alert
+                  type="warning"
+                  show-icon
+                  :closable="false"
+                  title="该步骤启用或签/抢单模式：任一处理人先完成后，其余并发处理人将被系统自动撤权。"
+                />
               </el-form-item>
               <el-form-item label="负责人规则">
                 <el-select v-model="step.assignee_rule_type" :disabled="templateStructureLocked" @change="handleAssigneeRuleTypeChange(step)">
@@ -1808,6 +1845,12 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   color: var(--el-text-color-secondary);
+}
+
+.page__instance-run-hint {
+  margin: 4px 0 0;
+  color: var(--el-color-danger);
+  font-size: 12px;
 }
 
 .page__schedule-form,

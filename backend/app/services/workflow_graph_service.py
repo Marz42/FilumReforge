@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -156,7 +157,7 @@ class WorkflowGraphService:
     """根据 WorkflowGraphTemplate 创建图实例与全部节点实例。
 
     - 无入度节点以 ACTIVATED 状态创建，其余节点以 PENDING 状态创建。
-    - join_mode=any 目前不受支持，遇到时抛出 ConflictError（留待 Phase 8）。
+    - 支持 join_mode=all / join_mode=any。
     """
     template = await self._session.scalar(
       select(WorkflowGraphTemplate).where(WorkflowGraphTemplate.id == template_id)
@@ -180,13 +181,6 @@ class WorkflowGraphService:
         .where(WorkflowGraphTemplateEdge.template_id == template_id)
       )
     )
-
-    # Phase 8 guard: join_mode=any not yet supported
-    for node in nodes:
-      if node.join_mode == "any" and node.assignment_mode == "fan_out":
-        raise ConflictError(
-          f"节点 '{node.node_key}' 使用 join_mode=any，当前版本暂不支持，请等待 Phase 8 发布。"
-        )
 
     # 计算每个节点的入度
     in_degree: dict[UUID, int] = {node.id: 0 for node in nodes}
@@ -238,6 +232,12 @@ class WorkflowGraphService:
     instance.current_node_key = start_node_key
     await self._session.flush()
 
+    # Phase 7: Notice Node 触达即完成，不阻塞主链。
+    await self._auto_complete_activated_notice_nodes(
+      graph_instance=instance,
+      now=now,
+    )
+
     return MultiNodeWorkflowResult(instance=instance, node_instances=node_instances)
 
   async def complete_node_instance(
@@ -245,10 +245,11 @@ class WorkflowGraphService:
     *,
     node_instance_id: UUID,
     actor_id: UUID,
+    context_updates: dict[str, Any] | None = None,
   ) -> None:
     """标记节点实例为已完成，并在事务中检查 / 激活下游节点。
 
-    不支持 join_mode=any（Phase 8 保留）。
+    支持 join_mode=all / join_mode=any。
     """
     # 先用 SELECT … FOR UPDATE 防止并发写
     node_instance: WorkflowNodeInstance | None = await self._session.scalar(
@@ -262,12 +263,22 @@ class WorkflowGraphService:
     graph_instance = await self._lock_graph_instance(instance_id=node_instance.instance_id)
     if node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
       return  # 幂等保护
+    if node_instance.engine_state == WorkflowNodeEngineState.TERMINATED:
+      raise ConflictError("当前节点已被系统撤权，不能继续提交。")
     if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
       raise ConflictError("当前工作流图实例已结束，不能继续完成节点。")
     if node_instance.engine_state != WorkflowNodeEngineState.ACTIVATED:
       raise ConflictError("只有处于 ACTIVATED 状态的节点才能完成。")
     if node_instance.assignee_user_id is not None and node_instance.assignee_user_id != actor_id:
       raise ConflictError("只有当前受理人才能完成节点。")
+
+    if context_updates:
+      context_changed = self._apply_context_updates(
+        graph_instance=graph_instance,
+        context_updates=context_updates,
+      )
+      if context_changed:
+        graph_instance.context_version += 1
 
     now = datetime.now(UTC)
     node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
@@ -289,7 +300,7 @@ class WorkflowGraphService:
     completed_node_instance: WorkflowNodeInstance,
     now: datetime,
   ) -> None:
-    """检查并激活下游节点。只处理 join_mode=all（Wait-All）和单入度顺序流。"""
+    """检查并激活下游节点，支持 join_mode=all 与 join_mode=any。"""
     instance_id = completed_node_instance.instance_id
     template_node_id = completed_node_instance.template_node_id
     if template_node_id is None:
@@ -313,7 +324,16 @@ class WorkflowGraphService:
       await self._maybe_complete_instance(graph_instance=graph_instance, now=now)
       return
 
-    downstream_node_ids = {edge.to_node_id for edge in outgoing_edges}
+    downstream_node_ids = self._resolve_routable_downstream_node_ids(
+      outgoing_edges=outgoing_edges,
+      context=graph_instance.context,
+    )
+
+    if not downstream_node_ids:
+      await self._maybe_complete_instance(graph_instance=graph_instance, now=now)
+      return
+
+    activated_notice_nodes: list[WorkflowNodeInstance] = []
 
     for downstream_template_node_id in downstream_node_ids:
       downstream_template_node: WorkflowGraphTemplateNode | None = await self._session.get(
@@ -321,12 +341,6 @@ class WorkflowGraphService:
       )
       if downstream_template_node is None:
         continue
-
-      # Phase 8 guard
-      if downstream_template_node.join_mode == "any":
-        raise ConflictError(
-          f"下游节点 '{downstream_template_node.node_key}' 使用 join_mode=any，当前版本暂不支持。"
-        )
 
       # 找出这个下游节点对应的实例节点（使用 FOR UPDATE 防止并发激活）
       downstream_ni: WorkflowNodeInstance | None = await self._session.scalar(
@@ -365,8 +379,19 @@ class WorkflowGraphService:
         )
       )
 
-      all_upstream_done = upstream_template_node_ids == completed_upstream_ids
-      if not all_upstream_done:
+      join_mode = (downstream_template_node.join_mode or "all").strip().lower()
+      can_activate = False
+      if join_mode == "all":
+        can_activate = upstream_template_node_ids == completed_upstream_ids
+      elif join_mode == "any":
+        # Wait-Any: 任一上游先完成即满足激活条件。
+        can_activate = bool(completed_upstream_ids.intersection(upstream_template_node_ids))
+      else:
+        raise ConflictError(
+          f"下游节点 '{downstream_template_node.node_key}' 使用了不支持的 join_mode：{downstream_template_node.join_mode}。"
+        )
+
+      if not can_activate:
         continue
 
       # 激活下游节点
@@ -375,10 +400,239 @@ class WorkflowGraphService:
       downstream_ni.activated_at = now
       downstream_ni.node_instance_version += 1
 
+      if join_mode == "any":
+        await self._terminate_wait_any_peer_nodes(
+          instance_id=instance_id,
+          upstream_template_node_ids=upstream_template_node_ids,
+          winner_node_instance_id=completed_node_instance.id,
+          now=now,
+        )
+
+      if downstream_template_node.node_type == WorkflowGraphNodeType.NOTICE:
+        activated_notice_nodes.append(downstream_ni)
+
     graph_instance.current_node_key = await self._resolve_current_node_key(instance_id=instance_id)
 
     await self._session.flush()
+    await self._auto_complete_notice_nodes(
+      graph_instance=graph_instance,
+      notice_nodes=activated_notice_nodes,
+      now=now,
+    )
     await self._maybe_complete_instance(graph_instance=graph_instance, now=now)
+
+  async def _terminate_wait_any_peer_nodes(
+    self,
+    *,
+    instance_id: UUID,
+    upstream_template_node_ids: set[UUID],
+    winner_node_instance_id: UUID,
+    now: datetime,
+  ) -> None:
+    """Wait-Any 场景下终止同批次未完成节点，收回办理权限。"""
+    if not upstream_template_node_ids:
+      return
+
+    peer_nodes: list[WorkflowNodeInstance] = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance)
+        .where(
+          WorkflowNodeInstance.instance_id == instance_id,
+          WorkflowNodeInstance.template_node_id.in_(upstream_template_node_ids),
+          WorkflowNodeInstance.id != winner_node_instance_id,
+          WorkflowNodeInstance.engine_state.in_(
+            [WorkflowNodeEngineState.ACTIVATED, WorkflowNodeEngineState.ACKNOWLEDGED]
+          ),
+        )
+        .with_for_update(skip_locked=True)
+      )
+    )
+
+    for peer in peer_nodes:
+      peer.engine_state = WorkflowNodeEngineState.TERMINATED
+      peer.business_state = WorkflowNodeBusinessState.CANCELLED
+      peer.terminated_at = now
+      peer.node_instance_version += 1
+
+      config = dict(peer.config or {})
+      config["system_resolution"] = {
+        "reason": "wait_any_race_cancelled",
+        "resolved_by_node_instance_id": str(winner_node_instance_id),
+        "resolved_at": now.isoformat(),
+      }
+      peer.config = config
+
+    if peer_nodes:
+      await self._session.flush()
+
+  def _apply_context_updates(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+    context_updates: dict[str, Any],
+  ) -> bool:
+    current_context = dict(graph_instance.context or {})
+    changed = False
+    for key, value in context_updates.items():
+      if value is None:
+        if key in current_context:
+          current_context.pop(key, None)
+          changed = True
+        continue
+
+      if current_context.get(key) != value:
+        current_context[key] = value
+        changed = True
+
+    if changed:
+      graph_instance.context = current_context
+    return changed
+
+  def _resolve_routable_downstream_node_ids(
+    self,
+    *,
+    outgoing_edges: list[WorkflowGraphTemplateEdge],
+    context: dict[str, Any],
+  ) -> set[UUID]:
+    matched_edges: list[WorkflowGraphTemplateEdge] = []
+    else_edges: list[WorkflowGraphTemplateEdge] = []
+
+    for edge in sorted(outgoing_edges, key=lambda item: item.priority):
+      condition = dict(edge.condition or {})
+      if self._is_else_condition(condition):
+        else_edges.append(edge)
+        continue
+      if self._evaluate_condition(condition=condition, context=context):
+        matched_edges.append(edge)
+
+    selected = matched_edges or else_edges
+    return {edge.to_node_id for edge in selected}
+
+  def _is_else_condition(self, condition: dict[str, Any]) -> bool:
+    return bool(condition.get("else") is True or condition.get("type") == "else")
+
+  def _evaluate_condition(
+    self,
+    *,
+    condition: dict[str, Any],
+    context: dict[str, Any],
+  ) -> bool:
+    if not condition:
+      return True
+
+    all_conditions = condition.get("all")
+    if isinstance(all_conditions, list):
+      return all(
+        self._evaluate_condition(condition=item, context=context)
+        for item in all_conditions
+        if isinstance(item, dict)
+      )
+
+    any_conditions = condition.get("any")
+    if isinstance(any_conditions, list):
+      return any(
+        self._evaluate_condition(condition=item, context=context)
+        for item in any_conditions
+        if isinstance(item, dict)
+      )
+
+    field_name = condition.get("field")
+    if not isinstance(field_name, str) or not field_name:
+      return False
+
+    actual_value = self._resolve_context_value(context=context, field_path=field_name)
+    operator = str(condition.get("operator") or "eq").lower()
+    expected_value = condition.get("value")
+
+    if operator == "eq":
+      return actual_value == expected_value
+    if operator == "neq":
+      return actual_value != expected_value
+    if operator == "gt":
+      return self._safe_compare(actual_value, expected_value, compare="gt")
+    if operator == "gte":
+      return self._safe_compare(actual_value, expected_value, compare="gte")
+    if operator == "lt":
+      return self._safe_compare(actual_value, expected_value, compare="lt")
+    if operator == "lte":
+      return self._safe_compare(actual_value, expected_value, compare="lte")
+    if operator == "in":
+      return isinstance(expected_value, list) and actual_value in expected_value
+    if operator == "not_in":
+      return isinstance(expected_value, list) and actual_value not in expected_value
+    if operator == "contains":
+      if isinstance(actual_value, list):
+        return expected_value in actual_value
+      if isinstance(actual_value, str) and isinstance(expected_value, str):
+        return expected_value in actual_value
+      return False
+    if operator == "exists":
+      return actual_value is not None
+
+    return False
+
+  def _resolve_context_value(self, *, context: dict[str, Any], field_path: str) -> Any:
+    value: Any = context
+    for part in field_path.split("."):
+      if not isinstance(value, dict) or part not in value:
+        return None
+      value = value[part]
+    return value
+
+  def _safe_compare(self, actual_value: Any, expected_value: Any, *, compare: str) -> bool:
+    try:
+      if compare == "gt":
+        return actual_value > expected_value
+      if compare == "gte":
+        return actual_value >= expected_value
+      if compare == "lt":
+        return actual_value < expected_value
+      return actual_value <= expected_value
+    except TypeError:
+      return False
+
+  async def _auto_complete_activated_notice_nodes(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+    now: datetime,
+  ) -> None:
+    activated_notice_nodes = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance).where(
+          WorkflowNodeInstance.instance_id == graph_instance.id,
+          WorkflowNodeInstance.node_type == WorkflowGraphNodeType.NOTICE,
+          WorkflowNodeInstance.engine_state == WorkflowNodeEngineState.ACTIVATED,
+        )
+      )
+    )
+    await self._auto_complete_notice_nodes(
+      graph_instance=graph_instance,
+      notice_nodes=activated_notice_nodes,
+      now=now,
+    )
+
+  async def _auto_complete_notice_nodes(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+    notice_nodes: list[WorkflowNodeInstance],
+    now: datetime,
+  ) -> None:
+    for notice_node in notice_nodes:
+      if notice_node.engine_state != WorkflowNodeEngineState.ACTIVATED:
+        continue
+      notice_node.engine_state = WorkflowNodeEngineState.COMPLETED
+      notice_node.business_state = WorkflowNodeBusinessState.DONE
+      notice_node.completed_at = now
+      notice_node.node_instance_version += 1
+      await self._session.flush()
+
+      await self._activate_downstream(
+        graph_instance=graph_instance,
+        completed_node_instance=notice_node,
+        now=now,
+      )
 
   async def _maybe_complete_instance(
     self,

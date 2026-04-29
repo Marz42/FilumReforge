@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -256,3 +256,72 @@ class OrganizationRelationService:
         raise ConflictError("存在未来生效的主要汇报线，请先调整已有汇报记录。")
       reporting_line.ends_at = effective_start
       reporting_line.is_primary = False
+
+  async def suggest_notice_recipients(
+    self,
+    *,
+    initiator_user_id: UUID,
+    target_user_id: UUID,
+    include_user_ids: list[UUID] | None = None,
+    exclude_user_ids: list[UUID] | None = None,
+  ) -> tuple[list[UUID], bool]:
+    """基于当前 solid 汇报线返回发起人与接收人之间的中间领导链。"""
+    today = datetime.now(UTC).date()
+    active_lines = list(
+      await self._session.scalars(
+        select(ReportingLine)
+        .where(
+          ReportingLine.line_type == ReportingLineType.SOLID,
+          ReportingLine.is_primary.is_(True),
+          ReportingLine.starts_at <= today,
+          or_(ReportingLine.ends_at.is_(None), ReportingLine.ends_at >= today),
+        )
+        .order_by(ReportingLine.starts_at.desc(), ReportingLine.created_at.desc())
+      )
+    )
+
+    manager_by_user: dict[UUID, UUID] = {}
+    for line in active_lines:
+      manager_by_user.setdefault(line.user_id, line.manager_user_id)
+
+    current_user_id = target_user_id
+    visited = {target_user_id}
+    chain: list[UUID] = []
+    reached_initiator = False
+
+    while current_user_id in manager_by_user:
+      manager_user_id = manager_by_user[current_user_id]
+      if manager_user_id in visited:
+        break
+      visited.add(manager_user_id)
+
+      if manager_user_id == initiator_user_id:
+        reached_initiator = True
+        break
+
+      chain.append(manager_user_id)
+      current_user_id = manager_user_id
+
+    excluded_ids = set(exclude_user_ids or [])
+    include_ids = include_user_ids or []
+
+    ordered_ids: list[UUID] = []
+    seen_ids: set[UUID] = set()
+    for user_id in [*chain, *include_ids]:
+      if user_id == initiator_user_id or user_id == target_user_id or user_id in excluded_ids:
+        continue
+      if user_id in seen_ids:
+        continue
+      ordered_ids.append(user_id)
+      seen_ids.add(user_id)
+
+    if not ordered_ids:
+      return [], reached_initiator
+
+    existing_user_ids = set(
+      await self._session.scalars(
+        select(User.id).where(User.id.in_(ordered_ids))
+      )
+    )
+    filtered_ids = [user_id for user_id in ordered_ids if user_id in existing_user_ids]
+    return filtered_ids, reached_initiator

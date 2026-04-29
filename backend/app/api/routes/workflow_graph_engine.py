@@ -5,7 +5,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.dependencies import get_current_user, get_workflow_graph_service
+from app.api.dependencies import (
+  get_current_user,
+  get_organization_relation_service,
+  get_workflow_graph_service,
+)
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
 from app.schemas.workflow_graph import (
@@ -13,7 +17,10 @@ from app.schemas.workflow_graph import (
   WorkflowGraphInstanceRead,
   WorkflowNodeCompleteRequest,
   WorkflowNodeInstanceRead,
+  WorkflowSmartNoticeCandidatesRequest,
+  WorkflowSmartNoticeCandidatesResponse,
 )
+from app.services.organization_relation_service import OrganizationRelationService
 from app.services.workflow_graph_service import WorkflowGraphService
 
 router = APIRouter(prefix="/workflow-graph")
@@ -102,6 +109,7 @@ async def complete_node_instance(
   await workflow_graph_service.complete_node_instance(
     node_instance_id=node_instance_id,
     actor_id=actor.id,
+    context_updates=payload.context_updates,
   )
   # 重新查询实例以返回最新快照
   node_instance: WorkflowNodeInstance | None = await workflow_graph_service._session.get(
@@ -115,3 +123,28 @@ async def complete_node_instance(
     instance_id=node_instance.instance_id
   )
   return _build_instance_detail(instance, node_instances)
+
+
+@router.post(
+  "/smart-notice-candidates",
+  response_model=WorkflowSmartNoticeCandidatesResponse,
+  tags=["workflow-graph"],
+)
+async def compute_smart_notice_candidates(
+  payload: WorkflowSmartNoticeCandidatesRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  organization_relation_service: Annotated[
+    OrganizationRelationService,
+    Depends(get_organization_relation_service),
+  ],
+) -> WorkflowSmartNoticeCandidatesResponse:
+  candidate_user_ids, reached_initiator = await organization_relation_service.suggest_notice_recipients(
+    initiator_user_id=payload.initiator_user_id,
+    target_user_id=payload.target_user_id,
+    include_user_ids=payload.include_user_ids,
+    exclude_user_ids=payload.exclude_user_ids,
+  )
+  return WorkflowSmartNoticeCandidatesResponse(
+    candidate_user_ids=candidate_user_ids,
+    reached_initiator=reached_initiator,
+  )

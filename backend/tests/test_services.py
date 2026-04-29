@@ -4169,6 +4169,255 @@ async def test_phase6_instance_completion_marks_graph_done(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_phase7_context_conditional_routing_and_notice_auto_completion(db_session) -> None:
+  from app.core.enums import WorkflowGraphNodeType, WorkflowGraphTemplateStatus
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase7-context-condition-notice",
+    base_code="phase7-context-condition-notice",
+    version=1,
+    name="Phase 7 条件路由与 Notice 测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="发起节点", sort_order=1)
+  node_notice = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="notice-middle",
+    title="抄送通知",
+    node_type=WorkflowGraphNodeType.NOTICE,
+    sort_order=2,
+  )
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="path-b", title="高金额路径", sort_order=3)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="path-c", title="默认路径", sort_order=4)
+  db_session.add_all([node_a, node_notice, node_b, node_c])
+  await db_session.flush()
+
+  db_session.add_all(
+    [
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_notice.id),
+      WorkflowGraphTemplateEdge(
+        template_id=template.id,
+        from_node_id=node_a.id,
+        to_node_id=node_b.id,
+        condition={"field": "amount", "operator": "gte", "value": 100000},
+      ),
+      WorkflowGraphTemplateEdge(
+        template_id=template.id,
+        from_node_id=node_a.id,
+        to_node_id=node_c.id,
+        condition={"else": True},
+      ),
+    ]
+  )
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(template_id=template.id, initiator_id=admin.id)
+
+  instance = result.instance
+  node_a_instance = next(node for node in result.node_instances if node.node_key == "node-a")
+  notice_instance = next(node for node in result.node_instances if node.node_key == "notice-middle")
+  node_b_instance = next(node for node in result.node_instances if node.node_key == "path-b")
+  node_c_instance = next(node for node in result.node_instances if node.node_key == "path-c")
+
+  await wg_service.complete_node_instance(
+    node_instance_id=node_a_instance.id,
+    actor_id=admin.id,
+    context_updates={"amount": 200000, "request_type": "purchase"},
+  )
+
+  await db_session.refresh(instance)
+  await db_session.refresh(notice_instance)
+  await db_session.refresh(node_b_instance)
+  await db_session.refresh(node_c_instance)
+
+  assert instance.context["amount"] == 200000
+  assert instance.context["request_type"] == "purchase"
+  assert instance.context_version == 2
+  assert notice_instance.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert node_b_instance.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert node_c_instance.engine_state == WorkflowNodeEngineState.PENDING
+
+
+@pytest.mark.asyncio
+async def test_phase7_smart_notice_candidates_returns_manager_chain(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  department_service = DepartmentService(db_session)
+  organization_relation_service = OrganizationRelationService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  executor = await user_service.create_user(
+    actor=admin,
+    email="executor@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  department = await department_service.create_department(actor=admin, name="研发部", code="phase7-notice-dept")
+
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=manager.id,
+    employee_no="EMP-P7-MGR",
+    real_name="中层经理",
+    department_id=department.id,
+    custom_fields={},
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=executor.id,
+    employee_no="EMP-P7-EXEC",
+    real_name="执行人",
+    department_id=department.id,
+    custom_fields={},
+  )
+
+  await organization_relation_service.create_reporting_line(
+    actor=admin,
+    user_id=executor.id,
+    manager_user_id=manager.id,
+    line_type=ReportingLineType.SOLID,
+    starts_at=date(2025, 1, 1),
+    department_id=department.id,
+    is_primary=True,
+  )
+  await organization_relation_service.create_reporting_line(
+    actor=admin,
+    user_id=manager.id,
+    manager_user_id=admin.id,
+    line_type=ReportingLineType.SOLID,
+    starts_at=date(2025, 1, 1),
+    department_id=department.id,
+    is_primary=True,
+  )
+
+  candidate_user_ids, reached_initiator = await organization_relation_service.suggest_notice_recipients(
+    initiator_user_id=admin.id,
+    target_user_id=executor.id,
+    include_user_ids=[admin.id],
+    exclude_user_ids=[executor.id],
+  )
+
+  assert reached_initiator is True
+  assert candidate_user_ids == [manager.id]
+
+
+@pytest.mark.asyncio
+async def test_phase8_wait_any_activates_downstream_and_terminates_peer_nodes(db_session) -> None:
+  """join_mode=any: 任一分支先完成即推进下游，并自动撤销同批并发节点。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase8-wait-any-race",
+    base_code="phase8-wait-any-race",
+    version=1,
+    name="Phase 8 Wait-Any 测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  node_d = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-d",
+    title="汇聚节点 D",
+    sort_order=4,
+    join_mode="any",
+  )
+  db_session.add_all([node_a, node_b, node_c, node_d])
+  await db_session.flush()
+
+  db_session.add_all(
+    [
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_c.id),
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_b.id, to_node_id=node_d.id),
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_c.id, to_node_id=node_d.id),
+    ]
+  )
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(template_id=template.id, initiator_id=admin.id)
+
+  instance = result.instance
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+  ni_d = next(ni for ni in result.node_instances if ni.node_key == "node-d")
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(ni_c)
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_c.engine_state == WorkflowNodeEngineState.ACTIVATED
+
+  await wg_service.complete_node_instance(node_instance_id=ni_b.id, actor_id=admin.id)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(ni_c)
+  await db_session.refresh(ni_d)
+
+  assert ni_b.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert ni_d.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_c.engine_state == WorkflowNodeEngineState.TERMINATED
+  assert ni_c.business_state == WorkflowNodeBusinessState.CANCELLED
+  assert ni_c.terminated_at is not None
+  assert dict(ni_c.config).get("system_resolution", {}).get("reason") == "wait_any_race_cancelled"
+
+  with pytest.raises(ConflictError, match="已被系统撤权"):
+    await wg_service.complete_node_instance(node_instance_id=ni_c.id, actor_id=admin.id)
+
+  await wg_service.complete_node_instance(node_instance_id=ni_d.id, actor_id=admin.id)
+  await db_session.refresh(instance)
+
+  assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
+  assert instance.current_node_key is None
+
+
+@pytest.mark.asyncio
 async def test_phase6_repeat_completion_is_idempotent_and_keeps_single_downstream_activation(db_session) -> None:
   """重复完成同一节点时应保持幂等，不应重复激活下游或污染实例状态。"""
   from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
