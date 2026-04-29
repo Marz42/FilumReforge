@@ -41,7 +41,7 @@ services:
       API_V1_PREFIX: /api/v1
       POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-filum}:${POSTGRES_PASSWORD:-filum}@postgres:5432/${POSTGRES_DB:-filum}
       REDIS_DSN: redis://redis:6379/0
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in infra/docker/.env}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-only-insecure-secret-change-before-production}
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-5-mini}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS:-1536}
@@ -83,7 +83,7 @@ services:
       API_V1_PREFIX: /api/v1
       POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-filum}:${POSTGRES_PASSWORD:-filum}@postgres:5432/${POSTGRES_DB:-filum}
       REDIS_DSN: redis://redis:6379/0
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in infra/docker/.env}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-only-insecure-secret-change-before-production}
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-5-mini}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS:-1536}

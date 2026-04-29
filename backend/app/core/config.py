@@ -72,6 +72,7 @@ class Settings(BaseSettings):
   auth_bootstrap_rate_limit: int = 5
   redis_notification_queue: str = "notification:outbox"
   workflow_graph_engine_enabled: bool = False
+  workflow_graph_template_engine_enabled: bool = False
   task_center_v2_enabled: bool = False
   workflow_wait_any_enabled: bool = False
   workflow_deep_rejection_enabled: bool = False

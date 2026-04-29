@@ -35,6 +35,7 @@ from app.core.enums import (
   TaskStatus,
   UserRole,
   UserStatus,
+  WorkflowGraphInstanceStatus,
   WorkflowDefinitionStatus,
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
@@ -749,7 +750,7 @@ async def test_phase3_single_node_workflow_creation_projects_task_and_graph_enti
   assert stored_instance.context["title"] == "完成图引擎试点任务"
   assert stored_node is not None
   assert stored_node.engine_state == WorkflowNodeEngineState.ACTIVATED
-  assert stored_node.business_state == WorkflowNodeBusinessState.ACCEPTED
+  assert stored_node.business_state == WorkflowNodeBusinessState.ASSIGNED
   assert stored_node.assignee_user_id == employee.id
   assert stored_node.config["task_id"] == str(task.id)
   assert stored_dependency is not None
@@ -3876,3 +3877,702 @@ async def test_task_template_department_members_empty_department_raises(db_sessi
       template_id=template.id,
       payload={"department_id": str(empty_department.id)},
     )
+
+
+# =========================================================================
+# Phase 6 / Multi-node graph engine: sequential, fan-out, wait-all
+# =========================================================================
+
+@pytest.mark.asyncio
+async def test_phase6_sequential_flow_activation(db_session) -> None:
+  """A→B 顺序流：节点 A 完成后，节点 B 应自动激活。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  # 手动建 WorkflowGraphTemplate（A→B 两节点）
+  template = WorkflowGraphTemplate(
+    code="seq-flow-test",
+    base_code="seq-flow-test",
+    version=1,
+    name="顺序流测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-a",
+    title="节点 A",
+    sort_order=1,
+  )
+  node_b = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-b",
+    title="节点 B",
+    sort_order=2,
+  )
+  db_session.add_all([node_a, node_b])
+  await db_session.flush()
+
+  edge_ab = WorkflowGraphTemplateEdge(
+    template_id=template.id,
+    from_node_id=node_a.id,
+    to_node_id=node_b.id,
+  )
+  db_session.add(edge_ab)
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+
+  instance = result.instance
+  node_instances = result.node_instances
+  ni_a = next(ni for ni in node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in node_instances if ni.node_key == "node-b")
+
+  assert ni_a.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_b.engine_state == WorkflowNodeEngineState.PENDING
+  assert instance.current_node_key == "node-a"
+
+  # 完成 A，B 应激活
+  await wg_service.complete_node_instance(
+    node_instance_id=ni_a.id,
+    actor_id=admin.id,
+  )
+  await db_session.refresh(ni_a)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(instance)
+
+  assert ni_a.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.current_node_key == "node-b"
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+
+  # 完成 B，实例收口
+  await wg_service.complete_node_instance(
+    node_instance_id=ni_b.id,
+    actor_id=admin.id,
+  )
+  await db_session.refresh(ni_b)
+  await db_session.refresh(instance)
+
+  assert ni_b.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
+  assert instance.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_phase6_fan_out_activation(db_session) -> None:
+  """A→B, A→C fan-out：A 完成后，B 和 C 应同时激活。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="fan-out-test",
+    base_code="fan-out-test",
+    version=1,
+    name="Fan-out 测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  db_session.add_all([node_a, node_b, node_c])
+  await db_session.flush()
+
+  db_session.add_all([
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_c.id),
+  ])
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+
+  assert ni_a.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_b.engine_state == WorkflowNodeEngineState.PENDING
+  assert ni_c.engine_state == WorkflowNodeEngineState.PENDING
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(ni_c)
+
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_c.engine_state == WorkflowNodeEngineState.ACTIVATED
+
+
+@pytest.mark.asyncio
+async def test_phase6_wait_all_join(db_session) -> None:
+  """B+C→D AND-Join：B 完成后 D 仍 PENDING，C 完成后 D 激活。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="wait-all-test",
+    base_code="wait-all-test",
+    version=1,
+    name="Wait-All 测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  # A → B, A → C, B → D (join_mode=all), C → D
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  node_d = WorkflowGraphTemplateNode(
+    template_id=template.id, node_key="node-d", title="节点 D", sort_order=4, join_mode="all"
+  )
+  db_session.add_all([node_a, node_b, node_c, node_d])
+  await db_session.flush()
+
+  db_session.add_all([
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_c.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_b.id, to_node_id=node_d.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_c.id, to_node_id=node_d.id),
+  ])
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+  ni_d = next(ni for ni in result.node_instances if ni.node_key == "node-d")
+  instance = result.instance
+
+  # 完成 A → B,C 激活
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(ni_c)
+  await db_session.refresh(ni_d)
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_c.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_d.engine_state == WorkflowNodeEngineState.PENDING
+
+  # 完成 B → D 仍 PENDING（C 未完成）
+  await wg_service.complete_node_instance(node_instance_id=ni_b.id, actor_id=admin.id)
+  await db_session.refresh(ni_d)
+  assert ni_d.engine_state == WorkflowNodeEngineState.PENDING
+
+  # 完成 C → D 激活，实例仍 ACTIVE
+  await wg_service.complete_node_instance(node_instance_id=ni_c.id, actor_id=admin.id)
+  await db_session.refresh(ni_d)
+  await db_session.refresh(instance)
+  assert ni_d.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+
+  # 完成 D → 实例收口
+  await wg_service.complete_node_instance(node_instance_id=ni_d.id, actor_id=admin.id)
+  await db_session.refresh(instance)
+  assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
+  assert instance.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_phase6_instance_completion_marks_graph_done(db_session) -> None:
+  """单节点图（无出边叶节点）完成后，实例状态直接变为 COMPLETED。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="single-leaf-test",
+    base_code="single-leaf-test",
+    version=1,
+    name="单叶节点模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="only-node", title="唯一节点", sort_order=1)
+  db_session.add(node_a)
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+  ni = result.node_instances[0]
+  instance = result.instance
+
+  assert ni.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+
+  await wg_service.complete_node_instance(node_instance_id=ni.id, actor_id=admin.id)
+  await db_session.refresh(instance)
+
+  assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
+  assert instance.completed_at is not None
+  assert instance.current_node_key is None
+
+
+@pytest.mark.asyncio
+async def test_phase6_repeat_completion_is_idempotent_and_keeps_single_downstream_activation(db_session) -> None:
+  """重复完成同一节点时应保持幂等，不应重复激活下游或污染实例状态。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="repeat-complete-test",
+    base_code="repeat-complete-test",
+    version=1,
+    name="重复完成测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  db_session.add_all([node_a, node_b])
+  await db_session.flush()
+
+  db_session.add(
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id)
+  )
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(template_id=template.id, initiator_id=admin.id)
+
+  instance = result.instance
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_a)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(instance)
+
+  first_completed_at = ni_a.completed_at
+  first_node_version = ni_a.node_instance_version
+  first_downstream_version = ni_b.node_instance_version
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_a)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(instance)
+
+  assert ni_a.completed_at == first_completed_at
+  assert ni_a.node_instance_version == first_node_version
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_b.node_instance_version == first_downstream_version
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+  assert instance.current_node_key == "node-b"
+
+
+@pytest.mark.asyncio
+async def test_phase6_fan_out_current_node_key_uses_lowest_sort_order_active_node(db_session) -> None:
+  """fan-out 同时激活多个节点时，current_node_key 应稳定指向排序最靠前的激活节点。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="fan-out-current-node-test",
+    base_code="fan-out-current-node-test",
+    version=1,
+    name="Fan-out current_node_key 测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  db_session.add_all([node_a, node_c, node_b])
+  await db_session.flush()
+
+  db_session.add_all([
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_c.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+  ])
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(template_id=template.id, initiator_id=admin.id)
+
+  instance = result.instance
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(ni_c)
+  await db_session.refresh(instance)
+
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_c.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.current_node_key == "node-b"
+
+
+# =========================================================================
+# Phase 6 / Multi-node graph engine: sequential, fan-out, wait-all
+# =========================================================================
+
+@pytest.mark.asyncio
+async def test_phase6_sequential_flow_activation(db_session) -> None:
+  """A→B 顺序流：节点 A 完成后，节点 B 应自动激活。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  # 手动建 WorkflowGraphTemplate（A→B 两节点）
+  template = WorkflowGraphTemplate(
+    code="seq-flow-test",
+    base_code="seq-flow-test",
+    version=1,
+    name="顺序流测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-a",
+    title="节点 A",
+    sort_order=1,
+  )
+  node_b = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-b",
+    title="节点 B",
+    sort_order=2,
+  )
+  db_session.add_all([node_a, node_b])
+  await db_session.flush()
+
+  edge_ab = WorkflowGraphTemplateEdge(
+    template_id=template.id,
+    from_node_id=node_a.id,
+    to_node_id=node_b.id,
+  )
+  db_session.add(edge_ab)
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+
+  instance = result.instance
+  node_instances = result.node_instances
+  ni_a = next(ni for ni in node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in node_instances if ni.node_key == "node-b")
+
+  assert ni_a.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_b.engine_state == WorkflowNodeEngineState.PENDING
+  assert instance.current_node_key == "node-a"
+
+  # 完成 A，B 应激活
+  await wg_service.complete_node_instance(
+    node_instance_id=ni_a.id,
+    actor_id=admin.id,
+  )
+  await db_session.refresh(ni_a)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(instance)
+
+  assert ni_a.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.current_node_key == "node-b"
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+
+  # 完成 B，实例收口
+  await wg_service.complete_node_instance(
+    node_instance_id=ni_b.id,
+    actor_id=admin.id,
+  )
+  await db_session.refresh(ni_b)
+  await db_session.refresh(instance)
+
+  assert ni_b.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
+  assert instance.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_phase6_fan_out_activation(db_session) -> None:
+  """A→B, A→C fan-out：A 完成后，B 和 C 应同时激活。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="fan-out-test",
+    base_code="fan-out-test",
+    version=1,
+    name="Fan-out 测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  db_session.add_all([node_a, node_b, node_c])
+  await db_session.flush()
+
+  db_session.add_all([
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_c.id),
+  ])
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+
+  assert ni_a.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_b.engine_state == WorkflowNodeEngineState.PENDING
+  assert ni_c.engine_state == WorkflowNodeEngineState.PENDING
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(ni_c)
+
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_c.engine_state == WorkflowNodeEngineState.ACTIVATED
+
+
+@pytest.mark.asyncio
+async def test_phase6_wait_all_join(db_session) -> None:
+  """B+C→D AND-Join：B 完成后 D 仍 PENDING，C 完成后 D 激活。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="wait-all-test",
+    base_code="wait-all-test",
+    version=1,
+    name="Wait-All 测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  # A → B, A → C, B → D (join_mode=all), C → D
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  node_d = WorkflowGraphTemplateNode(
+    template_id=template.id, node_key="node-d", title="节点 D", sort_order=4, join_mode="all"
+  )
+  db_session.add_all([node_a, node_b, node_c, node_d])
+  await db_session.flush()
+
+  db_session.add_all([
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_c.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_b.id, to_node_id=node_d.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_c.id, to_node_id=node_d.id),
+  ])
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+  ni_d = next(ni for ni in result.node_instances if ni.node_key == "node-d")
+  instance = result.instance
+
+  # 完成 A → B,C 激活
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_b)
+  await db_session.refresh(ni_c)
+  await db_session.refresh(ni_d)
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_c.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_d.engine_state == WorkflowNodeEngineState.PENDING
+
+  # 完成 B → D 仍 PENDING（C 未完成）
+  await wg_service.complete_node_instance(node_instance_id=ni_b.id, actor_id=admin.id)
+  await db_session.refresh(ni_d)
+  assert ni_d.engine_state == WorkflowNodeEngineState.PENDING
+
+  # 完成 C → D 激活，实例仍 ACTIVE
+  await wg_service.complete_node_instance(node_instance_id=ni_c.id, actor_id=admin.id)
+  await db_session.refresh(ni_d)
+  await db_session.refresh(instance)
+  assert ni_d.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+
+  # 完成 D → 实例收口
+  await wg_service.complete_node_instance(node_instance_id=ni_d.id, actor_id=admin.id)
+  await db_session.refresh(instance)
+  assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
+  assert instance.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_phase6_instance_completion_marks_graph_done(db_session) -> None:
+  """单节点图（无出边叶节点）完成后，实例状态直接变为 COMPLETED。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="single-leaf-test",
+    base_code="single-leaf-test",
+    version=1,
+    name="单叶节点模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="only-node", title="唯一节点", sort_order=1)
+  db_session.add(node_a)
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+  ni = result.node_instances[0]
+  instance = result.instance
+
+  assert ni.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+
+  await wg_service.complete_node_instance(node_instance_id=ni.id, actor_id=admin.id)
+  await db_session.refresh(instance)
+
+  assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
+  assert instance.completed_at is not None
+  assert instance.current_node_key is None

@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.8.4  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化；工作流重构 Phase 1 / 任务中心信息架构重排 已完成并通过用户验收；工作流重构 Phase 2 / 图引擎核心模型落库 已完成并通过用户验收；工作流重构当前代码基线已完成 Phase 3 的单节点 dual-write 接入、单节点交付物提交 / 验收 / 返工首轮动作，以及 Phase 4 的手动任务握手 / 退回协商 / 转办语义与兼容读取侧投影  
+**版本**: v3.8.5  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化；工作流重构 Phase 1 / 任务中心信息架构重排 已完成并通过用户验收；工作流重构 Phase 2 / 图引擎核心模型落库 已完成并通过用户验收；工作流重构当前代码基线已完成 Phase 3 的单节点 dual-write 接入、Phase 4 的手动任务握手 / 退回协商 / 转办语义、Phase 5 的单节点交付 / 验收 / 返工质量评分投影，以及 Phase 6 的多节点图实例化、顺序流 / fan-out / wait-all 推进、实例查询与节点完成接口  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -68,6 +68,7 @@
 - 工作流重构 Phase 3：后端已新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` 等 feature flag、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在手动创建任务且开关开启时走“graph instance + node instance + 兼容 Task 投影”双写路径；当前读取侧仍由既有 `Task` / `TaskCenterService` 提供
 - 工作流重构单节点交付闭环首轮：基于上述 Phase 3 双写链路，`TaskService` / `tasks` API 已新增“提交交付物”“通过验收”“打回返工”动作，交付快照写入 `workflow_deliverables`，兼容 `Task` 投影通过 `extra_metadata` 暴露最近交付说明、最近提交时间、返工原因、返工次数与最近质量评分；`TaskCenterService` / `task-center` API / `TaskCenterView` 已同步投影待验收、最近提交时间、返工次数、质量评分等跟踪信号；同时禁止 graph 手动任务通过通用状态流转接口直接跳过交付 / 验收动作
 - 工作流重构 Phase 4：graph 手动任务默认以 `ASSIGNED` 节点业务态创建；`TaskService` / `tasks` API / `TasksView` 已新增“接受任务”“退回协商”“转办”动作，`todo -> doing` 现在要求执行人先确认接单；兼容读取侧继续使用 `Task.extra_metadata` + `TaskCenterService` 投影当前握手阶段、当前处理人与最近协商 / 转办原因
+- 工作流重构 Phase 6：`WorkflowGraphService` 已支持基于 `WorkflowGraphTemplate` 创建多节点图实例、按入度激活起始节点、在节点完成后推进顺序流 / fan-out / wait-all join，并通过实例级行锁、节点版本号和稳定 `current_node_key` 解析保证幂等收口；`workflow_graph_engine` API 已提供模板实例列表、实例详情与节点完成后快照返回
 - 汇报中心：向上汇报、向下传达、逐级流转、历史归档与可选审批挂接
 - 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
 - 任务完成率 / 逾期率 / 负载统计
@@ -82,11 +83,11 @@
 
 - 公开注册 / 审批式注册仍未落地；邀请制注册已落地
 - 工作流 E 首批已经落地，且 Stage 2 Phase 2 已完成模板设计器拓扑校验、模板版本语义、调度最近执行结果、实例进度展示与 fan-out / join 重复激活约束收口；后续重点转向生命周期事件联动、实例历史深挖与全量回归 / 部署收口
-- 工作流重构已完成 Phase 3 的手动创建链路接入、单节点交付 / 验收 / 返工首轮动作，以及 Phase 4 的握手 / 拒绝 / 转办语义；但读取侧仍未切到 graph runtime，`TaskService` / `TaskCenterService` 当前继续以兼容 `Task` 投影作为运行时读模型，`TaskTemplateService` 也尚未接入 graph engine
+- 工作流重构已完成 Phase 3-6：手动创建链路 dual-write、单节点交付 / 验收 / 返工、握手 / 拒绝 / 转办，以及多节点图实例化 / 下游推进 / 实例查询；但读取侧仍未切到 graph runtime，`TaskService` / `TaskCenterService` 当前继续以兼容 `Task` 投影作为运行时读模型，`TaskTemplateService` 也尚未接入 graph engine；`join_mode=any`、条件边求值、Workflow Context 写回、Notice Node 与智能抄送仍待后续阶段实现
 - 生命周期事件与任务模板 / 审批流的规则化默认联动、前端结构化配置入口仍未落地；当前已支持在事件写入时显式绑定目标并异步触发
 - 生产 compose、主机部署脚本与 Nginx 生产配置已落地；当前主要缺全量上线演练与发布稳定性验证
 - HR 字段权限的可视化规则管理页仍偏基础
-- 消息附件
+- 消息外部渠道深化、失败重试与更完整投递观测
 - Email / WebSocket 渠道的外部真实接入仍是最小实现后的下一步
 - 更系统的重构、集成测试与端到端验证
 
@@ -99,7 +100,7 @@
 | HR Profiles | 主档案、动态字段、基础资料 | 已实现 Phase 3 增强版 | 与模板 / 审批联动 |
 | HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现 | 事件与模板 / 审批联动 |
 | Workflow Core | 任务、依赖、状态机、统计 | 已实现 Phase 4 增强版；任务开始前可阻止未满足依赖的流转 | 与模板实例运行态、Knowledge / AI / 生命周期自动化联动 |
-| Workflow Engine | 模板、审批、自动触发、周期调度，以及图引擎核心 schema | 已实现增强版；模板实例运行态、逐步激活、多人扇出 / 汇聚、实例快照与结构化设计器首版已落地；工作流重构 Phase 2 已补图引擎核心表与双层节点状态枚举，Phase 3 已补手动创建任务的 graph dual-write 路径与 feature flag，并在该基线上补了单节点交付 / 验收 / 返工，以及 Phase 4 的接单 / 退回协商 / 转办首轮语义 | 模板 / 调度管理深化、生命周期联动与稳定性强化 |
+| Workflow Engine | 模板、审批、自动触发、周期调度，以及图引擎核心 schema | 已实现增强版；模板实例运行态、逐步激活、多人扇出 / 汇聚、实例快照与结构化设计器首版已落地；工作流重构 Phase 2 已补图引擎核心表与双层节点状态枚举，Phase 3-5 已补手动创建任务的 graph dual-write、交付验收与握手语义，Phase 6 已补多节点实例化、顺序流 / fan-out / wait-all 推进、实例查询与节点完成接口 | 模板 / 调度管理深化、graph runtime 读侧切换、条件路由与生命周期联动 |
 | Task Collaboration | 评论、日志、评论附件、时间线、watcher | 已实现 Phase 4 增强版 | 与消息中心、推送渠道打通 |
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现 Phase 4 增强版 | 真实渠道适配器、浏览器推送 |
 | Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现 Step 6 增强版；Stage 2 Phase 4 已补消息附件、渠道 / 投递状态 / 时间筛选与失败详情展示 | 渠道融合、推送 |
@@ -228,7 +229,8 @@
 | `backend/app/services/delegation_service.py` | 代理授权创建、撤销、状态刷新 |
 | `backend/app/services/people_management_service.py` | Step 5 人员聚合服务，统一编排 users / profiles 的列表摘要与详情读模型 |
 | `backend/app/services/task_service.py` | 任务状态机、评论、日志、统计、交付物提交 / 验收 / 返工，以及 watcher / board / gantt 扩展 |
-| `backend/app/services/workflow_graph_service.py` | 工作流重构 Phase 3 单节点 graph dual-write 服务：创建 `WorkflowGraphInstance`、`WorkflowNodeInstance` 并为兼容 `Task` 投影提供锚点 |
+| `backend/app/services/workflow_graph_service.py` | 工作流重构图引擎服务：负责单节点 dual-write、多节点图实例化、下游节点激活、实例收口、`current_node_key` 维护与实例查询 |
+| `backend/app/api/routes/workflow_graph_engine.py` | 工作流重构 Phase 6 图实例读写入口：模板实例列表、实例详情、节点完成与最新快照返回 |
 | `backend/app/services/workflow_rule_resolver.py` | 模板与审批流共用的 assignee rule 解析器 |
 | `backend/app/services/task_template_service.py` | 模板 CRUD、步骤替换与模板实例化 |
 | `backend/app/services/task_center_service.py` | 任务中心聚合服务，输出模板摘要、发布范围、待办、跟踪、历史与备忘 |
@@ -454,7 +456,7 @@
 5. `TaskMemoService` 负责 `task_memos` 的新增、编辑、删除，并校验关联任务是否对当前用户可见。
 6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览；建立任务入口已收敛到任务中心页头全局 Drawer，`TasksView.vue` 在嵌入 tracking 时不再暴露第二个创建入口。
 
-### 6.13B 图引擎核心与单节点接入链路（Phase 2-3 已实现，单节点交付闭环首轮已补）
+### 6.13B 图引擎核心与运行时链路（Phase 2-6 当前基线）
 
 1. `workflow_graph_templates`、`workflow_graph_template_nodes`、`workflow_graph_template_edges` 构成新的 DAG 模板定义层，支持模板版本链、节点类型、受控 `assignment_mode` / `join_mode` 和条件边存储。
 2. `workflow_graph_instances` 与 `workflow_node_instances` 构成新的运行态层：实例保存 `context`、`context_version`、`max_iterations` 和来源锚点；节点实例保存引擎态、业务投影态、当前办理人、`iteration`、`node_instance_version` 以及激活 / 确认 / 完成 / 终止时间戳。
@@ -462,8 +464,11 @@
 4. `workflow_outbox_events` 先完成表级落库与状态约束，为 Phase 11 的 Outbox Pattern 预留可靠投递基础；当前阶段尚未接入 worker 消费逻辑。
 5. Phase 3 新增 `WorkflowGraphService.create_single_node_instance()`，在 `WORKFLOW_GRAPH_ENGINE_ENABLED=true` 且 `TaskSourceType=manual` 时，由 `TaskService.create_task_record()` 先创建 graph instance / node instance，再同步创建兼容 `Task`、`TaskDependency` 和 `TaskLog`，并在 `WorkflowGraphInstance.source_id` 与 `Task.extra_metadata` 中互写锚点。
 6. 在上述单节点 dual-write 基线上，`TaskService.submit_task_deliverable()` 与 `review_task_deliverable()` 已补交付说明 / 附件校验、`WorkflowDeliverable` 快照持久化、返工计数与最近返工原因回写，并把 graph node / instance 与兼容 `Task.status` 同步推进到 `review`、`done` 或返工后的 `doing`。
-7. `backend/app/api/routes/tasks.py` 已新增 `POST /tasks/{task_id}/deliverable` 与 `POST /tasks/{task_id}/review`；`TasksView.vue` 已按当前兼容 `Task` 投影展示最新交付说明、最近提交时间、返工次数与返工原因，并提供“提交交付物 / 验收通过 / 打回返工”入口。
-8. 当前读取侧没有切到 graph runtime：`TaskService.list_task_inbox`、`list_task_tracking`、`list_task_history` 和 `TaskCenterService` 仍然直接读取兼容 `Task` 投影，因此前端协议与现有任务列表行为保持不变。
+7. `TaskService.accept_task()`、`reject_task()`、`delegate_task()` 已把 graph 手动任务的业务态推进补齐到“待确认 / 已接受待开工 / 已拒绝待调整 / 待验收”投影语义，并继续通过兼容 `Task.extra_metadata` 对读取侧暴露握手上下文。
+8. Phase 6 新增 `WorkflowGraphService.create_multi_node_instance()` 与 `complete_node_instance()`：基于 `WorkflowGraphTemplate` 一次性创建全部节点实例，仅激活无入度起始节点；后续在事务内按模板边关系推进顺序流、fan-out 和 wait-all join，并在所有节点完成后把 `WorkflowGraphInstance.status` 收口到 `COMPLETED`。
+9. Phase 6 的图实例收口逻辑已补实例级 `SELECT ... FOR UPDATE`、节点版本号递增、重复完成幂等保护，以及基于模板 `sort_order` 的稳定 `current_node_key` 解析，避免 fan-out 场景下因激活顺序不稳定导致前端当前节点指示漂移。
+10. `backend/app/api/routes/workflow_graph_engine.py` 现提供 `GET /workflow-graph/templates/{template_id}/instances`、`GET /workflow-graph/instances/{instance_id}`、`POST /workflow-graph/node-instances/{node_instance_id}/complete` 三个端点，返回图实例与节点实例快照、节点统计和 `progress_percent`。
+11. 当前读取侧仍未切到 graph runtime：`TaskService.list_task_inbox`、`list_task_tracking`、`list_task_history` 和 `TaskCenterService` 继续直接读取兼容 `Task` 投影，因此前端协议与现有任务列表行为保持不变；条件路由、context 写回、Notice Node 与智能抄送留待后续阶段。
 
 ### 6.13A 工作流 E 模板运行态链路（当前）
 

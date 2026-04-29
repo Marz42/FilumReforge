@@ -8,13 +8,15 @@
 - 组织与人事：部门树、档案、字段级权限、多岗位、汇报线、生命周期、代理授权
 - 总览与协同：看板、公告、任务、评论、活动流、统计
 - 流程与汇报：任务模板、模板实例运行态、逐步激活、fan-out / join、workflow engine、汇报中心、消息中心、通知回执
+- workflow graph 重构：单节点 dual-write、交付 / 验收 / 返工、接单 / 协商 / 转办、多节点图实例化、顺序流 / fan-out / wait-all 推进，以及实例查询 / 节点完成 API
 - Knowledge / AI：文档库、RAG、LLM Router、Tool Calling
 - Push / Worker：浏览器推送、通知投递、embedding job、周期任务与提醒扫描
 
 ## 当前已知边界
 
-- 生命周期事件与任务模板 / 审批流的自动联动仍未落地
+- 生命周期事件的规则化默认联动与前端配置入口仍未落地；当前已支持显式绑定目标后的异步触发
 - 工作流 E 仍在继续收口：模板 / 调度管理动作、更多设计器校验与全量回归仍需继续完善
+- workflow graph 读取侧仍未切到 graph runtime；条件路由、Workflow Context、Notice Node 与智能抄送仍待后续阶段
 - 生产部署产物已落地：`Dockerfile.prod`、`scripts/start-prod.sh`、`infra/docker/docker-compose.prod.yml` 与 Nginx 生产配置可直接使用；当前主要待做发布前一键校验与上线演练
 
 ## 初始化

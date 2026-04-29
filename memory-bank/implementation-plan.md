@@ -13,7 +13,7 @@
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；最近一轮已完成模板管理补丁、设置模块拆分与总览 / 任务中心体验收口。本轮新实施周期统一记录在 `memory-bank/improvements-stage2-implementation-plan.md`。
+**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；同时工作流重构代码基线已推进到 Phase 6，最近一轮已完成多节点图运行时收口、实例查询接口与 Phase 6 一致性回归。本轮新实施周期统一记录在 `memory-bank/improvements-stage2-implementation-plan.md`。
 
 ## 2. 已确认约束
 
@@ -45,10 +45,10 @@
 
 ### 未实现但已确认的关键缺口
 
-- 公开注册 / 邀请注册 / 审批式注册
-- 生命周期事件与模板 / 审批流联动
-- 消息附件
+- 公开注册 / 审批式注册
+- 生命周期事件的规则化默认联动与前端结构化配置入口
 - 真实 Email / WebSocket 对外发送接入深化
+- 工作流图引擎读取侧切换、模板运行态接入 graph engine，以及条件路由 / Workflow Context / Notice Node / 智能抄送
 - 更系统的重构、集成测试、E2E 和稳定性验证
 
 ## 4. 执行原则
@@ -120,7 +120,8 @@
 **当前状态**
 
 - `/users` 已有后端与管理端前端入口
-- **访客自助注册仍未实现**
+- 邀请制注册已落地，支持邀请生成 / 预览 / 激活 / 撤销
+- **访客自助注册与审批式注册仍未实现**
 
 **待决策范围**
 
@@ -145,13 +146,14 @@
 
 **目标**
 
-把当前“记录事件”升级为“事件驱动任务 / 审批流”。
+把当前“显式绑定目标后异步触发”的生命周期事件，升级为“规则化默认联动 + 可配置事件驱动任务 / 审批流”。
 
 **重点方向**
 
 - 入职自动生成模板任务
 - 离职自动生成交接 / 回收 / 审批流
 - 晋升 / 转岗驱动权限、岗位、模板和消息联动
+- 把当前仅后端显式绑定的联动目标下沉为可配置规则与前端入口
 
 **测试出口**
 
@@ -166,10 +168,10 @@
 
 **重点方向**
 
-- 消息附件
 - Email / WebSocket 外部集成
 - Push 失败可观测性
 - 前端消息中心更细粒度筛选和状态展示
+- 更完整的消息生命周期观测与重试管理
 
 **测试出口**
 
@@ -227,6 +229,34 @@
 - 当前已完成验证：backend `pytest -q /app/tests/test_services.py /app/tests/test_api.py`、`pytest -q`、`python -m compileall app tests`；frontend `npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run test:unit -- --run`、`npm run type-check`
 - 发布前补充验证：frontend `npm run build`；如需一键收口，执行 `bash scripts/check-release.sh`
 - 前端 lint 若仅做只读校验，优先执行 `npm exec oxlint .` 与 `npm exec eslint .`，避免 `npm run lint` 的 `--fix` 副作用混入回归结果
+
+### 6.6 工作流 F：图引擎运行时深化
+
+**目标**
+
+在当前 Phase 6 基线上，继续把 workflow graph 从“后端可运行原型 + 兼容 Task 投影”推进到“具备条件路由、上下文写回和更完整节点类型的稳定运行时”。
+
+**当前状态**
+
+- 已完成 Phase 2-6：图模板 / 图实例 schema、单节点 dual-write、单节点交付 / 验收 / 返工、接单 / 协商 / 转办、多节点实例化、顺序流 / fan-out / wait-all join、实例列表 / 详情 / 节点完成接口
+- 当前读取侧仍未切到 graph runtime，`TaskService` / `TaskCenterService` 继续以兼容 `Task` 投影为读模型
+- `join_mode=any`、条件边求值、Workflow Context、Notice Node 与智能抄送尚未实现
+
+**下一批顺序**
+
+1. 条件路由
+	- 让 `WorkflowGraphTemplateEdge.condition` 进入真实求值链路，补齐 reject path / forward path 的分支选择
+2. Workflow Context
+	- 为实例 `context` / `context_version` 建立受控写回与并发保护，避免节点动作直接写脏上下文
+3. Notice Node 与智能抄送
+	- 引入非任务型通知节点，把现有通知总线复用到 graph runtime
+4. 读侧切换与更强回归
+	- 评估 `TaskCenterService` 与后续模板运行态如何逐步消费 graph runtime，而不是长期停留在兼容 `Task` 投影
+
+**测试出口**
+
+- backend：补齐条件分支、context 版本冲突、Notice Node 投递、幂等重复完成与 graph snapshot API 集成测试
+- frontend：等读取侧接入后补任务中心 / 详情页回归；当前阶段先保持 API smoke 与兼容投影回归
 
 ## 7. 跨阶段通用规则
 

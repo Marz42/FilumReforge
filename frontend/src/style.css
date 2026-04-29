@@ -1,0 +1,48 @@
+/* Layer 1: Global font */
+:root {
+  font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Layer 1: Element Plus CSS variable overrides */
+:root {
+  --el-color-primary: #5b6ef5;
+  --el-color-primary-light-3: #8b97f8;
+  --el-color-primary-light-5: #acb5fa;
+  --el-color-primary-light-7: #cdd3fc;
+  --el-color-primary-light-9: #eef0fe;
+  --el-color-primary-dark-2: #4a5bd4;
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+
+  --el-menu-item-height: 44px;
+  --el-menu-hover-bg-color: #eef0fe;
+  --el-menu-active-color: #5b6ef5;
+}
+
+/* Layer 4: Reusable card class */
+.filum-card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 20px 24px;
+}
+
+.filum-card + .filum-card {
+  margin-top: 16px;
+}
+
+/* Layer 4: Reusable page header */
+.filum-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.filum-page-header__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1d2e;
+}

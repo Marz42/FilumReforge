@@ -18,6 +18,7 @@ from app.api.routes.tasks import router as tasks_router
 from app.api.routes.task_templates import router as task_templates_router
 from app.api.routes.task_center import router as task_center_router
 from app.api.routes.users import router as users_router
+from app.api.routes.workflow_graph_engine import router as workflow_graph_engine_router
 from app.api.routes.workflows import router as workflows_router
 
 api_router = APIRouter()
@@ -40,3 +41,4 @@ api_router.include_router(documents_router, tags=["documents"])
 api_router.include_router(knowledge_router, tags=["knowledge"])
 api_router.include_router(ai_router_router, tags=["ai"])
 api_router.include_router(push_subscriptions_router, tags=["push-subscriptions"])
+api_router.include_router(workflow_graph_engine_router, tags=["workflow-graph"])
