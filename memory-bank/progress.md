@@ -36,7 +36,7 @@
 | --- | --- | --- |
 | Phase 0 / 基线冻结与术语对齐 | done | 已确认双层状态模型、旧任务映射口径、渐进切换策略与阶段测试出口，并形成 `memory-bank/workflow-refactor-implementation-plan.md` 作为当前工作流重构基线 |
 | Phase 1 / 任务中心信息架构重排 | done | 已移除任务中心顶部统计卡片；默认入口切到“待处理”；发布任务从独立标签收敛为页头“建立任务” Drawer；任务中心主标签调整为待处理 / 跟踪 / 备忘 / 模板；保留 tracking 历史区块与 `?selected=` 深链。已执行 frontend `npm run test:unit -- --run tests/TaskCenterView.spec.ts tests/TasksView.spec.ts tests/Router.spec.ts`、`npm run type-check`、`npm run build`，并通过用户验收 |
-| Phase 2 / 图引擎核心模型落库 | in_progress | 已在 Phase 1 验收后启动执行规划；下一步先收口 schema 边界、枚举设计、Alembic 迁移草案与模型/迁移测试锚点，再开始后端落库实现 |
+| Phase 2 / 图引擎核心模型落库 | done | 已完成后端落库实现：新增 `workflow_graph_templates`、`workflow_graph_template_nodes`、`workflow_graph_template_edges`、`workflow_graph_instances`、`workflow_node_instances`、`workflow_deliverables`、`workflow_outbox_events` 七张表，以及图模板状态、图实例状态、节点引擎态、节点业务投影态、outbox 事件状态枚举；已执行 backend `pytest -q tests/test_models.py -k "workflow_graph or node_instance or deliverable"`、`pytest -q tests/test_migrations.py`、`python -m compileall app tests`，并通过用户验收，可进入 Phase 3 |
 
 ## Stage 2 / 当前实施周期
 

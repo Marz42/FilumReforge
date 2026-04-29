@@ -33,6 +33,15 @@ from app.models.task_workflow import (
   WorkflowStepRun,
 )
 from app.models.user import User
+from app.models.workflow_graph import (
+  WorkflowDeliverable,
+  WorkflowGraphInstance,
+  WorkflowGraphTemplate,
+  WorkflowGraphTemplateEdge,
+  WorkflowGraphTemplateNode,
+  WorkflowNodeInstance,
+  WorkflowOutboxEvent,
+)
 
 __all__ = [
   "Attachment",
@@ -75,7 +84,14 @@ __all__ = [
   "TaskWatcher",
   "User",
   "WorkflowDefinition",
+  "WorkflowDeliverable",
+  "WorkflowGraphInstance",
+  "WorkflowGraphTemplate",
+  "WorkflowGraphTemplateEdge",
+  "WorkflowGraphTemplateNode",
   "WorkflowInstance",
+  "WorkflowNodeInstance",
+  "WorkflowOutboxEvent",
   "WorkflowStep",
   "WorkflowStepRun",
 ]

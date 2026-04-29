@@ -185,6 +185,54 @@ class WorkflowStepRunStatus(StrEnum):
   SKIPPED = "skipped"
 
 
+class WorkflowGraphTemplateStatus(StrEnum):
+  DRAFT = "draft"
+  ACTIVE = "active"
+  ARCHIVED = "archived"
+
+
+class WorkflowGraphNodeType(StrEnum):
+  TASK = "task"
+  APPROVAL = "approval"
+  NOTICE = "notice"
+
+
+class WorkflowGraphInstanceStatus(StrEnum):
+  PENDING = "pending"
+  ACTIVE = "active"
+  COMPLETED = "completed"
+  CANCELLED = "cancelled"
+  TERMINATED = "terminated"
+
+
+class WorkflowNodeEngineState(StrEnum):
+  PENDING = "pending"
+  ACTIVATED = "activated"
+  ACKNOWLEDGED = "acknowledged"
+  COMPLETED = "completed"
+  TERMINATED = "terminated"
+
+
+class WorkflowNodeBusinessState(StrEnum):
+  DRAFT = "draft"
+  ASSIGNED = "assigned"
+  ACCEPTED = "accepted"
+  REJECTED = "rejected"
+  DELEGATED = "delegated"
+  DOING = "doing"
+  PENDING_REVIEW = "pending_review"
+  DONE = "done"
+  RETURNED_FOR_REWORK = "returned_for_rework"
+  CANCELLED = "cancelled"
+
+
+class WorkflowOutboxEventStatus(StrEnum):
+  PENDING = "pending"
+  RETRYING = "retrying"
+  DISPATCHED = "dispatched"
+  FAILED = "failed"
+
+
 class PushSubscriptionStatus(StrEnum):
   ACTIVE = "active"
   EXPIRED = "expired"

@@ -26,7 +26,13 @@ from app.core.enums import (
   ReportingLineType,
   TaskActionType,
   WorkflowDefinitionStatus,
+  WorkflowGraphInstanceStatus,
+  WorkflowGraphNodeType,
+  WorkflowGraphTemplateStatus,
   WorkflowInstanceStatus,
+  WorkflowNodeBusinessState,
+  WorkflowNodeEngineState,
+  WorkflowOutboxEventStatus,
   WorkflowStepRunStatus,
   WorkflowStepType,
   UserRole,
@@ -71,7 +77,14 @@ from app.models import (
   TaskWatcher,
   User,
   WorkflowDefinition,
+  WorkflowDeliverable,
+  WorkflowGraphInstance,
+  WorkflowGraphTemplate,
+  WorkflowGraphTemplateEdge,
+  WorkflowGraphTemplateNode,
   WorkflowInstance,
+  WorkflowNodeInstance,
+  WorkflowOutboxEvent,
   WorkflowStep,
   WorkflowStepRun,
 )
@@ -395,6 +408,138 @@ async def test_phase2_models_persist_task_comments_and_logs() -> None:
     assert stored_log.detail["comment_id"] == str(comment_id)
     assert stored_comment_link is not None
     assert stored_comment_link.relation == "comment_attachment"
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phase2_workflow_graph_models_persist_node_instances_and_deliverables() -> None:
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  async with engine.begin() as connection:
+    await connection.run_sync(Base.metadata.create_all)
+
+  async with session_factory() as session:
+    user = User(
+      email="graph-owner@example.com",
+      password_hash="hashed-password",
+      role=UserRole.ADMIN,
+      status=UserStatus.ACTIVE,
+    )
+    department = Department(
+      name="流程治理部",
+      code="workflow-governance",
+      manager=user,
+    )
+    session.add_all([user, department])
+    await session.flush()
+
+    template = WorkflowGraphTemplate(
+      code="expense-approval-v1",
+      base_code="expense-approval",
+      version=1,
+      name="费用审批图",
+      status=WorkflowGraphTemplateStatus.ACTIVE,
+      context_schema={"amount": {"type": "number"}},
+      created_by=user.id,
+    )
+    start_node = WorkflowGraphTemplateNode(
+      template=template,
+      node_key="draft",
+      title="填写申请",
+      node_type=WorkflowGraphNodeType.TASK,
+      sort_order=1,
+    )
+    approve_node = WorkflowGraphTemplateNode(
+      template=template,
+      node_key="approve",
+      title="主管审批",
+      node_type=WorkflowGraphNodeType.APPROVAL,
+      sort_order=2,
+      assignee_rule={"kind": "direct_manager"},
+    )
+    edge = WorkflowGraphTemplateEdge(
+      template=template,
+      from_node=start_node,
+      to_node=approve_node,
+      condition={"field": "amount", "operator": ">", "value": 0},
+    )
+    instance = WorkflowGraphInstance(
+      template=template,
+      initiator_user_id=user.id,
+      department_id=department.id,
+      source_type="manual",
+      status=WorkflowGraphInstanceStatus.ACTIVE,
+      current_node_key="draft",
+      context={"amount": 120000},
+      context_version=1,
+      max_iterations=5,
+    )
+    node_instance = WorkflowNodeInstance(
+      instance=instance,
+      template_node=start_node,
+      node_key="draft",
+      title="填写申请",
+      node_type=WorkflowGraphNodeType.TASK,
+      engine_state=WorkflowNodeEngineState.ACTIVATED,
+      business_state=WorkflowNodeBusinessState.DOING,
+      assignee_user_id=user.id,
+      iteration=1,
+      node_instance_version=1,
+      config={"required": ["amount"]},
+    )
+    deliverable = WorkflowDeliverable(
+      node_instance=node_instance,
+      submitted_by_user_id=user.id,
+      summary="提交首版费用申请单",
+      payload={"amount": 120000, "attachments": []},
+      signature="sha256:graph-deliverable",
+    )
+    outbox_event = WorkflowOutboxEvent(
+      instance=instance,
+      node_instance=node_instance,
+      event_type="node_activated",
+      status=WorkflowOutboxEventStatus.PENDING,
+      payload={"node_key": "draft"},
+    )
+
+    session.add_all([template, start_node, approve_node, edge, instance, node_instance, deliverable, outbox_event])
+    await session.commit()
+
+    stored_template = await session.scalar(select(WorkflowGraphTemplate).where(WorkflowGraphTemplate.code == "expense-approval-v1"))
+    stored_edge = await session.scalar(select(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template.id))
+    stored_instance = await session.scalar(select(WorkflowGraphInstance).where(WorkflowGraphInstance.id == instance.id))
+    stored_node_instance = await session.scalar(select(WorkflowNodeInstance).where(WorkflowNodeInstance.id == node_instance.id))
+    stored_deliverable = await session.scalar(select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id))
+    stored_outbox = await session.scalar(select(WorkflowOutboxEvent).where(WorkflowOutboxEvent.instance_id == instance.id))
+
+    assert stored_template is not None
+    assert stored_template.status == WorkflowGraphTemplateStatus.ACTIVE
+    assert stored_template.context_schema["amount"]["type"] == "number"
+
+    assert stored_edge is not None
+    assert stored_edge.condition["operator"] == ">"
+
+    assert stored_instance is not None
+    assert stored_instance.status == WorkflowGraphInstanceStatus.ACTIVE
+    assert stored_instance.context["amount"] == 120000
+
+    assert stored_node_instance is not None
+    assert stored_node_instance.engine_state == WorkflowNodeEngineState.ACTIVATED
+    assert stored_node_instance.business_state == WorkflowNodeBusinessState.DOING
+
+    assert stored_deliverable is not None
+    assert stored_deliverable.payload["amount"] == 120000
+    assert stored_deliverable.signature == "sha256:graph-deliverable"
+
+    assert stored_outbox is not None
+    assert stored_outbox.status == WorkflowOutboxEventStatus.PENDING
+    assert stored_outbox.payload["node_key"] == "draft"
 
   await engine.dispose()
 
