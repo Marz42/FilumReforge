@@ -69,6 +69,7 @@ class AttachmentTargetType(StrEnum):
   TASK = "task"
   PROFILE = "profile"
   DOCUMENT = "document"
+  NOTIFICATION_MESSAGE = "notification_message"
 
 
 class NotificationChannel(StrEnum):
@@ -123,6 +124,14 @@ class EmploymentEventType(StrEnum):
   DISCIPLINE = "discipline"
   OFFBOARD = "offboard"
   REHIRE = "rehire"
+
+
+class EmploymentEventTriggerStatus(StrEnum):
+  PENDING = "pending"
+  PROCESSING = "processing"
+  SUCCEEDED = "succeeded"
+  FAILED = "failed"
+  SKIPPED = "skipped"
 
 
 class DelegationScopeType(StrEnum):

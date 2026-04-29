@@ -117,6 +117,7 @@ class PeopleManagementService:
 
     actions = {
       "can_edit_user": True,
+      "can_delete_user": profile_view is None,
       "can_create_profile": profile_view is None,
       "can_edit_profile": profile_view is not None,
       "can_manage_relations": profile_view is not None,

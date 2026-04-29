@@ -2,16 +2,19 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import {
+  acceptInvitation,
   bootstrapAdmin,
   getBootstrapStatus,
+  getInvitationPreview,
   login,
   logout as logoutSession,
   refreshSession,
+  type AcceptInvitationPayload,
   type BootstrapAdminPayload,
   type LoginPayload,
 } from '@/api/auth'
 import { clearAuthSession, getAccessToken, setAccessToken } from '@/api/session'
-import type { AuthSession, User } from '@/types/api'
+import type { AuthSession, User, UserInvitationPreview } from '@/types/api'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(getAccessToken())
@@ -69,6 +72,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function fetchInvitationPreview(token: string): Promise<UserInvitationPreview> {
+    return getInvitationPreview(token)
+  }
+
+  async function acceptInvitationRegistration(payload: AcceptInvitationPayload): Promise<User> {
+    const session = await acceptInvitation(payload)
+    applySession(session)
+    return session.user
+  }
+
   function clearSession(): void {
     accessToken.value = null
     user.value = null
@@ -95,6 +108,8 @@ export const useAuthStore = defineStore('auth', () => {
     login: loginWithPassword,
     bootstrapAdmin: bootstrapAdminAccount,
     fetchBootstrapStatus,
+    fetchInvitationPreview,
+    acceptInvitation: acceptInvitationRegistration,
     restoreSession,
     clearSession,
     logout,

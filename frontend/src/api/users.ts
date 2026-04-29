@@ -29,3 +29,7 @@ export async function updateUser(userId: string, payload: UpdateUserPayload): Pr
   const { data } = await http.patch<User>(`/users/${userId}`, payload)
   return data
 }
+
+export async function deleteUser(userId: string): Promise<void> {
+  await http.delete(`/users/${userId}`)
+}

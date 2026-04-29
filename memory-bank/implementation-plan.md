@@ -13,7 +13,7 @@
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；最近一轮已完成模板管理补丁、设置模块拆分与总览 / 任务中心体验收口。
+**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；最近一轮已完成模板管理补丁、设置模块拆分与总览 / 任务中心体验收口。本轮新实施周期统一记录在 `memory-bank/improvements-stage2-implementation-plan.md`。
 
 ## 2. 已确认约束
 
@@ -66,7 +66,8 @@
 ### 4.2 文档同步原则
 
 - 开始一个新阶段前，先更新 `memory-bank/architecture.md` 中对应的 schema 预案
-- 阶段完成且用户验测通过后，再更新 `memory-bank/progress.md`
+- 当前后续增强周期统一按 `memory-bank/improvements-stage2-implementation-plan.md` 推进
+- 从 Stage 2 开始，每个阶段完成后都必须先更新 `memory-bank/architecture.md` 记录实现事实，再更新 `memory-bank/progress.md` 记录状态与验证结论
 - 若阶段边界发生变化，先更新本文件，再开始编码
 
 ### 4.3 验收闸门

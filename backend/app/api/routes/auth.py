@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
@@ -13,6 +14,10 @@ from app.schemas.auth import (
   AuthSessionRead,
   BootstrapStatusRead,
   BootstrapAdminRequest,
+  InvitationAcceptRequest,
+  InvitationCreateRequest,
+  InvitationPreviewRead,
+  InvitationRead,
   LoginRequest,
 )
 from app.schemas.users import UserRead
@@ -105,6 +110,63 @@ async def login(
   )
   _set_refresh_cookie(response=response, settings=settings, refresh_token=auth_session.refresh_token)
   return _build_auth_session_read(auth_session)
+
+
+@router.post("/invitations", response_model=InvitationRead, status_code=status.HTTP_201_CREATED)
+async def create_invitation(
+  payload: InvitationCreateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> InvitationRead:
+  invitation = await auth_service.create_invitation(
+    actor=actor,
+    email=payload.email,
+    role=payload.role,
+  )
+  return InvitationRead(
+    user=UserRead.model_validate(invitation.user),
+    invite_url=invitation.invite_url,
+    expires_at=invitation.expires_at,
+  )
+
+
+@router.get("/invitations/preview", response_model=InvitationPreviewRead)
+async def preview_invitation(
+  token: str,
+  auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> InvitationPreviewRead:
+  user = await auth_service.get_invitation_preview(token=token)
+  return InvitationPreviewRead(
+    user_id=user.id,
+    email=user.email,
+    role=user.role,
+    expires_at=user.invitation_expires_at,
+  )
+
+
+@router.post("/invitations/accept", response_model=AuthSessionRead)
+async def accept_invitation(
+  payload: InvitationAcceptRequest,
+  response: Response,
+  auth_service: Annotated[AuthService, Depends(get_auth_service)],
+  settings: Annotated[Settings, Depends(get_settings)],
+) -> AuthSessionRead:
+  auth_session = await auth_service.accept_invitation(
+    token=payload.token,
+    password=payload.password,
+  )
+  _set_refresh_cookie(response=response, settings=settings, refresh_token=auth_session.refresh_token)
+  return _build_auth_session_read(auth_session)
+
+
+@router.post("/invitations/{user_id}/revoke", response_model=UserRead)
+async def revoke_invitation(
+  user_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> UserRead:
+  user = await auth_service.revoke_invitation(actor=actor, user_id=user_id)
+  return UserRead.model_validate(user)
 
 
 @router.post("/refresh", response_model=AuthSessionRead, dependencies=[Depends(refresh_rate_limit)])

@@ -17,6 +17,11 @@ class UserRead(BaseModel):
   role: UserRole
   status: UserStatus
   last_login_at: datetime | None
+  invited_by: UUID | None = None
+  invitation_sent_at: datetime | None = None
+  invitation_expires_at: datetime | None = None
+  invitation_revoked_at: datetime | None = None
+  invitation_accepted_at: datetime | None = None
   created_at: datetime
   updated_at: datetime
 

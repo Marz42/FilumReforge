@@ -25,6 +25,7 @@ export interface TaskTemplateStepPayload {
 
 export interface CreateTaskTemplatePayload {
   code: string
+  source_template_id?: string | null
   name: string
   category: string
   description?: string | null

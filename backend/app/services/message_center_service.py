@@ -10,9 +10,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import NotificationReceiptType
+from app.core.enums import (
+  AttachmentStatus,
+  AttachmentTargetType,
+  NotificationChannel,
+  NotificationDeliveryStatus,
+  NotificationReceiptType,
+)
 from app.core.exceptions import AuthorizationError, NotFoundError
-from app.models import NotificationMessage, NotificationReceipt, User, WorkflowInstance
+from app.models import Attachment, AttachmentLink, NotificationMessage, NotificationReceipt, User, WorkflowInstance
+from app.schemas.attachments import AttachmentRead
+from app.services.object_storage_service import ObjectStorageService
 from app.services.access_control import ensure_active_user
 
 MessageStateFilter = Literal["all", "unread", "read", "unacknowledged", "acknowledged"]
@@ -35,11 +43,21 @@ class MessageCenterSnapshot:
   source_counts: list[dict[str, Any]]
   applied_source_type: str | None
   applied_state: MessageStateFilter
+  applied_channel: NotificationChannel | None
+  applied_delivery_status: NotificationDeliveryStatus | None
+  applied_created_from: datetime | None
+  applied_created_to: datetime | None
 
 
 class MessageCenterService:
-  def __init__(self, session: AsyncSession) -> None:
+  def __init__(
+    self,
+    session: AsyncSession,
+    *,
+    object_storage_service: ObjectStorageService | None = None,
+  ) -> None:
     self._session = session
+    self._object_storage_service = object_storage_service
 
   def _message_statement(self):
     return select(NotificationMessage).options(
@@ -75,10 +93,12 @@ class MessageCenterService:
     ensure_active_user(actor)
     message = await self._get_message_or_raise(actor=actor, message_id=message_id)
     workflow_instances = await self._load_workflow_instances(messages=[message])
+    attachments_by_message_id = await self._load_message_attachments(message_ids=[message.id])
     return self._build_message_read(
       actor=actor,
       message=message,
       workflow_instances=workflow_instances,
+      attachments_by_message_id=attachments_by_message_id,
     )
 
   async def get_message_center_snapshot(
@@ -87,15 +107,21 @@ class MessageCenterService:
     actor: User,
     source_type: str | None = None,
     state: MessageStateFilter = "all",
+    channel: NotificationChannel | None = None,
+    delivery_status: NotificationDeliveryStatus | None = None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
   ) -> MessageCenterSnapshot:
     ensure_active_user(actor)
     messages = await self.list_messages(actor=actor)
     workflow_instances = await self._load_workflow_instances(messages=messages)
+    attachments_by_message_id = await self._load_message_attachments(message_ids=[message.id for message in messages])
     items = [
       self._build_message_read(
         actor=actor,
         message=message,
         workflow_instances=workflow_instances,
+        attachments_by_message_id=attachments_by_message_id,
       )
       for message in messages
     ]
@@ -103,6 +129,9 @@ class MessageCenterService:
       item for item in items
       if self._matches_source_type(item=item, source_type=source_type)
       and self._matches_state(item=item, state=state)
+      and self._matches_channel(item=item, channel=channel)
+      and self._matches_delivery_status(item=item, delivery_status=delivery_status)
+      and self._matches_created_at(item=item, created_from=created_from, created_to=created_to)
     ]
     unread_count = sum(1 for item in items if not item["receipt_state"]["is_read"])
     unacknowledged_count = sum(1 for item in items if not item["receipt_state"]["is_acknowledged"])
@@ -115,6 +144,10 @@ class MessageCenterService:
       source_counts=self._build_source_counts(items),
       applied_source_type=source_type,
       applied_state=state,
+      applied_channel=channel,
+      applied_delivery_status=delivery_status,
+      applied_created_from=created_from,
+      applied_created_to=created_to,
     )
 
   async def create_receipt(
@@ -183,12 +216,41 @@ class MessageCenterService:
     )
     return {instance.id: instance for instance in instances}
 
+  async def _build_attachment_read(self, *, attachment: Attachment) -> AttachmentRead:
+    download_url = None
+    if self._object_storage_service is not None and attachment.status != AttachmentStatus.DELETED:
+      download_url = await self._object_storage_service.generate_download_url(object_key=attachment.object_key)
+    return AttachmentRead.model_validate(attachment).model_copy(update={"download_url": download_url})
+
+  async def _load_message_attachments(self, *, message_ids: list[UUID]) -> dict[UUID, list[AttachmentRead]]:
+    if not message_ids:
+      return {}
+
+    rows = (await self._session.execute(
+      select(AttachmentLink.target_id, Attachment)
+      .join(Attachment, Attachment.id == AttachmentLink.attachment_id)
+      .where(
+        AttachmentLink.target_type == AttachmentTargetType.NOTIFICATION_MESSAGE,
+        AttachmentLink.target_id.in_(message_ids),
+        Attachment.status != AttachmentStatus.DELETED,
+      )
+      .order_by(Attachment.created_at.asc())
+    )).all()
+
+    attachments_by_message_id: dict[UUID, list[AttachmentRead]] = {message_id: [] for message_id in message_ids}
+    for message_id, attachment in rows:
+      attachments_by_message_id.setdefault(message_id, []).append(
+        await self._build_attachment_read(attachment=attachment)
+      )
+    return attachments_by_message_id
+
   def _build_message_read(
     self,
     *,
     actor: User,
     message: NotificationMessage,
     workflow_instances: dict[UUID, WorkflowInstance],
+    attachments_by_message_id: dict[UUID, list[AttachmentRead]],
   ) -> dict[str, Any]:
     actor_receipts = [
       receipt
@@ -211,14 +273,28 @@ class MessageCenterService:
       "enqueued_at": message.enqueued_at,
       "completed_at": message.completed_at,
       "created_at": message.created_at,
+      "delivery_state": self._resolve_delivery_state(message=message),
       "source": self._build_source_read(
         message=message,
         workflow_instance=workflow_instances.get(message.source_id) if message.source_id else None,
       ),
       "receipt_state": self._build_receipt_state(actor_receipts),
+      "attachments": attachments_by_message_id.get(message.id, []),
       "deliveries": list(message.deliveries),
       "receipts": actor_receipts,
     }
+
+  def _resolve_delivery_state(self, *, message: NotificationMessage) -> NotificationDeliveryStatus | None:
+    statuses = {delivery.status for delivery in message.deliveries}
+    if not statuses:
+      return None
+    if NotificationDeliveryStatus.FAILED in statuses:
+      return NotificationDeliveryStatus.FAILED
+    if NotificationDeliveryStatus.RETRYING in statuses:
+      return NotificationDeliveryStatus.RETRYING
+    if NotificationDeliveryStatus.PENDING in statuses:
+      return NotificationDeliveryStatus.PENDING
+    return NotificationDeliveryStatus.SENT
 
   def _build_receipt_state(self, receipts: list[NotificationReceipt]) -> dict[str, datetime | bool | None]:
     read_at = next(
@@ -337,6 +413,35 @@ class MessageCenterService:
     if state == "unacknowledged":
       return not receipt_state["is_acknowledged"]
     return receipt_state["is_acknowledged"]
+
+  def _matches_channel(self, *, item: dict[str, Any], channel: NotificationChannel | None) -> bool:
+    if channel is None:
+      return True
+    return any(delivery.channel == channel for delivery in item["deliveries"])
+
+  def _matches_delivery_status(
+    self,
+    *,
+    item: dict[str, Any],
+    delivery_status: NotificationDeliveryStatus | None,
+  ) -> bool:
+    if delivery_status is None:
+      return True
+    return item["delivery_state"] == delivery_status
+
+  def _matches_created_at(
+    self,
+    *,
+    item: dict[str, Any],
+    created_from: datetime | None,
+    created_to: datetime | None,
+  ) -> bool:
+    created_at = item["created_at"]
+    if created_from is not None and created_at < created_from:
+      return False
+    if created_to is not None and created_at > created_to:
+      return False
+    return True
 
   def _read_payload_str(self, payload: dict[str, Any], key: str) -> str | None:
     value = payload.get(key)

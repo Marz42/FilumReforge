@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import UUID
 
-from sqlalchemy import DateTime, Index, String
+from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db_types import build_enum
@@ -26,8 +27,15 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     nullable=False,
   )
   last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  invited_by: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+  invitation_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+  invitation_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  invitation_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  invitation_revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  invitation_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
   profile = relationship("Profile", back_populates="user", uselist=False)
+  inviter = relationship("User", remote_side="User.id", foreign_keys=[invited_by])
   managed_departments = relationship("Department", back_populates="manager")
   created_tasks = relationship("Task", back_populates="creator", foreign_keys="Task.creator_id")
   assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="Task.assignee_id")

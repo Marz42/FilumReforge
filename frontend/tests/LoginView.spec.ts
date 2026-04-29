@@ -3,24 +3,29 @@ import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const route = { query: {} as Record<string, string> }
+
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {} }),
+  useRoute: () => route,
   useRouter: () => ({ replace: vi.fn() }),
 }))
 
 vi.mock('@/api/auth', () => ({
+  acceptInvitation: vi.fn(),
   bootstrapAdmin: vi.fn(),
   getBootstrapStatus: vi.fn(),
+  getInvitationPreview: vi.fn(),
   getCurrentUser: vi.fn(),
   login: vi.fn(),
 }))
 
-import { getBootstrapStatus } from '@/api/auth'
+import { getBootstrapStatus, getInvitationPreview } from '@/api/auth'
 import LoginView from '@/views/LoginView.vue'
 
 describe('Login view', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    route.query = {}
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
@@ -59,5 +64,28 @@ describe('Login view', () => {
     expect(wrapper.text()).not.toContain('初始化管理员')
     expect(wrapper.text()).toContain('登录系统')
     expect(wrapper.text()).toContain('统一协同与人事工作台')
+  })
+
+  it('shows invitation registration when invite token is present', async () => {
+    route.query = { invite: 'invite-token' }
+    vi.mocked(getBootstrapStatus).mockResolvedValue({ bootstrap_required: false })
+    vi.mocked(getInvitationPreview).mockResolvedValue({
+      user_id: 'user-2',
+      email: 'invitee@example.com',
+      role: 'employee',
+      expires_at: '2025-01-02T00:00:00Z',
+    })
+
+    const wrapper = mount(LoginView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('邀请注册链接')
+    expect(wrapper.text()).toContain('invitee@example.com')
+    expect(wrapper.text()).toContain('完成注册')
   })
 })

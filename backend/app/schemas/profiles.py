@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.enums import (
   DelegationScopeType,
   DelegationStatus,
+  EmploymentEventTriggerStatus,
   EmploymentEventType,
   PositionAssignmentType,
   ReportingLineType,
@@ -80,6 +81,14 @@ class EmploymentEventRead(BaseModel):
   title: str
   summary: str | None
   payload: dict[str, Any]
+  task_template_id: UUID | None
+  workflow_definition_id: UUID | None
+  trigger_status: EmploymentEventTriggerStatus
+  triggered_at: datetime | None
+  trigger_error: str | None
+  trigger_attempt_count: int
+  triggered_template_instance_id: UUID | None
+  triggered_workflow_instance_id: UUID | None
   created_by: UUID
   created_at: datetime
 
@@ -204,6 +213,8 @@ class EmploymentEventCreateRequest(BaseModel):
   title: str = Field(min_length=1, max_length=255)
   summary: str | None = None
   payload: dict[str, Any] = Field(default_factory=dict)
+  task_template_id: UUID | None = None
+  workflow_definition_id: UUID | None = None
 
 
 class DelegationCreateRequest(BaseModel):

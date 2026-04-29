@@ -44,9 +44,17 @@ def _build_template_step_read(step: TaskTemplateStep) -> TaskTemplateStepRead:
   )
 
 
-def _build_template_read(template: TaskTemplate) -> TaskTemplateRead:
+def _build_template_read(
+  template: TaskTemplate,
+  *,
+  latest_version: int,
+  has_instances: bool,
+) -> TaskTemplateRead:
   return TaskTemplateRead.model_validate(template).model_copy(
     update={
+      "latest_version": latest_version,
+      "has_instances": has_instances,
+      "is_structure_locked": has_instances,
       "steps": [_build_template_step_read(step) for step in template.steps],
       "schedules": [TaskScheduleRead.model_validate(schedule) for schedule in template.schedules],
     }
@@ -87,6 +95,10 @@ def _build_template_instance_read(instance: TaskTemplateInstance) -> TaskTemplat
 
   step_snapshots: list[TaskTemplateInstanceStepRead] = []
   ordered_steps = sorted(instance.template.steps, key=lambda current_step: (current_step.sort_order, current_step.created_at))
+  completed_step_count = 0
+  active_step_count = 0
+  blocked_step_count = 0
+  ready_step_count = 0
   for step in ordered_steps:
     step_runs = step_runs_by_step_id.get(step.id, [])
     blocked_dependency_keys = [
@@ -101,6 +113,17 @@ def _build_template_instance_read(instance: TaskTemplateInstance) -> TaskTemplat
     else:
       snapshot_status = "ready"
 
+    if snapshot_status == "completed":
+      completed_step_count += 1
+    elif snapshot_status == "active":
+      active_step_count += 1
+    elif snapshot_status == "blocked":
+      blocked_step_count += 1
+    else:
+      ready_step_count += 1
+
+    iterations = {step_run.iteration for step_run in step_runs}
+
     step_snapshots.append(
       TaskTemplateInstanceStepRead(
         step=_build_template_step_read(step),
@@ -109,14 +132,25 @@ def _build_template_instance_read(instance: TaskTemplateInstance) -> TaskTemplat
         total_run_count=len(step_runs),
         active_run_count=sum(1 for step_run in step_runs if step_run.status == "active"),
         completed_run_count=sum(1 for step_run in step_runs if step_run.status == "completed"),
+        history_iteration_count=len(iterations),
+        latest_iteration=max(iterations) if iterations else 0,
         step_runs=[_build_template_step_run_read(step_run) for step_run in step_runs],
       )
     )
+
+  total_step_count = len(ordered_steps)
+  progress_percent = int((completed_step_count / total_step_count) * 100) if total_step_count else 0
 
   return TaskTemplateInstanceRead.model_validate(instance).model_copy(
     update={
       "initiator_email": instance.initiator.email if instance.initiator is not None else None,
       "department_name": instance.department.name if instance.department is not None else None,
+      "total_step_count": total_step_count,
+      "completed_step_count": completed_step_count,
+      "active_step_count": active_step_count,
+      "blocked_step_count": blocked_step_count,
+      "ready_step_count": ready_step_count,
+      "progress_percent": progress_percent,
       "step_snapshots": step_snapshots,
     }
   )
@@ -128,7 +162,15 @@ async def list_task_templates(
   task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
 ) -> list[TaskTemplateRead]:
   templates = await task_template_service.list_templates(actor=actor)
-  return [_build_template_read(template) for template in templates]
+  metadata = await task_template_service.get_template_view_metadata(template_ids=[template.id for template in templates])
+  return [
+    _build_template_read(
+      template,
+      latest_version=metadata.get(template.id).latest_version if metadata.get(template.id) else template.version,
+      has_instances=metadata.get(template.id).has_instances if metadata.get(template.id) else False,
+    )
+    for template in templates
+  ]
 
 
 @router.get("/{template_id}", response_model=TaskTemplateRead)
@@ -138,7 +180,13 @@ async def read_task_template(
   task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
 ) -> TaskTemplateRead:
   template = await task_template_service.get_template(actor=actor, template_id=template_id)
-  return _build_template_read(template)
+  metadata = await task_template_service.get_template_view_metadata(template_ids=[template.id])
+  template_metadata = metadata.get(template.id)
+  return _build_template_read(
+    template,
+    latest_version=template_metadata.latest_version if template_metadata is not None else template.version,
+    has_instances=template_metadata.has_instances if template_metadata is not None else False,
+  )
 
 
 @router.get("/{template_id}/instances", response_model=list[TaskTemplateInstanceRead])
@@ -165,6 +213,7 @@ async def create_task_template(
   template = await task_template_service.create_template(
     actor=actor,
     code=payload.code,
+    source_template_id=payload.source_template_id,
     name=payload.name,
     category=payload.category,
     description=payload.description,
@@ -173,7 +222,13 @@ async def create_task_template(
     is_active=payload.is_active,
     steps=[step.model_dump() for step in payload.steps],
   )
-  return _build_template_read(template)
+  metadata = await task_template_service.get_template_view_metadata(template_ids=[template.id])
+  template_metadata = metadata.get(template.id)
+  return _build_template_read(
+    template,
+    latest_version=template_metadata.latest_version if template_metadata is not None else template.version,
+    has_instances=template_metadata.has_instances if template_metadata is not None else False,
+  )
 
 
 @router.patch("/{template_id}", response_model=TaskTemplateRead)
@@ -195,7 +250,13 @@ async def update_task_template(
     is_active=payload.is_active,
     steps=[step.model_dump() for step in payload.steps] if payload.steps is not None else None,
   )
-  return _build_template_read(template)
+  metadata = await task_template_service.get_template_view_metadata(template_ids=[template.id])
+  template_metadata = metadata.get(template.id)
+  return _build_template_read(
+    template,
+    latest_version=template_metadata.latest_version if template_metadata is not None else template.version,
+    has_instances=template_metadata.has_instances if template_metadata is not None else False,
+  )
 
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -223,8 +284,14 @@ async def instantiate_task_template(
     payload=payload.payload,
   )
   template = await task_template_service.get_template(actor=actor, template_id=template_id)
+  metadata = await task_template_service.get_template_view_metadata(template_ids=[template.id])
+  template_metadata = metadata.get(template.id)
   return TaskTemplateInstantiationRead(
-    template=_build_template_read(template),
+    template=_build_template_read(
+      template,
+      latest_version=template_metadata.latest_version if template_metadata is not None else template.version,
+      has_instances=template_metadata.has_instances if template_metadata is not None else False,
+    ),
     instance=_build_template_instance_read(instantiation.instance),
     tasks=[TaskRead.model_validate(task) for task in instantiation.tasks],
   )
@@ -272,29 +339,6 @@ async def update_task_schedule(
     is_active=payload.is_active,
   )
   return TaskScheduleRead.model_validate(schedule)
-
-
-@router.post(
-  "/{template_id}/instances/{instance_id}/step-runs/{step_run_id}/decide",
-  response_model=TaskTemplateInstanceRead,
-)
-async def decide_template_step_run(
-  template_id: UUID,
-  instance_id: UUID,
-  step_run_id: UUID,
-  payload: StepRunDecideRequest,
-  actor: Annotated[User, Depends(get_current_user)],
-  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
-) -> TaskTemplateInstanceRead:
-  instance = await task_template_service.decide_step_run(
-    actor=actor,
-    template_id=template_id,
-    instance_id=instance_id,
-    step_run_id=step_run_id,
-    decision=payload.decision,
-    comment=payload.comment,
-  )
-  return _build_template_instance_read(instance)
 
 
 @router.post(

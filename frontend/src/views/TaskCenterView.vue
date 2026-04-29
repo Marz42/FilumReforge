@@ -122,9 +122,28 @@ const memoTaskOptions = computed(() => {
   return Array.from(options.values())
 })
 
+const workspaceCards = computed(() => [
+  {
+    title: '我的待办',
+    value: snapshot.value?.task_inbox.length ?? 0,
+  },
+  {
+    title: '跟踪任务',
+    value: snapshot.value?.task_tracking.length ?? 0,
+  },
+  {
+    title: '任务模板',
+    value: snapshot.value?.template_summaries.length ?? 0,
+  },
+  {
+    title: '我的备忘',
+    value: snapshot.value?.task_memos.length ?? 0,
+  },
+])
+
 function normalizeTab(rawTab: unknown): TaskCenterTab {
   if (typeof rawTab !== 'string') {
-    return 'inbox'
+    return 'tracking'
   }
   const legacyTab = LEGACY_TAB_MAP[rawTab]
   if (legacyTab) {
@@ -139,7 +158,7 @@ function normalizeTab(rawTab: unknown): TaskCenterTab {
   ) {
     return rawTab
   }
-  return 'inbox'
+  return 'tracking'
 }
 
 function resolveStatusLabel(status: TaskStatus): string {
@@ -188,7 +207,7 @@ function handleTabChange(value: string): void {
   const nextTab = normalizeTab(value)
   void router.replace({
     name: 'task-center',
-    query: nextTab === 'inbox' ? {} : { tab: nextTab },
+    query: nextTab === 'tracking' ? {} : { tab: nextTab },
   })
 }
 
@@ -301,24 +320,14 @@ onMounted(() => {
 <template>
   <div class="task-center-view filum-page">
     <el-row :gutter="16" class="task-center-view__summary">
-      <el-col :xs="12" :lg="6">
+      <el-col
+        v-for="card in workspaceCards"
+        :key="card.title"
+        :xs="12"
+        :lg="6"
+      >
         <el-card shadow="never" class="filum-metric-card">
-          <el-statistic title="待办事项" :value="snapshot?.task_inbox.length ?? 0" />
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :lg="6">
-        <el-card shadow="never" class="filum-metric-card">
-          <el-statistic title="任务跟踪" :value="snapshot?.task_tracking.length ?? 0" />
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :lg="6">
-        <el-card shadow="never" class="filum-metric-card">
-          <el-statistic title="历史任务" :value="snapshot?.task_history.length ?? 0" />
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :lg="6">
-        <el-card shadow="never" class="filum-metric-card">
-          <el-statistic title="任务模板" :value="snapshot?.template_summaries.length ?? 0" />
+          <el-statistic :title="card.title" :value="card.value" />
         </el-card>
       </el-col>
     </el-row>
@@ -329,7 +338,7 @@ onMounted(() => {
           <div class="filum-page-header__copy">
             <span class="filum-page-header__eyebrow">Workflow</span>
             <strong class="filum-page-header__title">任务中心</strong>
-            <p class="task-center-view__subtitle">覆盖模板、发布、待办、跟踪与个人备忘，历史任务并入跟踪视图。</p>
+            <p class="task-center-view__subtitle">默认聚焦跟踪、发布、模板与个人备忘，待处理事项保留为快速入口。</p>
           </div>
           <el-space wrap>
             <el-tag :type="permissions.can_publish_task ? 'success' : 'info'" effect="plain">
@@ -343,11 +352,11 @@ onMounted(() => {
       </template>
 
       <el-tabs :model-value="activeTab" @update:model-value="handleTabChange">
-        <el-tab-pane label="待办事项" name="inbox" />
         <el-tab-pane label="任务跟踪" name="tracking" />
         <el-tab-pane label="发布任务" name="publish" />
         <el-tab-pane label="任务模板" name="templates" />
         <el-tab-pane label="备忘" name="memos" />
+        <el-tab-pane label="待处理" name="inbox" />
       </el-tabs>
     </el-card>
 
@@ -425,7 +434,10 @@ onMounted(() => {
     <template v-else-if="activeTab === 'inbox'">
       <el-card shadow="never" class="filum-panel-card">
         <template #header>
-          <span>待办事项</span>
+          <div class="task-center-view__section-header">
+            <span>待处理</span>
+            <small>集中查看首页汇入的流转任务</small>
+          </div>
         </template>
 
         <el-empty v-if="(snapshot?.task_inbox.length ?? 0) === 0" description="暂无待办任务" />
@@ -654,6 +666,17 @@ onMounted(() => {
   margin: 6px 0 0;
   color: var(--filum-text-secondary);
   font-size: 13px;
+}
+
+.task-center-view__section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-center-view__section-header small {
+  color: var(--filum-text-secondary);
+  font-size: 12px;
 }
 
 .task-center-view__form {

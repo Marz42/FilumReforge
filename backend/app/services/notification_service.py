@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.enums import (
   NotificationChannel,
@@ -98,4 +99,9 @@ class NotificationService:
         await self._session.commit()
         await self._session.refresh(notification_message)
 
-    return notification_message
+    hydrated_message = await self._session.scalar(
+      select(NotificationMessageModel)
+      .options(selectinload(NotificationMessageModel.deliveries))
+      .where(NotificationMessageModel.id == notification_message.id)
+    )
+    return hydrated_message or notification_message

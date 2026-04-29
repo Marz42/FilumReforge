@@ -18,10 +18,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db_types import build_enum, build_json_type
+from app.core.db_types import build_enum, build_json_type, build_value_enum
 from app.core.enums import (
   DelegationScopeType,
   DelegationStatus,
+  EmploymentEventTriggerStatus,
   EmploymentEventType,
   PositionAssignmentType,
   ReportingLineType,
@@ -178,10 +179,38 @@ class EmploymentEvent(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
   title: Mapped[str] = mapped_column(String(255), nullable=False)
   summary: Mapped[str | None] = mapped_column(Text, nullable=True)
   payload: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  task_template_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("task_templates.id", name="fk_employment_events_task_template"),
+    nullable=True,
+  )
+  workflow_definition_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("workflow_definitions.id", name="fk_employment_events_workflow_definition"),
+    nullable=True,
+  )
+  trigger_status: Mapped[EmploymentEventTriggerStatus] = mapped_column(
+    build_value_enum(enum_cls=EmploymentEventTriggerStatus, name="employment_event_trigger_status"),
+    default=EmploymentEventTriggerStatus.SKIPPED,
+    nullable=False,
+  )
+  triggered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  trigger_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+  trigger_attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+  triggered_template_instance_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("task_template_instances.id", name="fk_employment_events_template_instance"),
+    nullable=True,
+  )
+  triggered_workflow_instance_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("workflow_instances.id", name="fk_employment_events_workflow_instance"),
+    nullable=True,
+  )
   created_by: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
 
   user = relationship("User", foreign_keys=[user_id], back_populates="employment_events")
   creator = relationship("User", foreign_keys=[created_by], back_populates="created_employment_events")
+  task_template = relationship("TaskTemplate", foreign_keys=[task_template_id])
+  workflow_definition = relationship("WorkflowDefinition", foreign_keys=[workflow_definition_id])
+  triggered_template_instance = relationship("TaskTemplateInstance", foreign_keys=[triggered_template_instance_id])
+  triggered_workflow_instance = relationship("WorkflowInstance", foreign_keys=[triggered_workflow_instance_id])
 
 
 class Delegation(UUIDPrimaryKeyMixin, TimestampMixin, Base):

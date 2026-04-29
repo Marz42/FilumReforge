@@ -115,6 +115,7 @@ function createStepState(overrides: Partial<StepFormState> = {}): StepFormState 
 }
 
 const createForm = reactive({
+  source_template_id: '',
   code: '',
   name: '',
   category: 'ops',
@@ -153,9 +154,22 @@ const selectedInstanceTasks = computed(() =>
     : [],
 )
 const isEditingTemplate = computed(() => templateDialogMode.value === 'edit')
-const templateDialogTitle = computed(() => (isEditingTemplate.value ? '编辑模板' : '新建模板'))
-const templateDialogSubmitLabel = computed(() => (isEditingTemplate.value ? '更新模板' : '保存模板'))
-const templateStructureLocked = computed(() => isEditingTemplate.value && templateInstances.value.length > 0)
+const isCreatingVersion = computed(() => !isEditingTemplate.value && Boolean(createForm.source_template_id))
+const templateDialogTitle = computed(() => {
+  if (isEditingTemplate.value) {
+    return '编辑模板'
+  }
+  return isCreatingVersion.value ? '新建模板版本' : '新建模板'
+})
+const templateDialogSubmitLabel = computed(() => {
+  if (isEditingTemplate.value) {
+    return '更新模板'
+  }
+  return isCreatingVersion.value ? '保存新版本' : '保存模板'
+})
+const templateStructureLocked = computed(
+  () => isEditingTemplate.value && Boolean(selectedTemplate.value?.is_structure_locked || templateInstances.value.length > 0),
+)
 const isEditingSchedule = computed(() => scheduleFormMode.value === 'edit')
 const scheduleSubmitLabel = computed(() => (isEditingSchedule.value ? '更新调度' : '创建调度'))
 const canManageTemplates = computed(() => props.canManageTemplates ?? authStore.isManagementRole)
@@ -188,6 +202,52 @@ const assigneeRuleOptions = computed(() => {
     )
   }
   return options
+})
+const stepRelationPreview = computed(() =>
+  createForm.steps.map((step, index) => {
+    const stepKey = step.step_key.trim() || `step_${index + 1}`
+    const title = step.title.trim() || `步骤 ${index + 1}`
+    const dependsOn = [...new Set(step.depends_on_step_keys.map((value) => value.trim()).filter(Boolean))]
+    const nextSteps = createForm.steps
+      .map((candidate, candidateIndex) => ({
+        key: candidate.step_key.trim() || `step_${candidateIndex + 1}`,
+        title: candidate.title.trim() || `步骤 ${candidateIndex + 1}`,
+        dependsOn: candidate.depends_on_step_keys.map((value) => value.trim()).filter(Boolean),
+      }))
+      .filter((candidate) => candidate.key !== stepKey && candidate.dependsOn.includes(stepKey))
+      .map((candidate) => `${candidate.key} · ${candidate.title}`)
+
+    return {
+      key: stepKey,
+      title,
+      dependsOnLabel: dependsOn.length > 0 ? dependsOn.join('、') : '无前置步骤',
+      nextStepsLabel: nextSteps.length > 0 ? nextSteps.join('、') : '当前未配置下游步骤',
+      downstreamLabel: step.downstream_template_code.trim()
+        ? `额外触发下游模板 ${step.downstream_template_code.trim()}（${step.downstream_spawn_mode === 'per_step_run' ? '按参与人派生' : '单实例派生'}）`
+        : '无下游模板触发',
+    }
+  }),
+)
+const selectedTemplateVersionLabel = computed(() => {
+  if (!selectedTemplate.value) {
+    return ''
+  }
+  return `V${selectedTemplate.value.version}`
+})
+const selectedTemplateVersionHint = computed(() => {
+  if (!selectedTemplate.value) {
+    return ''
+  }
+  if (selectedTemplate.value.latest_version > selectedTemplate.value.version) {
+    return `当前版本不是最新版本，最新为 V${selectedTemplate.value.latest_version}`
+  }
+  return `当前为最新版本 V${selectedTemplate.value.latest_version}`
+})
+const selectedInstanceProgressSummary = computed(() => {
+  if (!selectedTemplateInstance.value) {
+    return '未选择模板实例'
+  }
+  return `完成 ${selectedTemplateInstance.value.completed_step_count}/${selectedTemplateInstance.value.total_step_count} 步 · 进行中 ${selectedTemplateInstance.value.active_step_count} 步 · 阻塞 ${selectedTemplateInstance.value.blocked_step_count} 步 · 就绪 ${selectedTemplateInstance.value.ready_step_count} 步`
 })
 const stepsJsonPreview = computed(() => JSON.stringify(buildStepPayloads(false), null, 2))
 
@@ -290,6 +350,7 @@ function syncStepDraftSeed(steps: StepFormState[]): void {
 function resetCreateForm(): void {
   templateDialogMode.value = 'create'
   editingTemplateId.value = ''
+  createForm.source_template_id = ''
   createForm.code = ''
   createForm.name = ''
   createForm.category = 'ops'
@@ -312,6 +373,7 @@ function resetScheduleForm(): void {
 function populateTemplateForm(template: TaskTemplate): void {
   templateDialogMode.value = 'edit'
   editingTemplateId.value = template.id
+  createForm.source_template_id = ''
   createForm.code = template.code
   createForm.name = template.name
   createForm.category = template.category
@@ -338,6 +400,45 @@ function populateTemplateForm(template: TaskTemplate): void {
     ),
   )
   syncStepDraftSeed(createForm.steps)
+}
+
+function openCreateVersionDialog(): void {
+  if (!selectedTemplate.value) {
+    ElMessage.warning('请先选择模板')
+    return
+  }
+
+  const template = selectedTemplate.value
+  templateDialogMode.value = 'create'
+  editingTemplateId.value = ''
+  createForm.source_template_id = template.id
+  createForm.code = `${template.base_code}-v${template.latest_version + 1}`
+  createForm.name = `${template.name} V${template.latest_version + 1}`
+  createForm.category = template.category
+  createForm.description = template.description ?? ''
+  createForm.steps = template.steps.map((step, index) =>
+    createStepStateFromPayload(
+      {
+        step_key: step.step_key,
+        title: step.title,
+        description: step.description,
+        step_type: step.step_type,
+        assignment_mode: step.assignment_mode,
+        join_mode: step.join_mode,
+        default_assignee_rule: step.default_assignee_rule,
+        default_due_offset_hours: step.default_due_offset_hours,
+        sort_order: step.sort_order,
+        config: step.config,
+        depends_on_step_keys: step.depends_on_step_keys,
+        approval_type: step.approval_type,
+        reject_target_step_key: step.reject_target_step_key,
+        downstream_trigger: step.downstream_trigger ?? undefined,
+      },
+      index,
+    ),
+  )
+  syncStepDraftSeed(createForm.steps)
+  createDialogVisible.value = true
 }
 
 function openCreateDialog(): void {
@@ -503,6 +604,9 @@ function handleImportSteps(): void {
 }
 
 function buildAssigneeRule(step: StepFormState, strict: boolean): Record<string, unknown> {
+  if (strict && !step.assignee_rule_type) {
+    throw new Error(`步骤「${step.title || step.step_key}」缺少负责人规则`)
+  }
   if (step.assignee_rule_type === 'user') {
     if (!step.assignee_user_id) {
       if (strict) {
@@ -531,6 +635,99 @@ function buildAssigneeRule(step: StepFormState, strict: boolean): Record<string,
   return { type: 'initiator' }
 }
 
+function validateStepPayloads(stepPayloads: TaskTemplateStepPayload[]): void {
+  if (stepPayloads.length <= 1) {
+    const singleStep = stepPayloads[0]
+    if (!singleStep) {
+      return
+    }
+    const ruleType = String(singleStep.default_assignee_rule?.type ?? '')
+    if (!ruleType) {
+      throw new Error(`步骤「${singleStep.title || singleStep.step_key}」缺少负责人规则`)
+    }
+    if (singleStep.assignment_mode === 'single' && ['department_members', 'user_ids'].includes(ruleType)) {
+      throw new Error(`步骤「${singleStep.title || singleStep.step_key}」使用单任务模式时不能选择多人负责人规则`)
+    }
+    return
+  }
+
+  const payloadMap = new Map(stepPayloads.map((step) => [step.step_key, step]))
+  const indegree = new Map(stepPayloads.map((step) => [step.step_key, 0]))
+  const outgoing = new Map(stepPayloads.map((step) => [step.step_key, [] as string[]]))
+  const undirected = new Map(stepPayloads.map((step) => [step.step_key, new Set<string>()]))
+
+  stepPayloads.forEach((step) => {
+    const ruleType = String(step.default_assignee_rule?.type ?? '')
+    if (!ruleType) {
+      throw new Error(`步骤「${step.title || step.step_key}」缺少负责人规则`)
+    }
+    if (step.assignment_mode === 'single' && step.join_mode !== 'all') {
+      throw new Error(`步骤「${step.title || step.step_key}」使用单任务模式时不能配置多人汇聚规则`)
+    }
+    if (step.assignment_mode === 'single' && ['department_members', 'user_ids'].includes(ruleType)) {
+      throw new Error(`步骤「${step.title || step.step_key}」使用单任务模式时不能选择多人负责人规则`)
+    }
+
+    ;(step.depends_on_step_keys ?? []).forEach((dependencyKey) => {
+      if (!payloadMap.has(dependencyKey)) {
+        throw new Error(`步骤「${step.title || step.step_key}」引用了不存在的前置步骤 ${dependencyKey}`)
+      }
+      indegree.set(step.step_key, (indegree.get(step.step_key) ?? 0) + 1)
+      outgoing.get(dependencyKey)?.push(step.step_key)
+      undirected.get(step.step_key)?.add(dependencyKey)
+      undirected.get(dependencyKey)?.add(step.step_key)
+    })
+  })
+
+  const queue = stepPayloads
+    .map((step) => step.step_key)
+    .filter((stepKey) => (indegree.get(stepKey) ?? 0) === 0)
+  let visitedCount = 0
+
+  while (queue.length > 0) {
+    const currentStepKey = queue.shift()
+    if (!currentStepKey) {
+      continue
+    }
+    visitedCount += 1
+    for (const nextStepKey of outgoing.get(currentStepKey) ?? []) {
+      const nextIndegree = (indegree.get(nextStepKey) ?? 0) - 1
+      indegree.set(nextStepKey, nextIndegree)
+      if (nextIndegree === 0) {
+        queue.push(nextStepKey)
+      }
+    }
+  }
+
+  if (visitedCount !== stepPayloads.length) {
+    throw new Error('正常流转路径存在循环依赖，请调整前置步骤关系')
+  }
+
+  const firstStepKey = stepPayloads[0]?.step_key
+  if (!firstStepKey) {
+    return
+  }
+
+  const visited = new Set<string>()
+  const pendingKeys = [firstStepKey]
+  while (pendingKeys.length > 0) {
+    const currentStepKey = pendingKeys.pop()
+    if (!currentStepKey || visited.has(currentStepKey)) {
+      continue
+    }
+    visited.add(currentStepKey)
+    for (const linkedStepKey of undirected.get(currentStepKey) ?? []) {
+      if (!visited.has(linkedStepKey)) {
+        pendingKeys.push(linkedStepKey)
+      }
+    }
+  }
+
+  if (visited.size !== stepPayloads.length) {
+    throw new Error('当前模板存在未连接的孤岛步骤，请确认每个步骤都和主流程相连')
+  }
+}
+
 function buildStepPayloads(strict: boolean): TaskTemplateStepPayload[] {
   const availableStepKeys = new Set(
     createForm.steps
@@ -539,9 +736,10 @@ function buildStepPayloads(strict: boolean): TaskTemplateStepPayload[] {
   )
   const seenStepKeys = new Set<string>()
 
-  return createForm.steps.map((step, index) => {
+  const payloads = createForm.steps.map((step, index) => {
     const stepKey = step.step_key.trim() || `step_${index + 1}`
     const title = step.title.trim() || `步骤 ${index + 1}`
+    const dependencyKeys = [...new Set(step.depends_on_step_keys.map((value) => value.trim()).filter(Boolean))]
     if (strict && !step.step_key.trim()) {
       throw new Error(`第 ${index + 1} 个步骤缺少步骤编码`)
     }
@@ -550,6 +748,12 @@ function buildStepPayloads(strict: boolean): TaskTemplateStepPayload[] {
     }
     if (strict && seenStepKeys.has(stepKey)) {
       throw new Error(`步骤编码 ${stepKey} 重复`)
+    }
+    if (strict && dependencyKeys.includes(stepKey)) {
+      throw new Error(`步骤「${title}」不能依赖自身`)
+    }
+    if (strict && dependencyKeys.some((value) => !availableStepKeys.has(value))) {
+      throw new Error(`步骤「${title}」包含不存在的前置步骤`)
     }
     seenStepKeys.add(stepKey)
     return {
@@ -563,9 +767,7 @@ function buildStepPayloads(strict: boolean): TaskTemplateStepPayload[] {
       default_due_offset_hours: step.default_due_offset_hours ?? null,
       sort_order: index + 1,
       config: {},
-      depends_on_step_keys: step.depends_on_step_keys.filter(
-        (value) => value !== stepKey && availableStepKeys.has(value),
-      ),
+      depends_on_step_keys: dependencyKeys.filter((value) => value !== stepKey && availableStepKeys.has(value)),
       approval_type: step.approval_type || 'none',
       reject_target_step_key:
         step.approval_type !== 'none' && step.reject_target_step_key.trim()
@@ -584,6 +786,12 @@ function buildStepPayloads(strict: boolean): TaskTemplateStepPayload[] {
           : null,
     }
   })
+
+  if (strict) {
+    validateStepPayloads(payloads)
+  }
+
+  return payloads
 }
 
 function formatAssigneeRule(rule: Record<string, unknown>): string {
@@ -714,6 +922,26 @@ function formatTemplateInstanceOptionLabel(instance: TaskTemplateInstance): stri
   return labelParts.join(' · ')
 }
 
+function formatScheduleLastRunStatus(schedule: TaskSchedule): string {
+  if (schedule.last_run_status === 'success') {
+    return '最近执行成功'
+  }
+  if (schedule.last_run_status === 'failed') {
+    return '最近执行失败'
+  }
+  return '暂未执行'
+}
+
+function resolveScheduleLastRunTagType(schedule: TaskSchedule): 'success' | 'danger' | 'info' {
+  if (schedule.last_run_status === 'success') {
+    return 'success'
+  }
+  if (schedule.last_run_status === 'failed') {
+    return 'danger'
+  }
+  return 'info'
+}
+
 async function loadTemplateInstances(templateId: string, preferredInstanceId?: string): Promise<void> {
   if (!templateId) {
     templateInstances.value = []
@@ -779,6 +1007,7 @@ async function handleSaveTemplate(): Promise<void> {
   try {
     const payload = {
       code: createForm.code.trim(),
+      source_template_id: !isEditingTemplate.value && createForm.source_template_id ? createForm.source_template_id : undefined,
       name: createForm.name.trim(),
       category: createForm.category.trim(),
       description: createForm.description || null,
@@ -949,6 +1178,14 @@ onMounted(() => {
               <span>模板详情</span>
               <div v-if="canManageTemplates && selectedTemplate" class="page__header-actions">
                 <el-button
+                  v-if="selectedTemplate.is_structure_locked"
+                  type="primary"
+                  plain
+                  @click="openCreateVersionDialog"
+                >
+                  新建版本
+                </el-button>
+                <el-button
                   :loading="templateStatusSubmitting"
                   plain
                   @click="handleToggleTemplateActive"
@@ -968,8 +1205,19 @@ onMounted(() => {
           <template v-if="selectedTemplate">
             <el-descriptions :column="1" border>
               <el-descriptions-item label="模板编码">{{ selectedTemplate.code }}</el-descriptions-item>
+              <el-descriptions-item label="版本信息">
+                <div class="page__meta-stack">
+                  <span>{{ selectedTemplateVersionLabel }} · 基线 {{ selectedTemplate.base_code }}</span>
+                  <span>{{ selectedTemplateVersionHint }}</span>
+                </div>
+              </el-descriptions-item>
               <el-descriptions-item label="分类">{{ selectedTemplate.category }}</el-descriptions-item>
               <el-descriptions-item label="触发方式">{{ selectedTemplate.trigger_type }}</el-descriptions-item>
+              <el-descriptions-item label="结构状态">
+                <el-tag :type="selectedTemplate.is_structure_locked ? 'warning' : 'success'" effect="plain">
+                  {{ selectedTemplate.is_structure_locked ? '结构锁定' : '结构可编辑' }}
+                </el-tag>
+              </el-descriptions-item>
               <el-descriptions-item label="说明">
                 {{ selectedTemplate.description || '—' }}
               </el-descriptions-item>
@@ -1056,6 +1304,13 @@ onMounted(() => {
                 </div>
 
                 <template v-if="selectedTemplateInstance">
+                  <div class="page__instance-progress">
+                    <div>
+                      <strong>整体进度 {{ selectedTemplateInstance.progress_percent }}%</strong>
+                      <p>{{ selectedInstanceProgressSummary }}</p>
+                    </div>
+                    <el-progress :percentage="selectedTemplateInstance.progress_percent" :stroke-width="10" />
+                  </div>
                   <p class="page__instance-meta">
                     发起人 {{ selectedTemplateInstance.initiator_email || selectedTemplateInstance.initiator_user_id }}
                     · 部门 {{ selectedTemplateInstance.department_name || '—' }}
@@ -1080,6 +1335,10 @@ onMounted(() => {
                         <p class="page__instance-step-meta">
                           负责人 {{ formatAssigneeRule(snapshot.step.default_assignee_rule) }}
                           · {{ formatStepSnapshotProgress(snapshot) }}
+                        </p>
+                        <p class="page__instance-step-meta">
+                          迭代批次 {{ snapshot.latest_iteration || 0 }}
+                          · 历史批次数 {{ snapshot.history_iteration_count }}
                         </p>
                         <p class="page__instance-step-meta">
                           依赖 {{ snapshot.step.depends_on_step_keys.join(', ') || '无' }}
@@ -1175,6 +1434,19 @@ onMounted(() => {
             {{ formatDateTime(row.next_run_at) }}
           </template>
         </el-table-column>
+        <el-table-column label="最近执行" min-width="220">
+          <template #default="{ row }: { row: TaskSchedule }">
+            <div class="page__schedule-status">
+              <el-tag :type="resolveScheduleLastRunTagType(row)" effect="plain">
+                {{ formatScheduleLastRunStatus(row) }}
+              </el-tag>
+              <span>{{ row.last_run_at ? formatDateTime(row.last_run_at) : '—' }}</span>
+            </div>
+            <p class="page__schedule-message">
+              {{ row.last_run_message || '等待首次执行' }}
+            </p>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="120">
           <template #default="{ row }: { row: TaskSchedule }">
             <el-button text @click="openEditSchedule(row)">编辑调度</el-button>
@@ -1221,7 +1493,15 @@ onMounted(() => {
           type="warning"
           show-icon
           :closable="false"
-          title="该模板已有实例运行记录。当前只允许更新模板名称、分类和说明，步骤结构不可再编辑。"
+          title="该模板已有实例运行记录。当前只允许更新模板名称、分类和说明；如需调整步骤结构，请优先新建版本。"
+        />
+        <el-alert
+          v-if="isCreatingVersion"
+          class="page__designer-tip"
+          type="success"
+          show-icon
+          :closable="false"
+          :title="`当前将基于所选模板创建新版本，保存后会自动进入下一版本序列。`"
         />
 
         <div class="page__steps-toolbar">
@@ -1378,6 +1658,21 @@ onMounted(() => {
           </el-card>
         </div>
 
+        <el-form-item class="page__designer-grid-full" label="流转关系预览（邻接表达）">
+          <div class="page__relation-list">
+            <div
+              v-for="relation in stepRelationPreview"
+              :key="relation.key"
+              class="page__relation-item"
+            >
+              <strong>{{ relation.key }} · {{ relation.title }}</strong>
+              <p>前置 {{ relation.dependsOnLabel }}</p>
+              <p>正常流转到 {{ relation.nextStepsLabel }}</p>
+              <p>{{ relation.downstreamLabel }}</p>
+            </div>
+          </div>
+        </el-form-item>
+
         <el-form-item label="步骤 JSON 预览（只读）">
           <el-input :model-value="stepsJsonPreview" type="textarea" :rows="8" readonly />
         </el-form-item>
@@ -1454,6 +1749,21 @@ onMounted(() => {
 
 .page__instance-meta {
   margin: 0;
+  color: var(--el-text-color-secondary);
+}
+
+.page__instance-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 10px;
+  background: var(--el-fill-color-lighter);
+}
+
+.page__instance-progress p {
+  margin: 4px 0 0;
   color: var(--el-text-color-secondary);
 }
 
@@ -1554,8 +1864,43 @@ onMounted(() => {
   gap: 4px;
 }
 
+.page__meta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page__schedule-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page__schedule-message {
+  margin: 6px 0 0;
+  color: var(--el-text-color-secondary);
+}
+
 .page__import-input {
   margin-top: 16px;
+}
+
+.page__relation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page__relation-item {
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+}
+
+.page__relation-item p {
+  margin: 4px 0 0;
+  color: var(--el-text-color-secondary);
 }
 
 @media (max-width: 768px) {

@@ -50,11 +50,13 @@ class Settings(BaseSettings):
   jwt_algorithm: str = "HS256"
   jwt_access_token_minutes: int = 30
   jwt_refresh_token_days: int = 7
+  auth_invitation_expiry_hours: int = 72
   auth_refresh_cookie_name: str = "filum_refresh_token"
   auth_refresh_cookie_path: str = "/api/v1/auth"
   auth_refresh_cookie_domain: str | None = None
   auth_refresh_cookie_samesite: str = "strict"
   auth_refresh_cookie_secure: bool | None = None
+  frontend_app_url: str = "http://localhost:5173"
   cors_allowed_origins: list[str] = Field(default_factory=list)
   cors_allowed_origin_regex: str | None = None
   cors_allow_credentials: bool = True
@@ -122,6 +124,14 @@ class Settings(BaseSettings):
       self.auth_refresh_cookie_secure = self.app_env != "development"
     if self.auth_refresh_cookie_samesite == "none" and not self.auth_refresh_cookie_secure:
       raise ValueError("SameSite=None 的 refresh cookie 必须启用 Secure。")
+    if self.auth_invitation_expiry_hours <= 0:
+      raise ValueError("AUTH_INVITATION_EXPIRY_HOURS 必须大于 0。")
+    normalized_frontend_app_url = self.frontend_app_url.strip().rstrip("/")
+    if not normalized_frontend_app_url:
+      raise ValueError("FRONTEND_APP_URL 不能为空。")
+    if not normalized_frontend_app_url.startswith(("http://", "https://")):
+      raise ValueError("FRONTEND_APP_URL 必须以 http:// 或 https:// 开头。")
+    self.frontend_app_url = normalized_frontend_app_url
     if self.app_env == "development" and not self.cors_allowed_origins and self.cors_allowed_origin_regex is None:
       self.cors_allowed_origins = list(DEFAULT_DEVELOPMENT_CORS_ORIGINS)
     return self

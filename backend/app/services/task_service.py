@@ -223,8 +223,13 @@ class TaskService:
     task_order = {task_id: index for index, task_id in enumerate(task_ids)}
     return sorted(tasks, key=lambda task: task_order[task.id])
 
-  async def _get_template_instance_or_raise(self, *, instance_id: UUID) -> TaskTemplateInstance:
-    instance = await self._session.scalar(
+  async def _get_template_instance_or_raise(
+    self,
+    *,
+    instance_id: UUID,
+    for_update: bool = False,
+  ) -> TaskTemplateInstance:
+    statement = (
       select(TaskTemplateInstance)
       .options(
         selectinload(TaskTemplateInstance.template)
@@ -234,6 +239,10 @@ class TaskService:
       )
       .where(TaskTemplateInstance.id == instance_id)
     )
+    if for_update:
+      statement = statement.with_for_update()
+
+    instance = await self._session.scalar(statement)
     if instance is None or instance.template is None:
       raise NotFoundError("模板实例不存在。")
     return instance
@@ -444,7 +453,7 @@ class TaskService:
     return created_task_ids, created_bindings, watcher_bindings
 
   async def activate_template_instance_steps(self, *, instance_id: UUID) -> list[Task]:
-    instance = await self._get_template_instance_or_raise(instance_id=instance_id)
+    instance = await self._get_template_instance_or_raise(instance_id=instance_id, for_update=True)
     task_ids, created_bindings, watcher_bindings = await self._activate_ready_template_steps(instance=instance)
     await self._session.commit()
     tasks = await self._load_tasks_by_ids(task_ids=task_ids)
@@ -461,22 +470,16 @@ class TaskService:
 
     step_run = await self._session.scalar(
       select(TaskTemplateStepRun)
-      .options(
-        selectinload(TaskTemplateStepRun.instance)
-        .selectinload(TaskTemplateInstance.template)
-        .selectinload(TaskTemplate.steps)
-        .selectinload(TaskTemplateStep.dependencies),
-        selectinload(TaskTemplateStepRun.instance).selectinload(TaskTemplateInstance.initiator),
-      )
       .where(TaskTemplateStepRun.id == task.template_step_run_id)
     )
-    if step_run is None or step_run.instance is None:
+    if step_run is None:
       return
+    instance = await self._get_template_instance_or_raise(instance_id=step_run.instance_id, for_update=True)
     if step_run.status != "completed":
       step_run.status = "completed"
       step_run.completed_at = datetime.now(UTC)
 
-    task_ids, created_bindings, watcher_bindings = await self._activate_ready_template_steps(instance=step_run.instance)
+    task_ids, created_bindings, watcher_bindings = await self._activate_ready_template_steps(instance=instance)
     await self._session.commit()
     tasks = await self._load_tasks_by_ids(task_ids=task_ids)
     task_map = {created_task.id: created_task for created_task in tasks}

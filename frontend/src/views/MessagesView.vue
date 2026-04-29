@@ -4,7 +4,14 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { createMessageReceipt, getMessageCenterSnapshot } from '@/api/messages'
-import type { Message, MessageCenterSnapshot, MessageStateFilter } from '@/types/api'
+import type {
+  Message,
+  MessageCenterSnapshot,
+  MessageStateFilter,
+  NotificationChannel,
+  NotificationDelivery,
+  NotificationDeliveryStatus,
+} from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
@@ -15,6 +22,24 @@ const snapshot = ref<MessageCenterSnapshot | null>(null)
 const selectedMessageId = ref('')
 const sourceFilter = ref('all')
 const stateFilter = ref<MessageStateFilter>('all')
+const channelFilter = ref<NotificationChannel | 'all'>('all')
+const deliveryStatusFilter = ref<NotificationDeliveryStatus | 'all'>('all')
+const createdRange = ref<[Date, Date] | null>(null)
+
+const channelOptions: Array<{ label: string; value: NotificationChannel | 'all' }> = [
+  { label: '全部渠道', value: 'all' },
+  { label: '邮件', value: 'email' },
+  { label: '浏览器推送', value: 'web_push' },
+  { label: '站内消息', value: 'websocket' },
+]
+
+const deliveryStatusOptions: Array<{ label: string; value: NotificationDeliveryStatus | 'all' }> = [
+  { label: '全部投递态', value: 'all' },
+  { label: '等待投递', value: 'pending' },
+  { label: '投递成功', value: 'sent' },
+  { label: '投递失败', value: 'failed' },
+  { label: '重试中', value: 'retrying' },
+]
 
 const summaryCards = computed(() => [
   {
@@ -48,6 +73,10 @@ async function loadData(): Promise<void> {
     snapshot.value = await getMessageCenterSnapshot({
       sourceType: sourceFilter.value === 'all' ? undefined : sourceFilter.value,
       state: stateFilter.value,
+      channel: channelFilter.value === 'all' ? undefined : channelFilter.value,
+      deliveryStatus: deliveryStatusFilter.value === 'all' ? undefined : deliveryStatusFilter.value,
+      createdFrom: createdRange.value?.[0]?.toISOString(),
+      createdTo: createdRange.value?.[1]?.toISOString(),
     })
     const stillSelected = messages.value.some((message) => message.id === selectedMessageId.value)
     if (!stillSelected) {
@@ -70,6 +99,21 @@ function handleStateFilterChange(value: string): void {
   void loadData()
 }
 
+function handleChannelFilterChange(value: NotificationChannel | 'all'): void {
+  channelFilter.value = value
+  void loadData()
+}
+
+function handleDeliveryStatusChange(value: NotificationDeliveryStatus | 'all'): void {
+  deliveryStatusFilter.value = value
+  void loadData()
+}
+
+function handleCreatedRangeChange(value: [Date, Date] | null): void {
+  createdRange.value = value
+  void loadData()
+}
+
 function resolveStateLabel(message: Message): string {
   if (message.receipt_state.is_acknowledged) {
     return '已确认'
@@ -88,6 +132,51 @@ function resolveStateTagType(message: Message): 'success' | 'warning' | 'info' {
     return 'warning'
   }
   return 'info'
+}
+
+function formatChannelLabel(channel: NotificationChannel): string {
+  if (channel === 'email') {
+    return '邮件'
+  }
+  if (channel === 'web_push') {
+    return '浏览器推送'
+  }
+  return '站内消息'
+}
+
+function resolveDeliveryStateLabel(deliveryState: NotificationDeliveryStatus | null): string {
+  if (deliveryState === 'sent') {
+    return '投递成功'
+  }
+  if (deliveryState === 'failed') {
+    return '投递失败'
+  }
+  if (deliveryState === 'retrying') {
+    return '重试中'
+  }
+  if (deliveryState === 'pending') {
+    return '等待投递'
+  }
+  return '暂无投递记录'
+}
+
+function resolveDeliveryStateTagType(
+  deliveryState: NotificationDeliveryStatus | null,
+): 'success' | 'warning' | 'danger' | 'info' {
+  if (deliveryState === 'sent') {
+    return 'success'
+  }
+  if (deliveryState === 'failed') {
+    return 'danger'
+  }
+  if (deliveryState === 'retrying') {
+    return 'warning'
+  }
+  return 'info'
+}
+
+function resolveDeliveryTagType(delivery: NotificationDelivery): 'success' | 'warning' | 'danger' | 'info' {
+  return resolveDeliveryStateTagType(delivery.status)
 }
 
 async function handleReceipt(receiptType: 'read' | 'acknowledged'): Promise<void> {
@@ -167,6 +256,41 @@ onMounted(() => {
                     :value="item.source_type"
                   />
                 </el-select>
+                <el-select
+                  :model-value="channelFilter"
+                  size="small"
+                  style="width: 150px"
+                  @change="handleChannelFilterChange"
+                >
+                  <el-option
+                    v-for="item in channelOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+                <el-select
+                  :model-value="deliveryStatusFilter"
+                  size="small"
+                  style="width: 150px"
+                  @change="handleDeliveryStatusChange"
+                >
+                  <el-option
+                    v-for="item in deliveryStatusOptions"
+                    :key="item.value"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+                <el-date-picker
+                  :model-value="createdRange"
+                  type="datetimerange"
+                  range-separator="至"
+                  start-placeholder="开始时间"
+                  end-placeholder="结束时间"
+                  value-format=""
+                  @change="handleCreatedRangeChange"
+                />
               </el-space>
             </div>
           </template>
@@ -183,6 +307,18 @@ onMounted(() => {
                 <el-tag :type="resolveStateTagType(row)" effect="plain">
                   {{ resolveStateLabel(row) }}
                 </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="投递" width="120">
+              <template #default="{ row }: { row: Message }">
+                <el-tag :type="resolveDeliveryStateTagType(row.delivery_state)" effect="plain">
+                  {{ resolveDeliveryStateLabel(row.delivery_state) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="附件" width="80">
+              <template #default="{ row }: { row: Message }">
+                {{ row.attachments.length }}
               </template>
             </el-table-column>
             <el-table-column label="时间" min-width="180">
@@ -241,11 +377,39 @@ onMounted(() => {
                   {{ resolveStateLabel(selectedMessage) }}
                 </el-tag>
               </el-descriptions-item>
+              <el-descriptions-item label="投递状态">
+                <el-tag :type="resolveDeliveryStateTagType(selectedMessage.delivery_state)" effect="plain">
+                  {{ resolveDeliveryStateLabel(selectedMessage.delivery_state) }}
+                </el-tag>
+              </el-descriptions-item>
               <el-descriptions-item label="正文">{{ selectedMessage.body_text }}</el-descriptions-item>
               <el-descriptions-item label="创建时间">
                 {{ formatDateTime(selectedMessage.created_at) }}
               </el-descriptions-item>
             </el-descriptions>
+
+            <el-divider>消息附件</el-divider>
+            <el-empty v-if="selectedMessage.attachments.length === 0" description="暂无消息附件" />
+            <div v-else class="page__attachment-list">
+              <div
+                v-for="attachment in selectedMessage.attachments"
+                :key="attachment.id"
+                class="page__attachment-item"
+              >
+                <div>
+                  <strong>{{ attachment.original_filename }}</strong>
+                  <p>{{ attachment.mime_type }} · {{ attachment.size_bytes }} bytes</p>
+                </div>
+                <el-link
+                  v-if="attachment.download_url"
+                  :href="attachment.download_url"
+                  target="_blank"
+                  type="primary"
+                >
+                  下载
+                </el-link>
+              </div>
+            </div>
 
             <el-divider>我的回执</el-divider>
             <el-empty v-if="selectedMessage.receipts.length === 0" description="暂无回执" />
@@ -261,15 +425,26 @@ onMounted(() => {
 
             <el-divider>投递状态</el-divider>
             <el-empty v-if="selectedMessage.deliveries.length === 0" description="暂无投递记录" />
-            <el-space v-else wrap>
-              <el-tag
+            <div v-else class="page__delivery-list">
+              <div
                 v-for="delivery in selectedMessage.deliveries"
                 :key="delivery.id"
-                :type="delivery.status === 'failed' ? 'danger' : delivery.status === 'sent' ? 'success' : 'info'"
+                class="page__delivery-item"
               >
-                {{ delivery.channel }} · {{ delivery.status }}
-              </el-tag>
-            </el-space>
+                <div class="page__delivery-head">
+                  <el-tag effect="plain">{{ formatChannelLabel(delivery.channel) }}</el-tag>
+                  <el-tag :type="resolveDeliveryTagType(delivery)" effect="plain">
+                    {{ resolveDeliveryStateLabel(delivery.status) }}
+                  </el-tag>
+                </div>
+                <p>
+                  尝试 {{ delivery.attempt_count }} 次
+                  · 最近尝试 {{ formatDateTime(delivery.attempted_at) }}
+                  · 送达 {{ formatDateTime(delivery.delivered_at) }}
+                </p>
+                <p v-if="delivery.error_message" class="page__delivery-error">{{ delivery.error_message }}</p>
+              </div>
+            </div>
           </template>
 
           <el-empty v-else description="请选择左侧消息查看详情" />
@@ -305,5 +480,45 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.page__attachment-list,
+.page__delivery-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page__attachment-item,
+.page__delivery-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 10px;
+  background: var(--el-fill-color-lighter);
+}
+
+.page__attachment-item p,
+.page__delivery-item p {
+  margin: 4px 0 0;
+  color: var(--filum-text-secondary);
+}
+
+.page__delivery-item {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.page__delivery-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page__delivery-error {
+  color: var(--el-color-danger);
 }
 </style>

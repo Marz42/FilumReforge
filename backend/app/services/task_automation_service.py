@@ -108,6 +108,10 @@ class TaskAutomationService:
       next_run_at=next_run_at,
       is_active=is_active,
       payload=dict(payload or {}),
+      last_run_at=None,
+      last_run_status=None,
+      last_run_message=None,
+      last_run_task_count=None,
     )
     self._session.add(schedule)
     await self._session.commit()
@@ -169,24 +173,35 @@ class TaskAutomationService:
 
     executed_count = 0
     for schedule in schedules:
-      owner = schedule.owner
-      if owner is None:
-        owner = await self._session.get(User, schedule.owner_user_id)
-      if owner is None:
-        raise NotFoundError("调度所属用户不存在。")
-      ensure_active_user(owner)
+      try:
+        owner = schedule.owner
+        if owner is None:
+          owner = await self._session.get(User, schedule.owner_user_id)
+        if owner is None:
+          raise NotFoundError("调度所属用户不存在。")
+        ensure_active_user(owner)
 
-      await self._template_service.instantiate_template(
-        actor=owner,
-        template_id=schedule.template_id,
-        payload=schedule.payload,
-      )
+        instantiation = await self._template_service.instantiate_template(
+          actor=owner,
+          template_id=schedule.template_id,
+          payload=schedule.payload,
+        )
+        schedule.last_run_at = current_time
+        schedule.last_run_status = "success"
+        schedule.last_run_message = f"成功实例化 {len(instantiation.tasks)} 条任务"
+        schedule.last_run_task_count = len(instantiation.tasks)
+        executed_count += 1
+      except Exception as exc:
+        schedule.last_run_at = current_time
+        schedule.last_run_status = "failed"
+        schedule.last_run_message = str(exc)
+        schedule.last_run_task_count = 0
+
       schedule.next_run_at = self._compute_next_run_at(
         cron_expr=schedule.cron_expr,
         timezone_name=schedule.timezone,
         base_time=current_time,
       )
       await self._session.commit()
-      executed_count += 1
 
     return executed_count

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
+import { createInvitation } from '@/api/auth'
 import { listDepartments } from '@/api/departments'
 import { getPeopleManagement, getPeopleManagementDetail } from '@/api/people-management'
 import {
@@ -16,7 +17,7 @@ import {
   updateDelegation,
   updateProfile,
 } from '@/api/profiles'
-import { createUser, updateUser } from '@/api/users'
+import { createUser, deleteUser, updateUser } from '@/api/users'
 import type {
   Delegation,
   DelegationScopeType,
@@ -31,6 +32,7 @@ import type {
   ProfileFieldAccess,
   ReportingLineType,
   UserRole,
+  UserInvitation,
   UserStatus,
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
@@ -130,6 +132,7 @@ const relationSubmitting = ref(false)
 const lifecycleSubmitting = ref(false)
 const delegationSubmitting = ref(false)
 const accountSubmitting = ref(false)
+const deleteUserSubmitting = ref(false)
 const profileSubmitting = ref(false)
 const positionCatalogSubmitting = ref(false)
 const createUserSubmitting = ref(false)
@@ -149,6 +152,8 @@ const departmentFilter = ref<'all' | string>('all')
 
 const createUserDialogVisible = ref(false)
 const createProfileDialogVisible = ref(false)
+const createUserMode = ref<'direct' | 'invite'>('direct')
+const createdInvitation = ref<UserInvitation | null>(null)
 
 const createUserForm = reactive({
   email: '',
@@ -365,7 +370,30 @@ function resolveDelegationStatusTagType(
   return DELEGATION_STATUS_TAG_TYPES[status]
 }
 
+function resolveInvitationLifecycleLabel(user: {
+  invitation_sent_at?: string | null
+  invitation_expires_at?: string | null
+  invitation_revoked_at?: string | null
+  invitation_accepted_at?: string | null
+}): string {
+  if (user.invitation_revoked_at) {
+    return '已手动撤销'
+  }
+  if (user.invitation_accepted_at) {
+    return '已完成注册（非撤销）'
+  }
+  if (user.invitation_expires_at && new Date(user.invitation_expires_at).getTime() <= Date.now()) {
+    return '已过期'
+  }
+  if (user.invitation_sent_at) {
+    return '待注册'
+  }
+  return '未使用邀请注册'
+}
+
 function resetCreateUserForm(): void {
+  createUserMode.value = 'direct'
+  createdInvitation.value = null
   createUserForm.email = ''
   createUserForm.password = ''
   createUserForm.role = 'employee'
@@ -572,6 +600,18 @@ function handleDetailTabChange(value: string): void {
 async function handleCreateUser(): Promise<void> {
   createUserSubmitting.value = true
   try {
+    createdInvitation.value = null
+    if (createUserMode.value === 'invite') {
+      const invitation = await createInvitation({
+        email: createUserForm.email.trim(),
+        role: createUserForm.role,
+      })
+      createdInvitation.value = invitation
+      ElMessage.success('邀请链接已生成')
+      await refreshWorkspace(invitation.user.id)
+      return
+    }
+
     const createdUser = await createUser({
       email: createUserForm.email.trim(),
       password: createUserForm.password,
@@ -608,6 +648,35 @@ async function handleSaveAccount(): Promise<void> {
     ElMessage.error(getErrorMessage(error))
   } finally {
     accountSubmitting.value = false
+  }
+}
+
+async function handleDeleteUser(): Promise<void> {
+  if (!selectedDetail.value || !selectedDetail.value.actions.can_delete_user) {
+    return
+  }
+
+  deleteUserSubmitting.value = true
+  try {
+    await ElMessageBox.confirm(
+      `确认删除账号“${selectedDetail.value.account.email}”吗？仅允许删除未建档账号；若已有业务引用将被拒绝。`,
+      '删除账号',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      },
+    )
+    await deleteUser(selectedDetail.value.account.id)
+    ElMessage.success('账号已删除')
+    await refreshWorkspace()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    deleteUserSubmitting.value = false
   }
 }
 
@@ -1035,6 +1104,9 @@ watch(
                           <el-descriptions-item label="是否已建档">
                             {{ selectedDetail.summary.has_profile ? '是' : '否' }}
                           </el-descriptions-item>
+                          <el-descriptions-item label="邀请状态">
+                            {{ resolveInvitationLifecycleLabel(selectedDetail.account) }}
+                          </el-descriptions-item>
                           <el-descriptions-item label="创建时间">
                             {{ formatDateTime(selectedDetail.account.created_at) }}
                           </el-descriptions-item>
@@ -1075,7 +1147,19 @@ watch(
                               />
                             </el-select>
                           </el-form-item>
-                          <div class="page__actions">
+                          <p v-if="selectedDetail.actions.can_delete_user" class="page__helper">
+                            仅未建档账号支持物理删除；已建档人员请通过状态管理停用或离职。
+                          </p>
+                          <div class="page__actions page__actions--split">
+                            <el-button
+                              v-if="selectedDetail.actions.can_delete_user"
+                              type="danger"
+                              plain
+                              :loading="deleteUserSubmitting"
+                              @click="handleDeleteUser"
+                            >
+                              删除未建档账号
+                            </el-button>
                             <el-button type="primary" :loading="accountSubmitting" @click="handleSaveAccount">
                               保存账号信息
                             </el-button>
@@ -1577,10 +1661,16 @@ watch(
       @closed="resetCreateUserForm"
     >
       <el-form label-position="top">
+        <el-form-item label="开通方式">
+          <el-radio-group v-model="createUserMode">
+            <el-radio-button value="direct">直接创建</el-radio-button>
+            <el-radio-button value="invite">邀请注册</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="邮箱">
           <el-input v-model="createUserForm.email" placeholder="请输入邮箱" />
         </el-form-item>
-        <el-form-item label="初始密码">
+        <el-form-item v-if="createUserMode === 'direct'" label="初始密码">
           <el-input
             v-model="createUserForm.password"
             type="password"
@@ -1593,7 +1683,7 @@ watch(
             <el-option v-for="option in ROLE_OPTIONS" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="状态">
+        <el-form-item v-if="createUserMode === 'direct'" label="状态">
           <el-select v-model="createUserForm.status">
             <el-option
               v-for="option in STATUS_OPTIONS"
@@ -1603,11 +1693,24 @@ watch(
             />
           </el-select>
         </el-form-item>
+        <el-alert
+          v-if="createUserMode === 'invite'"
+          title="将创建一个未启用账号并生成邀请注册链接；用户通过链接设置密码后自动激活。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
+        <el-form-item v-if="createdInvitation" label="邀请链接" class="people-management__invite-result">
+          <el-input :model-value="createdInvitation.invite_url" readonly />
+          <small>有效期至 {{ createdInvitation.expires_at }}</small>
+        </el-form-item>
       </el-form>
 
       <template #footer>
         <el-button @click="createUserDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="createUserSubmitting" @click="handleCreateUser">创建</el-button>
+        <el-button type="primary" :loading="createUserSubmitting" @click="handleCreateUser">
+          {{ createUserMode === 'invite' ? '生成邀请' : '创建' }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -1771,6 +1874,23 @@ watch(
 .page__actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.page__actions--split {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page__helper {
+  margin: 0 0 12px;
+  color: #606266;
+  font-size: 13px;
+}
+
+.people-management__invite-result :deep(small) {
+  display: block;
+  margin-top: 8px;
+  color: var(--filum-text-secondary);
 }
 
 @media (max-width: 1200px) {

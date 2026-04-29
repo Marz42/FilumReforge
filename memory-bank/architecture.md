@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
 **版本**: v3.8.0  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入回归、部署准备与后续深化  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -19,6 +19,14 @@
 - `architecture.md`：当前工程基线、运行时结构、schema 与模块职责
 - `implementation-plan.md`：从当前代码状态出发的未来开发顺序
 - `progress.md`：已经完成并经过验证的事项
+
+### 1.1 Stage 2 文档同步约定
+
+当前仓库已完成历史 Phase A-5，本轮后续增强统一归入 `Stage 2` 周期，并以 `memory-bank/improvements-stage2-implementation-plan.md` 作为阶段基线。
+
+- Stage 2 每个阶段完成后，必须先更新本文件，记录当前实现事实、受影响模块职责、结构约束或 schema 变化。
+- 随后再更新 `memory-bank/progress.md`，记录阶段状态、验证命令与验收结论。
+- 若阶段只改前端表现或页面职责，没有 schema 变化，也必须在本文件记录行为事实，避免实现和文档漂移。
 
 ## 2. 当前系统概览
 
@@ -38,15 +46,22 @@
 - 员工档案基础 CRUD、字段裁剪视图与 `custom_fields JSONB`
 - 岗位目录、多岗位关系、直属 / 虚线汇报线
 - 字段定义、字段级权限策略与代理授权生效判断
-- 生命周期事件：入职、转岗、晋升、奖惩、离职、返聘
+- 生命周期事件：入职、转岗、晋升、奖惩、离职、返聘，以及显式绑定模板 / 审批目标后的异步联动与状态回写
 - 代理授权：创建、撤销、按时间窗自动生效 / 过期
 - 任务创建、重新指派、前置依赖建模与开始前依赖校验
 - 严格任务状态机：`Todo -> Doing -> Review -> Done`
 - 任务评论、内部备注、审计日志、评论附件、活动时间线
 - 任务模板、模板步骤依赖建模、模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚、watcher / 抄送与周期调度
+- Stage 2 Phase 2 首批前端治理：模板设计器已补步骤编码重复、循环依赖、孤岛步骤、单任务多人负责人规则校验，并新增流转关系邻接预览
+- Stage 2 Phase 2 第二批治理：模板已补 `base_code + version + source_template_id` 版本语义、实例化后结构锁定提示与“新建版本”入口；调度已补最近执行时间 / 结果 / 任务数 / 失败消息；模板实例运行态已补整体进度、阻塞 / 就绪统计与步骤迭代批次展示
+- Stage 2 Phase 2 收口：模板实例激活入口已按 `TaskTemplateInstance` 行级串行化，补齐 fan-out / join 下游步骤重复激活约束；worker / service 回归已覆盖调度成功与失败状态回写、重复激活入口幂等和模板页构建验证
+- Stage 2 Phase 3 首轮实现：生命周期事件已补 `task_template_id` / `workflow_definition_id` 显式联动目标、`trigger_status` / `triggered_at` / `trigger_error` / `trigger_attempt_count` 状态字段，以及 `triggered_*_instance_id` 幂等锚点；`HRLifecycleService` 现在会异步入队 `process_employment_event_job`，由 worker 触发模板实例或审批流并回写结果
 - 轻量审批流引擎：流程定义、实例、步骤执行、代理审批、打回 / 驳回
 - ARQ worker、逾期提醒扫描、通知消息落库、adapter 分发与异步入队
 - 消息中心收件箱、用户回执、审批提醒与系统消息聚合
+- Stage 2 Phase 4 首轮深化：消息已接入 `attachment_links(target_type = notification_message)` 附件绑定；消息中心已补来源模块 + 回执状态 + 渠道 + 投递状态 + 时间组合筛选，详情页可见附件、投递尝试次数与失败原因
+- Stage 2 Phase 5 首轮实现：认证已补邀请制注册，管理员可创建未启用账号并生成邀请链接；登录页支持邀请预览与设置密码激活；人员工作台“新建账号”对话框支持“直接创建 / 邀请注册”双路径
+- Stage 2 Phase 6 补丁增强：人员工作台账号页已明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；管理员可删除未建档且未被业务数据引用的账号
 - Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
 - 五主标签任务中心：待办 / 跟踪 / 发布 / 模板 / 备忘，历史任务并入跟踪视图
 - 汇报中心：向上汇报、向下传达、逐级流转、历史归档与可选审批挂接
@@ -61,10 +76,9 @@
 
 ### 2.3 当前明确缺口
 
-- 公开注册 / 邀请注册 / 审批式注册仍未落地
-- 生命周期事件与任务模板 / 审批流的自动联动
-- 工作流 E 首批已经落地，但模板 / 调度管理动作、更强设计器校验、全量回归与部署收口仍需继续完善
-- 生命周期事件与任务模板 / 审批流的自动联动仍未落地
+- 公开注册 / 审批式注册仍未落地；邀请制注册已落地
+- 工作流 E 首批已经落地，且 Stage 2 Phase 2 已完成模板设计器拓扑校验、模板版本语义、调度最近执行结果、实例进度展示与 fan-out / join 重复激活约束收口；后续重点转向生命周期事件联动、实例历史深挖与全量回归 / 部署收口
+- 生命周期事件与任务模板 / 审批流的规则化默认联动、前端结构化配置入口仍未落地；当前已支持在事件写入时显式绑定目标并异步触发
 - 生产 compose、主机部署脚本与 Nginx 生产配置已落地；当前主要缺全量上线演练与发布稳定性验证
 - HR 字段权限的可视化规则管理页仍偏基础
 - 消息附件
@@ -75,7 +89,7 @@
 
 | 模块 | 责任 | 当前状态 | 下一阶段重点 |
 | --- | --- | --- | --- |
-| IAM | 账号、JWT、基础 RBAC、会话安全 | 已实现 Phase 3 增强版 | 审批动作授权 |
+| IAM | 账号、JWT、基础 RBAC、会话安全 | 已实现 Phase 3 增强版；Stage 2 Phase 5 已补邀请制注册、注册链接校验与激活 | 公开注册 / 审批式注册决策与更细粒度账号开通流程 |
 | Organization | 部门树、部门负责人、组织范围 | 已实现 Phase 3 增强版 | 被 Workflow / Messaging 消费 |
 | HR Profiles | 主档案、动态字段、基础资料 | 已实现 Phase 3 增强版 | 与模板 / 审批联动 |
 | HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现 | 事件与模板 / 审批联动 |
@@ -83,7 +97,7 @@
 | Workflow Engine | 模板、审批、自动触发、周期调度 | 已实现增强版；模板实例运行态、逐步激活、多人扇出 / 汇聚、实例快照与结构化设计器首版已落地 | 模板 / 调度管理深化、生命周期联动与稳定性强化 |
 | Task Collaboration | 评论、日志、评论附件、时间线、watcher | 已实现 Phase 4 增强版 | 与消息中心、推送渠道打通 |
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现 Phase 4 增强版 | 真实渠道适配器、浏览器推送 |
-| Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现 Step 6 增强版 | 消息附件、渠道融合、推送 |
+| Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现 Step 6 增强版；Stage 2 Phase 4 已补消息附件、渠道 / 投递状态 / 时间筛选与失败详情展示 | 渠道融合、推送 |
 | File Storage | 附件元数据、对象存储抽象、业务绑定 | 已实现 | 扩展到消息 / 生命周期事件附件 |
 | Knowledge Base | Markdown 文档、向量检索、RAG | 已实现基础版 | 文档治理、检索质量与运营化 |
 | AI Router | `@系统` / `/` 指令路由、Tool Calling | 已实现基础版 | 工具面扩展与安全 / 观测增强 |
@@ -186,6 +200,7 @@
 | --- | --- |
 | `backend/app/main.py` | FastAPI 入口，注册路由、异常处理、开发态 CORS 与 request id 中间件 |
 | `backend/app/api/dependencies.py` | 数据库、认证、附件、通知等依赖注入 |
+| `backend/app/api/routes/auth.py` | 认证入口：管理员初始化、登录 / refresh / logout、邀请创建 / 预览 / 激活 / 撤销 |
 | `backend/app/api/error_handlers.py` | 统一业务异常 / 500 错误响应，返回 `request_id` 与通用错误码 |
 | `backend/app/core/db_types.py` | JSON / enum DB 类型封装；`build_value_enum()` 用于按枚举值持久化 report 领域状态 |
 | `backend/app/core/enums.py` | 当前已实现的基础枚举、HR 治理枚举与 Phase 4 workflow / receipt 枚举 |
@@ -198,6 +213,8 @@
 | `backend/app/models/notification.py` | 通知消息、delivery 与 receipt 模型 |
 | `backend/app/models/error_event.py` | 系统级错误事件模型，记录 request id、scope、stage 与脱敏上下文 |
 | `backend/app/services/access_control.py` | 活跃账号、管理权限、组织范围、代理授权与汇报关系解析 |
+| `backend/app/services/auth_service.py` | 登录、refresh、会话签发与 Stage 2 Phase 5 邀请制注册编排 |
+| `backend/app/services/user_service.py` | 用户 CRUD、Phase 6 未建档账号受限删除 |
 | `backend/app/services/profile_service.py` | 档案聚合、字段裁剪、Phase 3 档案读写编排 |
 | `backend/app/services/organization_relation_service.py` | 岗位目录、任职关系、汇报线管理 |
 | `backend/app/services/profile_field_policy_service.py` | 字段定义初始化、字段权限解析与字段可见 / 可编辑判断 |
@@ -328,9 +345,12 @@
 
 1. `/api/v1/auth/bootstrap-admin` 初始化管理员。
 2. 登录由 `AuthService.authenticate()` 校验密码并签发 access token，同时通过 `/api/v1/auth/login` 写入 HttpOnly refresh cookie。
-3. refresh token 的 `jti` 落库到 `refresh_tokens`；`/api/v1/auth/refresh` 从 cookie 读取 refresh token 并执行轮换。
-4. 前端由 `http.ts` 只注入内存态 access token，401 时通过 `withCredentials` 自动尝试 refresh。
-5. `/api/v1/auth/logout` 会撤销当前 refresh token，并清理 refresh cookie。
+3. 管理端可通过 `AuthService.create_invitation()` 创建未启用账号并生成注册链接；前端登录页通过 `/api/v1/auth/invitations/preview` 预览邀请邮箱、角色与有效期。
+4. 邀请用户通过 `/api/v1/auth/invitations/accept` 设置密码并激活账号，服务同时签发 access token 与 refresh cookie；该路径会写入 `invitation_accepted_at` 并清空 token 哈希，这表示“已完成注册”而不是“已撤销”。
+5. refresh token 的 `jti` 落库到 `refresh_tokens`；`/api/v1/auth/refresh` 从 cookie 读取 refresh token 并执行轮换。
+6. 前端由 `http.ts` 只注入内存态 access token，401 时通过 `withCredentials` 自动尝试 refresh。
+7. `/api/v1/auth/logout` 会撤销当前 refresh token，并清理 refresh cookie。
+8. 管理员对待处理邀请执行 `/api/v1/auth/invitations/{user_id}/revoke` 时，仅写入 `invitation_revoked_at`，用于表示“管理员手动撤销邀请”；前端账号页据此与“已完成注册”作显式区分。
 
 ### 6.2 任务协同链路（当前）
 
@@ -352,7 +372,7 @@
 1. 前端上传文件。
 2. `AttachmentService` 通过 `ObjectStorageService` 写入对象存储。
 3. 写入 `attachments` 元数据。
-4. 使用 `attachment_links` 绑定到任务、档案、评论等业务对象。
+4. 使用 `attachment_links` 绑定到任务、档案、评论、消息等业务对象。
 
 ### 6.5 字段级权限解析链路（当前 / Phase 3）
 
@@ -366,9 +386,10 @@
 ### 6.6 HR 生命周期链路（当前 / Phase 3）
 
 1. 前端在档案治理页登记生命周期事件。
-2. `HRLifecycleService` 写入 `employment_events`。
+2. `HRLifecycleService` 写入 `employment_events`，并记录可选 `task_template_id` / `workflow_definition_id`、触发状态、错误信息与已生成实例锚点。
 3. 事件按类型联动主岗位、汇报线、用户状态与档案摘要。
-4. 当前**不**自动生成任务模板或审批流实例。
+4. 若事件显式绑定模板或审批流目标，服务会异步入队 `process_employment_event_job`。
+5. worker 通过 `HRLifecycleService.process_event_automation()` 触发模板实例化或审批流启动，并将成功 / 失败结果、尝试次数与生成实例 ID 回写到事件本身。
 
 ### 6.7 审批流链路（当前 / Phase 4）
 
@@ -380,8 +401,9 @@
 ### 6.8 消息中心链路（当前 / Phase 4）
 
 1. 业务消息继续写入 `notification_messages`。
-2. `MessageCenterService` 聚合消息、投递记录与回执记录。
-3. 前端消息中心读取收件箱，并通过 `notification_receipts` 写入 `read / acknowledged` 回执。
+2. 如消息需要补充文件上下文，附件通过 `attachment_links(target_type = notification_message)` 绑定到消息本身，而不是继续只放在 payload 中。
+3. `MessageCenterService` 聚合消息、附件、投递记录与回执记录，并支持来源模块、回执状态、渠道、投递状态、时间范围组合筛选。
+4. 前端消息中心读取收件箱，详情页展示附件、投递尝试次数、最近错误，并通过 `notification_receipts` 写入 `read / acknowledged` 回执。
 
 ### 6.9 AI 路由链路（当前 / Phase 5）
 
@@ -520,6 +542,12 @@
 | `role` | `user_role` | NOT NULL | 全局角色 |
 | `status` | `user_status` | NOT NULL, DEFAULT `active` | 用户状态 |
 | `last_login_at` | `timestamptz` | NULL | 最近登录时间 |
+| `invited_by` | `uuid` | FK -> `users.id`, NULL | 邀请创建人 |
+| `invitation_token_hash` | `varchar(64)` | NULL | 邀请 token 哈希，仅服务端可见 |
+| `invitation_sent_at` | `timestamptz` | NULL | 最近一次生成邀请时间 |
+| `invitation_expires_at` | `timestamptz` | NULL | 邀请过期时间 |
+| `invitation_revoked_at` | `timestamptz` | NULL | 邀请撤销时间 |
+| `invitation_accepted_at` | `timestamptz` | NULL | 邀请完成注册时间 |
 | `created_at` | `timestamptz` | NOT NULL | 创建时间 |
 | `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
 
@@ -527,6 +555,13 @@
 
 - `uq_users_email`
 - `idx_users_role_status (role, status)`
+- `idx_users_invitation_token_hash (invitation_token_hash)`
+
+**设计说明**
+
+- 邀请制注册复用 `users` 主表，不单独引入 invitation 表；账号在被邀请后先保持 `inactive`，待受邀人通过链接设置密码后再切换到 `active`。
+- 邀请 token 仅存储哈希值；撤销邀请时保留哈希锚点并写入 `invitation_revoked_at`，便于预览接口稳定返回“已撤销”状态与后续审计。
+- 人员工作台允许管理员删除未建档账号，但服务端会拒绝删除已建档或已被其它业务数据引用的用户，避免把标准员工生命周期误做成物理删除。
 
 ### 10.2 `refresh_tokens`
 
@@ -733,6 +768,14 @@
 | `title` | `varchar(255)` | NOT NULL | 事件标题 |
 | `summary` | `text` | NULL | 简述 |
 | `payload` | `jsonb` | NOT NULL, DEFAULT `'{}'::jsonb` | 扩展详情 |
+| `task_template_id` | `uuid` | FK -> `task_templates.id`, NULL | 显式联动的任务模板 |
+| `workflow_definition_id` | `uuid` | FK -> `workflow_definitions.id`, NULL | 显式联动的审批流定义 |
+| `trigger_status` | `varchar(32)` | NOT NULL, DEFAULT `skipped` | 生命周期联动状态 |
+| `triggered_at` | `timestamptz` | NULL | 最近一次联动完成时间 |
+| `trigger_error` | `text` | NULL | 最近一次联动失败原因 |
+| `trigger_attempt_count` | `int4` | NOT NULL, DEFAULT `0` | 联动尝试次数 |
+| `triggered_template_instance_id` | `uuid` | FK -> `task_template_instances.id`, NULL | 已生成的模板实例锚点 |
+| `triggered_workflow_instance_id` | `uuid` | FK -> `workflow_instances.id`, NULL | 已生成的审批实例锚点 |
 | `created_by` | `uuid` | FK -> `users.id`, NOT NULL | 创建人 |
 | `created_at` | `timestamptz` | NOT NULL | 创建时间 |
 
@@ -740,6 +783,12 @@
 
 - `idx_employment_events_user_id_date (user_id, effective_date)`
 - `idx_employment_events_type (event_type)`
+
+**设计说明**
+
+- 当前首版联动采取“事件写入时显式绑定目标 + worker 异步触发”的保守策略，不阻塞生命周期主事务。
+- `triggered_template_instance_id` 与 `triggered_workflow_instance_id` 作为幂等锚点，避免 worker 重试时重复生成实例。
+- 规则化的默认映射策略与前端结构化配置仍属于下一轮深化范围。
 
 ### 10.11 `delegations`
 
@@ -815,8 +864,8 @@
 
 **设计说明**
 
-- 当前主要绑定 `task`、`task_comment`、`profile`。
-- 后续会扩展到消息、生命周期事件等对象。
+- 当前主要绑定 `task`、`task_comment`、`profile`、`notification_message`。
+- 生命周期事件等对象仍属于后续扩展方向。
 
 ### 10.14 `tasks`
 
@@ -1167,6 +1216,7 @@
 
 - 当前用于异步通知总线。
 - Phase 4 已在此基础上扩展“消息中心 / 回执”能力，而不是再造一套平行消息表。
+- Stage 2 Phase 4 继续沿用该表作为消息中心主存储，并通过 `attachment_links` 绑定消息附件；筛选维度覆盖来源模块、回执状态、渠道、投递状态与创建时间。
 
 ### 10.27 `notification_deliveries`
 
@@ -1494,6 +1544,8 @@
 - `reports 1:N report_routes`
 - `users 1:N error_events`（actor_user）
 - `profiles 1:N employment_events`
+- `task_templates 1:N employment_events`（显式生命周期联动目标）
+- `workflow_definitions 1:N employment_events`（显式生命周期联动目标）
 - `profile_field_definitions 1:N profile_field_permissions`
 - `users N:N users` 通过 `delegations`
 - `tasks N:N tasks` 通过 `task_dependencies`
@@ -1507,11 +1559,14 @@
 - `task_template_instances 1:N tasks`
 - `workflow_definitions 1:N workflow_steps`
 - `workflow_definitions 1:N workflow_instances`
+- `task_template_instances 1:N employment_events`（triggered_template_instance_id 回链）
+- `workflow_instances 1:N employment_events`（triggered_workflow_instance_id 回链）
 - `workflow_instances 1:N workflow_step_runs`
 - `tasks 1:N task_comments`
 - `tasks 1:N task_logs`
 - `notification_messages 1:N notification_deliveries`
 - `notification_messages 1:N notification_receipts`
+- `notification_messages 1:N attachment_links`（逻辑绑定，`target_type = notification_message`）
 - `documents 1:N document_embeddings`
 - `board_cards 1:1 board_card_archives`
 - `announcements 1:1 announcement_archives`

@@ -3,12 +3,13 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import UserRole, UserStatus
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.security import hash_password
-from app.models import User
+from app.models import Profile, User
 from app.services.access_control import ensure_active_user, ensure_management_role
 
 
@@ -89,3 +90,24 @@ class UserService:
     await self._session.commit()
     await self._session.refresh(user)
     return user
+
+  async def delete_user(self, *, actor: User, user_id: UUID) -> None:
+    ensure_management_role(actor)
+
+    if actor.id == user_id:
+      raise ConflictError("不能删除当前登录账号。")
+
+    user = await self._session.get(User, user_id)
+    if user is None:
+      raise NotFoundError("用户不存在。")
+
+    profile = await self._session.get(Profile, user_id)
+    if profile is not None:
+      raise ConflictError("当前账号已建档，不能直接删除。")
+
+    await self._session.delete(user)
+    try:
+      await self._session.commit()
+    except IntegrityError as exc:
+      await self._session.rollback()
+      raise ConflictError("当前账号已被业务数据引用，暂不支持删除。") from exc

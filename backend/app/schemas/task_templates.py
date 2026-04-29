@@ -37,6 +37,10 @@ class TaskScheduleRead(BaseModel):
   next_run_at: datetime | None
   is_active: bool
   payload: dict[str, Any]
+  last_run_at: datetime | None
+  last_run_status: str | None
+  last_run_message: str | None
+  last_run_task_count: int | None
   created_at: datetime
   updated_at: datetime
 
@@ -69,6 +73,8 @@ class TaskTemplateRead(BaseModel):
 
   id: UUID
   code: str
+  base_code: str
+  version: int
   name: str
   category: str
   description: str | None
@@ -76,6 +82,10 @@ class TaskTemplateRead(BaseModel):
   config: dict[str, Any]
   is_active: bool
   created_by: UUID
+  source_template_id: UUID | None
+  latest_version: int = 1
+  has_instances: bool = False
+  is_structure_locked: bool = False
   created_at: datetime
   updated_at: datetime
   steps: list[TaskTemplateStepRead] = Field(default_factory=list)
@@ -107,6 +117,8 @@ class TaskTemplateInstanceStepRead(BaseModel):
   total_run_count: int = 0
   active_run_count: int = 0
   completed_run_count: int = 0
+  history_iteration_count: int = 0
+  latest_iteration: int = 0
   step_runs: list[TaskTemplateStepRunRead] = Field(default_factory=list)
 
 
@@ -122,6 +134,12 @@ class TaskTemplateInstanceRead(BaseModel):
   status: str
   payload: dict[str, Any]
   completed_at: datetime | None
+  total_step_count: int = 0
+  completed_step_count: int = 0
+  active_step_count: int = 0
+  blocked_step_count: int = 0
+  ready_step_count: int = 0
+  progress_percent: int = 0
   created_at: datetime
   updated_at: datetime
   step_snapshots: list[TaskTemplateInstanceStepRead] = Field(default_factory=list)
@@ -129,6 +147,7 @@ class TaskTemplateInstanceRead(BaseModel):
 
 class TaskTemplateCreateRequest(BaseModel):
   code: str = Field(min_length=1, max_length=64)
+  source_template_id: UUID | None = None
   name: str = Field(min_length=1, max_length=120)
   category: str = Field(min_length=1, max_length=64)
   description: str | None = None

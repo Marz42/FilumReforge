@@ -12,6 +12,7 @@ from app.core.enums import (
   NotificationMessageStatus,
   NotificationReceiptType,
 )
+from app.schemas.attachments import AttachmentRead
 
 
 class NotificationDeliveryRead(BaseModel):
@@ -81,8 +82,10 @@ class MessageRead(BaseModel):
   enqueued_at: datetime | None
   completed_at: datetime | None
   created_at: datetime
+  delivery_state: NotificationDeliveryStatus | None = None
   source: MessageSourceRead
   receipt_state: MessageReceiptStateRead
+  attachments: list[AttachmentRead] = Field(default_factory=list)
   deliveries: list[NotificationDeliveryRead] = Field(default_factory=list)
   receipts: list[NotificationReceiptRead] = Field(default_factory=list)
 
@@ -102,6 +105,10 @@ class MessageCenterSnapshotRead(BaseModel):
   source_counts: list[MessageSourceCountRead] = Field(default_factory=list)
   applied_source_type: str | None = None
   applied_state: Literal["all", "unread", "read", "unacknowledged", "acknowledged"] = "all"
+  applied_channel: NotificationChannel | None = None
+  applied_delivery_status: NotificationDeliveryStatus | None = None
+  applied_created_from: datetime | None = None
+  applied_created_to: datetime | None = None
 
 
 class MessageReceiptCreateRequest(BaseModel):

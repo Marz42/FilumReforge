@@ -4,15 +4,19 @@ import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
+import type { UserInvitationPreview } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-const activeTab = ref<'login' | 'bootstrap'>('login')
+const activeTab = ref<'login' | 'bootstrap' | 'invite'>('login')
 const loginSubmitting = ref(false)
 const bootstrapSubmitting = ref(false)
+const invitationSubmitting = ref(false)
+const invitationLoading = ref(false)
+const invitationPreview = ref<UserInvitationPreview | null>(null)
 
 const loginForm = reactive({
   email: '',
@@ -26,11 +30,33 @@ const bootstrapForm = reactive({
   employee_no: 'EMP-ROOT',
 })
 
+const invitationForm = reactive({
+  password: '',
+  confirmPassword: '',
+})
+
 const redirectTarget = computed(() => {
   const redirect = route.query.redirect
   return typeof redirect === 'string' && redirect.length > 0 ? redirect : '/overview'
 })
 const showBootstrapEntry = computed(() => authStore.bootstrapRequired)
+const invitationToken = computed(() => {
+  const invite = route.query.invite
+  return typeof invite === 'string' && invite.length > 0 ? invite : ''
+})
+const showInvitationEntry = computed(() => invitationToken.value.length > 0)
+const invitationRoleLabel = computed(() => {
+  if (!invitationPreview.value) {
+    return '—'
+  }
+  if (invitationPreview.value.role === 'admin') {
+    return '管理员'
+  }
+  if (invitationPreview.value.role === 'hr') {
+    return 'HR'
+  }
+  return '员工'
+})
 
 watch(
   () => authStore.bootstrapRequired,
@@ -39,6 +65,35 @@ watch(
       activeTab.value = 'login'
     }
   },
+)
+
+watch(
+  invitationToken,
+  (token) => {
+    if (!token) {
+      invitationPreview.value = null
+      if (activeTab.value === 'invite') {
+        activeTab.value = 'login'
+      }
+      return
+    }
+
+    activeTab.value = 'invite'
+    invitationLoading.value = true
+    authStore
+      .fetchInvitationPreview(token)
+      .then((preview) => {
+        invitationPreview.value = preview
+      })
+      .catch((error) => {
+        invitationPreview.value = null
+        ElMessage.error(getErrorMessage(error))
+      })
+      .finally(() => {
+        invitationLoading.value = false
+      })
+  },
+  { immediate: true },
 )
 
 async function handleLogin(): Promise<void> {
@@ -69,6 +124,32 @@ async function handleBootstrap(): Promise<void> {
   }
 }
 
+async function handleAcceptInvitation(): Promise<void> {
+  if (!invitationToken.value) {
+    ElMessage.error('缺少邀请令牌')
+    return
+  }
+  if (invitationForm.password !== invitationForm.confirmPassword) {
+    ElMessage.error('两次输入的密码不一致')
+    return
+  }
+
+  invitationSubmitting.value = true
+
+  try {
+    await authStore.acceptInvitation({
+      token: invitationToken.value,
+      password: invitationForm.password,
+    })
+    ElMessage.success('注册成功')
+    await router.replace(redirectTarget.value)
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    invitationSubmitting.value = false
+  }
+}
+
 onMounted(() => {
   if (!authStore.bootstrapStatusLoaded) {
     void authStore.fetchBootstrapStatus().catch(() => undefined)
@@ -95,6 +176,15 @@ onMounted(() => {
         type="info"
         :closable="false"
         show-icon
+      />
+
+      <el-alert
+        v-if="showInvitationEntry"
+        title="检测到邀请注册链接。请设置登录密码后完成账号激活。"
+        type="success"
+        :closable="false"
+        show-icon
+        class="login-page__invite-alert"
       />
 
       <el-tabs v-model="activeTab" class="login-tabs">
@@ -151,6 +241,51 @@ onMounted(() => {
             </el-button>
           </el-form>
         </el-tab-pane>
+
+        <el-tab-pane v-if="showInvitationEntry" label="邀请注册" name="invite">
+          <el-skeleton v-if="invitationLoading" :rows="4" animated />
+          <template v-else-if="invitationPreview">
+            <el-descriptions :column="1" border class="login-tabs__invite-meta">
+              <el-descriptions-item label="邀请邮箱">
+                {{ invitationPreview.email }}
+              </el-descriptions-item>
+              <el-descriptions-item label="角色">
+                {{ invitationRoleLabel }}
+              </el-descriptions-item>
+              <el-descriptions-item label="有效期至">
+                {{ invitationPreview.expires_at }}
+              </el-descriptions-item>
+            </el-descriptions>
+
+            <el-form label-position="top" @submit.prevent="handleAcceptInvitation">
+              <el-form-item label="设置密码">
+                <el-input
+                  v-model="invitationForm.password"
+                  type="password"
+                  autocomplete="new-password"
+                  show-password
+                />
+              </el-form-item>
+              <el-form-item label="确认密码">
+                <el-input
+                  v-model="invitationForm.confirmPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  show-password
+                />
+              </el-form-item>
+              <el-button
+                type="primary"
+                :loading="invitationSubmitting"
+                class="login-tabs__action"
+                @click="handleAcceptInvitation"
+              >
+                完成注册
+              </el-button>
+            </el-form>
+          </template>
+          <el-empty v-else description="当前邀请不可用，请联系管理员重新生成邀请链接。" />
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
@@ -190,6 +325,14 @@ onMounted(() => {
 
 .login-tabs {
   margin-top: 20px;
+}
+
+.login-page__invite-alert {
+  margin-top: 16px;
+}
+
+.login-tabs__invite-meta {
+  margin-bottom: 20px;
 }
 
 .login-tabs__action {

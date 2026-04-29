@@ -789,6 +789,8 @@ async def test_phase4_models_persist_workflow_and_messaging_entities() -> None:
     )
     template = TaskTemplate(
       code="procurement-template",
+      base_code="procurement-template",
+      version=1,
       name="采购模板",
       category="procurement",
       created_by=creator_id,
@@ -854,6 +856,9 @@ async def test_phase4_models_persist_workflow_and_messaging_entities() -> None:
       owner_user_id=creator_id,
       cron_expr="0 9 * * 1",
       payload={"department_id": str(department_id)},
+      last_run_status=None,
+      last_run_message=None,
+      last_run_task_count=None,
     )
     message = NotificationMessage(
       source_type="workflow",

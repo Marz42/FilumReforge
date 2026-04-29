@@ -35,6 +35,12 @@ class TaskTemplateInstantiationResult:
   tasks: list[Task]
 
 
+@dataclass(slots=True)
+class TaskTemplateViewMetadata:
+  latest_version: int
+  has_instances: bool
+
+
 class TaskTemplateService:
   def __init__(
     self,
@@ -78,6 +84,51 @@ class TaskTemplateService:
       .limit(1)
     )
     return existing_instance_id is not None
+
+  async def _get_next_template_version(self, *, base_code: str) -> int:
+    latest_version = await self._session.scalar(
+      select(func.max(TaskTemplate.version)).where(TaskTemplate.base_code == base_code)
+    )
+    return (latest_version or 0) + 1
+
+  async def get_template_view_metadata(self, *, template_ids: list[UUID]) -> dict[UUID, TaskTemplateViewMetadata]:
+    if not template_ids:
+      return {}
+
+    templates = list(
+      await self._session.scalars(
+        select(TaskTemplate).where(TaskTemplate.id.in_(template_ids))
+      )
+    )
+    if not templates:
+      return {}
+
+    base_codes = {template.base_code for template in templates}
+    latest_versions = {
+      base_code: latest_version
+      for base_code, latest_version in (
+        await self._session.execute(
+          select(TaskTemplate.base_code, func.max(TaskTemplate.version))
+          .where(TaskTemplate.base_code.in_(base_codes))
+          .group_by(TaskTemplate.base_code)
+        )
+      ).all()
+    }
+    instance_template_ids = set(
+      await self._session.scalars(
+        select(TaskTemplateInstance.template_id)
+        .where(TaskTemplateInstance.template_id.in_(template_ids))
+        .distinct()
+      )
+    )
+
+    return {
+      template.id: TaskTemplateViewMetadata(
+        latest_version=int(latest_versions.get(template.base_code, template.version) or template.version),
+        has_instances=template.id in instance_template_ids,
+      )
+      for template in templates
+    }
 
   async def _get_template_or_raise(self, *, actor: User, template_id: UUID) -> TaskTemplate:
     statement = self._statement().where(TaskTemplate.id == template_id)
@@ -297,6 +348,7 @@ class TaskTemplateService:
     *,
     actor: User,
     code: str,
+    source_template_id: UUID | None = None,
     name: str,
     category: str,
     description: str | None = None,
@@ -308,11 +360,22 @@ class TaskTemplateService:
     ensure_active_user(actor)
     await self._ensure_manage_templates(actor=actor)
 
-    if await self._session.scalar(select(TaskTemplate.id).where(TaskTemplate.code == code)) is not None:
+    normalized_code = code.strip()
+    if await self._session.scalar(select(TaskTemplate.id).where(TaskTemplate.code == normalized_code)) is not None:
       raise ConflictError("任务模板编码已存在。")
 
+    source_template: TaskTemplate | None = None
+    base_code = normalized_code
+    version = 1
+    if source_template_id is not None:
+      source_template = await self._get_template_or_raise(actor=actor, template_id=source_template_id)
+      base_code = source_template.base_code
+      version = await self._get_next_template_version(base_code=base_code)
+
     template = TaskTemplate(
-      code=code.strip(),
+      code=normalized_code,
+      base_code=base_code,
+      version=version,
       name=name.strip(),
       category=category.strip(),
       description=description.strip() if description else None,
@@ -320,6 +383,7 @@ class TaskTemplateService:
       config=dict(config or {}),
       is_active=is_active,
       created_by=actor.id,
+      source_template_id=source_template.id if source_template is not None else None,
     )
     self._session.add(template)
     await self._session.flush()

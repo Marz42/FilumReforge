@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
+import type { ComponentPublicInstance } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Department, Task, TaskSchedule, TaskTemplate, TaskTemplateInstance, User } from '@/types/api'
@@ -28,6 +29,7 @@ vi.mock('@/api/users', () => ({
 import { listDepartments } from '@/api/departments'
 import { listUsers } from '@/api/users'
 import {
+  createTaskTemplate,
   createTaskSchedule,
   deleteTaskTemplate,
   instantiateTaskTemplate,
@@ -39,6 +41,55 @@ import {
 } from '@/api/task-templates'
 import { useAuthStore } from '@/stores/auth'
 import TaskTemplatesView from '@/views/TaskTemplatesView.vue'
+
+function buildStepState(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    step_key: 'draft',
+    title: '发起执行',
+    description: '',
+    step_type: 'task',
+    assignment_mode: 'single',
+    join_mode: 'all',
+    assignee_rule_type: 'initiator',
+    assignee_user_id: '',
+    assignee_user_ids: [],
+    default_due_offset_hours: undefined,
+    depends_on_step_keys: [],
+    approval_type: 'none',
+    reject_target_step_key: '',
+    downstream_template_code: '',
+    downstream_spawn_mode: 'single',
+    downstream_spawn_source_step_key: '',
+    ...overrides,
+  }
+}
+
+type TaskTemplatesSetupState = {
+  createForm: {
+    code: string
+    name: string
+    category: string
+    description: string
+    steps: Array<Record<string, unknown>>
+  }
+  handleSaveTemplate: () => Promise<void>
+}
+
+function configureCreateForm(
+  wrapper: VueWrapper<ComponentPublicInstance>,
+  code: string,
+  name: string,
+  steps: Array<Record<string, unknown>>,
+): TaskTemplatesSetupState {
+  const setupState = (wrapper.vm as ComponentPublicInstance).$?.setupState as TaskTemplatesSetupState
+  expect(setupState).toBeTruthy()
+  setupState.createForm.code = code
+  setupState.createForm.name = name
+  setupState.createForm.category = 'ops'
+  setupState.createForm.description = ''
+  setupState.createForm.steps = steps
+  return setupState
+}
 
 const mockUser: User = {
   id: 'user-1',
@@ -65,6 +116,8 @@ const mockDepartment: Department = {
 const mockTemplate: TaskTemplate = {
   id: 'template-1',
   code: 'onboard-basic',
+  base_code: 'onboard-basic',
+  version: 1,
   name: '入职模板',
   category: 'hr',
   description: '用于员工入职',
@@ -72,6 +125,10 @@ const mockTemplate: TaskTemplate = {
   config: {},
   is_active: true,
   created_by: 'user-1',
+  source_template_id: null,
+  latest_version: 1,
+  has_instances: false,
+  is_structure_locked: false,
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
   steps: [
@@ -122,6 +179,10 @@ const mockSchedule: TaskSchedule = {
   next_run_at: '2025-01-06T09:00:00Z',
   is_active: true,
   payload: {},
+  last_run_at: '2025-01-05T09:00:00Z',
+  last_run_status: 'success',
+  last_run_message: '成功实例化 1 条任务',
+  last_run_task_count: 1,
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
 }
@@ -155,6 +216,12 @@ const mockTemplateInstance: TaskTemplateInstance = {
   status: 'in_progress',
   payload: { department_id: 'dept-1' },
   completed_at: null,
+  total_step_count: 2,
+  completed_step_count: 0,
+  active_step_count: 1,
+  blocked_step_count: 1,
+  ready_step_count: 0,
+  progress_percent: 0,
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
   step_snapshots: [
@@ -165,6 +232,8 @@ const mockTemplateInstance: TaskTemplateInstance = {
       total_run_count: 1,
       active_run_count: 1,
       completed_run_count: 0,
+      history_iteration_count: 1,
+      latest_iteration: 1,
       step_runs: [
         {
           id: 'run-1',
@@ -187,6 +256,8 @@ const mockTemplateInstance: TaskTemplateInstance = {
       total_run_count: 0,
       active_run_count: 0,
       completed_run_count: 0,
+      history_iteration_count: 0,
+      latest_iteration: 0,
       step_runs: [],
     },
   ],
@@ -207,6 +278,7 @@ describe('TaskTemplates view', () => {
     vi.mocked(listTaskTemplateInstances).mockResolvedValue([])
     vi.mocked(listDepartments).mockResolvedValue([mockDepartment])
     vi.mocked(listUsers).mockResolvedValue([mockUser])
+    vi.mocked(createTaskTemplate).mockResolvedValue(mockTemplate)
     vi.mocked(instantiateTaskTemplate).mockResolvedValue({
       template: mockTemplate,
       instance: mockTemplateInstance,
@@ -229,7 +301,9 @@ describe('TaskTemplates view', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('入职模板')
+    expect(wrapper.text()).toContain('V1')
     expect(wrapper.text()).toContain('周期调度')
+    expect(wrapper.text()).toContain('最近执行成功')
 
     const button = wrapper
       .findAll('button')
@@ -427,6 +501,13 @@ describe('TaskTemplates view', () => {
 
   it('locks the step designer when the template already has instances', async () => {
     vi.mocked(listTaskTemplateInstances).mockResolvedValue([mockTemplateInstance])
+    vi.mocked(listTaskTemplates).mockResolvedValue([
+      {
+        ...mockTemplate,
+        has_instances: true,
+        is_structure_locked: true,
+      },
+    ])
 
     const wrapper = mount(TaskTemplatesView, {
       global: {
@@ -449,6 +530,58 @@ describe('TaskTemplates view', () => {
       .findAll('button')
       .find((node) => node.text().includes('添加步骤'))
     expect(addStepButton?.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('新建版本')
+  })
+
+  it('creates a new template version from a locked template', async () => {
+    const versionedTemplate: TaskTemplate = {
+      ...mockTemplate,
+      has_instances: true,
+      is_structure_locked: true,
+      latest_version: 1,
+    }
+    const createdVersion: TaskTemplate = {
+      ...mockTemplate,
+      id: 'template-2',
+      code: 'onboard-basic-v2',
+      version: 2,
+      latest_version: 2,
+      source_template_id: 'template-1',
+    }
+    vi.mocked(listTaskTemplates)
+      .mockResolvedValueOnce([versionedTemplate])
+      .mockResolvedValueOnce([versionedTemplate, createdVersion])
+    vi.mocked(listTaskTemplateInstances).mockResolvedValue([mockTemplateInstance])
+    vi.mocked(createTaskTemplate).mockResolvedValue(createdVersion)
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    const createVersionButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('新建版本'))
+    expect(createVersionButton).toBeTruthy()
+    await createVersionButton?.trigger('click')
+    await flushPromises()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('保存新版本'))
+    expect(saveButton).toBeTruthy()
+    await saveButton?.trigger('click')
+    await flushPromises()
+
+    expect(createTaskTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'onboard-basic-v2',
+        source_template_id: 'template-1',
+      }),
+    )
   })
 
   it('deletes a template after confirmation', async () => {
@@ -473,5 +606,86 @@ describe('TaskTemplates view', () => {
     await flushPromises()
 
     expect(deleteTaskTemplate).toHaveBeenCalledWith('template-1')
+  })
+
+  it('rejects cyclic step dependencies before submitting the template', async () => {
+    const messageErrorSpy = vi.spyOn(ElMessage, 'error').mockImplementation(() => '')
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+    const setupState = configureCreateForm(wrapper, 'cycle-template', '循环模板', [
+      buildStepState({ step_key: 'draft', title: '撰写方案', depends_on_step_keys: ['review'] }),
+      buildStepState({
+        step_key: 'review',
+        title: '经理复核',
+        assignee_rule_type: 'department_manager',
+        depends_on_step_keys: ['draft'],
+      }),
+    ])
+
+    await setupState.handleSaveTemplate()
+    await flushPromises()
+
+    expect(createTaskTemplate).not.toHaveBeenCalled()
+    expect(messageErrorSpy).toHaveBeenCalledWith('正常流转路径存在循环依赖，请调整前置步骤关系')
+  })
+
+  it('rejects isolated steps before submitting the template', async () => {
+    const messageErrorSpy = vi.spyOn(ElMessage, 'error').mockImplementation(() => '')
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+    const setupState = configureCreateForm(wrapper, 'island-template', '孤岛模板', [
+      buildStepState({ step_key: 'draft', title: '撰写方案' }),
+      buildStepState({
+        step_key: 'review',
+        title: '经理复核',
+        assignee_rule_type: 'department_manager',
+        depends_on_step_keys: ['draft'],
+      }),
+      buildStepState({ step_key: 'archive', title: '归档记录' }),
+    ])
+
+    await setupState.handleSaveTemplate()
+    await flushPromises()
+
+    expect(createTaskTemplate).not.toHaveBeenCalled()
+    expect(messageErrorSpy).toHaveBeenCalledWith('当前模板存在未连接的孤岛步骤，请确认每个步骤都和主流程相连')
+  })
+
+  it('rejects single-task steps that use multi-assignee rules', async () => {
+    const messageErrorSpy = vi.spyOn(ElMessage, 'error').mockImplementation(() => '')
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+    const setupState = configureCreateForm(wrapper, 'single-invalid-template', '非法分配模板', [
+      buildStepState({
+        step_key: 'collect',
+        title: '多人提交素材',
+        assignee_rule_type: 'user_ids',
+        assignee_user_ids: ['user-1', 'user-2'],
+      }),
+    ])
+
+    await setupState.handleSaveTemplate()
+    await flushPromises()
+
+    expect(createTaskTemplate).not.toHaveBeenCalled()
+    expect(messageErrorSpy).toHaveBeenCalledWith('步骤「多人提交素材」使用单任务模式时不能选择多人负责人规则')
   })
 })

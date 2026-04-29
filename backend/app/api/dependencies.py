@@ -121,8 +121,16 @@ def get_organization_relation_service(
 
 def get_hr_lifecycle_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
+  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
+  workflow_engine_service: Annotated[WorkflowEngineService, Depends(get_workflow_engine_service)],
+  job_queue_publisher: Annotated[JobQueuePublisher, Depends(get_job_queue_publisher)],
 ) -> HRLifecycleService:
-  return HRLifecycleService(session)
+  return HRLifecycleService(
+    session,
+    task_template_service=task_template_service,
+    workflow_engine_service=workflow_engine_service,
+    job_queue_publisher=job_queue_publisher,
+  )
 
 
 def get_delegation_service(
@@ -193,8 +201,9 @@ def get_workflow_engine_service(
 
 def get_message_center_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
 ) -> MessageCenterService:
-  return MessageCenterService(session)
+  return MessageCenterService(session, object_storage_service=object_storage_service)
 
 
 def get_document_service(

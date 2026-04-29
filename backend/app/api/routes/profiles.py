@@ -203,6 +203,8 @@ async def create_profile_event(
     title=payload.title,
     summary=payload.summary,
     payload=payload.payload,
+    task_template_id=payload.task_template_id,
+    workflow_definition_id=payload.workflow_definition_id,
   )
   return EmploymentEventRead.model_validate(event)
 

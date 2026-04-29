@@ -45,14 +45,14 @@ const summaryCards = computed(() => {
 
   return [
     {
-      label: '待办事项',
+      label: '我的待办',
       value: snapshot.task_inbox.length,
-      description: '当前流转到你的任务',
-      actionLabel: '进入待办',
+      description: '今天需要优先处理的事项',
+      actionLabel: '查看待办',
       tab: 'inbox' as const,
     },
     {
-      label: '任务跟踪',
+      label: '跟踪任务',
       value: snapshot.task_tracking.length,
       description: '与你相关的任务进度',
       actionLabel: '查看跟踪',
@@ -149,7 +149,7 @@ function openAnnouncementDialog(): void {
 function navigateToTaskCenter(tab: 'inbox' | 'tracking'): void {
   void router.push({
     name: 'task-center',
-    query: tab === 'inbox' ? {} : { tab },
+    query: { tab },
   })
 }
 
@@ -234,7 +234,54 @@ onMounted(() => {
 
 <template>
   <div class="overview filum-page">
-    <el-row :gutter="20">
+    <el-row :gutter="20" class="overview__summary overview__section-grid overview__section-grid--first">
+      <el-col
+        v-for="item in summaryCards"
+        :key="item.label"
+        :xs="24"
+        :md="12"
+      >
+        <el-card shadow="never" class="summary-card summary-card--interactive filum-metric-card">
+          <div class="summary-card__content">
+            <span class="summary-card__label">{{ item.label }}</span>
+            <strong class="summary-card__value">{{ item.value }}</strong>
+            <span class="summary-card__description">{{ item.description }}</span>
+          </div>
+
+          <el-button link type="primary" @click="navigateToTaskCenter(item.tab)">
+            {{ item.actionLabel }}
+          </el-button>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" class="overview__section-grid overview__section-grid--first">
+      <el-col :xs="24">
+        <el-card shadow="never" class="filum-panel-card">
+          <template #header>
+            <div class="overview__card-heading">
+              <span>快捷入口</span>
+              <small>按工作流快速跳转到常用模块</small>
+            </div>
+          </template>
+
+          <div class="overview__quick-actions">
+            <button
+              v-for="item in quickActions"
+              :key="item.path"
+              type="button"
+              class="overview__quick-action"
+              @click="navigateToPath(item.path)"
+            >
+              <strong>{{ item.label }}</strong>
+              <span>{{ item.description }}</span>
+            </button>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" class="overview__section-grid">
       <el-col :xs="24" :lg="16">
         <el-card shadow="never" class="overview__content-card filum-panel-card" v-loading="loading">
           <template #header>
@@ -257,6 +304,7 @@ onMounted(() => {
 
           <el-empty
             v-if="!overview || overview.board_cards.length === 0"
+            class="overview__empty"
             description="当前范围暂无有效看板"
           />
 
@@ -312,6 +360,7 @@ onMounted(() => {
 
           <el-empty
             v-if="!overview || overview.announcements.length === 0"
+            class="overview__empty"
             description="当前暂无进行中公告"
           />
 
@@ -346,27 +395,6 @@ onMounted(() => {
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" class="overview__summary overview__section-grid">
-      <el-col
-        v-for="item in summaryCards"
-        :key="item.label"
-        :xs="24"
-        :md="12"
-      >
-        <el-card shadow="never" class="summary-card summary-card--interactive filum-metric-card">
-          <div class="summary-card__content">
-            <span class="summary-card__label">{{ item.label }}</span>
-            <strong class="summary-card__value">{{ item.value }}</strong>
-            <span class="summary-card__description">{{ item.description }}</span>
-          </div>
-
-          <el-button link type="primary" @click="navigateToTaskCenter(item.tab)">
-            {{ item.actionLabel }}
-          </el-button>
-        </el-card>
-      </el-col>
-    </el-row>
-
     <el-row :gutter="20" class="overview__section-grid">
       <el-col :xs="24" :lg="12">
         <el-card shadow="never" class="filum-panel-card" v-loading="loading">
@@ -376,6 +404,7 @@ onMounted(() => {
 
           <el-empty
             v-if="!overview || overview.task_inbox.length === 0"
+            class="overview__empty"
             description="当前没有流转到你的任务"
           />
 
@@ -411,6 +440,7 @@ onMounted(() => {
 
           <el-empty
             v-if="!overview || overview.task_tracking.length === 0"
+            class="overview__empty"
             description="当前没有需要跟踪的任务"
           />
 
@@ -432,32 +462,6 @@ onMounted(() => {
                 {{ item.department_name ?? '未分配部门' }} · 到期：{{ formatDateTime(item.due_date) }}
               </span>
             </article>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="20" class="overview__section-grid">
-      <el-col :xs="24">
-        <el-card shadow="never" class="filum-panel-card">
-          <template #header>
-            <div class="overview__card-heading">
-              <span>快捷入口</span>
-              <small>按工作流快速跳转到常用模块</small>
-            </div>
-          </template>
-
-          <div class="overview__quick-actions">
-            <button
-              v-for="item in quickActions"
-              :key="item.path"
-              type="button"
-              class="overview__quick-action"
-              @click="navigateToPath(item.path)"
-            >
-              <strong>{{ item.label }}</strong>
-              <span>{{ item.description }}</span>
-            </button>
           </div>
         </el-card>
       </el-col>
@@ -560,6 +564,10 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.overview__section-grid--first {
+  margin-top: 0;
+}
+
 .summary-card {
   height: 100%;
   display: flex;
@@ -569,7 +577,7 @@ onMounted(() => {
 }
 
 .summary-card--interactive {
-  min-height: 180px;
+  min-height: 156px;
 }
 
 .summary-card__content {
@@ -619,6 +627,22 @@ onMounted(() => {
 
 .overview__content-card {
   height: 100%;
+}
+
+.overview__empty {
+  padding: 4px 0;
+}
+
+.overview__empty :deep(.el-empty) {
+  padding: 12px 0;
+}
+
+.overview__empty :deep(.el-empty__image) {
+  width: 84px;
+}
+
+.overview__empty :deep(.el-empty__description) {
+  margin-top: 4px;
 }
 
 .overview__list {

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
 from app.api.dependencies import get_current_user, get_message_center_service
+from app.core.enums import NotificationChannel, NotificationDeliveryStatus
 from app.models import User
 from app.schemas.message_center import (
   MessageCenterSnapshotRead,
@@ -25,11 +27,19 @@ async def list_messages(
   message_center_service: Annotated[MessageCenterService, Depends(get_message_center_service)],
   source_type: str | None = None,
   state: Literal["all", "unread", "read", "unacknowledged", "acknowledged"] = "all",
+  channel: NotificationChannel | None = None,
+  delivery_status: NotificationDeliveryStatus | None = None,
+  created_from: datetime | None = None,
+  created_to: datetime | None = None,
 ) -> MessageCenterSnapshotRead:
   snapshot = await message_center_service.get_message_center_snapshot(
     actor=actor,
     source_type=source_type,
     state=state,
+    channel=channel,
+    delivery_status=delivery_status,
+    created_from=created_from,
+    created_to=created_to,
   )
   return MessageCenterSnapshotRead.model_validate(asdict(snapshot))
 

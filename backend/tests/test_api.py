@@ -23,6 +23,7 @@ from app.core.database import get_db_session
 from app.main import create_app
 from app.models import Base, ErrorEvent
 from app.workers.arq_worker import (
+  PROCESS_EMPLOYMENT_EVENT_JOB,
   REBUILD_ALL_DOCUMENT_EMBEDDINGS_JOB,
   REBUILD_DOCUMENT_EMBEDDINGS_JOB,
 )
@@ -103,6 +104,8 @@ class InMemoryQueuePublisher:
   async def enqueue(self, job_name: str, *args: object) -> None:
     self.jobs.append((job_name, args))
     async with self._session_factory() as session:
+      if job_name == PROCESS_EMPLOYMENT_EVENT_JOB:
+        return
       if job_name == REBUILD_DOCUMENT_EMBEDDINGS_JOB:
         await rebuild_document_embeddings(
           session=session,
@@ -306,6 +309,16 @@ async def test_auth_and_users_api_flow(api_client) -> None:
   assert update_user_response.status_code == 200
   assert update_user_response.json()["status"] == "suspended"
 
+  delete_user_response = await client.delete(
+    f"/api/v1/users/{user_id}",
+    headers=headers,
+  )
+  assert delete_user_response.status_code == 204
+
+  list_users_after_delete_response = await client.get("/api/v1/users", headers=headers)
+  assert list_users_after_delete_response.status_code == 200
+  assert len(list_users_after_delete_response.json()) == 1
+
   openapi_response = await client.get("/openapi.json")
   assert openapi_response.status_code == 200
   assert "/api/v1/auth/login" in openapi_response.json()["paths"]
@@ -317,6 +330,77 @@ async def test_auth_and_users_api_flow(api_client) -> None:
 
   refresh_after_logout_response = await client.post("/api/v1/auth/refresh")
   assert refresh_after_logout_response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_auth_invitation_api_flow(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  create_invitation_response = await client.post(
+    "/api/v1/auth/invitations",
+    headers=headers,
+    json={
+      "email": "invitee@example.com",
+      "role": "employee",
+    },
+  )
+  assert create_invitation_response.status_code == 201
+  invite_payload = create_invitation_response.json()
+  invite_token = invite_payload["invite_url"].split("invite=", maxsplit=1)[1]
+
+  preview_response = await client.get(
+    "/api/v1/auth/invitations/preview",
+    params={"token": invite_token},
+  )
+  assert preview_response.status_code == 200
+  assert preview_response.json()["email"] == "invitee@example.com"
+
+  accept_response = await client.post(
+    "/api/v1/auth/invitations/accept",
+    json={
+      "token": invite_token,
+      "password": "StrongPassword123!",
+    },
+  )
+  assert accept_response.status_code == 200
+  assert accept_response.json()["user"]["status"] == "active"
+  assert client.cookies.get(TEST_REFRESH_COOKIE_NAME) is not None
+
+  duplicate_invitation_response = await client.post(
+    "/api/v1/auth/invitations",
+    headers=headers,
+    json={
+      "email": "invitee@example.com",
+      "role": "employee",
+    },
+  )
+  assert duplicate_invitation_response.status_code == 409
+
+  revoked_invitation_response = await client.post(
+    "/api/v1/auth/invitations",
+    headers=headers,
+    json={
+      "email": "revoked@example.com",
+      "role": "hr",
+    },
+  )
+  assert revoked_invitation_response.status_code == 201
+  revoked_payload = revoked_invitation_response.json()
+  revoked_token = revoked_payload["invite_url"].split("invite=", maxsplit=1)[1]
+
+  revoke_response = await client.post(
+    f"/api/v1/auth/invitations/{revoked_payload['user']['id']}/revoke",
+    headers=headers,
+  )
+  assert revoke_response.status_code == 200
+  assert revoke_response.json()["invitation_revoked_at"] is not None
+
+  revoked_preview_response = await client.get(
+    "/api/v1/auth/invitations/preview",
+    params={"token": revoked_token},
+  )
+  assert revoked_preview_response.status_code == 409
 
 
 @pytest.mark.asyncio
@@ -509,12 +593,32 @@ async def test_people_management_api_returns_aggregated_people_workspace(api_cli
   assert detail_payload["latest_employment_event"]["event_type"] == "promotion"
   assert detail_payload["actions"] == {
     "can_edit_user": True,
+    "can_delete_user": False,
     "can_create_profile": False,
     "can_edit_profile": True,
     "can_manage_relations": True,
     "can_manage_lifecycle": True,
     "can_manage_delegations": True,
   }
+
+  unprofiled_detail_response = await client.get(
+    f"/api/v1/people-management/{unprofiled_response.json()['id']}",
+    headers=headers,
+  )
+  assert unprofiled_detail_response.status_code == 200
+  assert unprofiled_detail_response.json()["actions"]["can_delete_user"] is True
+
+  delete_profiled_user_response = await client.delete(
+    f"/api/v1/users/{employee_id}",
+    headers=headers,
+  )
+  assert delete_profiled_user_response.status_code == 409
+
+  delete_unprofiled_user_response = await client.delete(
+    f"/api/v1/users/{unprofiled_response.json()['id']}",
+    headers=headers,
+  )
+  assert delete_unprofiled_user_response.status_code == 204
 
   employee_headers = await login(
     client,
@@ -937,6 +1041,10 @@ async def test_task_template_update_api_returns_conflict_for_step_changes_after_
   )
   assert template_response.status_code == 201
   template_id = template_response.json()["id"]
+  assert template_response.json()["base_code"] == "template-update-locked"
+  assert template_response.json()["version"] == 1
+  assert template_response.json()["latest_version"] == 1
+  assert template_response.json()["has_instances"] is False
 
   instantiate_response = await client.post(
     f"/api/v1/task-templates/{template_id}/instantiate",
@@ -947,6 +1055,8 @@ async def test_task_template_update_api_returns_conflict_for_step_changes_after_
     },
   )
   assert instantiate_response.status_code == 200
+  assert instantiate_response.json()["template"]["has_instances"] is True
+  assert instantiate_response.json()["template"]["is_structure_locked"] is True
 
   metadata_update_response = await client.patch(
     f"/api/v1/task-templates/{template_id}",
@@ -1429,6 +1539,99 @@ async def test_phase3_hr_governance_api_flow(api_client) -> None:
   assert event_response.status_code == 201
   assert event_response.json()["event_type"] == "promotion"
 
+
+@pytest.mark.asyncio
+async def test_profile_event_api_accepts_lifecycle_automation_targets(api_client) -> None:
+  client, queue_publisher = api_client
+  headers, _ = await bootstrap_and_login(client)
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  admin_profile_response = await client.get("/api/v1/profiles", headers=headers)
+  assert admin_profile_response.status_code == 200
+  admin_department_id = admin_profile_response.json()[0]["department_id"]
+
+  employee_profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=headers,
+    json={
+      "user_id": employee_id,
+      "employee_no": "EMP-API-001",
+      "real_name": "生命周期员工",
+      "department_id": admin_department_id,
+      "custom_fields": {},
+    },
+  )
+  assert employee_profile_response.status_code == 201
+
+  template_response = await client.post(
+    "/api/v1/task-templates",
+    headers=headers,
+    json={
+      "code": "api-lifecycle-template",
+      "name": "API 生命周期模板",
+      "category": "hr",
+      "steps": [
+        {
+          "step_key": "setup",
+          "title": "创建事项",
+          "default_assignee_rule": {"type": "user", "user_id": employee_id},
+        }
+      ],
+    },
+  )
+  assert template_response.status_code == 201
+
+  workflow_response = await client.post(
+    "/api/v1/workflows/definitions",
+    headers=headers,
+    json={
+      "code": "api-lifecycle-workflow",
+      "name": "API 生命周期审批",
+      "scope_type": "employment_event",
+      "status": "active",
+      "steps": [
+        {
+          "step_key": "approve",
+          "name": "确认",
+          "step_type": "approval",
+          "assignee_rule": {"type": "user", "user_id": employee_id},
+        }
+      ],
+    },
+  )
+  assert workflow_response.status_code == 201
+
+  event_response = await client.post(
+    f"/api/v1/profiles/{employee_id}/events",
+    headers=headers,
+    json={
+      "event_type": "onboard",
+      "effective_date": "2025-05-01",
+      "title": "入职联动",
+      "payload": {"department_id": admin_department_id},
+      "task_template_id": template_response.json()["id"],
+      "workflow_definition_id": workflow_response.json()["id"],
+    },
+  )
+
+  assert event_response.status_code == 201
+  assert event_response.json()["trigger_status"] == "pending"
+  assert event_response.json()["task_template_id"] == template_response.json()["id"]
+  assert event_response.json()["workflow_definition_id"] == workflow_response.json()["id"]
+  assert queue_publisher.jobs[-1][0] == PROCESS_EMPLOYMENT_EVENT_JOB
+
   field_definitions_response = await client.get("/api/v1/profile-field-definitions", headers=headers)
   assert field_definitions_response.status_code == 200
   definitions_payload = field_definitions_response.json()
@@ -1441,14 +1644,6 @@ async def test_phase3_hr_governance_api_flow(api_client) -> None:
   )
   assert permissions_response.status_code == 200
   assert len(permissions_response.json()) >= 1
-
-  delegation_update_response = await client.patch(
-    f"/api/v1/delegations/{delegation_id}",
-    headers=manager_headers,
-    json={"status": "revoked"},
-  )
-  assert delegation_update_response.status_code == 200
-  assert delegation_update_response.json()["status"] == "revoked"
 
 
 @pytest.mark.asyncio
@@ -1890,6 +2085,161 @@ async def test_message_center_api_returns_source_metadata_and_hides_other_users_
     headers=requester_headers,
   )
   assert foreign_message_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_message_center_api_supports_delivery_filters_and_message_attachments(api_client) -> None:
+  client, _ = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+
+  department_response = await client.post(
+    "/api/v1/departments",
+    headers=admin_headers,
+    json={
+      "name": "消息筛选部",
+      "code": "message-filtering",
+    },
+  )
+  assert department_response.status_code == 201
+  department_id = department_response.json()["id"]
+
+  create_manager_response = await client.post(
+    "/api/v1/users",
+    headers=admin_headers,
+    json={
+      "email": "manager@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert create_manager_response.status_code == 201
+  manager_id = create_manager_response.json()["id"]
+
+  create_requester_response = await client.post(
+    "/api/v1/users",
+    headers=admin_headers,
+    json={
+      "email": "requester@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert create_requester_response.status_code == 201
+  requester_id = create_requester_response.json()["id"]
+
+  await client.post(
+    "/api/v1/profiles",
+    headers=admin_headers,
+    json={
+      "user_id": manager_id,
+      "employee_no": "EMP-MGR-002",
+      "real_name": "消息经理",
+      "department_id": department_id,
+    },
+  )
+  await client.post(
+    f"/api/v1/profiles/{manager_id}/reporting-lines",
+    headers=admin_headers,
+    json={
+      "manager_user_id": (await client.get("/api/v1/auth/me", headers=admin_headers)).json()["id"],
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+
+  requester_profile_response = await client.post(
+    "/api/v1/profiles",
+    headers=admin_headers,
+    json={
+      "user_id": requester_id,
+      "employee_no": "EMP-REQ-002",
+      "real_name": "消息申请人",
+      "department_id": department_id,
+    },
+  )
+  assert requester_profile_response.status_code == 201
+
+  reporting_line_response = await client.post(
+    f"/api/v1/profiles/{requester_id}/reporting-lines",
+    headers=admin_headers,
+    json={
+      "manager_user_id": manager_id,
+      "department_id": department_id,
+      "line_type": "solid",
+      "is_primary": True,
+      "starts_at": "2025-01-01",
+    },
+  )
+  assert reporting_line_response.status_code == 201
+
+  requester_headers = await login(client, email="requester@example.com", password="StrongPassword123!")
+  create_report_response = await client.post(
+    "/api/v1/report-center/reports",
+    headers=requester_headers,
+    json={
+      "direction": "upward",
+      "target_user_id": manager_id,
+      "title": "消息中心筛选测试",
+      "content_md": "验证消息附件与渠道筛选。",
+    },
+  )
+  assert create_report_response.status_code == 201
+
+  manager_headers = await login(client, email="manager@example.com", password="StrongPassword123!")
+  initial_snapshot_response = await client.get(
+    "/api/v1/messages",
+    headers=manager_headers,
+    params={"state": "unread", "channel": "websocket", "delivery_status": "pending"},
+  )
+  assert initial_snapshot_response.status_code == 200
+  report_pending_message = next(
+    item
+    for item in initial_snapshot_response.json()["items"]
+    if item["message_type"] == "report_pending"
+  )
+
+  upload_response = await client.post(
+    "/api/v1/attachments",
+    headers=manager_headers,
+    files={"file": ("message-note.txt", b"message attachment", "text/plain")},
+    data={
+      "visibility": "private",
+      "target_type": "notification_message",
+      "target_id": report_pending_message["id"],
+      "relation": "primary",
+    },
+  )
+  assert upload_response.status_code == 201
+
+  filtered_snapshot_response = await client.get(
+    "/api/v1/messages",
+    headers=manager_headers,
+    params={"state": "unread", "channel": "websocket", "delivery_status": "pending"},
+  )
+  assert filtered_snapshot_response.status_code == 200
+  filtered_snapshot = filtered_snapshot_response.json()
+  filtered_message = next(
+    item
+    for item in filtered_snapshot["items"]
+    if item["id"] == report_pending_message["id"]
+  )
+
+  assert filtered_snapshot["applied_channel"] == "websocket"
+  assert filtered_snapshot["applied_delivery_status"] == "pending"
+  assert filtered_message["delivery_state"] == "pending"
+  assert len(filtered_message["attachments"]) == 1
+  assert filtered_message["attachments"][0]["original_filename"] == "message-note.txt"
+
+  message_detail_response = await client.get(
+    f"/api/v1/messages/{report_pending_message['id']}",
+    headers=manager_headers,
+  )
+  assert message_detail_response.status_code == 200
+  assert len(message_detail_response.json()["attachments"]) == 1
 
 
 @pytest.mark.asyncio

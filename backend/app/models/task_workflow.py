@@ -32,10 +32,14 @@ from app.models.mixins import CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixi
 class TaskTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   __tablename__ = "task_templates"
   __table_args__ = (
+    UniqueConstraint("base_code", "version", name="uq_task_templates_base_version"),
+    Index("idx_task_templates_base_code", "base_code"),
     Index("idx_task_templates_category_active", "category", "is_active"),
   )
 
   code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+  base_code: Mapped[str] = mapped_column(String(64), nullable=False)
+  version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
   name: Mapped[str] = mapped_column(String(120), nullable=False)
   category: Mapped[str] = mapped_column(String(64), nullable=False)
   description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -46,8 +50,13 @@ class TaskTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     ForeignKey("users.id", name="fk_task_templates_created_by"),
     nullable=False,
   )
+  source_template_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("task_templates.id", name="fk_task_templates_source_template"),
+    nullable=True,
+  )
 
   creator = relationship("User", back_populates="created_task_templates")
+  source_template = relationship("TaskTemplate", remote_side="TaskTemplate.id")
   steps = relationship(
     "TaskTemplateStep",
     back_populates="template",
@@ -382,6 +391,10 @@ class TaskSchedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   __table_args__ = (
     Index("idx_task_schedules_active_next_run", "is_active", "next_run_at"),
     Index("idx_task_schedules_owner_user_id", "owner_user_id"),
+    CheckConstraint(
+      "last_run_status IS NULL OR last_run_status in ('success', 'failed')",
+      name="task_schedules_last_run_status_check",
+    ),
   )
 
   template_id: Mapped[UUID] = mapped_column(
@@ -397,6 +410,10 @@ class TaskSchedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
   is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
   payload: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  last_run_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+  last_run_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+  last_run_task_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
   template = relationship("TaskTemplate", back_populates="schedules")
   owner = relationship("User", back_populates="task_schedules")

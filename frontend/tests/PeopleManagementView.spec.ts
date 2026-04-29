@@ -1,7 +1,7 @@
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElMessageBox } from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -21,6 +21,10 @@ vi.mock('@/api/departments', () => ({
   listDepartments: vi.fn(),
 }))
 
+vi.mock('@/api/auth', () => ({
+  createInvitation: vi.fn(),
+}))
+
 vi.mock('@/api/profiles', () => ({
   createDelegation: vi.fn(),
   createPosition: vi.fn(),
@@ -35,17 +39,19 @@ vi.mock('@/api/profiles', () => ({
 
 vi.mock('@/api/users', () => ({
   createUser: vi.fn(),
+  deleteUser: vi.fn(),
   updateUser: vi.fn(),
 }))
 
 import { listDepartments } from '@/api/departments'
+import { createInvitation } from '@/api/auth'
 import { getPeopleManagement, getPeopleManagementDetail } from '@/api/people-management'
 import {
   createProfile,
   listPositions,
   updateProfile,
 } from '@/api/profiles'
-import { createUser, updateUser } from '@/api/users'
+import { createUser, deleteUser, updateUser } from '@/api/users'
 import PeopleManagementView from '@/views/PeopleManagementView.vue'
 
 type PeopleManagementViewSetupState = {
@@ -66,7 +72,9 @@ type PeopleManagementViewSetupState = {
     custom_fields_text: string
   }
   handleSaveAccount: () => Promise<void>
+  handleDeleteUser: () => Promise<void>
   handleCreateProfile: () => Promise<void>
+  handleCreateUser: () => Promise<void>
 }
 
 const mockDepartment: Department = {
@@ -142,6 +150,7 @@ const profiledDetail: PeopleManagementDetail = {
     email: 'engineer@example.com',
     role: 'employee',
     status: 'active',
+    invitation_accepted_at: '2025-01-01T00:00:00Z',
     last_login_at: null,
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
@@ -178,6 +187,7 @@ const profiledDetail: PeopleManagementDetail = {
   },
   actions: {
     can_edit_user: true,
+    can_delete_user: false,
     can_create_profile: false,
     can_edit_profile: true,
     can_manage_relations: true,
@@ -203,6 +213,7 @@ const unprofiledDetail: PeopleManagementDetail = {
   profile: null,
   actions: {
     can_edit_user: true,
+    can_delete_user: true,
     can_create_profile: true,
     can_edit_profile: false,
     can_manage_relations: false,
@@ -227,6 +238,7 @@ describe('PeopleManagementView', () => {
     vi.mocked(listDepartments).mockResolvedValue([mockDepartment])
     vi.mocked(listPositions).mockResolvedValue([mockPosition])
     vi.mocked(updateUser).mockResolvedValue(profiledDetail.account)
+    vi.mocked(deleteUser).mockResolvedValue(undefined)
     vi.mocked(createUser).mockResolvedValue({
       id: 'user-3',
       email: 'new@example.com',
@@ -236,6 +248,19 @@ describe('PeopleManagementView', () => {
       created_at: '2025-01-03T00:00:00Z',
       updated_at: '2025-01-03T00:00:00Z',
     })
+    vi.mocked(createInvitation).mockResolvedValue({
+      user: {
+        id: 'user-4',
+        email: 'invite@example.com',
+        role: 'employee',
+        status: 'inactive',
+        last_login_at: null,
+        created_at: '2025-01-04T00:00:00Z',
+        updated_at: '2025-01-04T00:00:00Z',
+      },
+      invite_url: 'https://app.example.com/login?invite=test-token',
+      expires_at: '2025-01-06T00:00:00Z',
+    })
     vi.mocked(updateProfile).mockResolvedValue(profiledDetail.profile!)
     vi.mocked(createProfile).mockResolvedValue({
       ...profiledDetail.profile!,
@@ -243,6 +268,7 @@ describe('PeopleManagementView', () => {
       user_email: 'pending@example.com',
       real_name: '待建档员工',
     })
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
   })
 
   async function mountView(initialPath = '/people?selected=user-1&detailTab=account') {
@@ -276,6 +302,7 @@ describe('PeopleManagementView', () => {
     expect(wrapper.text()).toContain('档案管理 & 用户管理')
     expect(wrapper.text()).toContain('研发工程师')
     expect(wrapper.text()).toContain('后端工程师')
+    expect(wrapper.text()).toContain('已完成注册（非撤销）')
 
     const permissionsTab = wrapper
       .findAll('.el-tabs__item')
@@ -333,5 +360,53 @@ describe('PeopleManagementView', () => {
         skills: ['qa'],
       },
     })
+  })
+
+  it('generates an invitation link from the account creation dialog', async () => {
+    const { wrapper } = await mountView()
+
+    const newUserButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('新建账号'))
+    expect(newUserButton).toBeTruthy()
+    await newUserButton?.trigger('click')
+    await flushPromises()
+
+    const setupState = wrapper.vm.$.setupState as unknown as PeopleManagementViewSetupState & {
+      createUserMode: 'direct' | 'invite'
+      createUserForm: {
+        email: string
+        password: string
+        role: User['role']
+        status: User['status']
+      }
+    }
+    setupState.createUserMode = 'invite'
+    setupState.createUserForm.email = 'invite@example.com'
+    setupState.createUserForm.role = 'employee'
+
+    await setupState.handleCreateUser()
+    await flushPromises()
+
+    expect(createInvitation).toHaveBeenCalledWith({
+      email: 'invite@example.com',
+      role: 'employee',
+    })
+    const inviteInput = wrapper.find('.people-management__invite-result input')
+    expect(inviteInput.exists()).toBe(true)
+    expect(inviteInput.element).toHaveProperty('value', 'https://app.example.com/login?invite=test-token')
+  })
+
+  it('allows deleting an unprofiled account from the account tab', async () => {
+    const { wrapper } = await mountView('/people?selected=user-2&detailTab=account')
+
+    expect(wrapper.text()).toContain('删除未建档账号')
+
+    const setupState = wrapper.vm.$.setupState as unknown as PeopleManagementViewSetupState
+    await setupState.handleDeleteUser()
+    await flushPromises()
+
+    expect(ElMessageBox.confirm).toHaveBeenCalled()
+    expect(deleteUser).toHaveBeenCalledWith('user-2')
   })
 })

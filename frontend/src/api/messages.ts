@@ -1,7 +1,9 @@
 import type {
   MessageCenterSnapshot,
   MessageStateFilter,
+  NotificationChannel,
   NotificationReceipt,
+  NotificationDeliveryStatus,
   NotificationReceiptType,
 } from '@/types/api'
 import { http } from './http'
@@ -9,6 +11,10 @@ import { http } from './http'
 type GetMessageCenterSnapshotParams = {
   sourceType?: string
   state?: MessageStateFilter
+  channel?: NotificationChannel
+  deliveryStatus?: NotificationDeliveryStatus
+  createdFrom?: string
+  createdTo?: string
 }
 
 export async function getMessageCenterSnapshot(
@@ -18,6 +24,10 @@ export async function getMessageCenterSnapshot(
     params: {
       source_type: params.sourceType,
       state: params.state,
+      channel: params.channel,
+      delivery_status: params.deliveryStatus,
+      created_from: params.createdFrom,
+      created_to: params.createdTo,
     },
   })
   return data

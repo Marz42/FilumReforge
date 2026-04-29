@@ -170,9 +170,11 @@ describe('Home view', () => {
 
     expect(wrapper.text()).toContain('本周值班安排')
     expect(wrapper.text()).toContain('办公区维护通知')
+    expect(wrapper.text()).toContain('我的待办')
+    expect(wrapper.text()).toContain('跟踪任务')
     expect(wrapper.text()).toContain('待办事项')
     expect(wrapper.text()).toContain('任务跟踪')
-    expect(wrapper.text()).toContain('进入待办')
+    expect(wrapper.text()).toContain('查看待办')
     expect(wrapper.text()).toContain('查看跟踪')
     wrapper.unmount()
   })
@@ -201,6 +203,33 @@ describe('Home view', () => {
 
     expect(router.currentRoute.value.name).toBe('task-center')
     expect(router.currentRoute.value.query.tab).toBe('tracking')
+    wrapper.unmount()
+  })
+
+  it('navigates to inbox explicitly from the summary card', async () => {
+    const router = await createTestRouter()
+    const wrapper = mount(HomeView, {
+      attachTo: document.body,
+      global: {
+        plugins: [ElementPlus, router],
+        stubs: {
+          transition: false,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const inboxButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('查看待办'))
+    expect(inboxButton).toBeTruthy()
+
+    await inboxButton?.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.name).toBe('task-center')
+    expect(router.currentRoute.value.query.tab).toBe('inbox')
     wrapper.unmount()
   })
 

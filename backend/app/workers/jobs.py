@@ -24,10 +24,12 @@ from app.integrations.llm.openai_client import OpenAIClient
 from app.integrations.notifications.base import NotificationAdapter
 from app.integrations.notifications.factory import build_notification_adapters
 from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
+from app.services.hr_lifecycle_service import HRLifecycleService
 from app.services.notification_service import NotificationService
 from app.services.task_service import TaskService
 from app.services.task_automation_service import TaskAutomationService
 from app.services.task_template_service import TaskTemplateService
+from app.services.workflow_engine_service import WorkflowEngineService
 from app.schemas.messages import NotificationMessage
 
 
@@ -257,6 +259,27 @@ async def enqueue_pending_workflow_reminders(
     created_count += 1
 
   return created_count
+
+
+async def process_employment_event_automation(
+  *,
+  session: AsyncSession,
+  event_id: UUID | str,
+  queue_publisher=None,  # noqa: ANN001
+) -> bool:
+  resolved_event_id = _parse_uuid(event_id, field_name="event_id") if isinstance(event_id, str) else event_id
+  notification_service = NotificationService(session, queue_publisher)
+  task_service = TaskService(session, notification_service)
+  task_template_service = TaskTemplateService(session, task_service, notification_service)
+  workflow_engine_service = WorkflowEngineService(session, notification_service)
+  lifecycle_service = HRLifecycleService(
+    session,
+    task_template_service=task_template_service,
+    workflow_engine_service=workflow_engine_service,
+    job_queue_publisher=queue_publisher,
+  )
+  event = await lifecycle_service.process_event_automation(event_id=resolved_event_id)
+  return event.trigger_status.value == "succeeded"
 
 
 async def rebuild_document_embeddings(

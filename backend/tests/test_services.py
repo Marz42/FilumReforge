@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.config import Settings
 from app.core.enums import (
@@ -40,6 +40,7 @@ from app.core.enums import (
 )
 from app.core.exceptions import AppValidationError, AuthenticationError, AuthorizationError, ConflictError, NotFoundError
 from app.models import (
+  Attachment,
   AttachmentLink,
   Department,
   NotificationDelivery,
@@ -50,6 +51,7 @@ from app.models import (
   TaskTemplateInstance,
   TaskTemplateStepRun,
   User,
+  WorkflowInstance,
 )
 from app.models import Announcement, BoardCard
 from app.integrations.storage.local import LocalStorageAdapter
@@ -61,7 +63,7 @@ from app.services.browser_push_service import BrowserPushService
 from app.services.delegation_service import DelegationService
 from app.services.department_service import DepartmentService
 from app.services.document_service import DocumentService
-from app.services.hr_lifecycle_service import HRLifecycleService
+from app.services.hr_lifecycle_service import HRLifecycleService, PROCESS_EMPLOYMENT_EVENT_JOB
 from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.llm_router_service import LLMRouterService
 from app.services.message_center_service import MessageCenterService
@@ -87,9 +89,13 @@ from app.services.workflow_engine_service import WorkflowEngineService
 class InMemoryQueuePublisher:
   def __init__(self) -> None:
     self.payloads: list[dict[str, str]] = []
+    self.jobs: list[tuple[str, tuple[object, ...]]] = []
 
   async def publish(self, payload):  # noqa: ANN001
     self.payloads.append(payload)
+
+  async def enqueue(self, job_name: str, *args: object) -> None:
+    self.jobs.append((job_name, args))
 
 
 class FailingQueuePublisher:
@@ -182,6 +188,50 @@ async def test_auth_service_bootstrap_login_and_refresh(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_auth_service_invitation_flow_create_accept_and_revoke(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET, frontend_app_url="https://app.example.com")
+  auth_service = AuthService(db_session, settings)
+
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  invitation = await auth_service.create_invitation(
+    actor=admin,
+    email="invited@example.com",
+    role=UserRole.EMPLOYEE,
+  )
+  invitation_token = invitation.invite_url.split("invite=", maxsplit=1)[1]
+  preview_user = await auth_service.get_invitation_preview(token=invitation_token)
+
+  assert invitation.user.status == UserStatus.INACTIVE
+  assert preview_user.email == "invited@example.com"
+
+  accepted_session = await auth_service.accept_invitation(
+    token=invitation_token,
+    password="StrongPassword123!",
+  )
+  second_invitation = await auth_service.create_invitation(
+    actor=admin,
+    email="another-invite@example.com",
+    role=UserRole.HR,
+  )
+  second_token = second_invitation.invite_url.split("invite=", maxsplit=1)[1]
+  revoked_user = await auth_service.revoke_invitation(actor=admin, user_id=second_invitation.user.id)
+
+  assert invitation.invite_url.startswith("https://app.example.com/login?invite=")
+  assert accepted_session.user.status == UserStatus.ACTIVE
+  assert accepted_session.user.invitation_accepted_at is not None
+  assert accepted_session.user.invitation_token_hash is None
+  assert revoked_user.invitation_revoked_at is not None
+  with pytest.raises(ConflictError, match="已被撤销"):
+    await auth_service.get_invitation_preview(token=second_token)
+
+
+@pytest.mark.asyncio
 async def test_department_profile_and_user_services(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
   auth_service = AuthService(db_session, settings)
@@ -225,6 +275,59 @@ async def test_department_profile_and_user_services(db_session) -> None:
   assert department in departments
   assert profile in profiles
   assert profile.custom_fields["skills"] == ["recruiting"]
+
+
+@pytest.mark.asyncio
+async def test_user_service_allows_delete_only_for_unprofiled_accounts(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  department = await department_service.create_department(
+    actor=admin,
+    name="测试部门",
+    code="test-delete-department",
+  )
+
+  deletable_user = await user_service.create_user(
+    actor=admin,
+    email="pending-delete@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.INACTIVE,
+  )
+  profiled_user = await user_service.create_user(
+    actor=admin,
+    email="profiled-delete@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=profiled_user.id,
+    employee_no="EMP-DELETE-001",
+    real_name="不可删除账号",
+    department_id=department.id,
+    custom_fields={},
+  )
+
+  await user_service.delete_user(actor=admin, user_id=deletable_user.id)
+
+  deleted_user = await db_session.get(User, deletable_user.id)
+  assert deleted_user is None
+
+  with pytest.raises(ConflictError, match="已建档"):
+    await user_service.delete_user(actor=admin, user_id=profiled_user.id)
 
 
 @pytest.mark.asyncio
@@ -360,7 +463,7 @@ async def test_people_management_service_aggregates_accounts_and_profiles(db_ses
     password="StrongPassword123!",
     role=UserRole.EMPLOYEE,
   )
-  await user_service.create_user(
+  pending_user = await user_service.create_user(
     actor=admin,
     email="pending@example.com",
     password="StrongPassword123!",
@@ -426,10 +529,14 @@ async def test_people_management_service_aggregates_accounts_and_profiles(db_ses
 
   assert detail.summary["real_name"] == "研发工程师"
   assert detail.actions["can_edit_user"] is True
+  assert detail.actions["can_delete_user"] is False
   assert detail.actions["can_create_profile"] is False
   assert detail.primary_manager_label == "技术负责人"
   assert detail.latest_employment_event is not None
   assert detail.latest_employment_event.event_type == EmploymentEventType.PROMOTION
+
+  pending_detail = await people_management_service.get_person_detail(actor=admin, user_id=pending_user.id)
+  assert pending_detail.actions["can_delete_user"] is True
 
 
 @pytest.mark.asyncio
@@ -1405,6 +1512,107 @@ async def test_phase3_services_apply_lifecycle_events(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_phase3_lifecycle_event_automation_enqueues_and_runs_idempotently(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  queue_publisher = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, queue_publisher)
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+  workflow_engine_service = WorkflowEngineService(db_session, notification_service)
+  lifecycle_service = HRLifecycleService(
+    db_session,
+    task_template_service=task_template_service,
+    workflow_engine_service=workflow_engine_service,
+    job_queue_publisher=queue_publisher,
+  )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-LIFECYCLE-001",
+    real_name="新员工",
+    department_id=admin_profile.department_id,
+  )
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="lifecycle-onboard",
+    name="入职模板",
+    category="hr",
+    steps=[
+      {
+        "step_key": "prepare-account",
+        "title": "开通账号",
+        "default_assignee_rule": {"type": "user", "user_id": str(admin.id)},
+      }
+    ],
+  )
+  definition = await workflow_engine_service.create_definition(
+    actor=admin,
+    code="lifecycle-onboard-approval",
+    name="入职审批",
+    scope_type="employment_event",
+    status=WorkflowDefinitionStatus.ACTIVE,
+    steps=[
+      {
+        "step_key": "approve",
+        "name": "确认入职",
+        "step_type": "approval",
+        "assignee_rule": {"type": "user", "user_id": str(admin.id)},
+      }
+    ],
+  )
+
+  event = await lifecycle_service.create_event(
+    actor=admin,
+    user_id=employee.id,
+    event_type=EmploymentEventType.ONBOARD,
+    effective_date=date(2025, 5, 1),
+    title="办理入职",
+    payload={"department_id": str(admin_profile.department_id)},
+    task_template_id=template.id,
+    workflow_definition_id=definition.id,
+  )
+
+  assert event.trigger_status.value == "pending"
+  assert queue_publisher.jobs == [(PROCESS_EMPLOYMENT_EVENT_JOB, (str(event.id),))]
+
+  processed_event = await lifecycle_service.process_event_automation(event_id=event.id)
+  processed_again = await lifecycle_service.process_event_automation(event_id=event.id)
+
+  template_instance_count = await db_session.scalar(
+    select(func.count(TaskTemplateInstance.id)).where(TaskTemplateInstance.template_id == template.id)
+  )
+  workflow_instance_count = await db_session.scalar(
+    select(func.count()).select_from(WorkflowInstance).where(WorkflowInstance.definition_id == definition.id)
+  )
+
+  assert processed_event.trigger_status.value == "succeeded"
+  assert processed_event.triggered_template_instance_id is not None
+  assert processed_event.triggered_workflow_instance_id is not None
+  assert processed_again.trigger_status.value == "succeeded"
+  assert template_instance_count == 1
+  assert workflow_instance_count == 1
+
+
+@pytest.mark.asyncio
 async def test_message_center_snapshot_is_user_scoped_and_tracks_source_metadata(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
   auth_service = AuthService(db_session, settings)
@@ -1496,6 +1704,113 @@ async def test_message_center_snapshot_is_user_scoped_and_tracks_source_metadata
 
   with pytest.raises(NotFoundError):
     await message_center_service.get_message_view(actor=watcher, message_id=snapshot.items[0]["id"])
+
+
+@pytest.mark.asyncio
+async def test_message_center_snapshot_supports_delivery_filters_and_message_attachments(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  message_center_service = MessageCenterService(db_session)
+
+  first_message = await notification_service.send(
+    NotificationMessage(
+      source_type="task",
+      source_id=uuid4(),
+      recipient_user_id=manager.id,
+      recipient_email=manager.email,
+      message_type="task_assigned",
+      title="收到新任务：季度复盘",
+      body_text="任务「季度复盘」已分配给你，请及时处理。",
+      channels=[NotificationChannel.EMAIL, NotificationChannel.WEB_PUSH],
+      payload={},
+    )
+  )
+  second_message = await notification_service.send(
+    NotificationMessage(
+      source_type="report",
+      source_id=uuid4(),
+      recipient_user_id=manager.id,
+      recipient_email=manager.email,
+      message_type="report_pending",
+      title="新的汇报：预算申请",
+      body_text="请处理预算申请。",
+      channels=[NotificationChannel.WEBSOCKET],
+      payload={},
+    )
+  )
+
+  attachment = Attachment(
+    storage_provider="local",
+    bucket="filum-test",
+    object_key="messages/message-attachment.txt",
+    original_filename="消息附件.txt",
+    mime_type="text/plain",
+    size_bytes=12,
+    checksum_sha256="abc123",
+    uploader_id=admin.id,
+  )
+  db_session.add(attachment)
+  await db_session.flush()
+  db_session.add(
+    AttachmentLink(
+      attachment_id=attachment.id,
+      target_type=AttachmentTargetType.NOTIFICATION_MESSAGE,
+      target_id=first_message.id,
+      relation="primary",
+      created_by=admin.id,
+    )
+  )
+
+  first_message.created_at = datetime.now(UTC) - timedelta(days=2)
+  first_message.status = NotificationMessageStatus.FAILED
+  second_message.status = NotificationMessageStatus.COMPLETED
+  for delivery in first_message.deliveries:
+    delivery.attempt_count = 2
+    delivery.attempted_at = datetime.now(UTC) - timedelta(days=1)
+    if delivery.channel == NotificationChannel.EMAIL:
+      delivery.status = NotificationDeliveryStatus.FAILED
+      delivery.error_message = "邮箱通道不可用。"
+    else:
+      delivery.status = NotificationDeliveryStatus.SENT
+      delivery.delivered_at = datetime.now(UTC) - timedelta(days=1)
+  for delivery in second_message.deliveries:
+    delivery.status = NotificationDeliveryStatus.SENT
+    delivery.delivered_at = datetime.now(UTC)
+  await db_session.commit()
+
+  snapshot = await message_center_service.get_message_center_snapshot(
+    actor=manager,
+    channel=NotificationChannel.EMAIL,
+    delivery_status=NotificationDeliveryStatus.FAILED,
+    created_to=datetime.now(UTC) - timedelta(days=1),
+  )
+  message_view = await message_center_service.get_message_view(actor=manager, message_id=first_message.id)
+
+  assert snapshot.total_count == 2
+  assert snapshot.filtered_count == 1
+  assert snapshot.applied_channel == NotificationChannel.EMAIL
+  assert snapshot.applied_delivery_status == NotificationDeliveryStatus.FAILED
+  assert snapshot.items[0]["id"] == first_message.id
+  assert snapshot.items[0]["delivery_state"] == NotificationDeliveryStatus.FAILED
+  assert len(message_view["attachments"]) == 1
+  assert message_view["attachments"][0].original_filename == "消息附件.txt"
+  assert message_view["delivery_state"] == NotificationDeliveryStatus.FAILED
 
 
 @pytest.mark.asyncio
@@ -1611,6 +1926,7 @@ async def test_phase4_template_automation_and_message_center_services(db_session
   await db_session.commit()
   executed_count = await task_automation_service.run_due_schedules(now=datetime.now(UTC))
   all_tasks = await task_service.list_tasks(actor=admin)
+  refreshed_schedule = await task_automation_service.list_schedules(actor=admin)
 
   assert len(tasks) == 1
   assert tasks[0].source_type.value == "template"
@@ -1623,6 +1939,9 @@ async def test_phase4_template_automation_and_message_center_services(db_session
   assert executed_count == 1
   assert len(all_tasks) == 2
   assert schedule.next_run_at is not None
+  assert refreshed_schedule[0].last_run_status == "success"
+  assert refreshed_schedule[0].last_run_task_count == 1
+  assert refreshed_schedule[0].last_run_message is not None
 
 
 @pytest.mark.asyncio
@@ -1955,6 +2274,96 @@ async def test_task_template_update_preserves_metadata_but_blocks_step_changes_a
 
 
 @pytest.mark.asyncio
+async def test_task_template_can_create_new_version_from_locked_template(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="版本模板部",
+    code="version-template-dept",
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=requester.id,
+    employee_no="EMP-TPL-V2-001",
+    real_name="模板版本执行人",
+    department_id=department.id,
+  )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="stage2-template",
+    name="Stage 2 模板",
+    category="ops",
+    steps=[
+      {
+        "step_key": "draft",
+        "title": "整理草稿",
+        "default_assignee_rule": {"type": "initiator"},
+      }
+    ],
+  )
+  await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=template.id,
+    payload={"department_id": str(department.id)},
+  )
+
+  version_two = await task_template_service.create_template(
+    actor=admin,
+    code="stage2-template-v2",
+    source_template_id=template.id,
+    name="Stage 2 模板 V2",
+    category="ops",
+    steps=[
+      {
+        "step_key": "draft",
+        "title": "整理草稿",
+        "default_assignee_rule": {"type": "initiator"},
+      },
+      {
+        "step_key": "review",
+        "title": "主管复核",
+        "default_assignee_rule": {"type": "initiator"},
+        "depends_on_step_keys": ["draft"],
+      },
+    ],
+  )
+  metadata = await task_template_service.get_template_view_metadata(template_ids=[template.id, version_two.id])
+
+  assert template.base_code == "stage2-template"
+  assert template.version == 1
+  assert version_two.base_code == "stage2-template"
+  assert version_two.version == 2
+  assert version_two.source_template_id == template.id
+  assert metadata[template.id].has_instances is True
+  assert metadata[template.id].latest_version == 2
+  assert metadata[version_two.id].latest_version == 2
+
+
+@pytest.mark.asyncio
 async def test_task_template_fan_out_join_modes_activate_downstream(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
   auth_service = AuthService(db_session, settings)
@@ -2101,6 +2510,26 @@ async def test_task_template_fan_out_join_modes_activate_downstream(db_session) 
     and task.extra_metadata.get("template_id") == str(all_template.id)
     for task in tasks_after_all_completion
   )
+  manager_review_tasks = [
+    task
+    for task in tasks_after_all_completion
+    if task.extra_metadata.get("template_step_key") == "manager_review"
+    and task.extra_metadata.get("template_id") == str(all_template.id)
+  ]
+  assert len(manager_review_tasks) == 1
+
+  repeated_activation_tasks = await task_service.activate_template_instance_steps(
+    instance_id=all_instantiation.instance.id,
+  )
+  tasks_after_repeated_activation = await task_service.list_tasks(actor=admin)
+  repeated_manager_review_tasks = [
+    task
+    for task in tasks_after_repeated_activation
+    if task.extra_metadata.get("template_step_key") == "manager_review"
+    and task.extra_metadata.get("template_id") == str(all_template.id)
+  ]
+  assert repeated_activation_tasks == []
+  assert len(repeated_manager_review_tasks) == 1
 
   any_template = await task_template_service.create_template(
     actor=admin,

@@ -36,6 +36,7 @@ class PeopleManagementPersonRead(BaseModel):
 
 class PeopleManagementActionsRead(BaseModel):
   can_edit_user: bool
+  can_delete_user: bool
   can_create_profile: bool
   can_edit_profile: bool
   can_manage_relations: bool

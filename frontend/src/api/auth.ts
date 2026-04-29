@@ -1,4 +1,10 @@
-import type { AuthSession, User } from '@/types/api'
+import type {
+  AuthSession,
+  User,
+  UserInvitation,
+  UserInvitationPreview,
+  UserRole,
+} from '@/types/api'
 import { http, rawHttp } from './http'
 
 export interface LoginPayload {
@@ -9,6 +15,16 @@ export interface LoginPayload {
 export interface BootstrapAdminPayload extends LoginPayload {
   real_name: string
   employee_no: string
+}
+
+export interface CreateInvitationPayload {
+  email: string
+  role: UserRole
+}
+
+export interface AcceptInvitationPayload {
+  token: string
+  password: string
 }
 
 export interface BootstrapStatus {
@@ -22,6 +38,23 @@ export async function bootstrapAdmin(payload: BootstrapAdminPayload): Promise<Us
 
 export async function login(payload: LoginPayload): Promise<AuthSession> {
   const { data } = await rawHttp.post<AuthSession>('/auth/login', payload)
+  return data
+}
+
+export async function createInvitation(payload: CreateInvitationPayload): Promise<UserInvitation> {
+  const { data } = await http.post<UserInvitation>('/auth/invitations', payload)
+  return data
+}
+
+export async function getInvitationPreview(token: string): Promise<UserInvitationPreview> {
+  const { data } = await rawHttp.get<UserInvitationPreview>('/auth/invitations/preview', {
+    params: { token },
+  })
+  return data
+}
+
+export async function acceptInvitation(payload: AcceptInvitationPayload): Promise<AuthSession> {
+  const { data } = await rawHttp.post<AuthSession>('/auth/invitations/accept', payload)
   return data
 }
 

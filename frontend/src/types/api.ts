@@ -14,7 +14,7 @@ export type TaskActionType =
 export type CommentFormat = 'plain_text' | 'markdown'
 export type AttachmentVisibility = 'private' | 'internal' | 'public'
 export type AttachmentStatus = 'uploaded' | 'deleted' | 'quarantined'
-export type AttachmentTargetType = 'task_comment' | 'task' | 'profile' | 'document'
+export type AttachmentTargetType = 'task_comment' | 'task' | 'profile' | 'document' | 'notification_message'
 export type PositionAssignmentType = 'primary' | 'part_time' | 'acting'
 export type ReportingLineType = 'solid' | 'dotted'
 export type EmploymentEventType =
@@ -58,8 +58,26 @@ export interface User {
   role: UserRole
   status: UserStatus
   last_login_at: string | null
+  invited_by?: string | null
+  invitation_sent_at?: string | null
+  invitation_expires_at?: string | null
+  invitation_revoked_at?: string | null
+  invitation_accepted_at?: string | null
   created_at: string
   updated_at: string
+}
+
+export interface UserInvitation {
+  user: User
+  invite_url: string
+  expires_at: string
+}
+
+export interface UserInvitationPreview {
+  user_id: string
+  email: string
+  role: UserRole
+  expires_at: string
 }
 
 export interface AuthSession {
@@ -232,6 +250,7 @@ export interface PeopleManagementPerson {
 
 export interface PeopleManagementActions {
   can_edit_user: boolean
+  can_delete_user: boolean
   can_create_profile: boolean
   can_edit_profile: boolean
   can_manage_relations: boolean
@@ -365,6 +384,10 @@ export interface TaskSchedule {
   next_run_at: string | null
   is_active: boolean
   payload: Record<string, unknown>
+  last_run_at: string | null
+  last_run_status: 'success' | 'failed' | null
+  last_run_message: string | null
+  last_run_task_count: number | null
   created_at: string
   updated_at: string
 }
@@ -550,6 +573,8 @@ export interface TaskTemplateStep {
 export interface TaskTemplate {
   id: string
   code: string
+  base_code: string
+  version: number
   name: string
   category: string
   description: string | null
@@ -557,6 +582,10 @@ export interface TaskTemplate {
   config: Record<string, unknown>
   is_active: boolean
   created_by: string
+  source_template_id: string | null
+  latest_version: number
+  has_instances: boolean
+  is_structure_locked: boolean
   created_at: string
   updated_at: string
   steps: TaskTemplateStep[]
@@ -591,6 +620,8 @@ export interface TaskTemplateStepSnapshot {
   total_run_count: number
   active_run_count: number
   completed_run_count: number
+  history_iteration_count: number
+  latest_iteration: number
   step_runs: TaskTemplateStepRun[]
 }
 
@@ -604,6 +635,12 @@ export interface TaskTemplateInstance {
   status: TaskTemplateInstanceStatus
   payload: Record<string, unknown>
   completed_at: string | null
+  total_step_count: number
+  completed_step_count: number
+  active_step_count: number
+  blocked_step_count: number
+  ready_step_count: number
+  progress_percent: number
   created_at: string
   updated_at: string
   step_snapshots: TaskTemplateStepSnapshot[]
@@ -814,8 +851,10 @@ export interface Message {
   enqueued_at: string | null
   completed_at: string | null
   created_at: string
+  delivery_state: NotificationDeliveryStatus | null
   source: MessageSource
   receipt_state: MessageReceiptState
+  attachments: Attachment[]
   deliveries: NotificationDelivery[]
   receipts: NotificationReceipt[]
 }
@@ -835,6 +874,10 @@ export interface MessageCenterSnapshot {
   source_counts: MessageSourceCount[]
   applied_source_type: string | null
   applied_state: MessageStateFilter
+  applied_channel: NotificationChannel | null
+  applied_delivery_status: NotificationDeliveryStatus | null
+  applied_created_from: string | null
+  applied_created_to: string | null
 }
 
 export interface DocumentSummary {

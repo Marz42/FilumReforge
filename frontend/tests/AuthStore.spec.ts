@@ -5,14 +5,24 @@ import type { AuthSession, User } from '@/types/api'
 import { clearAuthSession, getAccessToken } from '@/api/session'
 
 vi.mock('@/api/auth', () => ({
+  acceptInvitation: vi.fn(),
   bootstrapAdmin: vi.fn(),
   getBootstrapStatus: vi.fn(),
+  getInvitationPreview: vi.fn(),
   login: vi.fn(),
   logout: vi.fn(),
   refreshSession: vi.fn(),
 }))
 
-import { bootstrapAdmin, getBootstrapStatus, login, logout, refreshSession } from '@/api/auth'
+import {
+  acceptInvitation,
+  bootstrapAdmin,
+  getBootstrapStatus,
+  getInvitationPreview,
+  login,
+  logout,
+  refreshSession,
+} from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 
 const mockUser: User = {
@@ -30,6 +40,13 @@ const mockSession: AuthSession = {
   token_type: 'bearer',
   user: mockUser,
 }
+
+const mockInvitationPreview = {
+  user_id: 'user-2',
+  email: 'invitee@example.com',
+  role: 'employee',
+  expires_at: '2025-01-02T00:00:00Z',
+} as const
 
 describe('auth store', () => {
   beforeEach(() => {
@@ -110,5 +127,29 @@ describe('auth store', () => {
     expect(authStore.bootstrapRequired).toBe(false)
     expect(authStore.bootstrapStatusLoaded).toBe(true)
     expect(authStore.isAuthenticated).toBe(true)
+  })
+
+  it('loads invitation preview from backend', async () => {
+    vi.mocked(getInvitationPreview).mockResolvedValue(mockInvitationPreview)
+
+    const authStore = useAuthStore()
+    const preview = await authStore.fetchInvitationPreview('invite-token')
+
+    expect(preview).toEqual(mockInvitationPreview)
+    expect(getInvitationPreview).toHaveBeenCalledWith('invite-token')
+  })
+
+  it('accepts invitation and stores the authenticated session', async () => {
+    vi.mocked(acceptInvitation).mockResolvedValue(mockSession)
+
+    const authStore = useAuthStore()
+    await authStore.acceptInvitation({
+      token: 'invite-token',
+      password: 'StrongPassword123!',
+    })
+
+    expect(authStore.isAuthenticated).toBe(true)
+    expect(authStore.user?.email).toBe('admin@example.com')
+    expect(getAccessToken()).toBe('access-token')
   })
 })

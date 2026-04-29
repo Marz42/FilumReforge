@@ -16,6 +16,8 @@ def test_default_settings_align_with_phase_a_baseline() -> None:
   assert settings.auth_refresh_cookie_name == "filum_refresh_token"
   assert settings.auth_refresh_cookie_samesite == "strict"
   assert settings.auth_refresh_cookie_secure is False
+  assert settings.auth_invitation_expiry_hours == 72
+  assert settings.frontend_app_url == "http://localhost:5173"
   assert settings.openai_chat_model == "gpt-5-mini"
   assert settings.openai_embedding_model == "text-embedding-3-small"
   assert settings.openai_embedding_dimensions == 1536
@@ -68,4 +70,18 @@ def test_settings_validate_refresh_cookie_options() -> None:
       jwt_secret_key="test-jwt-secret-key-for-suite-123456",
       auth_refresh_cookie_samesite="none",
       auth_refresh_cookie_secure=False,
+    )
+
+
+def test_settings_validate_invitation_options() -> None:
+  with pytest.raises(ValidationError):
+    Settings(
+      jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+      auth_invitation_expiry_hours=0,
+    )
+
+  with pytest.raises(ValidationError):
+    Settings(
+      jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+      frontend_app_url="frontend.local",
     )

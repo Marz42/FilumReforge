@@ -30,6 +30,24 @@
 | 工作流 E / 结构化任务模板与多步骤协作 | in_progress | 首批实现已落地：模板实例 / 步骤运行态、逐步激活、多人扇出 / 汇聚、结构化设计器与实例快照已完成；当前进入回归、部署准备与后续深化 |
 | 部署工程化收口 | in_progress | 生产运行形态已收口：`start-prod.sh`（无 --reload）、`Dockerfile.prod`（后端 + 前端多阶段构建）、`docker-compose.prod.yml`、Nginx 生产配置（host + compose）、环境变量模板、发布前验证脚本已完成；核心回归已执行，发布前一键校验与上线演练待执行 |
 
+## Stage 2 / 当前实施周期
+
+| 阶段 | 状态 | 结论 |
+| --- | --- | --- |
+| Stage 2 Phase 0 / 基线冻结与阶段确认 | done | 已将实施计划统一更名为 `improvements-stage2-implementation-plan.md`，并明确当前周期使用 Stage 2 命名，避免与历史 Phase 2 冲突 |
+| Stage 2 Phase 1 / 前端体验收敛 | done | 首页与任务中心体验收口已完成，并已通过前端 `test:unit`、`type-check`、`build` 验证；后续阶段继续以该结果为前端基线 |
+| Stage 2 Phase 2 / 模板工作台与工作流 E 治理 | done | 已完成三批收口：1）结构化设计器前端校验与流转关系表达；2）模板版本语义、结构锁定与新建版本入口、调度最近执行结果、实例整体进度与步骤迭代展示；3）按模板实例串行化激活入口，补齐 fan-out / join 下游步骤重复激活约束，并补 worker 成功/失败状态回写回归。已执行 backend `pytest -q tests/test_models.py tests/test_services.py tests/test_api.py tests/test_workers.py`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run type-check`、`npm run build` |
+| Stage 2 Phase 3 / 生命周期事件联动 | done | 已完成后端首轮联动：生命周期事件可显式绑定任务模板 / 审批流目标，事件新增触发状态、错误、尝试次数与已生成实例锚点；`HRLifecycleService` 已接入异步入队与 worker 执行，覆盖入队、成功联动、失败回写与幂等场景。已执行 backend `pytest -q tests/test_services.py -k "lifecycle_event_automation or phase3_services_apply_lifecycle_events"`、`pytest -q tests/test_api.py -k "profile_event_api_accepts_lifecycle_automation_targets or people_management" tests/test_workers.py -k "employment_event_automation or run_due_task_schedules_records_failure_state"`、`pytest -q tests/test_migrations.py`、`python -m compileall app tests`；等待用户测试后再进入 Stage 2 Phase 4 |
+| Stage 2 Phase 4 / 消息中心深化 | done | 已完成首轮收口：消息通过 `attachment_links(target_type = notification_message)` 接入附件体系；消息中心补齐来源模块 / 回执状态 / 渠道 / 投递状态 / 时间范围组合筛选；详情页补附件、投递尝试次数与失败原因展示。已执行 backend `pytest -q tests/test_services.py -k "message_center_snapshot" tests/test_api.py -k "message_center_api"`，以及 frontend `npm run test:unit -- --run tests/MessagesView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 5 |
+| Stage 2 Phase 5 / 注册与账号开通 | done | 已完成邀请制注册首轮落地：后端补 `users` 邀请字段、邀请生成 / 预览 / 激活 / 撤销服务与认证路由；登录页支持邀请预览与设置密码激活；人员工作台“新建账号”对话框支持“直接创建 / 邀请注册”双路径。已执行 backend `pytest -q tests/test_settings.py::test_settings_validate_invitation_options tests/test_services.py::test_auth_service_invitation_flow_create_accept_and_revoke tests/test_api.py::test_auth_invitation_api_flow`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/LoginView.spec.ts tests/AuthStore.spec.ts tests/PeopleManagementView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 6 |
+| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | 已纳入两项发布前补丁：1）人员工作台账号页明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；2）管理员可删除未建档且未被业务数据引用的账号。当前已完成等价于 `check-release.sh` 核心校验范围的全量自动化回归：backend `pytest -q`、`python -m compileall app tests`，frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`、`npm exec oxlint .`、`npm exec eslint .` 均通过；本次会话运行在 Windows 工作区，未直接执行 `bash scripts/check-release.sh`，Ubuntu 24.04 目标主机上的完整部署演练与回滚路径固化仍待后续在 Linux/生产近似环境完成。 |
+
+### Stage 2 文档同步约定
+
+- 每个 Stage 2 阶段完成后，必须先更新 `memory-bank/architecture.md` 记录实现事实、受影响模块职责与结构变化。
+- 随后必须更新 `memory-bank/progress.md` 记录阶段状态、验证命令、验收结论与待用户测试项。
+- 如果某阶段只涉及前端行为变化，也不能跳过 `architecture.md`；需要记录页面行为或模块职责变化。
+
 ## 近期补丁 / 会话安全改造
 
 | 项目 | 状态 | 结论 |

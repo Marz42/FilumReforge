@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 
 from app.api.dependencies import get_current_user, get_management_user, get_user_service
 from app.models import User
@@ -64,3 +64,13 @@ async def update_user(
     status=payload.status,
   )
   return UserRead.model_validate(user)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+  user_id: UUID,
+  actor: Annotated[User, Depends(get_management_user)],
+  user_service: Annotated[UserService, Depends(get_user_service)],
+) -> Response:
+  await user_service.delete_user(actor=actor, user_id=user_id)
+  return Response(status_code=status.HTTP_204_NO_CONTENT)
