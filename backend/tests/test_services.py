@@ -4974,3 +4974,241 @@ async def test_phase6_instance_completion_marks_graph_done(db_session) -> None:
   assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
   assert instance.completed_at is not None
   assert instance.current_node_key is None
+
+
+# =========================================================================
+# Phase 11-A: routing_rules 桥接到旧模板系统的条件激活
+# =========================================================================
+
+@pytest.mark.asyncio
+async def test_phase11a_routing_rules_condition_match_activates_only_target_step(db_session) -> None:
+  """步骤 A 配置 routing_rules（条件 amount > 10000 -> step_b，else -> step_c）:
+  当 instance.payload.amount == 50000 时，步骤 A 完成后应只激活 step_b，
+  而 step_c 不被激活。
+  """
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@routing-rules.example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@routing-rules.example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="路由规则测试部",
+    code="routing-rules-dept",
+    manager_id=manager.id,
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  for user_id, employee_no, real_name in [
+    (manager.id, "EMP-RR-MGR", "路由规则主管"),
+    (requester.id, "EMP-RR-REQ", "路由规则发起人"),
+  ]:
+    await profile_service.create_profile(
+      actor=admin,
+      user_id=user_id,
+      employee_no=employee_no,
+      real_name=real_name,
+      department_id=department.id,
+    )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  routing_rules = [
+    {
+      "condition": {"field": "amount", "operator": "gt", "value": 10000},
+      "target_step_key": "step_b",
+    },
+    {"else": True, "target_step_key": "step_c"},
+  ]
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="routing-rules-branch-test",
+    name="路由分支测试模板",
+    category="ops",
+    steps=[
+      {
+        "step_key": "step_a",
+        "title": "申请提交",
+        "default_assignee_rule": {"type": "initiator"},
+        "config": {"routing_rules": routing_rules},
+      },
+      {
+        "step_key": "step_b",
+        "title": "大额审批",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["step_a"],
+      },
+      {
+        "step_key": "step_c",
+        "title": "普通确认",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["step_a"],
+      },
+    ],
+  )
+
+  instantiation = await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=template.id,
+    payload={"department_id": str(department.id), "amount": 50000},
+  )
+  initial_tasks = instantiation.tasks
+  assert len(initial_tasks) == 1
+  step_a_task = initial_tasks[0]
+  assert step_a_task.extra_metadata.get("template_step_key") == "step_a"
+
+  for target_status in [TaskStatus.DOING, TaskStatus.REVIEW, TaskStatus.DONE]:
+    await task_service.transition_task_status(
+      actor=requester,
+      task_id=step_a_task.id,
+      target_status=target_status,
+    )
+
+  all_tasks = await task_service.list_tasks(actor=admin)
+  activated_step_keys = {
+    task.extra_metadata.get("template_step_key")
+    for task in all_tasks
+    if task.extra_metadata.get("template_id") == str(template.id)
+    and task.id != step_a_task.id
+  }
+
+  assert "step_b" in activated_step_keys
+  assert "step_c" not in activated_step_keys
+
+
+@pytest.mark.asyncio
+async def test_phase11a_routing_rules_else_fallback_activates_when_no_condition_matches(db_session) -> None:
+  """步骤 A 配置 routing_rules（条件 amount > 10000 -> step_b，else -> step_c）:
+  当 instance.payload.amount == 3000 时（不满足条件），
+  步骤 A 完成后应通过 ELSE 规则激活 step_c 而非 step_b。
+  """
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  department_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  manager = await user_service.create_user(
+    actor=admin,
+    email="manager@routing-else.example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  requester = await user_service.create_user(
+    actor=admin,
+    email="requester@routing-else.example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  department = await department_service.create_department(
+    actor=admin,
+    name="路由 ELSE 测试部",
+    code="routing-else-dept",
+    manager_id=manager.id,
+    capabilities=[DepartmentCapability.PUBLISH_ORG_TASK],
+  )
+  for user_id, employee_no, real_name in [
+    (manager.id, "EMP-RR-ELSE-MGR", "路由 ELSE 主管"),
+    (requester.id, "EMP-RR-ELSE-REQ", "路由 ELSE 发起人"),
+  ]:
+    await profile_service.create_profile(
+      actor=admin,
+      user_id=user_id,
+      employee_no=employee_no,
+      real_name=real_name,
+      department_id=department.id,
+    )
+
+  notification_service = NotificationService(db_session, InMemoryQueuePublisher())
+  task_service = TaskService(db_session, notification_service)
+  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
+
+  routing_rules = [
+    {
+      "condition": {"field": "amount", "operator": "gt", "value": 10000},
+      "target_step_key": "step_b",
+    },
+    {"else": True, "target_step_key": "step_c"},
+  ]
+
+  template = await task_template_service.create_template(
+    actor=admin,
+    code="routing-rules-else-test",
+    name="路由 ELSE 测试模板",
+    category="ops",
+    steps=[
+      {
+        "step_key": "step_a",
+        "title": "申请提交",
+        "default_assignee_rule": {"type": "initiator"},
+        "config": {"routing_rules": routing_rules},
+      },
+      {
+        "step_key": "step_b",
+        "title": "大额审批",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["step_a"],
+      },
+      {
+        "step_key": "step_c",
+        "title": "普通确认",
+        "default_assignee_rule": {"type": "department_manager"},
+        "depends_on_step_keys": ["step_a"],
+      },
+    ],
+  )
+
+  instantiation = await task_template_service.instantiate_template(
+    actor=requester,
+    template_id=template.id,
+    payload={"department_id": str(department.id), "amount": 3000},
+  )
+  initial_tasks = instantiation.tasks
+  step_a_task = initial_tasks[0]
+
+  for target_status in [TaskStatus.DOING, TaskStatus.REVIEW, TaskStatus.DONE]:
+    await task_service.transition_task_status(
+      actor=requester,
+      task_id=step_a_task.id,
+      target_status=target_status,
+    )
+
+  all_tasks = await task_service.list_tasks(actor=admin)
+  activated_step_keys = {
+    task.extra_metadata.get("template_step_key")
+    for task in all_tasks
+    if task.extra_metadata.get("template_id") == str(template.id)
+    and task.id != step_a_task.id
+  }
+
+  assert "step_c" in activated_step_keys
+  assert "step_b" not in activated_step_keys

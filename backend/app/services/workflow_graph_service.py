@@ -16,6 +16,11 @@ from app.core.enums import (
   WorkflowNodeEngineState,
 )
 from app.core.exceptions import ConflictError, NotFoundError
+from app.services.condition_evaluator import (
+  evaluate_condition,
+  evaluate_routing_rules,
+  is_else_condition,
+)
 from app.models import (
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
@@ -730,97 +735,14 @@ class WorkflowGraphService:
 
     for edge in sorted(outgoing_edges, key=lambda item: item.priority):
       condition = dict(edge.condition or {})
-      if self._is_else_condition(condition):
+      if is_else_condition(condition):
         else_edges.append(edge)
         continue
-      if self._evaluate_condition(condition=condition, context=context):
+      if evaluate_condition(condition, context):
         matched_edges.append(edge)
 
     selected = matched_edges or else_edges
     return {edge.to_node_id for edge in selected}
-
-  def _is_else_condition(self, condition: dict[str, Any]) -> bool:
-    return bool(condition.get("else") is True or condition.get("type") == "else")
-
-  def _evaluate_condition(
-    self,
-    *,
-    condition: dict[str, Any],
-    context: dict[str, Any],
-  ) -> bool:
-    if not condition:
-      return True
-
-    all_conditions = condition.get("all")
-    if isinstance(all_conditions, list):
-      return all(
-        self._evaluate_condition(condition=item, context=context)
-        for item in all_conditions
-        if isinstance(item, dict)
-      )
-
-    any_conditions = condition.get("any")
-    if isinstance(any_conditions, list):
-      return any(
-        self._evaluate_condition(condition=item, context=context)
-        for item in any_conditions
-        if isinstance(item, dict)
-      )
-
-    field_name = condition.get("field")
-    if not isinstance(field_name, str) or not field_name:
-      return False
-
-    actual_value = self._resolve_context_value(context=context, field_path=field_name)
-    operator = str(condition.get("operator") or "eq").lower()
-    expected_value = condition.get("value")
-
-    if operator == "eq":
-      return actual_value == expected_value
-    if operator == "neq":
-      return actual_value != expected_value
-    if operator == "gt":
-      return self._safe_compare(actual_value, expected_value, compare="gt")
-    if operator == "gte":
-      return self._safe_compare(actual_value, expected_value, compare="gte")
-    if operator == "lt":
-      return self._safe_compare(actual_value, expected_value, compare="lt")
-    if operator == "lte":
-      return self._safe_compare(actual_value, expected_value, compare="lte")
-    if operator == "in":
-      return isinstance(expected_value, list) and actual_value in expected_value
-    if operator == "not_in":
-      return isinstance(expected_value, list) and actual_value not in expected_value
-    if operator == "contains":
-      if isinstance(actual_value, list):
-        return expected_value in actual_value
-      if isinstance(actual_value, str) and isinstance(expected_value, str):
-        return expected_value in actual_value
-      return False
-    if operator == "exists":
-      return actual_value is not None
-
-    return False
-
-  def _resolve_context_value(self, *, context: dict[str, Any], field_path: str) -> Any:
-    value: Any = context
-    for part in field_path.split("."):
-      if not isinstance(value, dict) or part not in value:
-        return None
-      value = value[part]
-    return value
-
-  def _safe_compare(self, actual_value: Any, expected_value: Any, *, compare: str) -> bool:
-    try:
-      if compare == "gt":
-        return actual_value > expected_value
-      if compare == "gte":
-        return actual_value >= expected_value
-      if compare == "lt":
-        return actual_value < expected_value
-      return actual_value <= expected_value
-    except TypeError:
-      return False
 
   async def _auto_complete_activated_notice_nodes(
     self,

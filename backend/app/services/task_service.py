@@ -59,6 +59,7 @@ from app.services.access_control import (
   get_managed_department_ids,
 )
 from app.services.notification_service import NotificationService
+from app.services.condition_evaluator import evaluate_routing_rules
 
 
 @dataclass(slots=True)
@@ -346,6 +347,39 @@ class TaskService:
       return any(sr.status == "completed" for sr in step_runs)
     return all(sr.status == "completed" for sr in step_runs)
 
+  @staticmethod
+  def _routing_rules_allow_step_activation(
+    *,
+    step: TaskTemplateStep,
+    dependency_ids: set[UUID],
+    steps_by_id: dict[UUID, TaskTemplateStep],
+    routing_context: dict[str, Any],
+  ) -> bool:
+    """Return False if any upstream dependency step has routing_rules that do NOT
+    include the current step's step_key as a routing target.
+
+    When an upstream step carries routing_rules, those rules decide which downstream
+    step(s) to activate.  Steps not in the routing result are skipped.
+    Steps whose upstream dependency has no routing_rules are unaffected (backward-
+    compatible with pure dependency-based activation).
+    """
+    for dep_step_id in dependency_ids:
+      dep_step = steps_by_id.get(dep_step_id)
+      if dep_step is None:
+        continue
+      config = dep_step.config or {}
+      routing_rules = config.get("routing_rules")
+      if not routing_rules:
+        continue  # no rules on this upstream step — no restriction
+      allowed_keys = evaluate_routing_rules(routing_rules, routing_context)
+      # allowed_keys is None  → no rules (shouldn't happen here, but guard)
+      # allowed_keys is set() → matched nothing (shouldn't route anywhere)
+      if allowed_keys is None:
+        continue
+      if step.step_key not in allowed_keys:
+        return False
+    return True
+
   async def _load_tasks_by_ids(self, *, task_ids: list[UUID]) -> list[Task]:
     if not task_ids:
       return []
@@ -554,6 +588,11 @@ class TaskService:
       if self._is_template_step_satisfied(step=step, step_runs=step_runs_by_step_id.get(step.id, []))
     }
 
+    # Build a quick lookup: step_id → step object (for routing_rules evaluation)
+    steps_by_id: dict[UUID, TaskTemplateStep] = {step.id: step for step in template.steps}
+    # Context for routing_rules evaluation: use the instance payload
+    routing_context: dict[str, Any] = instance.payload or {}
+
     created_task_ids: list[UUID] = []
     created_bindings: list[tuple[Task, User]] = []
     watcher_bindings: list[tuple[Task, User]] = []
@@ -567,6 +606,17 @@ class TaskService:
         continue
       dependency_ids = {dependency.depends_on_step_id for dependency in step.dependencies}
       if not dependency_ids.issubset(satisfied_step_ids):
+        continue
+
+      # Phase 11-A: evaluate routing_rules from each upstream (dependency) step.
+      # If any upstream step has routing_rules, the current step is only activated
+      # when its step_key appears in the evaluated routing target set.
+      if not self._routing_rules_allow_step_activation(
+        step=step,
+        dependency_ids=dependency_ids,
+        steps_by_id=steps_by_id,
+        routing_context=routing_context,
+      ):
         continue
 
       created_tasks, created_step_runs, step_bindings, step_watchers = await self._activate_template_step(

@@ -512,48 +512,218 @@
 
 ### 16.1 目标
 
-完成从“新链路可用”到“新链路可默认启用”的最后一公里。
+完成从当前新链路可用到新链路可默认启用的最后一公里。本阶段拆分为 7 个子阶段（11-A 至 11-G），按依赖顺序逐步交付。
 
-### 16.2 本阶段改动
+### 16.2 子阶段总览
 
-1. 实现管理员 `Takeover`。
-2. 启用 Outbox Pattern 与 ARQ 异步投递补偿。
-3. 补齐以下幂等与并发防御：
-   - 节点重复提交
-   - Wait-All 双激活
-   - Wait-Any 双提交
-   - 转办与打回并发冲突
-4. 编写旧数据迁移脚本与回滚脚本。
-5. 将默认创建路径、默认任务中心查询切到新引擎。
-6. 更新 `architecture.md`、`progress.md`、README 与部署指南。
+| 子阶段 | 名称 | 核心目标 | 状态 |
+| --- | --- | --- | --- |
+| 11-A | routing_rules 旧系统桥接 | 将前端写入 TaskTemplateStep.config 的 routing_rules 接入后端条件激活逻辑 | done |
+| 11-B | Takeover（管理员接管节点） | 管理员可强制接管任意节点实例，写审计日志，通知原执行人 | not_started |
+| 11-C | Outbox Pattern 可靠投递 | 启用 workflow_outbox_events 消费 worker，实现节点事件异步补偿 | not_started |
+| 11-D | 幂等与并发防御加固 | 补齐节点重复提交、Wait-All 双激活、Wait-Any 双提交的防御边界 | not_started |
+| 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | not_started |
+| 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | not_started |
+| 11-G | 文档收口与全量回归 | 更新 architecture.md / progress.md / README，执行全量回归与生产近似部署演练 | not_started |
 
-### 16.3 主要涉及文件
+---
 
-- 图引擎服务、worker、outbox 处理器
-- Alembic 迁移与回滚脚本
-- `scripts/check-release.sh`
-- `memory-bank/architecture.md`
-- `memory-bank/progress.md`
-- `README.md`
+### 16.3 Phase 11-A / routing_rules 旧系统桥接
 
-### 16.4 自动化测试
+**完成状态：done（2026-04-30）**
 
-1. `pytest -q`
-2. `python -m compileall app tests`
-3. `npm run test:unit -- --run`
-4. `npm run type-check`
-5. `npm run build`
-6. `npm exec oxlint .`
-7. `npm exec eslint .`
-8. 在 Linux/生产近似环境执行 `bash scripts/check-release.sh`
+#### 目标
 
-### 16.5 用户验收
+前端（`TaskTemplatesView`）通过路由规则编辑器把 `routing_rules` 写入 `TaskTemplateStep.config`；后端 `TaskService._activate_ready_template_steps` 在判断是否激活下游步骤时，需评估上游步骤的 `routing_rules`，仅激活条件匹配的目标步骤。
 
-1. 新建单步任务与多步任务全部走新引擎。
-2. 旧任务仍可查看，历史不丢失。
-3. 极端场景下不会出现重复激活、重复审批、重复推送或责任链断裂。
-4. 全量回归通过后，才允许关闭旧链路 feature flag。
+#### 本阶段改动
 
+1. 新建 `backend/app/services/condition_evaluator.py`：`is_else_condition` / `evaluate_condition` / `evaluate_routing_rules` 三个函数；支持 `eq/neq/gt/gte/lt/lte/in/not_in/contains/exists` 与嵌套 `all/any`。
+2. `WorkflowGraphService` 删除内联的条件求值方法，改为引用 `condition_evaluator` 模块函数。
+3. `TaskService._activate_ready_template_steps` 新增 `_routing_rules_allow_step_activation` 静态方法：评估上游步骤的 `routing_rules`，`step_key` 不在命中集合中时跳过激活；无规则时完全向后兼容。
+4. 使用 `instance.payload` 作为 `routing_context`。
+
+#### 主要涉及文件
+
+- `backend/app/services/condition_evaluator.py`（新建）
+- `backend/app/services/workflow_graph_service.py`
+- `backend/app/services/task_service.py`
+- `backend/tests/test_services.py`
+
+#### 验证命令
+
+```powershell
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q "d:/Repos/FilumReforge/backend/tests/test_services.py" -k "phase11a" --tb=short
+```
+
+预期：`2 passed`（条件匹配激活目标步骤 + ELSE 回落激活）。
+
+#### 验证结论
+
+2 个集成测试全部通过；全量回归无新增失败（仅两个预存在失败与本阶段无关）。
+
+---
+
+### 16.4 Phase 11-B / Takeover（管理员接管节点）
+
+**完成状态：not_started**
+
+#### 目标
+
+管理员可以强制接管卡住的节点实例，绕过正常握手语义，并写入可追溯的审计日志。
+
+#### 本阶段改动
+
+1. 后端新增 `WorkflowGraphService.takeover_node_instance()`：校验节点处于 `ACTIVATED` 或 `ACKNOWLEDGED`；强制切换 `assignee_id`；在 `config` 写入 takeover 审计标记（时间、操作人、原因）；通知原执行人。
+2. 新增 `WorkflowNodeTakeoverRequest` schema。
+3. `workflow_graph_engine` 路由新增 `POST /api/v1/workflow-graph/node-instances/{id}/takeover`。
+4. 前端 `TasksView` 管理员角色下在节点板块显示"接管"按钮，弹确认对话框，调用新接口。
+
+#### 主要涉及文件
+
+- `backend/app/services/workflow_graph_service.py`
+- `backend/app/schemas/workflow_graph.py`
+- `backend/app/api/routes/workflow_graph_engine.py`
+- `frontend/src/views/TasksView.vue`
+- `frontend/tests/TasksView.spec.ts`
+
+#### 用户验收
+
+1. 管理员打开任意卡住的节点，看到"接管"入口。
+2. 接管后节点 assignee 切换，原执行人收到通知。
+3. 节点详情中有系统接管审计日志。
+
+---
+
+### 16.5 Phase 11-C / Outbox Pattern 可靠投递
+
+**完成状态：not_started**
+
+#### 目标
+
+启用 `workflow_outbox_events` 表的 worker 消费逻辑，使节点事件在数据库写入成功后能被 ARQ worker 可靠异步投递，防止通知丢失。
+
+#### 本阶段改动
+
+1. ARQ worker 新增 `process_workflow_outbox_events` 任务，定期扫描 `PENDING` 事件投递到 `NotificationService`。
+2. `WorkflowGraphService` 在关键节点动作时写入 outbox 事件（表结构已预留，本阶段启用写入逻辑）。
+3. 失败事件更新 `retry_count` 与 `error_message`，超上限标记 `DEAD_LETTER`。
+4. ARQ 定时任务注册补充该任务（扫描间隔建议 30 秒）。
+
+#### 主要涉及文件
+
+- `backend/app/workers/workflow_outbox_worker.py`（新建）
+- `backend/app/services/workflow_graph_service.py`
+- `backend/app/workers/main.py`
+- `backend/tests/test_workers.py`
+
+---
+
+### 16.6 Phase 11-D / 幂等与并发防御加固
+
+**完成状态：not_started**
+
+#### 目标
+
+补齐图引擎在极端并发场景下的防御边界。
+
+#### 本阶段改动
+
+1. **节点重复提交防御**：`complete_node_instance()` 当节点已处于 `COMPLETED`/`TERMINATED` 时幂等返回，不报错也不重复推进下游。
+2. **Wait-All 双激活防御**：`_activate_downstream_nodes()` 检查目标节点是否已非 `PENDING`，已激活则跳过；依赖行锁。
+3. **Wait-Any 双提交防御**：补压测场景测试，确认已有保护生效（两并行节点同时完成时只有一个推进下游）。
+4. **转办与打回并发冲突**：依赖行锁确保 `delegate_node()` 与 `deep_reject_to_upstream()` 在同一节点上不并发执行。
+
+---
+
+### 16.7 Phase 11-E / 旧数据迁移脚本
+
+**完成状态：not_started**
+
+#### 目标
+
+编写旧链路任务数据到图引擎模型的迁移脚本，支持 `--dry-run` 与回滚。
+
+#### 本阶段改动
+
+1. 新建 `backend/app/scripts/migrate_legacy_tasks_to_graph.py`：扫描非图引擎 `Task`，创建对应单节点 `WorkflowGraphInstance + WorkflowNodeInstance`；状态映射：`todo→ACTIVATED/Accepted`，`doing→ACKNOWLEDGED/Doing`，`review→COMPLETED/PendingReview`，`done→COMPLETED/Done`；支持 `--dry-run`。
+2. 新建 `backend/app/scripts/rollback_legacy_task_migration.py`：按 `source_id` 删除图引擎记录，不删原 `Task`。
+
+---
+
+### 16.8 Phase 11-F / 默认路径切流
+
+**完成状态：not_started**
+
+#### 目标
+
+将默认创建路径与任务中心读取路径切换到新引擎，旧链路 feature flag 仅作紧急回退。
+
+#### 本阶段改动
+
+1. 更新 `.env.example` 与 `.env.prod.example`：`WORKFLOW_GRAPH_ENGINE_ENABLED=true` 作为默认值显式注明。
+2. `TaskCenterService` 读取路径优先从 `WorkflowNodeInstance` 投影。
+3. 确认任务列表、详情、评论、日志、附件、模板实例化均在新链路完整覆盖。
+4. 保留 `TASK_CENTER_V2_ENABLED` 作为紧急回退开关至少 30 天。
+
+#### 主要涉及文件
+
+- `backend/.env.example`
+- `infra/docker/.env.prod.example`
+- `backend/app/services/task_center_service.py`
+- `backend/app/services/task_service.py`
+
+---
+
+### 16.9 Phase 11-G / 文档收口与全量回归
+
+**完成状态：not_started**
+
+#### 目标
+
+Phase 11 各子阶段完成后执行最终全量回归并更新所有文档。
+
+#### 本阶段改动
+
+1. 更新 `memory-bank/architecture.md`：记录 Phase 11 新增模块（condition_evaluator、takeover、outbox worker、迁移脚本）与切流后系统基线。
+2. 更新 `memory-bank/progress.md`：记录 Phase 11 各子阶段验证结论。
+3. 更新 `README.md`、`backend/README.md`：删除旧链路保留相关说明，补充切流后运行基线。
+4. 更新 `memory-bank/deployment-runbook-ubuntu-2404.md`：补充迁移脚本执行步骤。
+5. 执行完整生产近似部署演练：`bash scripts/check-release.sh`（Ubuntu 24.04 / Docker 近似环境）。
+
+#### 自动化测试出口
+
+```powershell
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q "d:/Repos/FilumReforge/backend/tests/" --tb=line
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall backend/app backend/tests
+# frontend
+npm run test:unit -- --run
+npm run type-check
+npm run build
+npm exec oxlint .
+npm exec eslint .
+```
+
+#### 用户验收
+
+1. 新建单步任务与多步任务全部走新引擎，旧任务仍可查看。
+2. 极端场景下不会出现重复激活、重复审批或责任链断裂。
+3. 全量回归通过后，可关闭旧链路 feature flag。
+
+---
+
+### 16.10 已知预存在问题（需在 Phase 11-G 前修复）
+
+以下两个测试失败与 Phase 11 工作无关，属于遗留问题，应在 Phase 11-G 全量回归前修复：
+
+| 测试 | 失败原因 | 优先级 |
+| --- | --- | --- |
+| `test_settings.py::test_default_settings_align_with_phase_a_baseline` | 测试校验 `workflow_graph_engine_enabled` 默认值为 `False`，但 `backend/.env` 已设为 `True`；测试未加载 `.env` 导致不一致 | 中 |
+| `test_api.py::test_task_collaboration_and_stats_api_flow` | `accept` 接口返回 409，测试数据初始化与图引擎双写路径的状态预期存在偏差 | 中 |
+
+**修复建议**：
+- `test_default_settings_align_with_phase_a_baseline`：更新测试期望值以反映 `WORKFLOW_GRAPH_ENGINE_ENABLED=true` 当前基线，或使测试隔离于 `.env` 文件。
+- `test_task_collaboration_and_stats_api_flow`：审查 `accept` 接口前置状态假设，对齐图引擎启用后节点初始业务投影态（`Assigned`）。
 ## 17. 阶段间硬性闸门
 
 1. 每个阶段结束后先跑对应自动化测试，再交用户验收。
