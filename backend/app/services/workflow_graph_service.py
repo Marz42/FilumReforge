@@ -10,17 +10,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import (
   TaskPriority,
+  UserRole,
+  UserStatus,
   WorkflowGraphInstanceStatus,
   WorkflowGraphNodeType,
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
+  WorkflowOutboxEventStatus,
 )
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.models import User
+from app.services.access_control import ensure_active_user
 from app.services.condition_evaluator import (
   evaluate_condition,
   evaluate_routing_rules,
   is_else_condition,
 )
+from app.services.notification_service import NotificationService
 from app.models import (
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
@@ -28,6 +34,7 @@ from app.models import (
   WorkflowGraphTemplateNode,
   WorkflowNodeInstance,
 )
+from app.models.workflow_graph import WorkflowOutboxEvent
 
 
 @dataclass(slots=True)
@@ -48,8 +55,118 @@ class MultiNodeWorkflowResult:
 
 
 class WorkflowGraphService:
-  def __init__(self, session: AsyncSession) -> None:
+  def __init__(
+    self,
+    session: AsyncSession,
+    notification_service: NotificationService | None = None,
+  ) -> None:
     self._session = session
+    self._notification_service = notification_service
+
+  async def _write_outbox_event(
+    self,
+    *,
+    instance_id: UUID,
+    node_instance_id: UUID | None,
+    event_type: str,
+    payload: dict[str, Any],
+  ) -> None:
+    """在当前事务内写入 WorkflowOutboxEvent（PENDING），供 ARQ worker 异步投递。"""
+    event = WorkflowOutboxEvent(
+      instance_id=instance_id,
+      node_instance_id=node_instance_id,
+      event_type=event_type,
+      status=WorkflowOutboxEventStatus.PENDING,
+      attempt_count=0,
+      payload=payload,
+    )
+    self._session.add(event)
+    await self._session.flush()
+
+  async def takeover_node_instance(
+    self,
+    *,
+    node_instance_id: UUID,
+    actor_id: UUID,
+    actor_role: UserRole,
+    assignee_id: UUID,
+    reason: str,
+  ) -> UUID:
+    """管理员强制接管运行中节点，写入审计信息并通知原执行人。"""
+    if actor_role != UserRole.ADMIN:
+      raise AuthorizationError("仅管理员可以接管节点。")
+
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+      raise ConflictError("接管节点时必须填写原因。")
+
+    node_instance: WorkflowNodeInstance | None = await self._session.scalar(
+      select(WorkflowNodeInstance)
+      .where(WorkflowNodeInstance.id == node_instance_id)
+      .with_for_update()
+    )
+    if node_instance is None:
+      raise NotFoundError("节点实例不存在。")
+
+    graph_instance = await self._lock_graph_instance(instance_id=node_instance.instance_id)
+    if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
+      raise ConflictError("当前工作流图实例已结束，不能执行接管。")
+    if node_instance.engine_state not in [
+      WorkflowNodeEngineState.ACTIVATED,
+      WorkflowNodeEngineState.ACKNOWLEDGED,
+    ]:
+      raise ConflictError("只有处于 ACTIVATED/ACKNOWLEDGED 状态的节点才能被接管。")
+
+    assignee = await self._session.get(User, assignee_id)
+    if assignee is None:
+      raise NotFoundError("接管目标执行人不存在。")
+    ensure_active_user(assignee)
+
+    previous_assignee_id = node_instance.assignee_user_id
+    if previous_assignee_id == assignee.id:
+      raise ConflictError("接管目标执行人不能与当前执行人相同。")
+
+    now = datetime.now(UTC)
+    node_instance.assignee_user_id = assignee.id
+    node_instance.engine_state = WorkflowNodeEngineState.ACTIVATED
+    node_instance.business_state = WorkflowNodeBusinessState.ASSIGNED
+    node_instance.activated_at = now
+    node_instance.node_instance_version += 1
+
+    config = dict(node_instance.config or {})
+    config["takeover"] = {
+      "reason": normalized_reason,
+      "from_assignee_user_id": str(previous_assignee_id) if previous_assignee_id is not None else None,
+      "to_assignee_user_id": str(assignee.id),
+      "operator_user_id": str(actor_id),
+      "taken_over_at": now.isoformat(),
+    }
+    node_instance.config = config
+    graph_instance.current_node_key = node_instance.node_key
+    await self._session.flush()
+
+    if previous_assignee_id is not None and previous_assignee_id != assignee.id:
+      previous_assignee = await self._session.get(User, previous_assignee_id)
+      if previous_assignee is not None and previous_assignee.status == UserStatus.ACTIVE:
+        await self._write_outbox_event(
+          instance_id=node_instance.instance_id,
+          node_instance_id=node_instance.id,
+          event_type="workflow_node_taken_over",
+          payload={
+            "recipient_user_id": str(previous_assignee.id),
+            "recipient_email": previous_assignee.email,
+            "title": f"节点已被管理员接管：{node_instance.title}",
+            "body_text": f"节点「{node_instance.title}」已由管理员接管并转派给其他执行人。原因：{normalized_reason}",
+            "node_instance_id": str(node_instance.id),
+            "workflow_graph_instance_id": str(node_instance.instance_id),
+            "from_assignee_user_id": str(previous_assignee.id),
+            "to_assignee_user_id": str(assignee.id),
+            "operator_user_id": str(actor_id),
+            "reason": normalized_reason,
+          },
+        )
+
+    return graph_instance.id
 
   async def deep_reject_to_upstream(
     self,

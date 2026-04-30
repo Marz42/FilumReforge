@@ -68,6 +68,11 @@ class WorkflowNodeDeepRejectRequest(BaseModel):
   reason: str | None = None
 
 
+class WorkflowNodeTakeoverRequest(BaseModel):
+  assignee_user_id: UUID
+  reason: str
+
+
 class WorkflowSmartNoticeCandidatesRequest(BaseModel):
   initiator_user_id: UUID
   target_user_id: UUID

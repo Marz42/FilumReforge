@@ -3653,6 +3653,35 @@ async def test_phase9_deep_reject_api_blocks_when_iteration_exceeds_limit(api_cl
 
 
 @pytest.mark.asyncio
+async def test_phase11_takeover_api_propagates_conflict_error(api_client) -> None:
+  """Phase 11-B: takeover API 应透传 service 冲突为 409。"""
+  client, _ = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+
+  class _FakeWorkflowGraphService:
+    async def takeover_node_instance(self, **kwargs):  # noqa: ANN003, ANN201
+      raise ConflictError("当前节点不能执行接管。")
+
+  application = client._transport.app  # type: ignore[attr-defined]
+  application.dependency_overrides[get_workflow_graph_service] = lambda: _FakeWorkflowGraphService()
+
+  try:
+    response = await client.post(
+      "/api/v1/workflow-graph/node-instances/00000000-0000-0000-0000-000000000000/takeover",
+      headers=admin_headers,
+      json={
+        "assignee_user_id": "00000000-0000-0000-0000-000000000001",
+        "reason": "管理员接管",
+      },
+    )
+  finally:
+    application.dependency_overrides.pop(get_workflow_graph_service, None)
+
+  assert response.status_code == 409
+  assert "不能执行接管" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_phase7_smart_notice_candidates_api_returns_intermediate_managers(api_client) -> None:
   client, _ = api_client
   headers, _ = await bootstrap_and_login(client)

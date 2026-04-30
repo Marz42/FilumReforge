@@ -5,6 +5,8 @@ import json
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings
 from app.core.enums import (
@@ -17,12 +19,14 @@ from app.core.enums import (
   NotificationDeliveryStatus,
   NotificationMessageStatus,
   WorkflowDefinitionStatus,
+  WorkflowOutboxEventStatus,
   WorkflowStepRunStatus,
   UserRole,
   UserStatus,
 )
 from app.models import BoardCard, BoardCardArchive, NotificationDelivery, NotificationMessage, Task, TaskSchedule
 from app.models import DocumentEmbedding
+from app.models.base import Base
 from app.integrations.notifications.web_push import WebPushNotificationAdapter
 from app.services.auth_service import AuthService
 from app.services.browser_push_service import BrowserPushService
@@ -732,3 +736,272 @@ async def test_rebuild_document_embedding_jobs_index_documents(db_session) -> No
   assert first_count >= 1
   assert rebuilt_documents == 2
   assert embedding_count is not None and embedding_count >= 2
+
+
+# ------------------------------------------------------------------ #
+# Phase 11-C — Outbox Worker
+# ------------------------------------------------------------------ #
+
+@pytest.mark.asyncio
+async def test_phase11c_outbox_worker_dispatches_pending_event() -> None:
+  """PENDING outbox 事件应被 worker 投递并标记为 DISPATCHED。"""
+  from app.models.workflow_graph import WorkflowOutboxEvent
+  from app.workers.workflow_outbox_worker import process_workflow_outbox_events
+
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  async with engine.begin() as conn:
+    await conn.run_sync(Base.metadata.create_all)
+
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  # 创建基础测试数据：admin 用户、图实例、节点实例、outbox 事件
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  async with session_factory() as session:
+    auth_service = AuthService(session, settings)
+    admin = await auth_service.bootstrap_admin(
+      email="admin@example.com",
+      password="StrongPassword123!",
+      real_name="管理员",
+      employee_no="EMP-ROOT",
+    )
+    user_service = UserService(session)
+    recipient = await user_service.create_user(
+      actor=admin,
+      email="worker@example.com",
+      password="StrongPassword123!",
+      role=UserRole.EMPLOYEE,
+    )
+    await session.commit()
+
+  # 写入 WorkflowGraphInstance 和 WorkflowNodeInstance 以满足外键
+  from app.models.workflow_graph import WorkflowGraphInstance, WorkflowNodeInstance
+  from app.core.enums import WorkflowGraphInstanceStatus, WorkflowGraphNodeType, WorkflowNodeEngineState, WorkflowNodeBusinessState
+  import uuid
+
+  async with session_factory() as session:
+    instance = WorkflowGraphInstance(
+      initiator_user_id=admin.id,
+      source_type="task",
+      status=WorkflowGraphInstanceStatus.ACTIVE,
+      current_node_key="task-node",
+      context={},
+      context_version=1,
+      max_iterations=5,
+    )
+    session.add(instance)
+    await session.flush()
+
+    node_instance = WorkflowNodeInstance(
+      instance_id=instance.id,
+      node_key="task-node",
+      title="测试节点",
+      node_type=WorkflowGraphNodeType.TASK,
+      engine_state=WorkflowNodeEngineState.ACTIVATED,
+      business_state=WorkflowNodeBusinessState.ASSIGNED,
+      assignee_user_id=recipient.id,
+      iteration=1,
+      node_instance_version=1,
+    )
+    session.add(node_instance)
+    await session.flush()
+
+    outbox_event = WorkflowOutboxEvent(
+      instance_id=instance.id,
+      node_instance_id=node_instance.id,
+      event_type="workflow_node_taken_over",
+      status=WorkflowOutboxEventStatus.PENDING,
+      attempt_count=0,
+      payload={
+        "recipient_user_id": str(recipient.id),
+        "recipient_email": recipient.email,
+        "title": "节点已被管理员接管：测试节点",
+        "body_text": "节点「测试节点」已由管理员接管。",
+        "node_instance_id": str(node_instance.id),
+        "workflow_graph_instance_id": str(instance.id),
+        "from_assignee_user_id": str(recipient.id),
+        "to_assignee_user_id": str(admin.id),
+        "operator_user_id": str(admin.id),
+        "reason": "测试接管",
+      },
+    )
+    session.add(outbox_event)
+    outbox_event_id = outbox_event.id  # 获取 ID 前需先 flush
+    await session.flush()
+    outbox_event_id = outbox_event.id
+    await session.commit()
+
+  queue_publisher = InMemoryQueuePublisher()
+  dispatched_count = await process_workflow_outbox_events(
+    session_factory=session_factory,
+    queue_publisher=queue_publisher,
+  )
+
+  # 验证：投递数量为 1，outbox 事件状态变为 DISPATCHED，NotificationMessage 已写入
+  from app.models import NotificationMessage as NotificationMessageModel
+  async with session_factory() as session:
+    refreshed_event = await session.get(WorkflowOutboxEvent, outbox_event_id)
+    notification_count = await session.scalar(
+      select(func.count(NotificationMessageModel.id))
+    )
+
+  assert dispatched_count == 1
+  assert refreshed_event is not None
+  assert refreshed_event.status == WorkflowOutboxEventStatus.DISPATCHED
+  assert refreshed_event.dispatched_at is not None
+  assert refreshed_event.attempt_count == 1
+  assert notification_count == 1
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phase11c_outbox_worker_retries_on_notification_failure() -> None:
+  """投递失败时应递增 attempt_count，状态退回 RETRYING；达上限后标记 FAILED。"""
+  from app.models.workflow_graph import WorkflowOutboxEvent
+  from app.workers.workflow_outbox_worker import process_workflow_outbox_events, MAX_ATTEMPTS
+
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  async with engine.begin() as conn:
+    await conn.run_sync(Base.metadata.create_all)
+
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  async with session_factory() as session:
+    auth_service = AuthService(session, settings)
+    admin = await auth_service.bootstrap_admin(
+      email="admin@example.com",
+      password="StrongPassword123!",
+      real_name="管理员",
+      employee_no="EMP-ROOT",
+    )
+    await session.commit()
+
+  from app.models.workflow_graph import WorkflowGraphInstance, WorkflowNodeInstance
+  from app.core.enums import WorkflowGraphInstanceStatus, WorkflowGraphNodeType, WorkflowNodeEngineState, WorkflowNodeBusinessState
+
+  async with session_factory() as session:
+    instance = WorkflowGraphInstance(
+      initiator_user_id=admin.id,
+      source_type="task",
+      status=WorkflowGraphInstanceStatus.ACTIVE,
+      current_node_key="task-node",
+      context={},
+      context_version=1,
+      max_iterations=5,
+    )
+    session.add(instance)
+    await session.flush()
+
+    # 写入一条 payload 缺失 recipient_user_id 的事件，必然会失败
+    bad_event = WorkflowOutboxEvent(
+      instance_id=instance.id,
+      node_instance_id=None,
+      event_type="workflow_node_taken_over",
+      status=WorkflowOutboxEventStatus.PENDING,
+      attempt_count=MAX_ATTEMPTS - 1,  # 再失败一次就应 FAILED
+      payload={},  # 缺少 recipient_user_id / recipient_email → 投递必然报错
+    )
+    session.add(bad_event)
+    await session.flush()
+    bad_event_id = bad_event.id
+    await session.commit()
+
+  queue_publisher = InMemoryQueuePublisher()
+  dispatched_count = await process_workflow_outbox_events(
+    session_factory=session_factory,
+    queue_publisher=queue_publisher,
+  )
+
+  async with session_factory() as session:
+    refreshed = await session.get(WorkflowOutboxEvent, bad_event_id)
+
+  assert dispatched_count == 1  # 计为"处理了"，即使最终失败
+  assert refreshed is not None
+  assert refreshed.status == WorkflowOutboxEventStatus.FAILED
+  assert refreshed.last_error is not None
+  assert refreshed.attempt_count == MAX_ATTEMPTS
+
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phase11c_outbox_worker_skips_non_pending_events(db_session) -> None:
+  """DISPATCHED 或 FAILED 的事件不应被 worker 重复处理。"""
+  from app.models.workflow_graph import WorkflowOutboxEvent
+  from app.workers.workflow_outbox_worker import process_workflow_outbox_events
+
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  async with engine.begin() as conn:
+    await conn.run_sync(Base.metadata.create_all)
+
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+
+  async with session_factory() as session:
+    auth_service = AuthService(session, settings)
+    admin = await auth_service.bootstrap_admin(
+      email="admin@example.com",
+      password="StrongPassword123!",
+      real_name="管理员",
+      employee_no="EMP-ROOT",
+    )
+    await session.commit()
+
+  from app.models.workflow_graph import WorkflowGraphInstance
+  from app.core.enums import WorkflowGraphInstanceStatus
+
+  async with session_factory() as session:
+    instance = WorkflowGraphInstance(
+      initiator_user_id=admin.id,
+      source_type="task",
+      status=WorkflowGraphInstanceStatus.ACTIVE,
+      current_node_key="task-node",
+      context={},
+      context_version=1,
+      max_iterations=5,
+    )
+    session.add(instance)
+    await session.flush()
+
+    dispatched_event = WorkflowOutboxEvent(
+      instance_id=instance.id,
+      node_instance_id=None,
+      event_type="workflow_node_taken_over",
+      status=WorkflowOutboxEventStatus.DISPATCHED,
+      attempt_count=1,
+      payload={},
+    )
+    failed_event = WorkflowOutboxEvent(
+      instance_id=instance.id,
+      node_instance_id=None,
+      event_type="workflow_node_taken_over",
+      status=WorkflowOutboxEventStatus.FAILED,
+      attempt_count=5,
+      payload={},
+    )
+    session.add(dispatched_event)
+    session.add(failed_event)
+    await session.commit()
+
+  queue_publisher = InMemoryQueuePublisher()
+  result = await process_workflow_outbox_events(
+    session_factory=session_factory,
+    queue_publisher=queue_publisher,
+  )
+
+  assert result == 0
+
+  await engine.dispose()

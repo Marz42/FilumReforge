@@ -19,6 +19,7 @@ from app.workers.jobs import (
   rebuild_document_embeddings,
   run_due_task_schedules,
 )
+from app.workers.workflow_outbox_worker import process_workflow_outbox_events
 
 OVERDUE_REMINDER_JOB = "enqueue_overdue_task_reminders"
 WORKFLOW_REMINDER_JOB = "enqueue_pending_workflow_reminders"
@@ -27,6 +28,7 @@ BOARD_ARCHIVE_JOB = "archive_expired_board_cards"
 REBUILD_DOCUMENT_EMBEDDINGS_JOB = "rebuild_document_embeddings_job"
 REBUILD_ALL_DOCUMENT_EMBEDDINGS_JOB = "rebuild_all_document_embeddings_job"
 PROCESS_EMPLOYMENT_EVENT_JOB = "process_employment_event_job"
+WORKFLOW_OUTBOX_JOB = "process_workflow_outbox_events_job"
 
 
 async def startup(ctx: dict[str, object]) -> None:
@@ -138,6 +140,19 @@ async def process_employment_event_job(ctx: dict[str, object], event_id: str) ->
     )
 
 
+async def process_workflow_outbox_events_job(ctx: dict[str, object]) -> int:
+  settings: Settings = ctx["settings"]  # type: ignore[assignment]
+  session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
+  queue_publisher = RedisNotificationQueuePublisher(
+    redis_dsn=settings.redis_dsn,
+    queue_name=settings.redis_notification_queue,
+  )
+  return await process_workflow_outbox_events(
+    session_factory=session_factory,
+    queue_publisher=queue_publisher,
+  )
+
+
 _settings = get_settings()
 
 
@@ -151,6 +166,7 @@ class WorkerSettings:
     rebuild_document_embeddings_job,
     rebuild_all_document_embeddings_job,
     process_employment_event_job,
+    process_workflow_outbox_events_job,
   ]
   cron_jobs = [
     cron(
@@ -178,6 +194,13 @@ class WorkerSettings:
       archive_expired_board_cards_job,
       name=BOARD_ARCHIVE_JOB,
       minute={12, 42},
+      run_at_startup=True,
+      unique=True,
+    ),
+    cron(
+      process_workflow_outbox_events_job,
+      name=WORKFLOW_OUTBOX_JOB,
+      second={0, 30},
       run_at_startup=True,
       unique=True,
     ),

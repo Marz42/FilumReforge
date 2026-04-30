@@ -165,8 +165,9 @@ def get_attachment_service(
 
 def get_workflow_graph_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
+  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> WorkflowGraphService:
-  return WorkflowGraphService(session)
+  return WorkflowGraphService(session, notification_service=notification_service)
 
 
 def get_task_service(

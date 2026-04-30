@@ -5212,3 +5212,164 @@ async def test_phase11a_routing_rules_else_fallback_activates_when_no_condition_
 
   assert "step_c" in activated_step_keys
   assert "step_b" not in activated_step_keys
+
+
+@pytest.mark.asyncio
+async def test_phase11b_takeover_node_instance_reassigns_and_notifies_previous_assignee(db_session) -> None:
+  from app.core.enums import WorkflowGraphTemplateStatus
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  previous_assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11b-prev@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  next_assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11b-next@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase11b-takeover-test",
+    base_code="phase11b-takeover-test",
+    version=1,
+    name="Phase11B 接管测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-a",
+    title="待接管节点",
+    sort_order=1,
+  )
+  db_session.add(node)
+  await db_session.flush()
+
+  queue = InMemoryQueuePublisher()
+  notification_service = NotificationService(db_session, queue)
+  wg_service = WorkflowGraphService(db_session, notification_service=notification_service)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+
+  node_instance = result.node_instances[0]
+  node_instance.assignee_user_id = previous_assignee.id
+  await db_session.flush()
+
+  instance_id = await wg_service.takeover_node_instance(
+    node_instance_id=node_instance.id,
+    actor_id=admin.id,
+    actor_role=UserRole.ADMIN,
+    assignee_id=next_assignee.id,
+    reason="人员离岗",
+  )
+
+  await db_session.refresh(node_instance)
+
+  assert instance_id == result.instance.id
+  assert node_instance.assignee_user_id == next_assignee.id
+  assert node_instance.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert node_instance.business_state == WorkflowNodeBusinessState.ASSIGNED
+  assert node_instance.node_instance_version == 2
+  assert node_instance.config["takeover"]["reason"] == "人员离岗"
+  assert node_instance.config["takeover"]["from_assignee_user_id"] == str(previous_assignee.id)
+  assert node_instance.config["takeover"]["to_assignee_user_id"] == str(next_assignee.id)
+  # Phase 11-C: 通知改为写 outbox event，而非直接推队列
+  from sqlalchemy import select as _select
+  from app.models.workflow_graph import WorkflowOutboxEvent
+  from app.core.enums import WorkflowOutboxEventStatus
+  outbox_events = list(
+    await db_session.scalars(
+      _select(WorkflowOutboxEvent)
+      .where(WorkflowOutboxEvent.instance_id == result.instance.id)
+      .where(WorkflowOutboxEvent.event_type == "workflow_node_taken_over")
+    )
+  )
+  assert len(outbox_events) == 1
+  assert outbox_events[0].status == WorkflowOutboxEventStatus.PENDING
+  assert outbox_events[0].payload["reason"] == "人员离岗"
+
+
+@pytest.mark.asyncio
+async def test_phase11b_takeover_node_instance_requires_admin_role(db_session) -> None:
+  from app.core.enums import WorkflowGraphTemplateStatus
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  employee = await user_service.create_user(
+    actor=admin,
+    email="phase11b-employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  next_assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11b-next2@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase11b-authz-test",
+    base_code="phase11b-authz-test",
+    version=1,
+    name="Phase11B 权限测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-a",
+    title="待接管节点",
+    sort_order=1,
+  )
+  db_session.add(node)
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+  node_instance = result.node_instances[0]
+  node_instance.assignee_user_id = employee.id
+  await db_session.flush()
+
+  with pytest.raises(AuthorizationError, match="仅管理员"):
+    await wg_service.takeover_node_instance(
+      node_instance_id=node_instance.id,
+      actor_id=employee.id,
+      actor_role=UserRole.EMPLOYEE,
+      assignee_id=next_assignee.id,
+      reason="越权接管",
+    )

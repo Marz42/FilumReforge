@@ -18,6 +18,7 @@ from app.schemas.workflow_graph import (
   WorkflowGraphInstanceRead,
   WorkflowNodeCompleteRequest,
   WorkflowNodeInstanceRead,
+  WorkflowNodeTakeoverRequest,
   WorkflowSmartNoticeCandidatesRequest,
   WorkflowSmartNoticeCandidatesResponse,
 )
@@ -141,6 +142,31 @@ async def deep_reject_node_instance(
     node_instance_id=node_instance_id,
     actor_id=actor.id,
     target_node_key=payload.target_node_key,
+    reason=payload.reason,
+  )
+  instance = await workflow_graph_service.get_instance(instance_id=instance_id)
+  node_instances = await workflow_graph_service.list_node_instances_for_graph(
+    instance_id=instance_id,
+  )
+  return _build_instance_detail(instance, node_instances)
+
+
+@router.post(
+  "/node-instances/{node_instance_id}/takeover",
+  response_model=WorkflowGraphInstanceDetailRead,
+  tags=["workflow-graph"],
+)
+async def takeover_node_instance(
+  node_instance_id: UUID,
+  payload: WorkflowNodeTakeoverRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+) -> WorkflowGraphInstanceDetailRead:
+  instance_id = await workflow_graph_service.takeover_node_instance(
+    node_instance_id=node_instance_id,
+    actor_id=actor.id,
+    actor_role=actor.role,
+    assignee_id=payload.assignee_user_id,
     reason=payload.reason,
   )
   instance = await workflow_graph_service.get_instance(instance_id=instance_id)

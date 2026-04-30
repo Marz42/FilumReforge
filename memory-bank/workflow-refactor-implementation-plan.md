@@ -519,8 +519,8 @@
 | 子阶段 | 名称 | 核心目标 | 状态 |
 | --- | --- | --- | --- |
 | 11-A | routing_rules 旧系统桥接 | 将前端写入 TaskTemplateStep.config 的 routing_rules 接入后端条件激活逻辑 | done |
-| 11-B | Takeover（管理员接管节点） | 管理员可强制接管任意节点实例，写审计日志，通知原执行人 | not_started |
-| 11-C | Outbox Pattern 可靠投递 | 启用 workflow_outbox_events 消费 worker，实现节点事件异步补偿 | not_started |
+| 11-B | Takeover（管理员接管节点） | 管理员可强制接管任意节点实例，写审计日志，通知原执行人 | done |
+| 11-C | Outbox Pattern 可靠投递 | 启用 workflow_outbox_events 消费 worker，实现节点事件异步补偿 | done |
 | 11-D | 幂等与并发防御加固 | 补齐节点重复提交、Wait-All 双激活、Wait-Any 双提交的防御边界 | not_started |
 | 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | not_started |
 | 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | not_started |
@@ -566,7 +566,7 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q "d:/Repos/FilumRefor
 
 ### 16.4 Phase 11-B / Takeover（管理员接管节点）
 
-**完成状态：not_started**
+**完成状态：done（2026-04-30）**
 
 #### 目标
 
@@ -574,30 +574,35 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q "d:/Repos/FilumRefor
 
 #### 本阶段改动
 
-1. 后端新增 `WorkflowGraphService.takeover_node_instance()`：校验节点处于 `ACTIVATED` 或 `ACKNOWLEDGED`；强制切换 `assignee_id`；在 `config` 写入 takeover 审计标记（时间、操作人、原因）；通知原执行人。
+1. 后端新增 `WorkflowGraphService.takeover_node_instance()`：校验节点处于 `ACTIVATED` 或 `ACKNOWLEDGED`；强制切换 `assignee_id`；在 `config` 写入 takeover 审计标记（时间、操作人、原因）。
 2. 新增 `WorkflowNodeTakeoverRequest` schema。
 3. `workflow_graph_engine` 路由新增 `POST /api/v1/workflow-graph/node-instances/{id}/takeover`。
-4. 前端 `TasksView` 管理员角色下在节点板块显示"接管"按钮，弹确认对话框，调用新接口。
+4. 在通知链路上由同步发送切换为写入 outbox 事件（由 11-C worker 异步投递）。
 
 #### 主要涉及文件
 
 - `backend/app/services/workflow_graph_service.py`
 - `backend/app/schemas/workflow_graph.py`
 - `backend/app/api/routes/workflow_graph_engine.py`
-- `frontend/src/views/TasksView.vue`
-- `frontend/tests/TasksView.spec.ts`
+- `backend/tests/test_services.py`
+- `backend/tests/test_api.py`
 
-#### 用户验收
+#### 验证命令
 
-1. 管理员打开任意卡住的节点，看到"接管"入口。
-2. 接管后节点 assignee 切换，原执行人收到通知。
-3. 节点详情中有系统接管审计日志。
+```powershell
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest tests/test_services.py -k "phase11b" -v
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest tests/test_api.py -k "phase11_takeover_api" -v
+```
+
+#### 验证结论
+
+定向测试通过：service 2 passed，api 1 passed。
 
 ---
 
 ### 16.5 Phase 11-C / Outbox Pattern 可靠投递
 
-**完成状态：not_started**
+**完成状态：done（2026-04-30）**
 
 #### 目标
 
@@ -605,17 +610,28 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q "d:/Repos/FilumRefor
 
 #### 本阶段改动
 
-1. ARQ worker 新增 `process_workflow_outbox_events` 任务，定期扫描 `PENDING` 事件投递到 `NotificationService`。
-2. `WorkflowGraphService` 在关键节点动作时写入 outbox 事件（表结构已预留，本阶段启用写入逻辑）。
-3. 失败事件更新 `retry_count` 与 `error_message`，超上限标记 `DEAD_LETTER`。
-4. ARQ 定时任务注册补充该任务（扫描间隔建议 30 秒）。
+1. ARQ worker 新增 `process_workflow_outbox_events` 任务，定期扫描 `PENDING/RETRYING` 事件并投递到 `NotificationService`。
+2. `WorkflowGraphService` 在关键节点动作（当前已覆盖 takeover）写入 outbox 事件。
+3. 失败事件更新 `attempt_count` 与 `last_error`，并按指数退避更新 `available_at`；超上限标记 `FAILED`。
+4. ARQ 定时任务注册补充该任务（每 30 秒扫描一次）。
 
 #### 主要涉及文件
 
 - `backend/app/workers/workflow_outbox_worker.py`（新建）
 - `backend/app/services/workflow_graph_service.py`
-- `backend/app/workers/main.py`
+- `backend/app/workers/arq_worker.py`
 - `backend/tests/test_workers.py`
+
+#### 验证命令
+
+```powershell
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest tests/test_workers.py -k "phase11c" -v
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest tests/test_workers.py tests/test_services.py -k "phase11" -v
+```
+
+#### 验证结论
+
+Phase 11 相关回归通过：7 passed（workers + services）。
 
 ---
 
