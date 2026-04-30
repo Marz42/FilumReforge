@@ -490,4 +490,55 @@ describe('Tasks view', () => {
     expect(wrapper.text()).toContain('开始处理')
     expect(wrapper.text()).not.toContain('接受任务')
   })
+
+  it('shows iteration version badge and deep rejection reason for replayed graph tasks', async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      {
+        ...mockTasks[0],
+        extra_metadata: {
+          workflow_graph_instance_id: 'graph-1',
+          workflow_node_instance_id: 'node-2',
+          workflow_node_iteration: 2,
+          workflow_deep_rejection_reason: '需要重新评估方案',
+          workflow_handshake_state: 'accepted',
+        },
+      },
+    ])
+
+    const wrapper = mount(TasksView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('V2')
+    expect(wrapper.text()).toContain('系统深度打回重放')
+    expect(wrapper.text()).toContain('需要重新评估方案')
+  })
+
+  it('does not show iteration badge for first-iteration graph tasks', async () => {
+    vi.mocked(listTasks).mockResolvedValue([
+      {
+        ...mockTasks[0],
+        extra_metadata: {
+          workflow_graph_instance_id: 'graph-1',
+          workflow_node_instance_id: 'node-1',
+          workflow_node_iteration: 1,
+          workflow_handshake_state: 'accepted',
+        },
+      },
+    ])
+
+    const wrapper = mount(TasksView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('系统深度打回重放')
+  })
 })

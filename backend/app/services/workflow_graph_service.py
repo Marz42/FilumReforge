@@ -46,6 +46,237 @@ class WorkflowGraphService:
   def __init__(self, session: AsyncSession) -> None:
     self._session = session
 
+  async def deep_reject_to_upstream(
+    self,
+    *,
+    node_instance_id: UUID,
+    actor_id: UUID,
+    target_node_key: str,
+    reason: str | None = None,
+  ) -> UUID:
+    """将当前节点深度打回到任意上游节点，并采用 Append-Only 方式重放尾链。"""
+    current_node_instance: WorkflowNodeInstance | None = await self._session.scalar(
+      select(WorkflowNodeInstance)
+      .where(WorkflowNodeInstance.id == node_instance_id)
+      .with_for_update()
+    )
+    if current_node_instance is None:
+      raise NotFoundError("节点实例不存在。")
+
+    graph_instance = await self._lock_graph_instance(instance_id=current_node_instance.instance_id)
+    if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
+      raise ConflictError("当前工作流图实例已结束，不能发起深度打回。")
+    if current_node_instance.template_node_id is None or graph_instance.template_id is None:
+      raise ConflictError("当前节点不属于模板图实例，不能发起深度打回。")
+    if current_node_instance.engine_state not in [
+      WorkflowNodeEngineState.ACTIVATED,
+      WorkflowNodeEngineState.ACKNOWLEDGED,
+    ]:
+      raise ConflictError("只有处于 ACTIVATED/ACKNOWLEDGED 状态的节点才能发起深度打回。")
+    if (
+      current_node_instance.assignee_user_id is not None
+      and current_node_instance.assignee_user_id != actor_id
+    ):
+      raise ConflictError("只有当前受理人才能发起深度打回。")
+
+    template_nodes = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateNode)
+        .where(WorkflowGraphTemplateNode.template_id == graph_instance.template_id)
+        .order_by(WorkflowGraphTemplateNode.sort_order.asc())
+      )
+    )
+    if not template_nodes:
+      raise ConflictError("当前模板没有可用节点，无法执行深度打回。")
+
+    template_node_by_key = {node.node_key: node for node in template_nodes}
+    target_template_node = template_node_by_key.get(target_node_key)
+    if target_template_node is None:
+      raise ConflictError("目标节点不存在于当前模板中。")
+
+    edges = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateEdge).where(
+          WorkflowGraphTemplateEdge.template_id == graph_instance.template_id,
+          WorkflowGraphTemplateEdge.is_reject_path.is_(False),
+        )
+      )
+    )
+
+    reachable_from_target = self._collect_reachable_template_node_ids(
+      start_node_id=target_template_node.id,
+      edges=edges,
+    )
+    if current_node_instance.template_node_id not in reachable_from_target:
+      raise ConflictError("目标节点不是当前节点的上游节点，不能发起深度打回。")
+
+    next_iteration = await self._resolve_next_iteration_for_node_key(
+      instance_id=graph_instance.id,
+      node_key=target_template_node.node_key,
+    )
+    if next_iteration > graph_instance.max_iterations:
+      raise ConflictError("深度打回次数已达上限，系统已阻止继续迭代。")
+
+    now = datetime.now(UTC)
+    replay_template_node_ids = reachable_from_target
+
+    # 清理当前链路中尚未收口的节点，避免与新一轮迭代并存为可操作态。
+    stale_node_instances: list[WorkflowNodeInstance] = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance)
+        .where(
+          WorkflowNodeInstance.instance_id == graph_instance.id,
+          WorkflowNodeInstance.template_node_id.in_(replay_template_node_ids),
+          WorkflowNodeInstance.engine_state.in_(
+            [
+              WorkflowNodeEngineState.PENDING,
+              WorkflowNodeEngineState.ACTIVATED,
+              WorkflowNodeEngineState.ACKNOWLEDGED,
+            ]
+          ),
+        )
+        .with_for_update(skip_locked=True)
+      )
+    )
+    for stale_node in stale_node_instances:
+      stale_node.engine_state = WorkflowNodeEngineState.TERMINATED
+      stale_node.business_state = WorkflowNodeBusinessState.CANCELLED
+      stale_node.terminated_at = now
+      stale_node.node_instance_version += 1
+      stale_config = dict(stale_node.config or {})
+      stale_config["system_resolution"] = {
+        "reason": "deep_rejection_replayed",
+        "target_node_key": target_node_key,
+        "triggered_by_node_instance_id": str(current_node_instance.id),
+        "triggered_by_user_id": str(actor_id),
+        "triggered_at": now.isoformat(),
+      }
+      stale_node.config = stale_config
+
+    latest_assignee_by_template_node_id = await self._load_latest_assignee_by_template_node_id(
+      instance_id=graph_instance.id,
+      template_node_ids=replay_template_node_ids,
+    )
+
+    replay_template_nodes = [
+      node for node in template_nodes if node.id in replay_template_node_ids
+    ]
+
+    for template_node in replay_template_nodes:
+      is_target = template_node.id == target_template_node.id
+      clone_engine_state = (
+        WorkflowNodeEngineState.ACTIVATED if is_target else WorkflowNodeEngineState.PENDING
+      )
+      clone_business_state = (
+        WorkflowNodeBusinessState.ASSIGNED if is_target else WorkflowNodeBusinessState.DRAFT
+      )
+      clone_config = dict(template_node.config or {})
+      clone_config["deep_rejection"] = {
+        "target_node_key": target_node_key,
+        "reason": reason,
+        "iteration": next_iteration,
+        "triggered_by_node_instance_id": str(current_node_instance.id),
+        "triggered_by_user_id": str(actor_id),
+        "triggered_at": now.isoformat(),
+      }
+
+      clone_node_instance = WorkflowNodeInstance(
+        instance_id=graph_instance.id,
+        template_node_id=template_node.id,
+        node_key=template_node.node_key,
+        title=template_node.title,
+        node_type=template_node.node_type,
+        engine_state=clone_engine_state,
+        business_state=clone_business_state,
+        assignee_user_id=latest_assignee_by_template_node_id.get(template_node.id),
+        iteration=next_iteration,
+        node_instance_version=1,
+        config=clone_config,
+        activated_at=now if is_target else None,
+      )
+      self._session.add(clone_node_instance)
+
+    graph_instance.current_node_key = target_template_node.node_key
+    graph_instance.status = WorkflowGraphInstanceStatus.ACTIVE
+    graph_instance.completed_at = None
+    await self._session.flush()
+
+    return graph_instance.id
+
+  def _collect_reachable_template_node_ids(
+    self,
+    *,
+    start_node_id: UUID,
+    edges: list[WorkflowGraphTemplateEdge],
+  ) -> set[UUID]:
+    adjacency: dict[UUID, list[UUID]] = {}
+    for edge in edges:
+      adjacency.setdefault(edge.from_node_id, []).append(edge.to_node_id)
+
+    visited: set[UUID] = set()
+    queue: list[UUID] = [start_node_id]
+    while queue:
+      current = queue.pop(0)
+      if current in visited:
+        continue
+      visited.add(current)
+      for downstream in adjacency.get(current, []):
+        if downstream not in visited:
+          queue.append(downstream)
+    return visited
+
+  async def _resolve_next_iteration_for_node_key(
+    self,
+    *,
+    instance_id: UUID,
+    node_key: str,
+  ) -> int:
+    max_iteration = await self._session.scalar(
+      select(WorkflowNodeInstance.iteration)
+      .where(
+        WorkflowNodeInstance.instance_id == instance_id,
+        WorkflowNodeInstance.node_key == node_key,
+      )
+      .order_by(WorkflowNodeInstance.iteration.desc())
+      .limit(1)
+    )
+    if max_iteration is None:
+      return 1
+    return int(max_iteration) + 1
+
+  async def _load_latest_assignee_by_template_node_id(
+    self,
+    *,
+    instance_id: UUID,
+    template_node_ids: set[UUID],
+  ) -> dict[UUID, UUID | None]:
+    if not template_node_ids:
+      return {}
+
+    node_instances = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance)
+        .where(
+          WorkflowNodeInstance.instance_id == instance_id,
+          WorkflowNodeInstance.template_node_id.in_(template_node_ids),
+        )
+        .order_by(
+          WorkflowNodeInstance.template_node_id.asc(),
+          WorkflowNodeInstance.iteration.desc(),
+          WorkflowNodeInstance.created_at.desc(),
+        )
+      )
+    )
+
+    latest: dict[UUID, UUID | None] = {}
+    for node_instance in node_instances:
+      if node_instance.template_node_id is None:
+        continue
+      if node_instance.template_node_id in latest:
+        continue
+      latest[node_instance.template_node_id] = node_instance.assignee_user_id
+    return latest
+
   async def _lock_graph_instance(self, *, instance_id: UUID) -> WorkflowGraphInstance:
     instance: WorkflowGraphInstance | None = await self._session.scalar(
       select(WorkflowGraphInstance)

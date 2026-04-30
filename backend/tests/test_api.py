@@ -1739,13 +1739,37 @@ async def test_task_collaboration_and_stats_api_flow(api_client) -> None:
     email="employee@example.com",
     password="StrongPassword123!",
   )
-  for next_status in ("doing", "review", "done"):
-    status_response = await client.patch(
-      f"/api/v1/tasks/{active_task_id}/status",
-      headers=employee_headers,
-      json={"status": next_status},
-    )
-    assert status_response.status_code == 200
+
+  # graph engine 任务需先接单
+  accept_response = await client.post(
+    f"/api/v1/tasks/{active_task_id}/accept",
+    headers=employee_headers,
+  )
+  assert accept_response.status_code == 200
+
+  # 接单后才能切换到进行中
+  doing_response = await client.patch(
+    f"/api/v1/tasks/{active_task_id}/status",
+    headers=employee_headers,
+    json={"status": "doing"},
+  )
+  assert doing_response.status_code == 200
+
+  # 提交交付物（状态切换到 review）
+  deliverable_response = await client.post(
+    f"/api/v1/tasks/{active_task_id}/deliverable",
+    headers=employee_headers,
+    json={"summary": "协同测试交付物已完成"},
+  )
+  assert deliverable_response.status_code == 200
+
+  # 发起人验收通过（状态切换到 done）
+  approve_response = await client.post(
+    f"/api/v1/tasks/{active_task_id}/review",
+    headers=headers,
+    json={"action": "approve"},
+  )
+  assert approve_response.status_code == 200
 
   comment_response = await client.post(
     f"/api/v1/tasks/{active_task_id}/comments",
@@ -3600,6 +3624,32 @@ async def test_phase8_node_completion_api_blocks_terminated_node_submission(api_
 
   assert response.status_code == 409
   assert "已被系统撤权" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_phase9_deep_reject_api_blocks_when_iteration_exceeds_limit(api_client) -> None:
+  """Phase 9: 深度打回超过迭代上限时，API 应返回 409。"""
+  client, _ = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+
+  class _FakeWorkflowGraphService:
+    async def deep_reject_to_upstream(self, **kwargs):  # noqa: ANN003, ANN201
+      raise ConflictError("深度打回次数已达上限，系统已阻止继续迭代。")
+
+  application = client._transport.app  # type: ignore[attr-defined]
+  application.dependency_overrides[get_workflow_graph_service] = lambda: _FakeWorkflowGraphService()
+
+  try:
+    response = await client.post(
+      "/api/v1/workflow-graph/node-instances/00000000-0000-0000-0000-000000000000/deep-reject",
+      headers=admin_headers,
+      json={"target_node_key": "node-a", "reason": "test"},
+    )
+  finally:
+    application.dependency_overrides.pop(get_workflow_graph_service, None)
+
+  assert response.status_code == 409
+  assert "已达上限" in response.json()["detail"]
 
 
 @pytest.mark.asyncio

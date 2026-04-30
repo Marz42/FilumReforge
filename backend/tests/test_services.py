@@ -4418,6 +4418,155 @@ async def test_phase8_wait_any_activates_downstream_and_terminates_peer_nodes(db
 
 
 @pytest.mark.asyncio
+async def test_phase9_deep_reject_replays_from_target_with_append_only_iteration(db_session) -> None:
+  """D 打回 A 后应生成 A/B/C/D 的新迭代实例，历史节点保留不覆盖。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase9-deep-reject",
+    base_code="phase9-deep-reject",
+    version=1,
+    name="Phase 9 深度打回测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  node_d = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-d", title="节点 D", sort_order=4)
+  db_session.add_all([node_a, node_b, node_c, node_d])
+  await db_session.flush()
+
+  db_session.add_all(
+    [
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_b.id, to_node_id=node_c.id),
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_c.id, to_node_id=node_d.id),
+    ]
+  )
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(template_id=template.id, initiator_id=admin.id)
+
+  instance = result.instance
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+  ni_d = next(ni for ni in result.node_instances if ni.node_key == "node-d")
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await wg_service.complete_node_instance(node_instance_id=ni_b.id, actor_id=admin.id)
+  await wg_service.complete_node_instance(node_instance_id=ni_c.id, actor_id=admin.id)
+  await db_session.refresh(ni_d)
+  assert ni_d.engine_state == WorkflowNodeEngineState.ACTIVATED
+
+  await wg_service.deep_reject_to_upstream(
+    node_instance_id=ni_d.id,
+    actor_id=admin.id,
+    target_node_key="node-a",
+    reason="回到草稿重做",
+  )
+
+  all_nodes = await wg_service.list_node_instances_for_graph(instance_id=instance.id)
+  assert len(all_nodes) == 8
+
+  node_a_v1 = [node for node in all_nodes if node.node_key == "node-a" and node.iteration == 1][0]
+  node_b_v1 = [node for node in all_nodes if node.node_key == "node-b" and node.iteration == 1][0]
+  node_c_v1 = [node for node in all_nodes if node.node_key == "node-c" and node.iteration == 1][0]
+  node_d_v1 = [node for node in all_nodes if node.node_key == "node-d" and node.iteration == 1][0]
+  node_a_v2 = [node for node in all_nodes if node.node_key == "node-a" and node.iteration == 2][0]
+  node_b_v2 = [node for node in all_nodes if node.node_key == "node-b" and node.iteration == 2][0]
+  node_c_v2 = [node for node in all_nodes if node.node_key == "node-c" and node.iteration == 2][0]
+  node_d_v2 = [node for node in all_nodes if node.node_key == "node-d" and node.iteration == 2][0]
+
+  assert node_a_v1.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert node_b_v1.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert node_c_v1.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert node_d_v1.engine_state == WorkflowNodeEngineState.TERMINATED
+  assert node_d_v1.business_state == WorkflowNodeBusinessState.CANCELLED
+
+  assert node_a_v2.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert node_b_v2.engine_state == WorkflowNodeEngineState.PENDING
+  assert node_c_v2.engine_state == WorkflowNodeEngineState.PENDING
+  assert node_d_v2.engine_state == WorkflowNodeEngineState.PENDING
+
+  await db_session.refresh(instance)
+  assert instance.current_node_key == "node-a"
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_phase9_deep_reject_blocks_when_iteration_exceeds_max_iterations(db_session) -> None:
+  """当新迭代超过 max_iterations 时应拒绝深度打回。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase9-max-iterations",
+    base_code="phase9-max-iterations",
+    version=1,
+    name="Phase 9 迭代上限测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  db_session.add_all([node_a, node_b])
+  await db_session.flush()
+
+  db_session.add(
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id)
+  )
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(template_id=template.id, initiator_id=admin.id)
+  instance = result.instance
+  instance.max_iterations = 1
+  await db_session.flush()
+
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await db_session.refresh(ni_b)
+  assert ni_b.engine_state == WorkflowNodeEngineState.ACTIVATED
+
+  with pytest.raises(ConflictError, match="已达上限"):
+    await wg_service.deep_reject_to_upstream(
+      node_instance_id=ni_b.id,
+      actor_id=admin.id,
+      target_node_key="node-a",
+      reason="超过上限",
+    )
+
+
+@pytest.mark.asyncio
 async def test_phase6_repeat_completion_is_idempotent_and_keeps_single_downstream_activation(db_session) -> None:
   """重复完成同一节点时应保持幂等，不应重复激活下游或污染实例状态。"""
   from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge

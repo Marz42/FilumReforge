@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
 **版本**: v3.8.7  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化；工作流重构 Phase 1 / 任务中心信息架构重排 已完成并通过用户验收；工作流重构 Phase 2 / 图引擎核心模型落库 已完成并通过用户验收；工作流重构当前代码基线已完成 Phase 3 的单节点 dual-write 接入、Phase 4 的手动任务握手 / 退回协商 / 转办语义、Phase 5 的单节点交付 / 验收 / 返工质量评分投影、Phase 6 的多节点图实例化 / 顺序流 / fan-out / wait-all 推进 / 实例查询与节点完成接口、Phase 7 的 Context 写回 / 条件边路由 / Notice Node 自动完成 / 智能抄送候选计算，以及 Phase 8 的 Wait-Any 抢单推进与并发撤权语义  
+**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化；工作流重构 Phase 1 / 任务中心信息架构重排 已完成并通过用户验收；工作流重构 Phase 2 / 图引擎核心模型落库 已完成并通过用户验收；工作流重构当前代码基线已完成 Phase 3 的单节点 dual-write 接入、Phase 4 的手动任务握手 / 退回协商 / 转办语义、Phase 5 的单节点交付 / 验收 / 返工质量评分投影、Phase 6 的多节点图实例化 / 顺序流 / fan-out / wait-all 推进 / 实例查询与节点完成接口、Phase 7 的 Context 写回 / 条件边路由 / Notice Node 自动完成 / 智能抄送候选计算、Phase 8 的 Wait-Any 抢单推进与并发撤权语义，以及 Phase 9 的深度打回（Append-Only 版本链、max_iterations 上限防护、尾链重放、旧节点只读保留）  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -83,7 +83,7 @@
 
 - 公开注册 / 审批式注册仍未落地；邀请制注册已落地
 - 工作流 E 首批已经落地，且 Stage 2 Phase 2 已完成模板设计器拓扑校验、模板版本语义、调度最近执行结果、实例进度展示与 fan-out / join 重复激活约束收口；后续重点转向生命周期事件联动、实例历史深挖与全量回归 / 部署收口
-- 工作流重构已完成 Phase 3-8：手动创建链路 dual-write、单节点交付 / 验收 / 返工、握手 / 拒绝 / 转办，以及多节点图实例化 / 下游推进 / 实例查询、Workflow Context 写回、条件边求值、Notice Node 自动完成、智能抄送候选计算、Wait-Any 抢单推进与同批并发节点自动撤权；但读取侧仍未切到 graph runtime，`TaskService` / `TaskCenterService` 当前继续以兼容 `Task` 投影作为运行时读模型，`TaskTemplateService` 也尚未接入 graph engine；深度打回版本链仍待后续阶段实现
+- 工作流重构已完成 Phase 3-9：手动创建链路 dual-write、单节点交付 / 验收 / 返工、握手 / 拒绝 / 转办，以及多节点图实例化 / 下游推进 / 实例查询、Workflow Context 写回、条件边求值、Notice Node 自动完成、智能抄送候选计算、Wait-Any 抢单推进与同批并发节点自动撤权、深度打回（Append-Only 版本链、max_iterations 防护、旧节点只读保留）；但读取侧仍未切到 graph runtime，`TaskService` / `TaskCenterService` 当前继续以兼容 `Task` 投影作为运行时读模型，`TaskTemplateService` 也尚未接入 graph engine
 - 生命周期事件与任务模板 / 审批流的规则化默认联动、前端结构化配置入口仍未落地；当前已支持在事件写入时显式绑定目标并异步触发
 - 生产 compose、主机部署脚本与 Nginx 生产配置已落地；当前主要缺全量上线演练与发布稳定性验证
 - HR 字段权限的可视化规则管理页仍偏基础
@@ -100,7 +100,7 @@
 | HR Profiles | 主档案、动态字段、基础资料 | 已实现 Phase 3 增强版 | 与模板 / 审批联动 |
 | HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现 | 事件与模板 / 审批联动 |
 | Workflow Core | 任务、依赖、状态机、统计 | 已实现 Phase 4 增强版；任务开始前可阻止未满足依赖的流转 | 与模板实例运行态、Knowledge / AI / 生命周期自动化联动 |
-| Workflow Engine | 模板、审批、自动触发、周期调度，以及图引擎核心 schema | 已实现增强版；模板实例运行态、逐步激活、多人扇出 / 汇聚、实例快照与结构化设计器首版已落地；工作流重构 Phase 2 已补图引擎核心表与双层节点状态枚举，Phase 3-5 已补手动创建任务的 graph dual-write、交付验收与握手语义，Phase 6 已补多节点实例化、顺序流 / fan-out / wait-all 推进、实例查询与节点完成接口，Phase 7 已补 Context 写回、条件边路由（含 else）与 Notice Node 自动完成，Phase 8 已补 Wait-Any 抢单推进、同批并发节点自动撤权与撤权后二次提交拦截 | 模板 / 调度管理深化、graph runtime 读侧切换、深度打回 |
+| Workflow Engine | 模板、审批、自动触发、周期调度，以及图引擎核心 schema | 已实现增强版；模板实例运行态、逐步激活、多人扇出 / 汇聚、实例快照与结构化设计器首版已落地；工作流重构 Phase 2 已补图引擎核心表与双层节点状态枚举，Phase 3-5 已补手动创建任务的 graph dual-write、交付验收与握手语义，Phase 6 已补多节点实例化、顺序流 / fan-out / wait-all 推进、实例查询与节点完成接口，Phase 7 已补 Context 写回、条件边路由（含 else）与 Notice Node 自动完成，Phase 8 已补 Wait-Any 抢单推进、同批并发节点自动撤权与撤权后二次提交拦截；Phase 9 已补深度打回（`deep_reject_to_upstream`）、Append-Only 版本链克隆、max_iterations 上限阻断、旧节点只读保留、前端迭代版本标签与打回原因展示 | 模板 / 调度管理深化、graph runtime 读侧切换 |
 | Task Collaboration | 评论、日志、评论附件、时间线、watcher | 已实现 Phase 4 增强版 | 与消息中心、推送渠道打通 |
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现 Phase 4 增强版 | 真实渠道适配器、浏览器推送 |
 | Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现 Step 6 增强版；Stage 2 Phase 4 已补消息附件、渠道 / 投递状态 / 时间筛选与失败详情展示 | 渠道融合、推送 |

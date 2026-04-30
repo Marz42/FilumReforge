@@ -758,4 +758,30 @@ describe('TaskTemplates view', () => {
 
     expect(wrapper.text()).toContain('该步骤启用或签/抢单模式')
   })
+
+  it('shows deep rejection replay hint when step has history iterations', async () => {
+    const replayedInstance: TaskTemplateInstance = {
+      ...mockTemplateInstance,
+      step_snapshots: [
+        {
+          ...mockTemplateInstance.step_snapshots[0]!,
+          history_iteration_count: 2,
+          latest_iteration: 3,
+        },
+      ],
+    }
+
+    vi.mocked(listTaskTemplateInstances).mockResolvedValue([replayedInstance])
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('曾被系统打回重放')
+    expect(wrapper.text()).toContain('累计 2 次')
+  })
 })

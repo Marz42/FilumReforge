@@ -18,7 +18,7 @@ def test_default_settings_align_with_phase_a_baseline() -> None:
   assert settings.auth_refresh_cookie_secure is False
   assert settings.auth_invitation_expiry_hours == 72
   assert settings.frontend_app_url == "http://localhost:5173"
-  assert settings.workflow_graph_engine_enabled is False
+  assert settings.workflow_graph_engine_enabled is True
   assert settings.task_center_v2_enabled is False
   assert settings.workflow_wait_any_enabled is False
   assert settings.workflow_deep_rejection_enabled is False

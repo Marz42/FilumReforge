@@ -13,6 +13,7 @@ from app.api.dependencies import (
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
 from app.schemas.workflow_graph import (
+  WorkflowNodeDeepRejectRequest,
   WorkflowGraphInstanceDetailRead,
   WorkflowGraphInstanceRead,
   WorkflowNodeCompleteRequest,
@@ -121,6 +122,30 @@ async def complete_node_instance(
   instance = await workflow_graph_service.get_instance(instance_id=node_instance.instance_id)
   node_instances = await workflow_graph_service.list_node_instances_for_graph(
     instance_id=node_instance.instance_id
+  )
+  return _build_instance_detail(instance, node_instances)
+
+
+@router.post(
+  "/node-instances/{node_instance_id}/deep-reject",
+  response_model=WorkflowGraphInstanceDetailRead,
+  tags=["workflow-graph"],
+)
+async def deep_reject_node_instance(
+  node_instance_id: UUID,
+  payload: WorkflowNodeDeepRejectRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+) -> WorkflowGraphInstanceDetailRead:
+  instance_id = await workflow_graph_service.deep_reject_to_upstream(
+    node_instance_id=node_instance_id,
+    actor_id=actor.id,
+    target_node_key=payload.target_node_key,
+    reason=payload.reason,
+  )
+  instance = await workflow_graph_service.get_instance(instance_id=instance_id)
+  node_instances = await workflow_graph_service.list_node_instances_for_graph(
+    instance_id=instance_id,
   )
   return _build_instance_detail(instance, node_instances)
 

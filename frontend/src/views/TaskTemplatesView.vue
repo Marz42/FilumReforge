@@ -1357,6 +1357,9 @@ onMounted(() => {
                           迭代批次 {{ snapshot.latest_iteration || 0 }}
                           · 历史批次数 {{ snapshot.history_iteration_count }}
                         </p>
+                        <p v-if="snapshot.history_iteration_count > 0" class="page__instance-step-meta page__instance-step-replay-hint">
+                          曾被系统打回重放（累计 {{ snapshot.history_iteration_count }} 次）
+                        </p>
                         <p class="page__instance-step-meta">
                           依赖 {{ snapshot.step.depends_on_step_keys.join(', ') || '无' }}
                         </p>
@@ -1850,6 +1853,11 @@ onMounted(() => {
 .page__instance-run-hint {
   margin: 4px 0 0;
   color: var(--el-color-danger);
+  font-size: 12px;
+}
+
+.page__instance-step-replay-hint {
+  color: var(--el-color-warning);
   font-size: 12px;
 }
 

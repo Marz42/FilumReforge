@@ -63,6 +63,11 @@ class WorkflowNodeCompleteRequest(BaseModel):
   context_updates: dict[str, object] | None = None
 
 
+class WorkflowNodeDeepRejectRequest(BaseModel):
+  target_node_key: str
+  reason: str | None = None
+
+
 class WorkflowSmartNoticeCandidatesRequest(BaseModel):
   initiator_user_id: UUID
   target_user_id: UUID

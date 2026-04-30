@@ -259,15 +259,20 @@ class TaskService:
     )
 
     metadata = dict(extra_metadata or {})
+    deep_rejection_cfg = (node_instance.config or {}).get("deep_rejection") or {}
+    deep_rejection_reason = deep_rejection_cfg.get("reason")
     metadata.update(
       {
         "workflow_graph_instance_id": str(instance.id),
         "workflow_node_instance_id": str(node_instance.id),
+        "workflow_node_iteration": node_instance.iteration,
         "workflow_handshake_state": HANDSHAKE_ASSIGNED,
         "latest_handshake_action": HANDSHAKE_ASSIGNED,
         "latest_handshake_actor_user_id": str(actor.id),
       }
     )
+    if deep_rejection_reason:
+      metadata["workflow_deep_rejection_reason"] = deep_rejection_reason
 
     task = Task(
       title=title,

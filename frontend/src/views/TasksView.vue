@@ -373,6 +373,19 @@ const reworkCount = computed(() => {
   }
   return 0
 })
+const workflowNodeIteration = computed(() => {
+  const value = selectedTaskMetadata.value.workflow_node_iteration
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isNaN(parsed) ? 1 : parsed
+  }
+  return 1
+})
+const workflowDeepRejectionReason = computed(() => {
+  const value = selectedTaskMetadata.value.workflow_deep_rejection_reason
+  return typeof value === 'string' && value.trim() ? value : null
+})
 
 function normalizeTagType(value: '' | 'info' | 'warning' | 'success' | 'danger'): 'info' | 'warning' | 'success' | 'danger' | undefined {
   return value || undefined
@@ -1168,6 +1181,12 @@ watch(
               </el-descriptions-item>
               <el-descriptions-item label="握手状态">
                 {{ handshakeStateLabel }}
+              </el-descriptions-item>
+              <el-descriptions-item v-if="isGraphHandshakeTask && workflowNodeIteration > 1" label="迭代版本">
+                V{{ workflowNodeIteration }}（系统深度打回重放）
+              </el-descriptions-item>
+              <el-descriptions-item v-if="isGraphHandshakeTask && workflowDeepRejectionReason" label="打回原因">
+                {{ workflowDeepRejectionReason }}
               </el-descriptions-item>
               <el-descriptions-item label="最近协商原因">
                 {{ latestRejectReason }}
