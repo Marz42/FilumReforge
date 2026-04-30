@@ -15,6 +15,7 @@ vi.mock('@/api/task-center', () => ({
 
 vi.mock('@/api/tasks', () => ({
   createTask: vi.fn(),
+  createTaskComment: vi.fn(),
 }))
 
 const route = reactive({
@@ -32,6 +33,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
+import { createTaskComment } from '@/api/tasks'
 import { useAuthStore } from '@/stores/auth'
 import TaskCenterView from '@/views/TaskCenterView.vue'
 
@@ -102,6 +104,21 @@ const mockSnapshot: TaskCenterSnapshot = {
       rework_count: 1,
       review_quality_score: 4,
       is_pending_review: true,
+    },
+    {
+      task_id: 'task-overdue',
+      title: '逾期任务示例',
+      priority: 'high',
+      status: 'doing',
+      due_date: '2020-01-01T00:00:00Z',
+      department_name: '内容部',
+      relation_types: ['执行'],
+      current_stage_label: '进行中',
+      current_handler_label: '内容成员',
+      latest_deliverable_submitted_at: null,
+      rework_count: 0,
+      review_quality_score: null,
+      is_pending_review: false,
     },
   ],
   task_history: [
@@ -247,5 +264,63 @@ describe('TaskCenter view', () => {
     expect(wrapper.text()).toContain('历史任务')
     expect(wrapper.text()).toContain('归档旧公告')
     expect(wrapper.text()).toContain('tracking-detail-stub')
+  })
+
+  it('shows overdue tag for tasks past due date', async () => {
+    route.query = { tab: 'tracking' }
+
+    const wrapper = mount(TaskCenterView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          TaskTemplatesView: { template: '<div>templates-stub</div>' },
+          TasksView: { template: '<div>tracking-detail-stub</div>' },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('逾期任务示例')
+    expect(wrapper.text()).toContain('已逾期')
+  })
+
+  it('calls createTaskComment when nudge button is clicked', async () => {
+    route.query = { tab: 'tracking' }
+    vi.mocked(createTaskComment).mockResolvedValue({
+      id: 'comment-1',
+      task_id: 'task-overdue',
+      author_id: 'user-1',
+      author_email: 'employee@example.com',
+      content: '【催办】请及时处理此任务',
+      is_internal: false,
+      attachments: [],
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    })
+
+    const wrapper = mount(TaskCenterView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          TaskTemplatesView: { template: '<div>templates-stub</div>' },
+          TasksView: { template: '<div>tracking-detail-stub</div>' },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const nudgeButtons = wrapper
+      .findAll('button')
+      .filter((node) => node.text().includes('催办'))
+    // 第二个催办按钮对应 task-overdue（第二条 tracking 记录）
+    expect(nudgeButtons.length).toBeGreaterThanOrEqual(2)
+    await nudgeButtons[1]?.trigger('click')
+    await flushPromises()
+
+    expect(createTaskComment).toHaveBeenCalledWith('task-overdue', {
+      content: '【催办】请及时处理此任务',
+    })
   })
 })

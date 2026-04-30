@@ -784,4 +784,143 @@ describe('TaskTemplates view', () => {
     expect(wrapper.text()).toContain('曾被系统打回重放')
     expect(wrapper.text()).toContain('累计 2 次')
   })
+
+  it('adds IF routing rule and ELSE fallback, and saves template', async () => {
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('编辑模板'))
+    expect(editButton).toBeTruthy()
+    await editButton?.trigger('click')
+    await flushPromises()
+
+    const setupState = (wrapper.vm as ComponentPublicInstance).$?.setupState as {
+      createForm: { steps: Array<Record<string, unknown>> }
+      handleSaveTemplate: () => Promise<void>
+    }
+
+    // 直接操控 setupState 给第一个步骤添加 routing_rules
+    const step = setupState.createForm.steps[0] as {
+      routing_rules: Array<Record<string, unknown>>
+    }
+    step.routing_rules = [
+      { condition: { field: 'amount', operator: 'gt', value: '1000' }, target_step_key: 'review' },
+      { else: true, target_step_key: 'review' },
+    ]
+
+    await wrapper.vm.$nextTick()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('更新模板'))
+    expect(saveButton).toBeTruthy()
+    await saveButton?.trigger('click')
+    await flushPromises()
+
+    expect(updateTaskTemplate).toHaveBeenCalledWith(
+      'template-1',
+      expect.objectContaining({
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            step_key: 'collect',
+            config: {
+              routing_rules: [
+                { condition: { field: 'amount', operator: 'gt', value: '1000' }, target_step_key: 'review' },
+                { else: true, target_step_key: 'review' },
+              ],
+            },
+          }),
+        ]),
+      }),
+    )
+  })
+
+  it('throws an error when routing rules lack ELSE fallback', async () => {
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('编辑模板'))
+    await editButton?.trigger('click')
+    await flushPromises()
+
+    const setupState = (wrapper.vm as ComponentPublicInstance).$?.setupState as {
+      createForm: { steps: Array<Record<string, unknown>> }
+    }
+
+    const step = setupState.createForm.steps[0] as {
+      routing_rules: Array<Record<string, unknown>>
+    }
+    // 只加 IF 规则，不加 ELSE
+    step.routing_rules = [
+      { condition: { field: 'amount', operator: 'gt', value: '1000' }, target_step_key: 'review' },
+    ]
+
+    await wrapper.vm.$nextTick()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('更新模板'))
+    await saveButton?.trigger('click')
+    await flushPromises()
+
+    // 不应调用 updateTaskTemplate；ElMessage.error 应触发（通过 wrapper text 间接验证）
+    expect(updateTaskTemplate).not.toHaveBeenCalledWith(
+      'template-1',
+      expect.objectContaining({
+        steps: expect.arrayContaining([
+          expect.objectContaining({ config: expect.objectContaining({ routing_rules: expect.any(Array) }) }),
+        ]),
+      }),
+    )
+  })
+
+  it('shows confirm dialog when any step has join_mode=any', async () => {
+    vi.mocked(ElMessageBox.confirm).mockResolvedValue('confirm' as never)
+
+    const wrapper = mount(TaskTemplatesView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('编辑模板'))
+    await editButton?.trigger('click')
+    await flushPromises()
+
+    const setupState = (wrapper.vm as ComponentPublicInstance).$?.setupState as {
+      createForm: { steps: Array<Record<string, unknown>> }
+    }
+    const step = setupState.createForm.steps[0] as { join_mode: string; assignment_mode: string }
+    step.assignment_mode = 'fan_out'
+    step.join_mode = 'any'
+
+    await wrapper.vm.$nextTick()
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('更新模板'))
+    await saveButton?.trigger('click')
+    await flushPromises()
+
+    // ElMessageBox.confirm 应被调用（join_mode=any 警告）
+    expect(ElMessageBox.confirm).toHaveBeenCalled()
+  })
 })

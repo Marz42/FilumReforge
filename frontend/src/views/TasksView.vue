@@ -21,6 +21,7 @@ import { acceptTaskAssignment,
   submitTaskDeliverable,
   updateTaskStatus,
 } from '@/api/tasks'
+import { getWorkflowGraphInstance } from '@/api/workflow-graph'
 import { decideStepRun } from '@/api/task-templates'
 import { listUsers } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
@@ -38,6 +39,8 @@ import type {
   TaskWatcher,
   TaskWorkloadRow,
   User,
+  WorkflowGraphInstanceDetail,
+  WorkflowNodeInstanceSummary,
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
@@ -127,6 +130,7 @@ const taskGantt = ref<TaskGanttEntry[]>([])
 const taskAttachments = ref<Attachment[]>([])
 const taskActivity = ref<TaskActivityEntry[]>([])
 const taskWatchers = ref<TaskWatcher[]>([])
+const graphInstance = ref<WorkflowGraphInstanceDetail | null>(null)
 const departments = ref<Department[]>([])
 const users = ref<User[]>([])
 const statsSummary = ref<TaskStatsSummary | null>(null)
@@ -403,6 +407,38 @@ function resolveUserLabel(userId: string): string {
   return userEmailMap.value.get(userId) ?? `用户 ${userId.slice(0, 8)}`
 }
 
+function resolveNodeEngineStateLabel(state: WorkflowNodeInstanceSummary['engine_state']): string {
+  const labels: Record<string, string> = {
+    pending: '待激活',
+    activated: '进行中',
+    acknowledged: '已确认',
+    completed: '已完成',
+    terminated: '已终止',
+  }
+  return labels[state] ?? state
+}
+
+function resolveNodeEngineStateTagType(
+  state: WorkflowNodeInstanceSummary['engine_state'],
+): 'info' | 'primary' | 'success' | 'danger' | 'warning' {
+  if (state === 'completed') return 'success'
+  if (state === 'activated' || state === 'acknowledged') return 'primary'
+  if (state === 'terminated') return 'danger'
+  return 'info'
+}
+
+function formatNodeDuration(node: WorkflowNodeInstanceSummary): string {
+  if (!node.activated_at) return '—'
+  const end = node.completed_at ?? node.terminated_at
+  if (!end) return '进行中'
+  const ms = new Date(end).getTime() - new Date(node.activated_at).getTime()
+  const minutes = Math.floor(ms / 60000)
+  if (minutes < 60) return `${minutes} 分钟`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小时`
+  return `${Math.floor(hours / 24)} 天`
+}
+
 function resolveStatusLabel(status: TaskStatus): string {
   return STATUS_LABELS[status]
 }
@@ -499,6 +535,21 @@ async function loadSelectedTaskDetails(taskId: string): Promise<void> {
   taskAttachments.value = attachments
   taskActivity.value = activity
   taskWatchers.value = watchers
+
+  // 若为图引擎任务，并行加载节点实例
+  const metadata = (tasks.value.find((t) => t.id === taskId)?.extra_metadata ?? {}) as Record<string, unknown>
+  const instanceId = typeof metadata.workflow_graph_instance_id === 'string'
+    ? metadata.workflow_graph_instance_id
+    : null
+  if (instanceId) {
+    try {
+      graphInstance.value = await getWorkflowGraphInstance(instanceId)
+    } catch {
+      graphInstance.value = null
+    }
+  } else {
+    graphInstance.value = null
+  }
 }
 
 async function loadData(): Promise<void> {
@@ -1363,6 +1414,42 @@ watch(
 
             <el-divider>活动时间线</el-divider>
 
+            <!-- 图引擎节点板块（仅图任务显示） -->
+            <template v-if="graphInstance">
+              <el-divider>工作流节点追踪</el-divider>
+              <el-space direction="vertical" fill class="page__node-timeline">
+                <el-card
+                  v-for="node in graphInstance.node_instances"
+                  :key="node.id"
+                  shadow="never"
+                  class="page__node-card"
+                >
+                  <div class="page__node-card-header">
+                    <div class="page__node-title">
+                      <strong>{{ node.title }}</strong>
+                      <el-tag v-if="node.iteration > 1" size="small" type="warning" effect="dark">
+                        V{{ node.iteration }}
+                      </el-tag>
+                    </div>
+                    <el-tag
+                      :type="resolveNodeEngineStateTagType(node.engine_state)"
+                      effect="plain"
+                      size="small"
+                    >
+                      {{ resolveNodeEngineStateLabel(node.engine_state) }}
+                    </el-tag>
+                  </div>
+                  <p class="page__node-meta">耗时：{{ formatNodeDuration(node) }}</p>
+                  <p
+                    v-if="node.engine_state === 'terminated'"
+                    class="page__node-meta page__node-meta--terminated"
+                  >
+                    已被系统终止（or-join 撤权或深度打回）
+                  </p>
+                </el-card>
+              </el-space>
+            </template>
+
             <el-empty v-if="taskActivity.length === 0" description="暂无活动记录" />
 
             <el-timeline v-else>
@@ -1707,5 +1794,36 @@ watch(
 
 .page__date-picker {
   width: 100%;
+}
+
+.page__node-timeline {
+  width: 100%;
+}
+
+.page__node-card {
+  background: var(--el-fill-color-lighter);
+}
+
+.page__node-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.page__node-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page__node-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.page__node-meta--terminated {
+  color: var(--el-color-danger);
 }
 </style>

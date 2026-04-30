@@ -944,3 +944,71 @@ export interface PushSubscription {
   created_at: string
   updated_at: string
 }
+
+// ─── Workflow Graph Engine ─────────────────────────────────────────────────
+
+export type WorkflowGraphInstanceStatus =
+  | 'pending'
+  | 'active'
+  | 'completed'
+  | 'cancelled'
+  | 'terminated'
+
+export type WorkflowNodeEngineState =
+  | 'pending'
+  | 'activated'
+  | 'acknowledged'
+  | 'completed'
+  | 'terminated'
+
+export type WorkflowGraphNodeType = 'task' | 'approval' | 'notice'
+
+export type WorkflowNodeBusinessState =
+  | 'draft'
+  | 'assigned'
+  | 'accepted'
+  | 'rejected'
+  | 'delegated'
+  | 'doing'
+  | 'pending_review'
+  | 'done'
+  | 'returned_for_rework'
+  | 'cancelled'
+
+export interface WorkflowNodeInstanceSummary {
+  id: string
+  instance_id: string
+  template_node_id: string | null
+  node_key: string
+  title: string
+  node_type: WorkflowGraphNodeType
+  engine_state: WorkflowNodeEngineState
+  business_state: WorkflowNodeBusinessState
+  assignee_user_id: string | null
+  iteration: number
+  activated_at: string | null
+  completed_at: string | null
+  terminated_at: string | null
+  created_at: string
+}
+
+export interface WorkflowGraphInstanceDetail {
+  id: string
+  template_id: string | null
+  initiator_user_id: string
+  department_id: string | null
+  source_type: string | null
+  status: WorkflowGraphInstanceStatus
+  current_node_key: string | null
+  context: Record<string, unknown>
+  context_version: number
+  max_iterations: number
+  completed_at: string | null
+  created_at: string
+  node_instances: WorkflowNodeInstanceSummary[]
+  total_node_count: number
+  completed_node_count: number
+  active_node_count: number
+  pending_node_count: number
+  progress_percent: number
+}

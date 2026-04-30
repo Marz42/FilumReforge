@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { listDepartments } from '@/api/departments'
@@ -39,6 +40,34 @@ type StepAssigneeRuleType = 'initiator' | 'department_manager' | 'department_mem
 type StepAssignmentMode = 'single' | 'fan_out'
 type StepJoinMode = 'all' | 'any'
 
+interface RoutingRuleCondition {
+  field: string
+  operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'not_in'
+  value: string | number
+}
+
+type RoutingRuleElse = { else: true; target_step_key: string }
+type RoutingRuleIf = { condition: RoutingRuleCondition; target_step_key: string }
+export type RoutingRule = RoutingRuleIf | RoutingRuleElse
+
+const CONTEXT_FIELD_OPTIONS = [
+  { label: '金额 (amount)', value: 'amount' },
+  { label: '优先级 (priority)', value: 'priority' },
+  { label: '部门编码 (department_code)', value: 'department_code' },
+  { label: '审批结果 (approval_result)', value: 'approval_result' },
+] as const
+
+const OPERATOR_OPTIONS = [
+  { label: '等于 (eq)', value: 'eq' },
+  { label: '不等于 (neq)', value: 'neq' },
+  { label: '大于 (gt)', value: 'gt' },
+  { label: '大于等于 (gte)', value: 'gte' },
+  { label: '小于 (lt)', value: 'lt' },
+  { label: '小于等于 (lte)', value: 'lte' },
+  { label: '在列表中 (in)', value: 'in' },
+  { label: '不在列表中 (not_in)', value: 'not_in' },
+] as const
+
 interface StepFormState {
   step_key: string
   title: string
@@ -56,6 +85,7 @@ interface StepFormState {
   downstream_template_code: string
   downstream_spawn_mode: string
   downstream_spawn_source_step_key: string
+  routing_rules: RoutingRule[]
 }
 
 const authStore = useAuthStore()
@@ -111,6 +141,7 @@ function createStepState(overrides: Partial<StepFormState> = {}): StepFormState 
     downstream_template_code: overrides.downstream_template_code ?? '',
     downstream_spawn_mode: overrides.downstream_spawn_mode ?? 'single',
     downstream_spawn_source_step_key: overrides.downstream_spawn_source_step_key ?? '',
+    routing_rules: overrides.routing_rules ? [...overrides.routing_rules] : [],
   }
 }
 
@@ -322,6 +353,9 @@ function createStepStateFromPayload(payload: TaskTemplateStepPayload, index: num
       typeof payload.downstream_trigger?.spawn_source_step_key === 'string'
         ? payload.downstream_trigger.spawn_source_step_key
         : '',
+    routing_rules: Array.isArray(payload.config?.routing_rules)
+      ? (payload.config.routing_rules as RoutingRule[])
+      : [],
   })
 }
 
@@ -755,6 +789,12 @@ function buildStepPayloads(strict: boolean): TaskTemplateStepPayload[] {
     if (strict && dependencyKeys.some((value) => !availableStepKeys.has(value))) {
       throw new Error(`步骤「${title}」包含不存在的前置步骤`)
     }
+    if (strict && (step.routing_rules?.length ?? 0) > 0) {
+      const hasElse = step.routing_rules.some((rule) => 'else' in rule && rule.else === true)
+      if (!hasElse) {
+        throw new Error(`步骤「${title}」的出口路由规则缺少兜底 ELSE 规则，请添加一条"否则"分支`)
+      }
+    }
     seenStepKeys.add(stepKey)
     return {
       step_key: stepKey,
@@ -766,7 +806,7 @@ function buildStepPayloads(strict: boolean): TaskTemplateStepPayload[] {
       default_assignee_rule: buildAssigneeRule(step, strict),
       default_due_offset_hours: step.default_due_offset_hours ?? null,
       sort_order: index + 1,
-      config: {},
+      config: (step.routing_rules?.length ?? 0) > 0 ? { routing_rules: step.routing_rules } : {},
       depends_on_step_keys: dependencyKeys.filter((value) => value !== stepKey && availableStepKeys.has(value)),
       approval_type: step.approval_type || 'none',
       reject_target_step_key:
@@ -1022,6 +1062,20 @@ async function loadData(): Promise<void> {
 async function handleSaveTemplate(): Promise<void> {
   createSubmitting.value = true
   try {
+    const hasWaitAny = createForm.steps.some(
+      (step) => step.assignment_mode === 'fan_out' && step.join_mode === 'any',
+    )
+    if (hasWaitAny) {
+      try {
+        await ElMessageBox.confirm(
+          '模板中存在"任一完成后推进"（或签/抢单）步骤。保存后，该步骤一旦被某位处理人完成，其余并发处理人将被系统自动撤权且无法再提交。是否继续？',
+          '或签步骤确认',
+          { type: 'warning' },
+        )
+      } catch {
+        return
+      }
+    }
     const payload = {
       code: createForm.code.trim(),
       source_template_id: !isEditingTemplate.value && createForm.source_template_id ? createForm.source_template_id : undefined,
@@ -1694,6 +1748,89 @@ onMounted(() => {
               <el-form-item class="page__designer-grid-full" label="步骤说明">
                 <el-input v-model="step.description" :disabled="templateStructureLocked" type="textarea" :rows="3" />
               </el-form-item>
+              <el-form-item class="page__designer-grid-full" label="出口路由规则（留空则走默认无条件转发）">
+                <div class="page__routing-rules">
+                  <div
+                    v-for="(rule, ruleIndex) in step.routing_rules"
+                    :key="ruleIndex"
+                    class="page__routing-rule-row"
+                  >
+                    <template v-if="'else' in rule && rule.else">
+                      <el-tag type="info" effect="plain" class="page__rule-else-tag">否则 (ELSE)</el-tag>
+                    </template>
+                    <template v-else>
+                      <el-select
+                        v-model="(rule as { condition: RoutingRuleCondition; target_step_key: string }).condition.field"
+                        :disabled="templateStructureLocked"
+                        placeholder="Context 字段"
+                        style="width: 160px"
+                      >
+                        <el-option
+                          v-for="opt in CONTEXT_FIELD_OPTIONS"
+                          :key="opt.value"
+                          :label="opt.label"
+                          :value="opt.value"
+                        />
+                      </el-select>
+                      <el-select
+                        v-model="(rule as { condition: RoutingRuleCondition; target_step_key: string }).condition.operator"
+                        :disabled="templateStructureLocked"
+                        placeholder="运算符"
+                        style="width: 150px"
+                      >
+                        <el-option
+                          v-for="opt in OPERATOR_OPTIONS"
+                          :key="opt.value"
+                          :label="opt.label"
+                          :value="opt.value"
+                        />
+                      </el-select>
+                      <el-input
+                        v-model="(rule as { condition: RoutingRuleCondition; target_step_key: string }).condition.value as string"
+                        :disabled="templateStructureLocked"
+                        placeholder="比较值"
+                        style="width: 120px"
+                      />
+                    </template>
+                    <span class="page__rule-then-label">流转至</span>
+                    <el-select
+                      v-model="rule.target_step_key"
+                      :disabled="templateStructureLocked"
+                      placeholder="目标步骤"
+                      style="width: 180px"
+                    >
+                      <el-option
+                        v-for="option in getDependencyOptions(step.step_key)"
+                        :key="option.value"
+                        :label="option.label"
+                        :value="option.value"
+                      />
+                    </el-select>
+                    <el-button
+                      v-if="!templateStructureLocked"
+                      type="danger"
+                      text
+                      :icon="Delete"
+                      @click="step.routing_rules.splice(ruleIndex, 1)"
+                    />
+                  </div>
+                  <el-space v-if="!templateStructureLocked">
+                    <el-button
+                      size="small"
+                      @click="step.routing_rules.push({ condition: { field: 'amount', operator: 'gt', value: '' }, target_step_key: '' })"
+                    >
+                      + IF 条件规则
+                    </el-button>
+                    <el-button
+                      size="small"
+                      :disabled="step.routing_rules.some((r) => 'else' in r && r.else)"
+                      @click="step.routing_rules.push({ else: true, target_step_key: '' })"
+                    >
+                      + ELSE 兜底规则
+                    </el-button>
+                  </el-space>
+                </div>
+              </el-form-item>
             </div>
           </el-card>
         </div>
@@ -1984,5 +2121,30 @@ onMounted(() => {
     justify-content: flex-start;
     flex-wrap: wrap;
   }
+}
+
+.page__routing-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.page__routing-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.page__rule-else-tag {
+  min-width: 80px;
+  text-align: center;
+}
+
+.page__rule-then-label {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  white-space: nowrap;
 }
 </style>

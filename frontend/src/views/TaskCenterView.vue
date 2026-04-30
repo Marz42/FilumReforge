@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
-import { createTask } from '@/api/tasks'
+import { createTask, createTaskComment } from '@/api/tasks'
 import { createTaskMemo, deleteTaskMemo, getTaskCenterSnapshot, updateTaskMemo } from '@/api/task-center'
 import TaskTemplatesView from '@/views/TaskTemplatesView.vue'
 import TasksView from '@/views/TasksView.vue'
@@ -307,6 +307,24 @@ function renderRelationTypes(item: TaskCenterTrackingItem | TaskCenterHistoryIte
   return item.relation_types.join(' / ') || '—'
 }
 
+function isOverdue(item: TaskCenterTrackingItem): boolean {
+  return !!(item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done')
+}
+
+const nudgingTaskIds = ref<Set<string>>(new Set())
+
+async function handleNudge(taskId: string): Promise<void> {
+  nudgingTaskIds.value = new Set([...nudgingTaskIds.value, taskId])
+  try {
+    await createTaskComment(taskId, { content: '【催办】请及时处理此任务' })
+    ElMessage.success('催办消息已发送')
+  } catch {
+    ElMessage.error('催办失败，请稍后重试')
+  } finally {
+    nudgingTaskIds.value = new Set([...nudgingTaskIds.value].filter((id) => id !== taskId))
+  }
+}
+
 function renderTrackingSignals(item: TaskCenterTrackingItem): string {
   const signals: string[] = []
   if (item.is_pending_review) {
@@ -416,7 +434,14 @@ onMounted(() => {
 
         <el-empty v-if="(snapshot?.task_tracking.length ?? 0) === 0" description="暂无需要跟踪的任务" />
         <el-table v-else :data="snapshot?.task_tracking ?? []" :row-key="rowKey" stripe>
-          <el-table-column prop="title" label="任务标题" min-width="220" />
+          <el-table-column label="任务标题" min-width="220">
+            <template #default="{ row }: { row: TaskCenterTrackingItem }">
+              <el-space wrap>
+                <span>{{ row.title }}</span>
+                <el-tag v-if="isOverdue(row)" type="danger" size="small" effect="plain">已逾期</el-tag>
+              </el-space>
+            </template>
+          </el-table-column>
           <el-table-column prop="department_name" label="部门" min-width="160" />
           <el-table-column label="关联方式" min-width="180">
             <template #default="{ row }: { row: TaskCenterTrackingItem }">
@@ -438,6 +463,17 @@ onMounted(() => {
           <el-table-column label="截止时间" min-width="180">
             <template #default="{ row }: { row: TaskCenterTrackingItem }">
               {{ formatDateTime(row.due_date) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" fixed="right">
+            <template #default="{ row }: { row: TaskCenterTrackingItem }">
+              <el-button
+                size="small"
+                :loading="nudgingTaskIds.has(row.task_id)"
+                @click="handleNudge(row.task_id)"
+              >
+                催办
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
