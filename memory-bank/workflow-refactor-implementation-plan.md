@@ -524,7 +524,7 @@
 | 11-D | 幂等与并发防御加固 | 补齐节点重复提交、Wait-All 双激活、Wait-Any 双提交的防御边界 | done |
 | 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | done |
 | 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | done |
-| 11-G | 文档收口与全量回归 | 更新 architecture.md / progress.md / README，执行全量回归与生产近似部署演练 | not_started |
+| 11-G | 文档收口、前端回归与 Playwright 基线 | 更新文档、补强前端回归并建立基础浏览器端到端验证 | in_progress |
 
 ---
 
@@ -797,21 +797,29 @@ Set-Location d:/Repos/FilumReforge/frontend; npm run build
 
 ---
 
-### 16.9 Phase 11-G / 文档收口与全量回归
+### 16.9 Phase 11-G / 文档收口、前端回归与 Playwright 基线
 
-**完成状态：not_started**
+**完成状态：in_progress（2026-05-06，已完成 docs gate）**
 
 #### 目标
 
-Phase 11 各子阶段完成后执行最终全量回归并更新所有文档。
+在 Phase 11-A 至 11-F 已完成的前提下，完成最终文档收口、前端自动化测试补强，并为现有页面建立基础 Playwright 浏览器端到端回归，确保 graph-first 切流后的真实前端使用路径与当前设计一致。
 
 #### 本阶段改动
 
-1. 更新 `memory-bank/architecture.md`：记录 Phase 11 新增模块（condition_evaluator、takeover、outbox worker、迁移脚本）与切流后系统基线。
-2. 更新 `memory-bank/progress.md`：记录 Phase 11 各子阶段验证结论。
-3. 更新 `README.md`、`backend/README.md`：删除旧链路保留相关说明，补充切流后运行基线。
-4. 更新 `memory-bank/deployment-runbook-ubuntu-2404.md`：补充迁移脚本执行步骤。
-5. 执行完整生产近似部署演练：`bash scripts/check-release.sh`（Ubuntu 24.04 / Docker 近似环境）。
+1. docs gate：先更新 `memory-bank/workflow-refactor-implementation-plan.md`、`memory-bank/implementation-plan.md`、`memory-bank/progress.md`，把 11-G 的范围从“纯文档收口与全量回归”锁定为“文档收口 + 前端测试补强 + Playwright E2E 基线 + 最终全量回归”。
+2. 前端可测性加固：针对 `frontend/src/views/LoginView.vue`、`TaskCenterView.vue`、`TasksView.vue` 与必要的模板入口补最小稳定锚点、加载完成态与关键交互选择器，服务于 E2E 稳定性，不借机开启新一轮页面重构。
+3. Playwright 框架接入：新增 `frontend/playwright.config.ts`、`frontend/e2e/` 与配套 npm scripts，建立统一的 `baseURL`、登录 helper、等待页面稳定策略与最小 fixtures。
+4. 基础浏览器端到端用例：首批只覆盖现有页面与真实点击流，包括登录 / 会话恢复、任务中心加载与主标签切换、任务详情打开与 graph-first 后阶段/责任链展示、模板入口加载；不新增完整 workflow graph 可视化 UI。
+5. 前端单测补强：同步扩展 `frontend/tests/LoginView.spec.ts`、`TaskCenterView.spec.ts`、`TasksView.spec.ts`，必要时补 `TaskTemplatesView.spec.ts`，保证为 E2E 稳定性新增的锚点与加载态有单测保护。
+6. 最终文档与回归收口：实现完成后再更新 `memory-bank/architecture.md`、`README.md`、`frontend/README.md` 与部署说明，并执行 Phase 11 的 backend / frontend 全量回归；Linux/Ubuntu 近似环境上的 `bash scripts/check-release.sh` 继续保留为最终闸门。
+
+#### 当前已确认边界
+
+1. 本轮“图形化测试”按浏览器端功能 E2E 理解，不做截图型视觉回归。
+2. 本轮不新增完整 workflow graph 前端可视化页面；Playwright 只覆盖现有页面与现有任务详情中的图引擎相关展示。
+3. Playwright 本轮先作为独立验证层记录进 11-G 验证矩阵，不直接并入默认发布前校验脚本。
+4. E2E 测试数据优先复用真实 API 构造，只有真实 API 无法稳定造出目标状态时，才允许补最小测试辅助设施。
 
 #### 自动化测试出口
 
@@ -820,6 +828,7 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q "d:/Repos/FilumRefor
 d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall backend/app backend/tests
 # frontend
 npm run test:unit -- --run
+npm run test:e2e
 npm run type-check
 npm run build
 npm exec oxlint .
@@ -828,24 +837,15 @@ npm exec eslint .
 
 #### 用户验收
 
-1. 新建单步任务与多步任务全部走新引擎，旧任务仍可查看。
-2. 极端场景下不会出现重复激活、重复审批或责任链断裂。
-3. 全量回归通过后，可关闭旧链路 feature flag。
+1. 登录、任务中心、任务详情、模板入口这几条真实浏览器路径与当前设计保持一致，Playwright 基础用例能够稳定通过。
+2. graph-first 切流后的前端展示不会破坏任务阶段、责任链和已迁移任务的入口体验。
+3. backend / frontend 全量回归通过后，可进入 Linux/Ubuntu 近似环境的最终发布演练，并继续保留旧链路 feature flag 作为短期回退开关。
 
 ---
 
-### 16.10 已知预存在问题（需在 Phase 11-G 前修复）
+### 16.10 当前补充说明
 
-以下两个测试失败与 Phase 11 工作无关，属于遗留问题，应在 Phase 11-G 全量回归前修复：
-
-| 测试 | 失败原因 | 优先级 |
-| --- | --- | --- |
-| `test_settings.py::test_default_settings_align_with_phase_a_baseline` | 测试校验 `workflow_graph_engine_enabled` 默认值为 `False`，但 `backend/.env` 已设为 `True`；测试未加载 `.env` 导致不一致 | 中 |
-| `test_api.py::test_task_collaboration_and_stats_api_flow` | `accept` 接口返回 409，测试数据初始化与图引擎双写路径的状态预期存在偏差 | 中 |
-
-**修复建议**：
-- `test_default_settings_align_with_phase_a_baseline`：更新测试期望值以反映 `WORKFLOW_GRAPH_ENGINE_ENABLED=true` 当前基线，或使测试隔离于 `.env` 文件。
-- `test_task_collaboration_and_stats_api_flow`：审查 `accept` 接口前置状态假设，对齐图引擎启用后节点初始业务投影态（`Assigned`）。
+此前记录的 `test_settings.py::test_default_settings_align_with_phase_a_baseline` 与 `test_api.py::test_task_collaboration_and_stats_api_flow` 预存在失败，在当前工作区已经修正并可单独通过；11-G 仍需把它们放回全量回归矩阵再次复核，但不再把它们视为阶段启动前的阻塞项。
 ## 17. 阶段间硬性闸门
 
 1. 每个阶段结束后先跑对应自动化测试，再交用户验收。
