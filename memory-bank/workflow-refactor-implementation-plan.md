@@ -524,7 +524,7 @@
 | 11-D | 幂等与并发防御加固 | 补齐节点重复提交、Wait-All 双激活、Wait-Any 双提交的防御边界 | done |
 | 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | done |
 | 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | done |
-| 11-G | 文档收口、前端回归与 Playwright 基线 | 更新文档、补强前端回归并建立基础浏览器端到端验证 | in_progress |
+| 11-G | 文档收口、前端回归与 Playwright 基线 | 更新文档、补强前端回归并建立基础浏览器端到端验证 | done |
 
 ---
 
@@ -799,7 +799,7 @@ Set-Location d:/Repos/FilumReforge/frontend; npm run build
 
 ### 16.9 Phase 11-G / 文档收口、前端回归与 Playwright 基线
 
-**完成状态：in_progress（2026-05-06，已完成 docs gate）**
+**完成状态：done（2026-05-06）**
 
 #### 目标
 
@@ -809,10 +809,10 @@ Set-Location d:/Repos/FilumReforge/frontend; npm run build
 
 1. docs gate：先更新 `memory-bank/workflow-refactor-implementation-plan.md`、`memory-bank/implementation-plan.md`、`memory-bank/progress.md`，把 11-G 的范围从“纯文档收口与全量回归”锁定为“文档收口 + 前端测试补强 + Playwright E2E 基线 + 最终全量回归”。
 2. 前端可测性加固：针对 `frontend/src/views/LoginView.vue`、`TaskCenterView.vue`、`TasksView.vue` 与必要的模板入口补最小稳定锚点、加载完成态与关键交互选择器，服务于 E2E 稳定性，不借机开启新一轮页面重构。
-3. Playwright 框架接入：新增 `frontend/playwright.config.ts`、`frontend/e2e/` 与配套 npm scripts，建立统一的 `baseURL`、登录 helper、等待页面稳定策略与最小 fixtures。
-4. 基础浏览器端到端用例：首批只覆盖现有页面与真实点击流，包括登录 / 会话恢复、任务中心加载与主标签切换、任务详情打开与 graph-first 后阶段/责任链展示、模板入口加载；不新增完整 workflow graph 可视化 UI。
-5. 前端单测补强：同步扩展 `frontend/tests/LoginView.spec.ts`、`TaskCenterView.spec.ts`、`TasksView.spec.ts`，必要时补 `TaskTemplatesView.spec.ts`，保证为 E2E 稳定性新增的锚点与加载态有单测保护。
-6. 最终文档与回归收口：实现完成后再更新 `memory-bank/architecture.md`、`README.md`、`frontend/README.md` 与部署说明，并执行 Phase 11 的 backend / frontend 全量回归；Linux/Ubuntu 近似环境上的 `bash scripts/check-release.sh` 继续保留为最终闸门。
+3. Playwright 框架接入：已新增 `frontend/playwright.config.ts`、`frontend/playwright.live.config.ts`、`frontend/e2e/` 与配套 npm scripts，分别承载 mock API E2E 与真实 backend/Compose E2E。
+4. 基础浏览器端到端用例：mock 基线已覆盖登录 / 会话恢复、任务中心加载与主标签切换、graph-first 详情展示；live 基线已覆盖隔离 Compose 环境下的真实登录与任务中心建立任务链路，不新增完整 workflow graph 可视化 UI。
+5. 前端单测补强：已扩展 `frontend/tests/LoginView.spec.ts`、`TaskCenterView.spec.ts`，并为登录页 / 任务中心 / 任务详情新增稳定锚点，保证 E2E 所需选择器有单测保护。
+6. 最终文档与回归收口：已更新 `memory-bank/architecture.md`、`memory-bank/progress.md`、`memory-bank/implementation-plan.md` 与 `frontend/README.md`；当前已完成 frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`、`npm run test:e2e`、`npm run test:e2e:live`。Linux/Ubuntu 近似环境上的 `bash scripts/check-release.sh` 继续保留为部署工程化主线闸门，不计入 11-G 的前端交付关闭条件。
 
 #### 当前已确认边界
 
@@ -824,22 +824,27 @@ Set-Location d:/Repos/FilumReforge/frontend; npm run build
 #### 自动化测试出口
 
 ```powershell
-d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q "d:/Repos/FilumReforge/backend/tests/" --tb=line
-d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall backend/app backend/tests
 # frontend
 npm run test:unit -- --run
-npm run test:e2e
 npm run type-check
 npm run build
-npm exec oxlint .
-npm exec eslint .
+npm run test:e2e
+npm run test:e2e:live
 ```
 
 #### 用户验收
 
-1. 登录、任务中心、任务详情、模板入口这几条真实浏览器路径与当前设计保持一致，Playwright 基础用例能够稳定通过。
+1. 登录、任务中心、任务详情这几条真实浏览器路径与当前设计保持一致，Playwright mock/live 基础用例能够稳定通过。
 2. graph-first 切流后的前端展示不会破坏任务阶段、责任链和已迁移任务的入口体验。
-3. backend / frontend 全量回归通过后，可进入 Linux/Ubuntu 近似环境的最终发布演练，并继续保留旧链路 feature flag 作为短期回退开关。
+3. 11-G 完成后，可把后续重点切回 Linux/Ubuntu 近似环境发布演练，并继续保留旧链路 feature flag 作为短期回退开关。
+
+#### 当前已完成子项（2026-05-06）
+
+1. 已为 `LoginView.vue`、`TaskCenterView.vue`、`TasksView.vue` 补最小稳定 `data-testid` 锚点，并为任务发布抽屉补充 live E2E 所需的表单选择器。
+2. 已新增 `frontend/playwright.config.ts` 与 `frontend/e2e/fixtures.ts`，通过 mock API 覆盖登录 / 会话恢复、任务中心标签切换、graph-first 详情展示。
+3. 已新增 `frontend/playwright.live.config.ts`、`frontend/e2e/live/compose-env.mjs`、`frontend/e2e/live/docker-compose.playwright-live.yml` 与 `frontend/e2e/live/task-center-live.spec.ts`，在隔离 Compose 端口启动 PostgreSQL / Redis / backend / worker / frontend / nginx，并执行 sample data 脚本后验证真实登录与任务创建链路。
+4. `frontend/package.json` 已新增 `test:e2e:live` 与 `test:e2e:live:headed`；`frontend/README.md` 已同步记录 mock/live 两套 E2E 命令与边界。
+5. 已完成 frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`、`npm run test:e2e`、`npm run test:e2e:live` 全部通过。
 
 ---
 

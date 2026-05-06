@@ -41,6 +41,8 @@ describe('Login view', () => {
 
     await flushPromises()
 
+    expect(wrapper.find('[data-testid="login-page"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="login-submit"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('第一次进入系统时，请先初始化管理员账号')
     expect(wrapper.text()).toContain('初始化管理员')
 
@@ -84,6 +86,7 @@ describe('Login view', () => {
 
     await flushPromises()
 
+    expect(wrapper.find('[data-testid="login-tabs"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('邀请注册链接')
     expect(wrapper.text()).toContain('invitee@example.com')
     expect(wrapper.text()).toContain('完成注册')

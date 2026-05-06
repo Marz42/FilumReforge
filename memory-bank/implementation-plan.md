@@ -13,7 +13,7 @@
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；工作流重构主线已完成 Phase 11-E / 11-F，并进入 **Phase 11-G / 文档收口、前端回归与 Playwright 基线** 的 docs gate 与实施阶段。本轮新实施周期统一记录在 `memory-bank/improvements-stage2-implementation-plan.md`，而 Phase 11-G 继续以 `memory-bank/workflow-refactor-implementation-plan.md` 作为直接实施合同。
+**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；工作流重构主线已完成 Phase 11-A 至 11-G，其中 11-G 已补齐前端可测性加固、Playwright mock/live 浏览器基线与前端回归收口。下一步主焦点回到 **部署工程化收口 / Linux 近似环境发布演练 / 更大范围真实业务 E2E 扩面**。本轮新实施周期统一记录在 `memory-bank/improvements-stage2-implementation-plan.md`，而 Phase 11 的直接实施事实继续以 `memory-bank/workflow-refactor-implementation-plan.md` 为准。
 
 ## 2. 已确认约束
 

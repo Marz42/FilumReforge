@@ -944,7 +944,7 @@ watch(
 </script>
 
 <template>
-  <div class="page">
+  <div class="page" data-testid="tasks-view">
     <el-row :gutter="16" class="page__summary">
       <el-col :xs="12" :lg="6">
         <el-card shadow="never">
@@ -975,7 +975,7 @@ watch(
 
     <el-row :gutter="20">
       <el-col :xs="24" :xl="12">
-        <el-card shadow="never" v-loading="loading">
+        <el-card shadow="never" v-loading="loading" data-testid="tasks-workspace-panel">
           <template #header>
             <div class="page__header">
               <el-space>
@@ -1011,7 +1011,7 @@ watch(
           </template>
 
           <template v-if="viewMode === 'list'">
-            <el-table :data="tasks" stripe highlight-current-row @row-click="handleTaskClick">
+            <el-table :data="tasks" stripe highlight-current-row data-testid="tasks-list-table" @row-click="handleTaskClick">
               <el-table-column prop="title" label="任务标题" min-width="180" />
               <el-table-column label="执行人" min-width="180">
                 <template #default="{ row }: { row: Task }">
@@ -1110,7 +1110,7 @@ watch(
       </el-col>
 
       <el-col :xs="24" :xl="12">
-        <el-card shadow="never" class="page__detail">
+        <el-card shadow="never" class="page__detail" data-testid="tasks-detail-panel">
           <template #header>
             <div class="page__header">
               <span>任务协同详情</span>
@@ -1417,7 +1417,7 @@ watch(
             <!-- 图引擎节点板块（仅图任务显示） -->
             <template v-if="graphInstance">
               <el-divider>工作流节点追踪</el-divider>
-              <el-space direction="vertical" fill class="page__node-timeline">
+              <el-space direction="vertical" fill class="page__node-timeline" data-testid="tasks-graph-panel">
                 <el-card
                   v-for="node in graphInstance.node_instances"
                   :key="node.id"

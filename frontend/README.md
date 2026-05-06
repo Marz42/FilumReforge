@@ -31,6 +31,19 @@ npm install
 npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
+## 浏览器端 E2E
+
+- 已接入 Playwright 基线，当前覆盖登录、会话恢复、任务中心标签切换，以及 graph-first 任务详情中的节点追踪面板。
+- 当前 E2E 以浏览器真实交互为目标，但默认通过 `frontend/e2e/fixtures.ts` 对 `/api/v1` 请求做 mock，不依赖本地 backend / PostgreSQL / Redis 联动启动。
+- 默认使用 Chromium，并由 Playwright 自动拉起 Vite dev server 到 `http://127.0.0.1:4173`。
+- 另提供一套 live backend 场景：`playwright.live.config.ts` 会通过开发 Compose 在隔离端口启动 PostgreSQL / Redis / backend / worker / frontend / nginx，并在 backend 容器内执行 `python -m app.scripts.seed_sample_data`，用于验证真实 API、登录与任务创建链路。
+
+```sh
+npx playwright install chromium
+npm run test:e2e
+npm run test:e2e:live
+```
+
 ## 生产部署提醒
 
 - 当前前端上线可选两条路径：执行 `npm install && npm run build` 后由 Nginx 直接托管 `dist/`，或使用 `Dockerfile.prod` 配合 `infra/docker/docker-compose.prod.yml`
@@ -41,6 +54,8 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 ```sh
 npm run test:unit -- --run
+npm run test:e2e
+npm run test:e2e:live
 npm run type-check
 npm run build
 npm run lint

@@ -350,8 +350,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="task-center-view filum-page">
-    <el-card shadow="never" class="filum-panel-card" v-loading="loading">
+  <div class="task-center-view filum-page" data-testid="task-center-view">
+    <el-card shadow="never" class="filum-panel-card" v-loading="loading" data-testid="task-center-summary-card">
       <template #header>
         <div class="task-center-view__header filum-page-header">
           <div class="filum-page-header__copy">
@@ -366,14 +366,19 @@ onMounted(() => {
             <el-tag :type="permissions.can_manage_templates ? 'success' : 'info'" effect="plain">
               {{ permissions.can_manage_templates ? '可管理模板' : '仅查看模板' }}
             </el-tag>
-            <el-button type="primary" :disabled="!permissions.can_publish_task" @click="openTaskDrawer">
+            <el-button
+              type="primary"
+              :disabled="!permissions.can_publish_task"
+              data-testid="task-center-create-task"
+              @click="openTaskDrawer"
+            >
               建立任务
             </el-button>
           </el-space>
         </div>
       </template>
 
-      <el-tabs :model-value="activeTab" @update:model-value="handleTabChange">
+      <el-tabs :model-value="activeTab" data-testid="task-center-tabs" @update:model-value="handleTabChange">
         <el-tab-pane label="待处理" name="inbox" />
         <el-tab-pane label="任务跟踪" name="tracking" />
         <el-tab-pane label="备忘" name="memos" />
@@ -389,7 +394,7 @@ onMounted(() => {
     />
 
     <template v-else-if="activeTab === 'inbox'">
-      <el-card shadow="never" class="filum-panel-card">
+      <el-card shadow="never" class="filum-panel-card" data-testid="task-center-inbox-panel">
         <template #header>
           <div class="task-center-view__section-header">
             <span>待处理</span>
@@ -427,7 +432,7 @@ onMounted(() => {
     </template>
 
     <template v-else-if="activeTab === 'tracking'">
-      <el-card shadow="never" class="filum-panel-card">
+      <el-card shadow="never" class="filum-panel-card" data-testid="task-center-tracking-panel">
         <template #header>
           <span>任务跟踪</span>
         </template>
@@ -636,57 +641,75 @@ onMounted(() => {
       title="建立任务"
       size="460px"
       destroy-on-close
+      data-testid="task-center-task-drawer"
       @closed="resetPublishForm"
     >
       <el-form label-position="top" class="task-center-view__form">
         <el-form-item label="任务标题">
-          <el-input v-model="publishForm.title" placeholder="例如：完成四月客户复盘" />
+          <div data-testid="task-center-task-title">
+            <el-input v-model="publishForm.title" placeholder="例如：完成四月客户复盘" />
+          </div>
         </el-form-item>
         <el-form-item label="任务说明">
-          <el-input v-model="publishForm.description" type="textarea" :rows="4" />
+          <div data-testid="task-center-task-description">
+            <el-input v-model="publishForm.description" type="textarea" :rows="4" />
+          </div>
         </el-form-item>
         <el-form-item label="执行人">
-          <el-select v-model="publishForm.assignee_user_id" placeholder="请选择执行人">
-            <el-option
-              v-for="user in publishUserOptions"
-              :key="user.user_id"
-              :label="user.label"
-              :value="user.user_id"
-            />
-          </el-select>
+          <div data-testid="task-center-task-assignee">
+            <el-select v-model="publishForm.assignee_user_id" placeholder="请选择执行人">
+              <el-option
+                v-for="user in publishUserOptions"
+                :key="user.user_id"
+                :label="user.label"
+                :value="user.user_id"
+              />
+            </el-select>
+          </div>
         </el-form-item>
         <el-form-item label="所属部门">
-          <el-select v-model="publishForm.department_id" clearable placeholder="可选">
-            <el-option
-              v-for="department in publishDepartmentOptions"
-              :key="department.id"
-              :label="department.label"
-              :value="department.id"
-            />
-          </el-select>
+          <div data-testid="task-center-task-department">
+            <el-select v-model="publishForm.department_id" clearable placeholder="可选">
+              <el-option
+                v-for="department in publishDepartmentOptions"
+                :key="department.id"
+                :label="department.label"
+                :value="department.id"
+              />
+            </el-select>
+          </div>
         </el-form-item>
         <el-form-item label="优先级">
-          <el-select v-model="publishForm.priority">
-            <el-option label="低" value="low" />
-            <el-option label="中" value="medium" />
-            <el-option label="高" value="high" />
-            <el-option label="紧急" value="urgent" />
-          </el-select>
+          <div data-testid="task-center-task-priority">
+            <el-select v-model="publishForm.priority">
+              <el-option label="低" value="low" />
+              <el-option label="中" value="medium" />
+              <el-option label="高" value="high" />
+              <el-option label="紧急" value="urgent" />
+            </el-select>
+          </div>
         </el-form-item>
         <el-form-item label="截止时间">
-          <el-date-picker
-            v-model="publishForm.due_date"
-            type="datetime"
-            placeholder="可选"
-            class="task-center-view__date-picker"
-          />
+          <div data-testid="task-center-task-due-date">
+            <el-date-picker
+              v-model="publishForm.due_date"
+              type="datetime"
+              placeholder="可选"
+              class="task-center-view__date-picker"
+            />
+          </div>
         </el-form-item>
       </el-form>
 
       <template #footer>
         <div class="task-center-view__drawer-footer">
           <el-button @click="taskDrawerVisible = false">取消</el-button>
-          <el-button type="primary" :loading="publishSubmitting" @click="handlePublishTask">
+          <el-button
+            type="primary"
+            :loading="publishSubmitting"
+            data-testid="task-center-task-submit"
+            @click="handlePublishTask"
+          >
             建立任务
           </el-button>
         </div>

@@ -158,8 +158,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="login-page">
-    <el-card class="login-card" shadow="never">
+  <div class="login-page" data-testid="login-page">
+    <el-card class="login-card" shadow="never" data-testid="login-card">
       <template #header>
         <div class="login-card__header">
           <div>
@@ -187,24 +187,29 @@ onMounted(() => {
         class="login-page__invite-alert"
       />
 
-      <el-tabs v-model="activeTab" class="login-tabs">
+      <el-tabs v-model="activeTab" class="login-tabs" data-testid="login-tabs">
         <el-tab-pane label="登录系统" name="login">
           <el-form label-position="top" @submit.prevent="handleLogin">
             <el-form-item label="邮箱">
-              <el-input v-model="loginForm.email" autocomplete="username" />
+              <div data-testid="login-email">
+                <el-input v-model="loginForm.email" autocomplete="username" />
+              </div>
             </el-form-item>
             <el-form-item label="密码">
-              <el-input
-                v-model="loginForm.password"
-                type="password"
-                autocomplete="current-password"
-                show-password
-              />
+              <div data-testid="login-password">
+                <el-input
+                  v-model="loginForm.password"
+                  type="password"
+                  autocomplete="current-password"
+                  show-password
+                />
+              </div>
             </el-form-item>
             <el-button
               type="primary"
               :loading="loginSubmitting"
               class="login-tabs__action"
+              data-testid="login-submit"
               @click="handleLogin"
             >
               登录

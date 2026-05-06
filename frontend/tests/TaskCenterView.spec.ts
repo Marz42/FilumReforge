@@ -180,6 +180,8 @@ describe('TaskCenter view', () => {
 
     await flushPromises()
 
+    expect(wrapper.find('[data-testid="task-center-view"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="task-center-create-task"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('任务中心')
     expect(wrapper.text()).toContain('默认聚焦待处理、任务跟踪、个人备忘与任务模板')
     expect(wrapper.text()).toContain('整理四月周报')
@@ -187,6 +189,29 @@ describe('TaskCenter view', () => {
     expect(wrapper.text()).toContain('建立任务')
     expect(wrapper.text()).not.toContain('我的待办')
     expect(wrapper.text()).not.toContain('tracking-detail-stub')
+  })
+
+  it('renders stable selectors for the task creation drawer', async () => {
+    const wrapper = mount(TaskCenterView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          TaskTemplatesView: { template: '<div>templates-stub</div>' },
+          TasksView: { template: '<div>tracking-detail-stub</div>' },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const createButton = wrapper.find('[data-testid="task-center-create-task"]')
+    await createButton.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="task-center-task-title"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="task-center-task-assignee"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="task-center-task-department"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="task-center-task-submit"]').exists()).toBe(true)
   })
 
   it('maps legacy tasks tab to tracking and updates route when tab changes', async () => {
@@ -204,6 +229,7 @@ describe('TaskCenter view', () => {
 
     await flushPromises()
 
+    expect(wrapper.find('[data-testid="task-center-tracking-panel"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('跟进视频发布')
     expect(wrapper.text()).toContain('待验收')
     expect(wrapper.text()).toContain('返工 1 次')
@@ -235,6 +261,7 @@ describe('TaskCenter view', () => {
 
     await flushPromises()
 
+    expect(wrapper.find('[data-testid="task-center-tabs"]').exists()).toBe(true)
     const tabs = wrapper.findComponent({ name: 'ElTabs' })
     tabs.vm.$emit('update:modelValue', 'inbox')
     await flushPromises()
