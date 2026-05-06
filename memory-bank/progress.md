@@ -48,6 +48,9 @@
 | Phase 11-A / routing_rules 旧系统桥接 | done | 新建 `backend/app/services/condition_evaluator.py`（`is_else_condition` / `evaluate_condition` / `evaluate_routing_rules`，支持 eq/neq/gt/gte/lt/lte/in/not_in/contains/exists 与嵌套 all/any）；`WorkflowGraphService` 删除内联条件求值方法，改为引用 `condition_evaluator`；`TaskService._activate_ready_template_steps` 新增 `_routing_rules_allow_step_activation` 静态方法，在上游步骤有 `routing_rules` 时仅激活命中条件的目标步骤（无规则时完全向后兼容）；使用 `instance.payload` 作为条件求值上下文。已执行 `pytest -q test_services.py -k "phase11a"`（2 passed）；全量回归无新增失败（仅两个预存在失败，详见"当前已知问题"）。 |
 | Phase 11-B / Takeover（管理员接管节点） | done | 已完成后端管理员接管能力：`WorkflowGraphService.takeover_node_instance()` 新增管理员权限校验、运行态校验、接管审计（写入 `node_instance.config.takeover`）与接管后节点重置（`ACTIVATED + ASSIGNED`）；新增 `WorkflowNodeTakeoverRequest` schema 与 `POST /api/v1/workflow-graph/node-instances/{id}/takeover` 接口。通知从同步发送切换为写 outbox 事件（由 Phase 11-C worker 异步投递）。已执行 `pytest -q tests/test_services.py -k "phase11b"`（2 passed）、`pytest -q tests/test_api.py -k "phase11_takeover_api"`（1 passed）。 |
 | Phase 11-C / Outbox Pattern 可靠投递 | done | 已启用 workflow outbox 异步投递链路：新增 `backend/app/workers/workflow_outbox_worker.py`，实现 `process_workflow_outbox_events` 批量扫描 `PENDING/RETRYING` 事件并按 `attempt_count`、`available_at` 指数退避重试，成功置 `DISPATCHED`，失败超上限置 `FAILED` 并记录 `last_error`；`backend/app/workers/arq_worker.py` 注册 30 秒 cron；`WorkflowGraphService` 新增 `_write_outbox_event()` 并在 takeover 路径启用。已执行 `pytest -q tests/test_workers.py -k "phase11c"`（3 passed）与 `pytest -q tests/test_workers.py tests/test_services.py -k "phase11"`（7 passed）。 |
+| Phase 11-D / 幂等与并发防御加固 | done | 已完成 11-D 收口：1）生产环境 `FRONTEND_APP_URL` 现在必须显式配置，邀请注册链接不再允许静默回落到 `http://localhost:5173`，并已同步更新 `backend/.env.production.example`、`infra/docker/.env.prod.example`、`infra/docker/docker-compose.prod.yml` 与 Ubuntu 部署手册；2）管理员接管 graph 节点后，会同步刷新手动 `Task` 投影（`assignee_id`、握手 metadata、任务中心标签“任务：管理员接管待确认”），避免 graph runtime 与兼容读模型脱节；3）`workflow_graph_engine` 的 `complete` / `deep-reject` / `takeover` 写接口已补事务提交，变更可跨会话持久化；4）`TaskService` 现在会阻止对 `COMPLETED/TERMINATED` graph 节点继续执行 accept / reject / delegate，避免兼容任务握手动作把已失效节点“复活”；5）已补齐 Wait-All / Wait-Any 重放、takeover 失效节点冲突、stale deep-reject 阻断，以及 complete / deep-reject API 重放稳定性回归。已执行 backend `pytest -q tests/test_services.py::test_phase11d_accept_blocks_when_graph_node_is_terminated tests/test_services.py::test_phase11d_reject_blocks_when_graph_instance_is_completed tests/test_services.py::test_phase11d_takeover_blocks_when_node_is_completed tests/test_services.py::test_phase11d_deep_reject_blocks_replay_from_stale_node_after_clone tests/test_api.py::test_phase11d_complete_api_replay_returns_stable_snapshot tests/test_api.py::test_phase11d_deep_reject_api_blocks_replay_from_stale_node`、`pytest -q tests/test_services.py -k "phase11b or phase11d or phase6_repeat_completion_is_idempotent_and_keeps_single_downstream_activation or phase11d_wait_all_join_replay_keeps_single_downstream_activation or phase8_wait_any_activates_downstream_and_terminates_peer_nodes or phase11d_wait_any_replay_keeps_single_downstream_activation or phase9_deep_reject" tests/test_api.py -k "phase11d or phase11_takeover or phase9_deep_reject_api_blocks_when_iteration_exceeds_limit or phase6_node_completion_triggers_downstream_activation or phase8_node_completion_api_blocks_terminated_node_submission"`，以及 `python -m compileall app tests`。 |
+| Phase 11-E / 旧数据迁移脚本 | in_progress | 已完成 docs gate：明确迁移范围为旧 `Task` 与可稳定锚定的 `TaskTemplateStepRun`，优先复用 `WorkflowGraphInstance.source_type/source_id` 作为迁移/回滚锚点，首轮必须同时交付 `--dry-run`、批次标识、rollback 与 Ubuntu runbook 执行步骤；代码与测试尚未开始。 |
+| Phase 11-F / 默认路径切流 | in_progress | 已完成 docs gate：明确 11-F 必须在 11-E 验证后启动，manual task 写侧继续以 `WORKFLOW_GRAPH_ENGINE_ENABLED` 为主，读侧采用 graph-first with legacy fallback，`TASK_CENTER_V2_ENABLED` 至少保留 30 天作为紧急回退；代码与测试尚未开始。 |
 
 ## Stage 2 / 当前实施周期
 
@@ -73,14 +76,9 @@
 | --- | --- | --- |
 | 第二批会话安全改造 | done | refresh token 已切换为 HttpOnly cookie，前端 access token 改为内存态，`/auth/logout` 已支持服务端撤销与清 cookie；已执行 backend `pytest -q`、`python -m compileall app tests` 与 frontend `npm run test:unit -- --run`、`npm run type-check` |
 
-## 当前已知问题（待 Phase 11-G 前修复）
+## 当前已知问题
 
-以下两个测试失败为遗留问题，与 Phase 11 当前工作无关，但需在 Phase 11-G 全量回归前修复：
-
-| 测试 | 失败原因 | 状态 |
-| --- | --- | --- |
-| `test_settings.py::test_default_settings_align_with_phase_a_baseline` | 测试校验 `workflow_graph_engine_enabled` 默认值为 `False`，但 `backend/.env` 已设为 `True`；测试未加载 `.env` 导致期望与实际不一致。修复方向：更新测试期望值以反映当前基线，或使测试隔离于 `.env` 文件。 | pending |
-| `test_api.py::test_task_collaboration_and_stats_api_flow` | `accept` 接口返回 409（任务已处于非待接受状态），测试数据初始化与图引擎双写路径的状态预期存在偏差。修复方向：审查 `accept` 接口前置状态假设，对齐图引擎启用后节点初始业务投影态（`Assigned`）。 | pending |
+本轮 Phase 11-D 收口回归未发现新的阻塞性失败；此前文档中列出的 `test_settings.py::test_default_settings_align_with_phase_a_baseline` 与 `test_api.py::test_task_collaboration_and_stats_api_flow` 在当前工作区已可单独通过，不再作为已确认遗留失败记录。后续仍需在 Phase 11-G 全量回归时再次复核全套测试矩阵。
 
 ## 已完成里程碑
 

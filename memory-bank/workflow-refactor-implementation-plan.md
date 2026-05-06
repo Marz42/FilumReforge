@@ -521,9 +521,9 @@
 | 11-A | routing_rules 旧系统桥接 | 将前端写入 TaskTemplateStep.config 的 routing_rules 接入后端条件激活逻辑 | done |
 | 11-B | Takeover（管理员接管节点） | 管理员可强制接管任意节点实例，写审计日志，通知原执行人 | done |
 | 11-C | Outbox Pattern 可靠投递 | 启用 workflow_outbox_events 消费 worker，实现节点事件异步补偿 | done |
-| 11-D | 幂等与并发防御加固 | 补齐节点重复提交、Wait-All 双激活、Wait-Any 双提交的防御边界 | not_started |
-| 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | not_started |
-| 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | not_started |
+| 11-D | 幂等与并发防御加固 | 补齐节点重复提交、Wait-All 双激活、Wait-Any 双提交的防御边界 | done |
+| 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | in_progress |
+| 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | in_progress |
 | 11-G | 文档收口与全量回归 | 更新 architecture.md / progress.md / README，执行全量回归与生产近似部署演练 | not_started |
 
 ---
@@ -637,7 +637,7 @@ Phase 11 相关回归通过：7 passed（workers + services）。
 
 ### 16.6 Phase 11-D / 幂等与并发防御加固
 
-**完成状态：not_started**
+**完成状态：done（2026-05-06）**
 
 #### 目标
 
@@ -645,49 +645,131 @@ Phase 11 相关回归通过：7 passed（workers + services）。
 
 #### 本阶段改动
 
-1. **节点重复提交防御**：`complete_node_instance()` 当节点已处于 `COMPLETED`/`TERMINATED` 时幂等返回，不报错也不重复推进下游。
-2. **Wait-All 双激活防御**：`_activate_downstream_nodes()` 检查目标节点是否已非 `PENDING`，已激活则跳过；依赖行锁。
-3. **Wait-Any 双提交防御**：补压测场景测试，确认已有保护生效（两并行节点同时完成时只有一个推进下游）。
-4. **转办与打回并发冲突**：依赖行锁确保 `delegate_node()` 与 `deep_reject_to_upstream()` 在同一节点上不并发执行。
+1. **节点重复提交防御**：`complete_node_instance()` 对已 `COMPLETED` 的节点幂等返回，不重复推进下游；对已 `TERMINATED` 的迟到提交明确返回 409，避免 Wait-Any 输家污染下游。
+2. **Wait-All 双激活防御**：下游激活仅针对 `PENDING` 节点执行，并结合实例级 / 节点级行锁与 `skip_locked` 保持 join 节点只激活一次。
+3. **Wait-Any 双提交防御**：获胜上游完成后会激活下游并终止同批未完成节点；输家迟到提交或 stale 重放均被冲突拦截。
+4. **兼容任务握手冲突防御**：`TaskService` 在回写 graph 握手投影前，会拒绝对已 `COMPLETED/TERMINATED` 节点及已结束实例继续执行 accept / reject / delegate。
+5. **graph 写接口持久化防御**：`workflow_graph_engine` 的 `complete` / `deep-reject` / `takeover` 路由在返回快照前显式提交事务，避免响应成功但跨会话查询不到变更。
+
+#### 当前已完成子项（2026-05-06）
+
+1. **生产域名配置硬化**：`FRONTEND_APP_URL` 在 production 环境下改为必填，禁止继续使用 localhost 默认值；并已同步补齐 `backend/.env.production.example`、`infra/docker/.env.prod.example`、`infra/docker/docker-compose.prod.yml`、`memory-bank/deployment-runbook-ubuntu-2404.md`。
+2. **管理员接管后的兼容读模型同步**：`WorkflowGraphService.takeover_node_instance()` 现在会同步刷新手动 `Task` 投影（执行人、握手 metadata），`TaskService` 对应新增“任务：管理员接管待确认”标签分支，避免 graph runtime 与 `TaskCenterService` 读模型脱节。
+3. **graph 写接口持久化收口**：`workflow_graph_engine` 的 `complete` / `deep-reject` / `takeover` 路由在 service flush 后显式提交事务，避免“接口响应成功但跨会话查询看不到变更”的一致性缺口。
+4. **失效节点握手守卫**：`TaskService` 在回写 graph 握手投影前，现会拒绝对 `COMPLETED/TERMINATED` 节点继续执行 accept / reject / delegate，避免兼容任务链路把已失效 graph 节点重新改回可操作态。
+5. **Wait-All / Wait-Any 重放矩阵补齐**：已补 service 级回归，验证 Wait-All 最后一个上游重复提交不会重复激活 join 节点，Wait-Any 获胜上游重复提交不会重复激活下游且不会再次改写输家节点版本。
+6. **stale graph 动作冲突矩阵补齐**：已补 service 级 accept / reject / takeover / deep-reject 失效场景回归，验证已终止节点、已完成节点、已结束实例和旧迭代节点都会返回明确冲突。
+7. **API 重放稳定性补齐**：已补 `complete` API 重复调用返回稳定快照与 `deep-reject` API 对 stale 节点重放返回 409 的集成回归。
+
+#### 验证命令
+
+```powershell
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q tests/test_services.py::test_phase11d_accept_blocks_when_graph_node_is_terminated tests/test_services.py::test_phase11d_reject_blocks_when_graph_instance_is_completed tests/test_services.py::test_phase11d_takeover_blocks_when_node_is_completed tests/test_services.py::test_phase11d_deep_reject_blocks_replay_from_stale_node_after_clone tests/test_api.py::test_phase11d_complete_api_replay_returns_stable_snapshot tests/test_api.py::test_phase11d_deep_reject_api_blocks_replay_from_stale_node
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q tests/test_services.py -k "phase11b or phase11d or phase6_repeat_completion_is_idempotent_and_keeps_single_downstream_activation or phase11d_wait_all_join_replay_keeps_single_downstream_activation or phase8_wait_any_activates_downstream_and_terminates_peer_nodes or phase11d_wait_any_replay_keeps_single_downstream_activation or phase9_deep_reject" tests/test_api.py -k "phase11d or phase11_takeover or phase9_deep_reject_api_blocks_when_iteration_exceeds_limit or phase6_node_completion_triggers_downstream_activation or phase8_node_completion_api_blocks_terminated_node_submission"
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall app tests
+```
+
+#### 验证结论
+
+新增 11-D 定向回归 6 passed；聚合 service / API 回归 16 passed；`python -m compileall app tests` 通过。11-D 当前范围内的节点重复提交、Wait-All / Wait-Any 重放、stale deep-reject、takeover 失效节点冲突与 graph 写接口快照持久化合同已完成收口。
 
 ---
 
 ### 16.7 Phase 11-E / 旧数据迁移脚本
 
-**完成状态：not_started**
+**完成状态：in_progress（2026-05-06，已完成 docs gate）**
 
 #### 目标
 
-编写旧链路任务数据到图引擎模型的迁移脚本，支持 `--dry-run` 与回滚。
+编写旧链路任务数据到图引擎模型的迁移脚本，支持 `--dry-run` 与回滚，并把线上执行顺序、抽样校验与回退步骤一起纳入首轮交付。
+
+#### 当前已确认前提
+
+1. Phase 11-A 至 11-D 已完成，graph 写链路、takeover / outbox / 并发防御与 API 持久化合同已稳定，可作为迁移落点。
+2. `WorkflowGraphInstance` 已具备 `source_type` / `source_id` 锚点索引；11-E 首轮优先复用现有字段，不新增 schema。
+3. 当前 `TaskCenterService` 与 `TaskService.list_task_inbox()` / `list_task_tracking()` / `list_task_history()` 仍继续读取兼容 `Task` 投影，因此 11-E 必须先确保 graph 侧迁移可追踪、可回滚、可抽样核对，才能进入 11-F 默认读侧切流。
 
 #### 本阶段改动
 
-1. 新建 `backend/app/scripts/migrate_legacy_tasks_to_graph.py`：扫描非图引擎 `Task`，创建对应单节点 `WorkflowGraphInstance + WorkflowNodeInstance`；状态映射：`todo→ACTIVATED/Accepted`，`doing→ACKNOWLEDGED/Doing`，`review→COMPLETED/PendingReview`，`done→COMPLETED/Done`；支持 `--dry-run`。
-2. 新建 `backend/app/scripts/rollback_legacy_task_migration.py`：按 `source_id` 删除图引擎记录，不删原 `Task`。
+1. 先执行 docs gate：本阶段第一个动作必须是更新 `memory-bank` 并形成单独的 docs-only commit，锁定迁移范围、状态映射、回滚边界与 runbook 顺序，然后才能开始写脚本。
+2. 新建 `backend/app/scripts/migrate_legacy_tasks_to_graph.py`：扫描尚未写入 graph 锚点的旧 `Task` 与可稳定锚定的 `TaskTemplateStepRun`，创建对应 `WorkflowGraphInstance + WorkflowNodeInstance`；状态映射沿用 Phase 0 口径：`todo→ACTIVATED/Accepted`、`doing→ACKNOWLEDGED/Doing`、`review→COMPLETED/PendingReview`、`done→COMPLETED/Done`。
+3. 迁移逻辑需同步带上现有责任链与关键时间戳：`assignee_id`、`activated_at/acknowledged_at/completed_at`、交付物 / 返工 / 质量评分相关 metadata；graph 侧锚点优先复用 `WorkflowGraphInstance.source_type/source_id`，并在 `WorkflowNodeInstance.config` 中记录 `migration_batch_id`、legacy 来源信息与 dry-run 统计摘要。
+4. 新建 `backend/app/scripts/rollback_legacy_task_migration.py`：按 `migration_batch_id` + `source_type/source_id` 删除 11-E 新建的 graph 实例、节点实例与交付物，不删除原 `Task` / `TaskTemplateStepRun`。
+5. 更新 `memory-bank/deployment-runbook-ubuntu-2404.md`：补齐迁移前备份、`--dry-run`、正式执行、抽样核对、回滚命令与停机/只读窗口建议。
+
+#### 主要涉及文件
+
+- `backend/app/scripts/migrate_legacy_tasks_to_graph.py`（新建）
+- `backend/app/scripts/rollback_legacy_task_migration.py`（新建）
+- `backend/app/models/workflow_graph.py`
+- `backend/app/services/task_service.py`
+- `backend/tests/test_services.py`
+- `backend/tests/test_api.py`
+- `memory-bank/deployment-runbook-ubuntu-2404.md`
+
+#### 验证命令
+
+```powershell
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q tests/test_services.py -k "phase11e or legacy_task_migration" --tb=short
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q tests/test_api.py -k "phase11e or legacy_task_migration" --tb=short
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall app tests
+```
+
+#### 阶段出口
+
+1. docs-only commit 已完成，迁移合同不再变动。
+2. dry-run 能输出迁移计划与批次摘要，真实迁移可重跑且不重复创建 graph 记录。
+3. rollback 仅清理 graph 侧新记录，不破坏原任务数据。
+4. runbook 已能指导 Ubuntu 主机上的迁移演练。
 
 ---
 
 ### 16.8 Phase 11-F / 默认路径切流
 
-**完成状态：not_started**
+**完成状态：in_progress（2026-05-06，已完成 docs gate）**
 
 #### 目标
 
-将默认创建路径与任务中心读取路径切换到新引擎，旧链路 feature flag 仅作紧急回退。
+将默认创建路径与任务中心读取路径切换到新引擎，并采用“graph-first with legacy fallback”完成首轮切流，旧链路 feature flag 仅作紧急回退。
+
+#### 当前已确认前提
+
+1. 11-F 不在 11-E 之前启动代码实施；只有 11-E 的迁移 / 回滚工具与抽样校验通过后，才允许切默认读取路径。
+2. 当前 `TaskCenterService.get_task_center()` 仍聚合 `TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 的兼容 `Task` 投影结果；11-F 的直接控制面是这三个列表方法，而不是前端页面自身。
+3. `WORKFLOW_GRAPH_ENGINE_ENABLED` 当前已是手动创建图任务的主开关；`TASK_CENTER_V2_ENABLED` 在 11-F 首轮仍保留，作为读侧紧急回退开关至少 30 天。
 
 #### 本阶段改动
 
-1. 更新 `.env.example` 与 `.env.prod.example`：`WORKFLOW_GRAPH_ENGINE_ENABLED=true` 作为默认值显式注明。
-2. `TaskCenterService` 读取路径优先从 `WorkflowNodeInstance` 投影。
-3. 确认任务列表、详情、评论、日志、附件、模板实例化均在新链路完整覆盖。
-4. 保留 `TASK_CENTER_V2_ENABLED` 作为紧急回退开关至少 30 天。
+1. 写侧切流：以 `TaskService.create_task_record()` 与 `_workflow_graph_engine_enabled()` 为主锚点，明确 manual task 默认走 graph 实例创建；旧创建路径只在显式关闭开关时保留为 fallback。
+2. 读侧切流：以 `TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 和 `TaskCenterService.get_task_center()` 为主入口，先实现 graph-first 投影，再对缺失 graph 锚点的数据回退到兼容 `Task` 投影，避免切流初期任务中心出现空洞。
+3. 配置切流：更新 `backend/.env.example`、`backend/.env.production.example`、`infra/docker/.env.prod.example`，把 `WORKFLOW_GRAPH_ENGINE_ENABLED=true` 的默认口径与 `TASK_CENTER_V2_ENABLED` 的回退语义写清；如生产 compose 依赖显式透传，则同步更新 `infra/docker/docker-compose.prod.yml`。
+4. 协议覆盖：确认任务列表、详情、评论、日志、附件、模板实例化在 graph-first 读取下仍完整可用；对仍依赖兼容 `Task.extra_metadata` 的链路保留过渡层，而不是首轮直接删除。
+5. 回退窗口：`TASK_CENTER_V2_ENABLED` 至少保留 30 天，直到 11-G 全量回归与生产近似演练完成后再评估是否移除。
 
 #### 主要涉及文件
 
 - `backend/.env.example`
+- `backend/.env.production.example`
 - `infra/docker/.env.prod.example`
+- `infra/docker/docker-compose.prod.yml`
 - `backend/app/services/task_center_service.py`
 - `backend/app/services/task_service.py`
+
+#### 验证命令
+
+```powershell
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q tests/test_services.py -k "phase11f or graph_first_task_center" --tb=short
+d:/Repos/FilumReforge/.venv/Scripts/python.exe -m pytest -q tests/test_api.py -k "phase11f or graph_first_task_center" --tb=short
+Set-Location d:/Repos/FilumReforge/frontend; npm run test:unit -- --run tests/TaskCenterView.spec.ts tests/TasksView.spec.ts
+Set-Location d:/Repos/FilumReforge/frontend; npm run type-check
+Set-Location d:/Repos/FilumReforge/frontend; npm run build
+```
+
+#### 阶段出口
+
+1. 新建 manual task 默认走 graph 链路，且关闭回退开关后不再依赖旧创建路径。
+2. 任务中心默认优先命中 graph runtime 投影，legacy fallback 只处理迁移遗漏或显式回退场景。
+3. 前后端定向回归通过，graph-first 切流不会破坏任务中心、任务详情和责任链展示。
 
 ---
 
