@@ -522,7 +522,7 @@
 | 11-B | Takeover（管理员接管节点） | 管理员可强制接管任意节点实例，写审计日志，通知原执行人 | done |
 | 11-C | Outbox Pattern 可靠投递 | 启用 workflow_outbox_events 消费 worker，实现节点事件异步补偿 | done |
 | 11-D | 幂等与并发防御加固 | 补齐节点重复提交、Wait-All 双激活、Wait-Any 双提交的防御边界 | done |
-| 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | in_progress |
+| 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | done |
 | 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | in_progress |
 | 11-G | 文档收口与全量回归 | 更新 architecture.md / progress.md / README，执行全量回归与生产近似部署演练 | not_started |
 
@@ -677,7 +677,7 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall app tests
 
 ### 16.7 Phase 11-E / 旧数据迁移脚本
 
-**完成状态：in_progress（2026-05-06，已完成 docs gate）**
+**完成状态：done（2026-05-06）**
 
 #### 目标
 
@@ -721,6 +721,18 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall app tests
 2. dry-run 能输出迁移计划与批次摘要，真实迁移可重跑且不重复创建 graph 记录。
 3. rollback 仅清理 graph 侧新记录，不破坏原任务数据。
 4. runbook 已能指导 Ubuntu 主机上的迁移演练。
+
+#### 当前已完成子项（2026-05-06）
+
+1. 新增 `LegacyTaskGraphMigrationService`，以旧 `Task` 为主扫描源，并覆盖带 `template_step_run_id` 的历史模板任务；首轮优先复用 `WorkflowGraphInstance.source_type/source_id` 作为迁移/回滚锚点，不新增 schema。
+2. 新增 `backend/app/scripts/migrate_legacy_tasks_to_graph.py`，支持 `--batch-id`、`--limit` 与 `--dry-run`，输出扫描量、可迁移量、已迁移量与批次内任务列表。
+3. 新增 `backend/app/scripts/rollback_legacy_task_migration.py`，可按 `batch_id` 清理 graph 侧实例 / 节点 / 交付物，并回收写回到 `Task.extra_metadata` 的 graph 锚点。
+4. 迁移逻辑已把旧任务的 `status`、`template_instance_id`、`template_step_run_id`、交付物摘要 / 待验收状态等信息投影到 graph runtime，并为带历史交付信息的任务创建 `WorkflowDeliverable` 快照。
+5. Ubuntu runbook 已补齐备份、dry-run、正式执行、抽样核对与 rollback 命令，可直接作为 11-F 切流前的数据迁移手册。
+
+#### 验证结论
+
+新增 11-E 服务级回归 2 passed：覆盖 dry-run 不落库、真实迁移写入 graph/runtime 锚点、待验收任务生成 `WorkflowDeliverable` 快照，以及按批次 rollback 后清理 graph 记录并恢复 `Task.extra_metadata`。`python -m compileall app tests` 通过。
 
 ---
 

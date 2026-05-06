@@ -191,6 +191,7 @@ POSTGRES_DSN=postgresql+asyncpg://${FILUM_DB_USER}:${FILUM_DB_PASSWORD}@127.0.0.
 REDIS_DSN=redis://127.0.0.1:6379/0
 JWT_SECRET_KEY=${FILUM_JWT_SECRET}
 CORS_ALLOWED_ORIGINS=https://app.example.com
+FRONTEND_APP_URL=https://${FILUM_DOMAIN}
 STORAGE_PROVIDER=local
 STORAGE_BUCKET=filum-prod
 STORAGE_BASE_PATH=${FILUM_ROOT}/data/storage
@@ -220,6 +221,7 @@ EOF"
 
 - `backend` 和 `worker` 必须共用同一份 `.env`
 - `STORAGE_BASE_PATH` 必须对 `backend` 和 `worker` 都可读写
+- `FRONTEND_APP_URL` 必须指向真实前端访问域名；邀请注册链接、后续用户跳转链接都依赖它生成，不能保留为 `http://localhost:5173`
 - 当前会话模型为“前端内存态 access token + HttpOnly refresh cookie”；若前后端跨站点部署，需要显式配置 `CORS_ALLOWED_ORIGINS`，并按域名 / SameSite 策略调整 `AUTH_REFRESH_COOKIE_*`
 - 若采用同域名 Nginx 反代 `/api/` 的部署方式，默认 `AUTH_REFRESH_COOKIE_SAMESITE=strict` 即可；若采用跨站点前后端分离，需要把 `AUTH_REFRESH_COOKIE_SAMESITE` 调整为 `none` 且同时启用 `AUTH_REFRESH_COOKIE_SECURE=true`
 - 不启用 AI 或 Web Push 时，对应配置可以留空
@@ -257,6 +259,48 @@ sudo -u "$FILUM_USER" -H bash -lc '
 cd /srv/filum/backend
 source .venv/bin/activate
 alembic upgrade head
+'
+```
+
+### 11.1 如需执行 Phase 11-E 旧任务迁移
+
+如果本轮发布包含 Phase 11-E 的旧任务迁移，推荐顺序是：先备份数据库，先跑一次 dry-run，再执行正式迁移，最后抽样核对；不要跳过 dry-run。
+
+```bash
+sudo -u postgres pg_dump -Fc <your_db_name> > /srv/filum/backups/filum-$(date +%Y%m%d%H%M%S).dump
+```
+
+```bash
+sudo -u "$FILUM_USER" -H bash -lc '
+cd /srv/filum/backend
+source .venv/bin/activate
+python -m app.scripts.migrate_legacy_tasks_to_graph --batch-id phase11e-$(date +%Y%m%d%H%M%S) --dry-run
+'
+```
+
+确认 dry-run 输出的 `eligible`、`task_ids` 与预期一致后，再执行正式迁移：
+
+```bash
+sudo -u "$FILUM_USER" -H bash -lc '
+cd /srv/filum/backend
+source .venv/bin/activate
+python -m app.scripts.migrate_legacy_tasks_to_graph --batch-id <same-batch-id>
+'
+```
+
+迁移后至少抽样核对一批历史任务：
+
+- `tasks.metadata` 已写入 `workflow_graph_instance_id` / `workflow_node_instance_id`
+- `workflow_graph_instances.source_id` 能回指到原 `tasks.id`
+- 待验收历史任务已补出 `workflow_deliverables`
+
+如果迁移结果不符合预期，先停止继续发布，按同一批次标识执行 rollback：
+
+```bash
+sudo -u "$FILUM_USER" -H bash -lc '
+cd /srv/filum/backend
+source .venv/bin/activate
+python -m app.scripts.rollback_legacy_task_migration --batch-id <same-batch-id>
 '
 ```
 
@@ -611,6 +655,8 @@ pip install -e .
 alembic upgrade head
 '
 ```
+
+如果本轮包含 11-E 旧任务迁移，在这里插入上一节的 dry-run / 正式迁移 / 抽样核对步骤，再继续前端构建与服务重启。
 
 如果本轮后端依赖有变化，`pip install -e .` 不能省略。
 

@@ -73,6 +73,7 @@
 - 工作流重构 Phase 10 前端化：`frontend/src/api/workflow-graph.ts` 新增 `getWorkflowGraphInstance`；`frontend/src/types/api.ts` 补充 `WorkflowGraphInstanceDetail` / `WorkflowNodeInstanceSummary` 等图引擎 TS 类型；`TasksView` 打开图任务详情时 fetch 图实例并渲染节点板块列表（标题 / engine_state 标签 / V{n} 角标 / 耗时）；`TaskTemplatesView` 新增出口路由规则编辑器（IF 条件规则 + ELSE 兜底，保存时强制校验 ELSE 存在），并在 `join_mode=any` 步骤保存前弹确认提示；`TaskCenterView` 任务跟踪表格新增逾期标签（due_date < now && status != done）与催办按钮（写入系统催办评论）
 - 工作流重构 Phase 11-A / routing_rules 旧系统桥接：新建 `backend/app/services/condition_evaluator.py` 作为两套工作流系统（图引擎 + 旧模板系统）共享的条件求值模块，提供 `is_else_condition` / `evaluate_condition` / `evaluate_routing_rules` 函数，支持 `eq/neq/gt/gte/lt/lte/in/not_in/contains/exists` 与嵌套 `all/any`；`WorkflowGraphService` 的内联条件求值方法全部迁移至该模块；`TaskService._activate_ready_template_steps` 新增 `_routing_rules_allow_step_activation` 静态方法，当上游 `TaskTemplateStep.config.routing_rules` 存在时以 `instance.payload` 作为上下文评估条件，仅激活命中目标的下游步骤；无规则时保持完全向后兼容
 - 工作流重构 Phase 11-B/11-C/11-D（已完成）：`WorkflowGraphService` 新增 `takeover_node_instance()`（管理员接管节点、写 takeover 审计信息），并引入 `_write_outbox_event()` 在事务内写入 `workflow_outbox_events`；新增 `backend/app/workers/workflow_outbox_worker.py` 消费 outbox 事件，`backend/app/workers/arq_worker.py` 已注册 30 秒定时任务 `process_workflow_outbox_events_job`，对 `PENDING/RETRYING` 事件执行异步投递与指数退避重试，超上限置 `FAILED`；11-D 已补 graph 写接口事务提交、管理员接管后的手动 `Task` 投影同步（执行人 / 握手标签 / 任务中心入口）、`TaskService` 对失效 graph 节点的 accept / reject / delegate 守卫、`complete_node_instance()` 对 `COMPLETED` 重放的幂等返回与对 `TERMINATED` 迟到提交的 409 拦截，以及 Wait-All / Wait-Any 重放、stale deep-reject、complete API 重放稳定快照的回归覆盖；生产环境 `FRONTEND_APP_URL` 也已改为必填，避免邀请注册链接回落到 localhost
+- 工作流重构 Phase 11-E（已完成）：新增 `backend/app/services/legacy_task_graph_migration_service.py`、`backend/app/scripts/migrate_legacy_tasks_to_graph.py` 与 `backend/app/scripts/rollback_legacy_task_migration.py`，可按批次把旧 `Task`（含带 `template_step_run_id` 的历史模板任务）迁为单节点 graph instance / node instance，并支持 `--dry-run`、交付物快照回填、metadata 锚点写回与按批次 rollback；默认读取侧仍未切到 graph runtime，11-F 继续承担 graph-first 切流
 - 汇报中心：向上汇报、向下传达、逐级流转、历史归档与可选审批挂接
 - 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
 - 任务完成率 / 逾期率 / 负载统计
@@ -239,6 +240,7 @@
 | `backend/app/services/workflow_rule_resolver.py` | 模板与审批流共用的 assignee rule 解析器 |
 | `backend/app/services/task_template_service.py` | 模板 CRUD、步骤替换与模板实例化 |
 | `backend/app/services/task_center_service.py` | 任务中心聚合服务；当前通过 `TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 聚合兼容 `Task` 投影，输出模板摘要、发布范围、待办、跟踪、历史与备忘 |
+| `backend/app/services/legacy_task_graph_migration_service.py` | Phase 11-E 旧任务迁移服务：负责 dry-run、批次迁移、graph 锚点写回、交付物快照补建与 rollback |
 | `backend/app/services/task_memo_service.py` | 个人备忘 CRUD 与关联任务校验 |
 | `backend/app/models/report.py` | 汇报中心领域模型：`reports`、`report_routes` |
 | `backend/app/services/report_service.py` | 汇报生命周期服务，处理逐级流转、代理委托、归档与审批挂接 |
@@ -286,6 +288,8 @@
 | `backend/alembic/versions/20260422_01_template_runtime.py` | 工作流 E 模板运行态迁移，新增 template instances / step runs 与 task 回链 |
 | `backend/alembic/versions/20260429_04_workflow_graph_core.py` | 工作流重构 Phase 2 图引擎核心迁移，新增 graph templates / nodes / edges、instances、node instances、deliverables 与 outbox events |
 | `backend/app/scripts/seed_sample_data.py` | 测试组织与 demo 账号初始化脚本 |
+| `backend/app/scripts/migrate_legacy_tasks_to_graph.py` | Phase 11-E 旧任务迁移 CLI，支持 `--batch-id`、`--limit`、`--dry-run` |
+| `backend/app/scripts/rollback_legacy_task_migration.py` | Phase 11-E 迁移回滚 CLI，按 `batch_id` 清理 graph 侧记录并恢复任务 metadata |
 
 ### 5.3 frontend 当前热点文件
 

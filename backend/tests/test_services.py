@@ -28,6 +28,7 @@ from app.core.enums import (
   NotificationMessageStatus,
   NotificationReceiptType,
   TaskPriority,
+  TaskSourceType,
   PushSubscriptionStatus,
   PositionAssignmentType,
   ReportingLineType,
@@ -53,6 +54,7 @@ from app.models import (
   WorkflowDeliverable,
   TaskLog,
   TaskTemplate,
+  TaskTemplateStep,
   TaskTemplateInstance,
   TaskTemplateStepRun,
   User,
@@ -72,6 +74,7 @@ from app.services.department_service import DepartmentService
 from app.services.document_service import DocumentService
 from app.services.hr_lifecycle_service import HRLifecycleService, PROCESS_EMPLOYMENT_EVENT_JOB
 from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
+from app.services.legacy_task_graph_migration_service import LegacyTaskGraphMigrationService
 from app.services.llm_router_service import LLMRouterService
 from app.services.message_center_service import MessageCenterService
 from app.services.notification_service import NotificationService
@@ -168,6 +171,73 @@ class FakeRouterOpenAIClient(FakeOpenAIClient):
 
 
 TEST_JWT_SECRET = "test-secret-key-with-32-bytes-minimum!!"
+
+
+async def _create_legacy_template_backed_task(*, db_session, admin: User, assignee: User) -> Task:
+  template = TaskTemplate(
+    code="legacy-template",
+    base_code="legacy-template",
+    version=1,
+    name="旧模板任务",
+    category="ops",
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  step = TaskTemplateStep(
+    template_id=template.id,
+    step_key="step-1",
+    title="历史步骤",
+    default_assignee_rule={},
+    sort_order=1,
+  )
+  db_session.add(step)
+  await db_session.flush()
+
+  template_instance = TaskTemplateInstance(
+    template_id=template.id,
+    initiator_user_id=admin.id,
+    department_id=None,
+    status="in_progress",
+    payload={"legacy": True},
+  )
+  db_session.add(template_instance)
+  await db_session.flush()
+
+  step_run = TaskTemplateStepRun(
+    instance_id=template_instance.id,
+    template_step_id=step.id,
+    assignee_user_id=assignee.id,
+    status="completed",
+    completed_at=datetime.now(UTC),
+  )
+  db_session.add(step_run)
+  await db_session.flush()
+
+  task = Task(
+    title="旧模板步骤任务",
+    description="历史模板运行态任务",
+    creator_id=admin.id,
+    assignee_id=assignee.id,
+    template_instance_id=template_instance.id,
+    template_step_run_id=step_run.id,
+    source_type=TaskSourceType.TEMPLATE,
+    status=TaskStatus.REVIEW,
+    priority=TaskPriority.HIGH,
+    extra_metadata={
+      "template_instance_id": str(template_instance.id),
+      "template_step_run_id": str(step_run.id),
+      "latest_deliverable_summary": "历史交付说明",
+      "latest_deliverable_attachment_ids": [],
+      "latest_deliverable_submitted_at": datetime.now(UTC).isoformat(),
+      "latest_deliverable_submitted_by_user_id": str(assignee.id),
+      "latest_review_state": "pending_review",
+    },
+  )
+  db_session.add(task)
+  await db_session.flush()
+  return task
 
 
 @pytest.mark.asyncio
@@ -4120,6 +4190,84 @@ async def test_phase6_wait_all_join(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_phase11d_wait_all_join_replay_keeps_single_downstream_activation(db_session) -> None:
+  """Wait-All 最后一个上游重复提交时，下游节点不能被再次激活或重复改版本。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase11d-wait-all-replay",
+    base_code="phase11d-wait-all-replay",
+    version=1,
+    name="Phase 11-D Wait-All 重放测试",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  node_d = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-d",
+    title="汇聚节点 D",
+    sort_order=4,
+    join_mode="all",
+  )
+  db_session.add_all([node_a, node_b, node_c, node_d])
+  await db_session.flush()
+
+  db_session.add_all([
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_c.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_b.id, to_node_id=node_d.id),
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_c.id, to_node_id=node_d.id),
+  ])
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+
+  instance = result.instance
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+  ni_d = next(ni for ni in result.node_instances if ni.node_key == "node-d")
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await wg_service.complete_node_instance(node_instance_id=ni_b.id, actor_id=admin.id)
+  await wg_service.complete_node_instance(node_instance_id=ni_c.id, actor_id=admin.id)
+  await db_session.refresh(ni_d)
+  await db_session.refresh(instance)
+
+  first_downstream_version = ni_d.node_instance_version
+  first_activated_at = ni_d.activated_at
+
+  await wg_service.complete_node_instance(node_instance_id=ni_c.id, actor_id=admin.id)
+  await db_session.refresh(ni_d)
+  await db_session.refresh(instance)
+
+  assert ni_d.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_d.node_instance_version == first_downstream_version
+  assert ni_d.activated_at == first_activated_at
+  assert instance.current_node_key == "node-d"
+
+
+@pytest.mark.asyncio
 async def test_phase6_instance_completion_marks_graph_done(db_session) -> None:
   """单节点图（无出边叶节点）完成后，实例状态直接变为 COMPLETED。"""
   from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode
@@ -4415,6 +4563,89 @@ async def test_phase8_wait_any_activates_downstream_and_terminates_peer_nodes(db
 
   assert instance.status == WorkflowGraphInstanceStatus.COMPLETED
   assert instance.current_node_key is None
+
+
+@pytest.mark.asyncio
+async def test_phase11d_wait_any_replay_keeps_single_downstream_activation(db_session) -> None:
+  """Wait-Any 获胜上游重复提交时，下游节点和输家节点版本都应保持稳定。"""
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase11d-wait-any-replay",
+    base_code="phase11d-wait-any-replay",
+    version=1,
+    name="Phase 11-D Wait-Any 重放测试",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  node_c = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-c", title="节点 C", sort_order=3)
+  node_d = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-d",
+    title="汇聚节点 D",
+    sort_order=4,
+    join_mode="any",
+  )
+  db_session.add_all([node_a, node_b, node_c, node_d])
+  await db_session.flush()
+
+  db_session.add_all(
+    [
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id),
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_c.id),
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_b.id, to_node_id=node_d.id),
+      WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_c.id, to_node_id=node_d.id),
+    ]
+  )
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(template_id=template.id, initiator_id=admin.id)
+
+  instance = result.instance
+  ni_a = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  ni_b = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+  ni_c = next(ni for ni in result.node_instances if ni.node_key == "node-c")
+  ni_d = next(ni for ni in result.node_instances if ni.node_key == "node-d")
+
+  await wg_service.complete_node_instance(node_instance_id=ni_a.id, actor_id=admin.id)
+  await wg_service.complete_node_instance(node_instance_id=ni_b.id, actor_id=admin.id)
+  await db_session.refresh(ni_c)
+  await db_session.refresh(ni_d)
+  await db_session.refresh(instance)
+
+  first_downstream_version = ni_d.node_instance_version
+  first_downstream_activated_at = ni_d.activated_at
+  first_loser_version = ni_c.node_instance_version
+  first_loser_terminated_at = ni_c.terminated_at
+
+  await wg_service.complete_node_instance(node_instance_id=ni_b.id, actor_id=admin.id)
+  await db_session.refresh(ni_c)
+  await db_session.refresh(ni_d)
+  await db_session.refresh(instance)
+
+  assert ni_d.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert ni_d.node_instance_version == first_downstream_version
+  assert ni_d.activated_at == first_downstream_activated_at
+  assert ni_c.engine_state == WorkflowNodeEngineState.TERMINATED
+  assert ni_c.node_instance_version == first_loser_version
+  assert ni_c.terminated_at == first_loser_terminated_at
+  assert instance.current_node_key == "node-d"
 
 
 @pytest.mark.asyncio
@@ -5373,3 +5604,554 @@ async def test_phase11b_takeover_node_instance_requires_admin_role(db_session) -
       assignee_id=next_assignee.id,
       reason="越权接管",
     )
+
+
+@pytest.mark.asyncio
+async def test_phase11d_takeover_syncs_manual_task_projection_for_new_assignee(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    workflow_graph_engine_enabled=True,
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  workflow_graph_service = WorkflowGraphService(db_session)
+  task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=settings,
+    workflow_graph_service=workflow_graph_service,
+  )
+
+  previous_assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11d-old@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  next_assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11d-new@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=previous_assignee.id,
+    employee_no="EMP-011D-OLD",
+    real_name="原执行人",
+    department_id=admin_profile.department_id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=next_assignee.id,
+    employee_no="EMP-011D-NEW",
+    real_name="新执行人",
+    department_id=admin_profile.department_id,
+  )
+
+  task = await task_service.create_task(
+    actor=admin,
+    title="待管理员接管的图任务",
+    assignee_id=previous_assignee.id,
+  )
+  instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  )
+  assert instance is not None
+  node_instance = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance.id)
+  )
+  assert node_instance is not None
+
+  await workflow_graph_service.takeover_node_instance(
+    node_instance_id=node_instance.id,
+    actor_id=admin.id,
+    actor_role=UserRole.ADMIN,
+    assignee_id=next_assignee.id,
+    reason="原执行人离岗",
+  )
+  await db_session.refresh(task)
+
+  previous_inbox = await task_service.list_task_inbox(actor=previous_assignee)
+  next_inbox = await task_service.list_task_inbox(actor=next_assignee)
+
+  assert task.assignee_id == next_assignee.id
+  assert task.status == TaskStatus.TODO
+  assert task.extra_metadata["workflow_handshake_state"] == "assigned"
+  assert task.extra_metadata["latest_handshake_action"] == "takeover"
+  assert task.extra_metadata["latest_takeover_reason"] == "原执行人离岗"
+  assert all(entry.task_id != task.id for entry in previous_inbox)
+  assert any(
+    entry.task_id == task.id and entry.current_stage_label == "任务：管理员接管待确认"
+    for entry in next_inbox
+  )
+
+
+@pytest.mark.asyncio
+async def test_phase11d_delegate_blocks_when_graph_node_is_terminated(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    workflow_graph_engine_enabled=True,
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=settings,
+    workflow_graph_service=WorkflowGraphService(db_session),
+  )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="phase11d-terminated-owner@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  delegate_target = await user_service.create_user(
+    actor=admin,
+    email="phase11d-terminated-delegate@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  for user_id, employee_no, real_name in [
+    (employee.id, "EMP-011D-T1", "原执行人"),
+    (delegate_target.id, "EMP-011D-T2", "新执行人"),
+  ]:
+    await profile_service.create_profile(
+      actor=admin,
+      user_id=user_id,
+      employee_no=employee_no,
+      real_name=real_name,
+      department_id=admin_profile.department_id,
+    )
+
+  task = await task_service.create_task(
+    actor=admin,
+    title="已失效图节点的手动任务",
+    assignee_id=employee.id,
+  )
+  instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  )
+  assert instance is not None
+  node_instance = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance.id)
+  )
+  assert node_instance is not None
+
+  node_instance.engine_state = WorkflowNodeEngineState.TERMINATED
+  node_instance.business_state = WorkflowNodeBusinessState.CANCELLED
+  node_instance.terminated_at = datetime.now(UTC)
+  await db_session.flush()
+
+  with pytest.raises(ConflictError, match="图节点已失效"):
+    await task_service.delegate_task_assignment(
+      actor=employee,
+      task_id=task.id,
+      assignee_id=delegate_target.id,
+      reason="尝试复活失效节点",
+    )
+
+
+@pytest.mark.asyncio
+async def test_phase11d_accept_blocks_when_graph_node_is_terminated(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    workflow_graph_engine_enabled=True,
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=settings,
+    workflow_graph_service=WorkflowGraphService(db_session),
+  )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="phase11d-accept-owner@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-011D-A1",
+    real_name="待确认执行人",
+    department_id=admin_profile.department_id,
+  )
+
+  task = await task_service.create_task(
+    actor=admin,
+    title="已失效图节点的待确认任务",
+    assignee_id=employee.id,
+  )
+  instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  )
+  assert instance is not None
+  node_instance = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance.id)
+  )
+  assert node_instance is not None
+
+  node_instance.engine_state = WorkflowNodeEngineState.TERMINATED
+  node_instance.business_state = WorkflowNodeBusinessState.CANCELLED
+  node_instance.terminated_at = datetime.now(UTC)
+  await db_session.flush()
+
+  with pytest.raises(ConflictError, match="图节点已失效"):
+    await task_service.accept_task_assignment(
+      actor=employee,
+      task_id=task.id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_phase11d_reject_blocks_when_graph_instance_is_completed(db_session) -> None:
+  settings = Settings(
+    jwt_secret_key=TEST_JWT_SECRET,
+    workflow_graph_engine_enabled=True,
+  )
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=settings,
+    workflow_graph_service=WorkflowGraphService(db_session),
+  )
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="phase11d-reject-owner@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-011D-R1",
+    real_name="待协商执行人",
+    department_id=admin_profile.department_id,
+  )
+
+  task = await task_service.create_task(
+    actor=admin,
+    title="实例已结束的图任务",
+    assignee_id=employee.id,
+  )
+  instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  )
+  assert instance is not None
+
+  instance.status = WorkflowGraphInstanceStatus.COMPLETED
+  instance.completed_at = datetime.now(UTC)
+  instance.current_node_key = None
+  await db_session.flush()
+
+  with pytest.raises(ConflictError, match="图实例已结束"):
+    await task_service.reject_task_assignment(
+      actor=employee,
+      task_id=task.id,
+      reason="实例已结束后不应允许协商",
+    )
+
+
+@pytest.mark.asyncio
+async def test_phase11d_takeover_blocks_when_node_is_completed(db_session) -> None:
+  from app.core.enums import WorkflowGraphTemplateStatus
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  user_service = UserService(db_session)
+  previous_assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11d-takeover-old@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  next_assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11d-takeover-new@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase11d-takeover-completed",
+    base_code="phase11d-takeover-completed",
+    version=1,
+    name="Phase11D 接管失效节点测试模板",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node = WorkflowGraphTemplateNode(
+    template_id=template.id,
+    node_key="node-a",
+    title="已结束节点",
+    sort_order=1,
+  )
+  db_session.add(node)
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(
+    template_id=template.id,
+    initiator_id=admin.id,
+  )
+  node_instance = result.node_instances[0]
+  node_instance.assignee_user_id = previous_assignee.id
+  node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
+  node_instance.business_state = WorkflowNodeBusinessState.DONE
+  node_instance.completed_at = datetime.now(UTC)
+  await db_session.flush()
+
+  with pytest.raises(ConflictError, match="ACTIVATED/ACKNOWLEDGED"):
+    await wg_service.takeover_node_instance(
+      node_instance_id=node_instance.id,
+      actor_id=admin.id,
+      actor_role=UserRole.ADMIN,
+      assignee_id=next_assignee.id,
+      reason="尝试接管已结束节点",
+    )
+
+
+@pytest.mark.asyncio
+async def test_phase11d_deep_reject_blocks_replay_from_stale_node_after_clone(db_session) -> None:
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  template = WorkflowGraphTemplate(
+    code="phase11d-deep-reject-replay-block",
+    base_code="phase11d-deep-reject-replay-block",
+    version=1,
+    name="Phase 11-D 深度打回重放阻断测试",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=admin.id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+
+  node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+  node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+  db_session.add_all([node_a, node_b])
+  await db_session.flush()
+
+  db_session.add(
+    WorkflowGraphTemplateEdge(template_id=template.id, from_node_id=node_a.id, to_node_id=node_b.id)
+  )
+  await db_session.flush()
+
+  wg_service = WorkflowGraphService(db_session)
+  result = await wg_service.create_multi_node_instance(template_id=template.id, initiator_id=admin.id)
+  node_a_instance = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+  node_b_instance = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+
+  await wg_service.complete_node_instance(node_instance_id=node_a_instance.id, actor_id=admin.id)
+  await wg_service.deep_reject_to_upstream(
+    node_instance_id=node_b_instance.id,
+    actor_id=admin.id,
+    target_node_key="node-a",
+    reason="第一次深度打回",
+  )
+
+  with pytest.raises(ConflictError, match="ACTIVATED/ACKNOWLEDGED"):
+    await wg_service.deep_reject_to_upstream(
+      node_instance_id=node_b_instance.id,
+      actor_id=admin.id,
+      target_node_key="node-a",
+      reason="旧节点不应允许再次深度打回",
+    )
+
+
+@pytest.mark.asyncio
+async def test_phase11e_migrate_legacy_tasks_creates_graph_projection_and_deliverable_snapshot(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  user_service = UserService(db_session)
+  assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11e-owner@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  manual_task = Task(
+    title="历史手动任务",
+    description="未接入 graph 的旧任务",
+    creator_id=admin.id,
+    assignee_id=assignee.id,
+    source_type=TaskSourceType.MANUAL,
+    status=TaskStatus.TODO,
+    priority=TaskPriority.MEDIUM,
+    extra_metadata={},
+  )
+  db_session.add(manual_task)
+  await db_session.flush()
+
+  template_task = await _create_legacy_template_backed_task(
+    db_session=db_session,
+    admin=admin,
+    assignee=assignee,
+  )
+
+  service = LegacyTaskGraphMigrationService(db_session)
+  dry_run_result = await service.migrate_tasks(batch_id="phase11e-dry-run", dry_run=True)
+  assert dry_run_result.eligible_count == 2
+  assert dry_run_result.migrated_count == 0
+  assert await db_session.scalar(select(func.count(WorkflowGraphInstance.id))) == 0
+
+  result = await service.migrate_tasks(batch_id="phase11e-batch")
+  await db_session.flush()
+
+  assert result.migrated_count == 2
+  assert result.deliverable_count == 1
+
+  manual_instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == manual_task.id)
+  )
+  assert manual_instance is not None
+  manual_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == manual_instance.id)
+  )
+  assert manual_node is not None
+  assert manual_node.engine_state == WorkflowNodeEngineState.ACKNOWLEDGED
+  assert manual_node.business_state == WorkflowNodeBusinessState.ACCEPTED
+  assert manual_task.extra_metadata["workflow_graph_instance_id"] == str(manual_instance.id)
+  assert manual_task.extra_metadata["legacy_graph_migration_batch_id"] == "phase11e-batch"
+
+  template_instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == template_task.id)
+  )
+  assert template_instance is not None
+  template_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == template_instance.id)
+  )
+  assert template_node is not None
+  assert template_node.business_state == WorkflowNodeBusinessState.PENDING_REVIEW
+  assert template_node.config["template_step_run_id"] == str(template_task.template_step_run_id)
+
+  deliverable = await db_session.scalar(
+    select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == template_node.id)
+  )
+  assert deliverable is not None
+  assert deliverable.summary == "历史交付说明"
+  assert deliverable.payload["latest_review"]["action"] == "pending_review"
+
+
+@pytest.mark.asyncio
+async def test_phase11e_rollback_removes_graph_projection_and_restores_task_metadata(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  user_service = UserService(db_session)
+  assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11e-rollback@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  task = Task(
+    title="待回滚的旧任务",
+    description="用于验证 rollback",
+    creator_id=admin.id,
+    assignee_id=assignee.id,
+    source_type=TaskSourceType.MANUAL,
+    status=TaskStatus.DOING,
+    priority=TaskPriority.HIGH,
+    extra_metadata={},
+  )
+  db_session.add(task)
+  await db_session.flush()
+
+  service = LegacyTaskGraphMigrationService(db_session)
+  migrate_result = await service.migrate_tasks(batch_id="phase11e-rollback-batch")
+  assert migrate_result.migrated_count == 1
+
+  rollback_preview = await service.rollback_batch(batch_id="phase11e-rollback-batch", dry_run=True)
+  assert rollback_preview.matched_instance_count == 1
+  assert rollback_preview.deleted_instance_count == 0
+
+  rollback_result = await service.rollback_batch(batch_id="phase11e-rollback-batch")
+  await db_session.flush()
+
+  assert rollback_result.deleted_instance_count == 1
+  assert rollback_result.restored_task_count == 1
+  assert await db_session.scalar(select(func.count(WorkflowGraphInstance.id))) == 0
+
+  await db_session.refresh(task)
+  assert "workflow_graph_instance_id" not in task.extra_metadata
+  assert "workflow_node_instance_id" not in task.extra_metadata
+  assert "legacy_graph_migration_batch_id" not in task.extra_metadata
