@@ -6155,3 +6155,127 @@ async def test_phase11e_rollback_removes_graph_projection_and_restores_task_meta
   assert "workflow_graph_instance_id" not in task.extra_metadata
   assert "workflow_node_instance_id" not in task.extra_metadata
   assert "legacy_graph_migration_batch_id" not in task.extra_metadata
+
+
+@pytest.mark.asyncio
+async def test_phase11f_task_center_v2_routes_migrated_review_task_to_creator_inbox(db_session) -> None:
+  base_settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, base_settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  user_service = UserService(db_session)
+  assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11f-review-owner@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  task = await _create_legacy_template_backed_task(
+    db_session=db_session,
+    admin=admin,
+    assignee=assignee,
+  )
+  migration_service = LegacyTaskGraphMigrationService(db_session)
+  migrate_result = await migration_service.migrate_tasks(batch_id="phase11f-batch")
+  assert migrate_result.migrated_count == 1
+
+  legacy_task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=Settings(jwt_secret_key=TEST_JWT_SECRET, task_center_v2_enabled=False),
+  )
+  graph_first_task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=Settings(jwt_secret_key=TEST_JWT_SECRET, task_center_v2_enabled=True),
+  )
+
+  creator_inbox_legacy = await legacy_task_service.list_task_inbox(actor=admin)
+  assignee_inbox_legacy = await legacy_task_service.list_task_inbox(actor=assignee)
+  creator_inbox_graph = await graph_first_task_service.list_task_inbox(actor=admin)
+  assignee_inbox_graph = await graph_first_task_service.list_task_inbox(actor=assignee)
+  assignee_tracking_graph = await graph_first_task_service.list_task_tracking(actor=assignee)
+
+  assert all(entry.task_id != task.id for entry in creator_inbox_legacy)
+  assert any(entry.task_id == task.id for entry in assignee_inbox_legacy)
+  assert any(
+    entry.task_id == task.id and entry.current_stage_label == "任务：待验收"
+    for entry in creator_inbox_graph
+  )
+  assert all(entry.task_id != task.id for entry in assignee_inbox_graph)
+  tracked_item = next(item for item in assignee_tracking_graph if item.task_id == task.id)
+  assert tracked_item.current_stage_label == "任务：待验收"
+  assert tracked_item.current_handler_label == "管理员"
+  assert tracked_item.is_pending_review is True
+
+
+@pytest.mark.asyncio
+async def test_phase11f_task_center_v2_history_prefers_graph_completed_state(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  user_service = UserService(db_session)
+  assignee = await user_service.create_user(
+    actor=admin,
+    email="phase11f-history-owner@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+
+  task = await _create_legacy_template_backed_task(
+    db_session=db_session,
+    admin=admin,
+    assignee=assignee,
+  )
+  migration_service = LegacyTaskGraphMigrationService(db_session)
+  migrate_result = await migration_service.migrate_tasks(batch_id="phase11f-history-batch")
+  assert migrate_result.migrated_count == 1
+
+  instance = await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  )
+  assert instance is not None
+  node_instance = await db_session.scalar(
+    select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance.id)
+  )
+  assert node_instance is not None
+
+  completed_at = datetime.now(UTC)
+  instance.status = WorkflowGraphInstanceStatus.COMPLETED
+  instance.current_node_key = None
+  instance.completed_at = completed_at
+  node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
+  node_instance.business_state = WorkflowNodeBusinessState.DONE
+  node_instance.completed_at = completed_at
+  task.status = TaskStatus.REVIEW
+  task.completed_at = None
+  await db_session.flush()
+
+  legacy_task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=Settings(jwt_secret_key=TEST_JWT_SECRET, task_center_v2_enabled=False),
+  )
+  graph_first_task_service = TaskService(
+    db_session,
+    NotificationService(db_session, InMemoryQueuePublisher()),
+    settings=Settings(jwt_secret_key=TEST_JWT_SECRET, task_center_v2_enabled=True),
+  )
+
+  legacy_history = await legacy_task_service.list_task_history(actor=admin)
+  graph_history = await graph_first_task_service.list_task_history(actor=admin)
+
+  assert all(entry.task_id != task.id for entry in legacy_history)
+  migrated_entry = next(entry for entry in graph_history if entry.task_id == task.id)
+  assert migrated_entry.completed_at == completed_at
+  assert "流程" in migrated_entry.relation_types

@@ -784,6 +784,13 @@ git checkout <previous-good-commit>
 
 如果本轮已经执行了数据库迁移，回退前先确认这次迁移是否兼容旧代码；**不要在未确认数据兼容性的情况下直接执行 Alembic downgrade**。
 
+如果问题只集中在 11-F 的默认切流，而不是 schema 或业务数据本身，也可以先用环境变量做短期回退，再决定是否回退代码：
+
+- 只回退任务中心读侧：把 `TASK_CENTER_V2_ENABLED=false`，重启 backend。
+- 连同手动任务写侧一起回退：把 `WORKFLOW_GRAPH_ENGINE_ENABLED=false`，backend 与 worker 同步重启。
+
+这两个开关只应作为短期止血手段；确认问题后，仍应尽快回到固定 commit 或补丁版本，不要长期维持双口径漂移。
+
 ## 22. 常用排障命令
 
 ### 服务状态

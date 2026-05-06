@@ -153,6 +153,19 @@ class TaskHistoryEntry:
   source_type: TaskSourceType
 
 
+@dataclass(slots=True)
+class GraphTaskProjection:
+  task_id: UUID
+  status: TaskStatus
+  current_stage_label: str
+  current_handler_id: UUID | None
+  current_handler_label: str | None
+  latest_deliverable_submitted_at: datetime | None
+  rework_count: int
+  review_quality_score: int | None
+  completed_at: datetime | None
+
+
 ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
   TaskStatus.TODO: {TaskStatus.DOING},
   TaskStatus.DOING: {TaskStatus.REVIEW},
@@ -229,6 +242,255 @@ class TaskService:
 
   def _workflow_graph_engine_enabled(self) -> bool:
     return bool(self._settings is not None and self._settings.workflow_graph_engine_enabled)
+
+  def _task_center_v2_enabled(self) -> bool:
+    return bool(self._settings is not None and self._settings.task_center_v2_enabled)
+
+  @staticmethod
+  def _read_payload_datetime(payload: dict[str, Any], key: str) -> datetime | None:
+    raw_value = payload.get(key)
+    if not isinstance(raw_value, str) or not raw_value.strip():
+      return None
+    try:
+      return datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    except ValueError:
+      return None
+
+  @staticmethod
+  def _read_payload_int(payload: dict[str, Any], key: str) -> int | None:
+    raw_value = payload.get(key)
+    if isinstance(raw_value, bool):
+      return int(raw_value)
+    if isinstance(raw_value, int):
+      return raw_value
+    if isinstance(raw_value, str):
+      try:
+        return int(raw_value)
+      except ValueError:
+        return None
+    return None
+
+  @staticmethod
+  def _resolve_graph_task_status(
+    *,
+    instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+  ) -> TaskStatus:
+    if instance.status == WorkflowGraphInstanceStatus.COMPLETED or node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
+      return TaskStatus.DONE
+    if node_instance.business_state == WorkflowNodeBusinessState.PENDING_REVIEW:
+      return TaskStatus.REVIEW
+    if node_instance.business_state in {
+      WorkflowNodeBusinessState.DOING,
+      WorkflowNodeBusinessState.RETURNED_FOR_REWORK,
+    }:
+      return TaskStatus.DOING
+    return TaskStatus.TODO
+
+  def _build_graph_stage_label(self, *, task: Task, node_instance: WorkflowNodeInstance) -> str:
+    metadata = self._copy_task_metadata(task)
+    latest_action = self._read_str_metadata(metadata, "latest_handshake_action")
+
+    if node_instance.business_state == WorkflowNodeBusinessState.REJECTED:
+      return "任务：已拒绝待调整"
+    if node_instance.business_state == WorkflowNodeBusinessState.ASSIGNED:
+      if latest_action == "takeover":
+        return "任务：管理员接管待确认"
+      if latest_action == "delegated":
+        return "任务：已转办待确认"
+      if latest_action == "reassigned":
+        return "任务：重新派发待确认"
+      return "任务：待确认"
+    if node_instance.business_state == WorkflowNodeBusinessState.ACCEPTED:
+      return "任务：已接受待开工"
+    if node_instance.business_state == WorkflowNodeBusinessState.RETURNED_FOR_REWORK:
+      return "任务：返工中"
+    if node_instance.business_state == WorkflowNodeBusinessState.PENDING_REVIEW:
+      return "任务：待验收"
+    if node_instance.business_state == WorkflowNodeBusinessState.DONE:
+      return "任务：已完成"
+    return f"任务：{_task_status_label(self._resolve_graph_task_status(instance=node_instance.instance, node_instance=node_instance))}"
+
+  def _build_graph_projection(
+    self,
+    *,
+    task: Task,
+    instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+  ) -> GraphTaskProjection:
+    deliverable = node_instance.deliverables[0] if node_instance.deliverables else None
+    payload = dict(deliverable.payload or {}) if deliverable is not None else {}
+    latest_review = payload.get("latest_review") if isinstance(payload.get("latest_review"), dict) else {}
+
+    status = self._resolve_graph_task_status(instance=instance, node_instance=node_instance)
+    current_handler_id = task.creator_id if node_instance.business_state in {
+      WorkflowNodeBusinessState.PENDING_REVIEW,
+      WorkflowNodeBusinessState.REJECTED,
+    } else (node_instance.assignee_user_id or task.assignee_id)
+    if current_handler_id == task.creator_id:
+      current_handler_label = _user_display_label(task.creator)
+    elif current_handler_id == task.assignee_id:
+      current_handler_label = _user_display_label(task.assignee)
+    else:
+      current_handler_label = _user_display_label(task.assignee)
+
+    latest_deliverable_submitted_at = None
+    if deliverable is not None:
+      latest_deliverable_submitted_at = deliverable.submitted_at
+      if latest_deliverable_submitted_at is None and isinstance(payload.get("latest_submission"), dict):
+        latest_deliverable_submitted_at = self._read_payload_datetime(payload["latest_submission"], "submitted_at")
+
+    review_quality_score = None
+    if latest_review:
+      review_quality_score = self._read_payload_int(latest_review, "quality_score")
+    if review_quality_score is None:
+      review_quality_score = self._read_int_metadata(self._copy_task_metadata(task), "latest_review_quality_score", default=-1)
+      if review_quality_score < 0:
+        review_quality_score = None
+
+    rework_count = self._read_payload_int(payload, "rework_count")
+    if rework_count is None:
+      rework_count = self._read_int_metadata(self._copy_task_metadata(task), "rework_count")
+
+    return GraphTaskProjection(
+      task_id=task.id,
+      status=status,
+      current_stage_label=self._build_graph_stage_label(task=task, node_instance=node_instance),
+      current_handler_id=current_handler_id,
+      current_handler_label=current_handler_label,
+      latest_deliverable_submitted_at=latest_deliverable_submitted_at,
+      rework_count=rework_count,
+      review_quality_score=review_quality_score,
+      completed_at=node_instance.completed_at or instance.completed_at or task.completed_at,
+    )
+
+  def _select_graph_task_node(
+    self,
+    *,
+    task: Task,
+    instance: WorkflowGraphInstance,
+  ) -> WorkflowNodeInstance | None:
+    metadata = self._copy_task_metadata(task)
+    node_instance_id = self._read_uuid_metadata(metadata, "workflow_node_instance_id")
+    if node_instance_id is not None:
+      for node_instance in instance.node_instances:
+        if node_instance.id == node_instance_id:
+          return node_instance
+
+    active_nodes = [
+      node_instance
+      for node_instance in instance.node_instances
+      if node_instance.engine_state not in {
+        WorkflowNodeEngineState.COMPLETED,
+        WorkflowNodeEngineState.TERMINATED,
+      }
+    ]
+    if instance.current_node_key:
+      keyed_nodes = [
+        node_instance
+        for node_instance in active_nodes
+        if node_instance.node_key == instance.current_node_key
+      ]
+      if keyed_nodes:
+        keyed_nodes.sort(key=lambda node: (node.iteration, node.created_at), reverse=True)
+        return keyed_nodes[0]
+
+    if active_nodes:
+      active_nodes.sort(key=lambda node: (node.iteration, node.created_at), reverse=True)
+      return active_nodes[0]
+
+    if instance.node_instances:
+      finished_nodes = sorted(
+        instance.node_instances,
+        key=lambda node: (node.iteration, node.created_at),
+        reverse=True,
+      )
+      return finished_nodes[0]
+    return None
+
+  async def _graph_task_projection_map(self, *, tasks: list[Task]) -> dict[UUID, GraphTaskProjection]:
+    if not tasks:
+      return {}
+
+    task_map = {task.id: task for task in tasks}
+    instances = list(
+      await self._session.scalars(
+        select(WorkflowGraphInstance)
+        .options(
+          selectinload(WorkflowGraphInstance.node_instances).selectinload(WorkflowNodeInstance.deliverables)
+        )
+        .where(WorkflowGraphInstance.source_id.in_(list(task_map.keys())))
+      )
+    )
+    projections: dict[UUID, GraphTaskProjection] = {}
+    for instance in instances:
+      if instance.source_id is None:
+        continue
+      task = task_map.get(instance.source_id)
+      if task is None:
+        continue
+      node_instance = self._select_graph_task_node(task=task, instance=instance)
+      if node_instance is None:
+        continue
+      projections[task.id] = self._build_graph_projection(
+        task=task,
+        instance=instance,
+        node_instance=node_instance,
+      )
+    return projections
+
+  def _build_graph_inbox_entry(self, *, task: Task, projection: GraphTaskProjection) -> TaskInboxEntry:
+    return TaskInboxEntry(
+      task_id=task.id,
+      title=task.title,
+      priority=task.priority,
+      status=projection.status,
+      due_date=task.due_date,
+      department_name=task.department.name if task.department is not None else None,
+      current_stage_label=projection.current_stage_label,
+      current_handler_label=projection.current_handler_label,
+    )
+
+  def _build_graph_tracking_entry(
+    self,
+    *,
+    task: Task,
+    relation_types: list[str],
+    projection: GraphTaskProjection,
+  ) -> TaskTrackingEntry:
+    return TaskTrackingEntry(
+      task_id=task.id,
+      title=task.title,
+      priority=task.priority,
+      status=projection.status,
+      due_date=task.due_date,
+      department_name=task.department.name if task.department is not None else None,
+      relation_types=relation_types,
+      current_stage_label=projection.current_stage_label,
+      current_handler_label=projection.current_handler_label,
+      latest_deliverable_submitted_at=projection.latest_deliverable_submitted_at,
+      rework_count=projection.rework_count,
+      review_quality_score=projection.review_quality_score,
+      is_pending_review=projection.status == TaskStatus.REVIEW,
+    )
+
+  def _build_graph_history_entry(
+    self,
+    *,
+    task: Task,
+    relation_types: list[str],
+    projection: GraphTaskProjection,
+  ) -> TaskHistoryEntry:
+    return TaskHistoryEntry(
+      task_id=task.id,
+      title=task.title,
+      priority=task.priority,
+      due_date=task.due_date,
+      completed_at=projection.completed_at,
+      department_name=task.department.name if task.department is not None else None,
+      relation_types=relation_types,
+      source_type=task.source_type,
+    )
 
   async def _create_single_node_workflow_projection(
     self,
@@ -1164,6 +1426,8 @@ class TaskService:
     if task.status == TaskStatus.TODO:
       if handshake_state == HANDSHAKE_REJECTED:
         return ("任务：已拒绝待调整", creator_label)
+      if latest_action == "takeover":
+        return ("任务：管理员接管待确认", assignee_label)
       if latest_action == "delegated":
         return ("任务：已转办待确认", assignee_label)
       if latest_action == "reassigned":
@@ -1351,6 +1615,13 @@ class TaskService:
     instance, node_instance = await self._load_workflow_graph_projection(task=task)
     if instance is None or node_instance is None:
       return
+    if instance.status != WorkflowGraphInstanceStatus.ACTIVE:
+      raise ConflictError("当前工作流图实例已结束，不能继续执行握手动作。")
+    if node_instance.engine_state in {
+      WorkflowNodeEngineState.COMPLETED,
+      WorkflowNodeEngineState.TERMINATED,
+    }:
+      raise ConflictError("当前图节点已失效，不能继续执行握手动作。")
 
     instance.status = WorkflowGraphInstanceStatus.ACTIVE
     instance.completed_at = None
@@ -1464,27 +1735,46 @@ class TaskService:
       for task_id in pending_workflow_task_ids
       if task_id is not None
     }
-    tasks = list(
-      await self._session.scalars(
-        (await self._build_visible_task_statement(actor=actor)).where(Task.status != TaskStatus.DONE)
-      )
+    tasks = list(await self._session.scalars(await self._build_visible_task_statement(actor=actor)))
+    graph_projection_map = (
+      await self._graph_task_projection_map(tasks=tasks)
+      if self._task_center_v2_enabled()
+      else {}
     )
-    step_context_map = await self._task_step_context_map(task_ids=[task.id for task in tasks])
-    inbox_tasks = [
-      task
-      for task in tasks
-      if task.id in candidate_task_ids
-      or (
-        self._uses_graph_handshake_cycle(task=task)
-        and self._manual_graph_current_handler_id(task=task) == actor.id
-      )
-      or (
-        not self._uses_graph_handshake_cycle(task=task)
-        and task.assignee_id == actor.id
-      )
-    ]
-    sorted_tasks = sorted(
-      inbox_tasks,
+    step_context_map = await self._task_step_context_map(
+      task_ids=[task.id for task in tasks if task.id not in graph_projection_map]
+    )
+
+    graph_entries: list[tuple[Task, TaskInboxEntry]] = []
+    legacy_tasks: list[Task] = []
+    for task in tasks:
+      projection = graph_projection_map.get(task.id)
+      if projection is not None:
+        if projection.status != TaskStatus.DONE and projection.current_handler_id == actor.id:
+          graph_entries.append((task, self._build_graph_inbox_entry(task=task, projection=projection)))
+        continue
+      if task.status == TaskStatus.DONE:
+        continue
+      if task.id in candidate_task_ids:
+        legacy_tasks.append(task)
+        continue
+      if self._uses_graph_handshake_cycle(task=task) and self._manual_graph_current_handler_id(task=task) == actor.id:
+        legacy_tasks.append(task)
+        continue
+      if not self._uses_graph_handshake_cycle(task=task) and task.assignee_id == actor.id:
+        legacy_tasks.append(task)
+
+    sorted_graph_entries = sorted(
+      graph_entries,
+      key=lambda item: (
+        item[0].due_date is None,
+        _normalize_datetime(item[0].due_date) if item[0].due_date is not None else datetime.max.replace(tzinfo=UTC),
+        _task_priority_sort_value(item[0].priority),
+        -int(item[0].created_at.timestamp()),
+      ),
+    )
+    sorted_legacy_tasks = sorted(
+      legacy_tasks,
       key=lambda task: (
         task.due_date is None,
         _normalize_datetime(task.due_date) if task.due_date is not None else datetime.max.replace(tzinfo=UTC),
@@ -1492,10 +1782,12 @@ class TaskService:
         -int(task.created_at.timestamp()),
       ),
     )
-    return [
+    entries = [entry for _, entry in sorted_graph_entries]
+    entries.extend(
       self._build_inbox_entry(task=task, step_context_map=step_context_map)
-      for task in sorted_tasks[:limit]
-    ]
+      for task in sorted_legacy_tasks
+    )
+    return entries[:limit]
 
   async def list_task_tracking(self, *, actor: User, limit: int = 10) -> list[TaskTrackingEntry]:
     ensure_active_user(actor)
@@ -1540,7 +1832,14 @@ class TaskService:
       )
     )
 
-    step_context_map = await self._task_step_context_map(task_ids=[task.id for task in tasks])
+    graph_projection_map = (
+      await self._graph_task_projection_map(tasks=tasks)
+      if self._task_center_v2_enabled()
+      else {}
+    )
+    step_context_map = await self._task_step_context_map(
+      task_ids=[task.id for task in tasks if task.id not in graph_projection_map]
+    )
     tracking_entries: list[TaskTrackingEntry] = []
     inbox_task_ids = {entry.task_id for entry in await self.list_task_inbox(actor=actor, limit=limit * 2)}
     for task in tasks:
@@ -1553,15 +1852,27 @@ class TaskService:
         relation_types.append("执行")
       if any(watcher.user_id == actor.id for watcher in task.watchers):
         relation_types.append("关注")
-      if task.id in workflow_related_task_ids:
+      if task.id in workflow_related_task_ids or task.id in graph_projection_map:
         relation_types.append("流程")
-      tracking_entries.append(
-        self._build_tracking_entry(
-          task=task,
-          relation_types=relation_types or ["相关"],
-          step_context_map=step_context_map,
+      projection = graph_projection_map.get(task.id)
+      if projection is not None:
+        if projection.status == TaskStatus.DONE:
+          continue
+        tracking_entries.append(
+          self._build_graph_tracking_entry(
+            task=task,
+            relation_types=relation_types or ["相关"],
+            projection=projection,
+          )
         )
-      )
+      else:
+        tracking_entries.append(
+          self._build_tracking_entry(
+            task=task,
+            relation_types=relation_types or ["相关"],
+            step_context_map=step_context_map,
+          )
+        )
 
     sorted_entries = sorted(
       tracking_entries,
@@ -1607,12 +1918,20 @@ class TaskService:
       await self._session.scalars(
         select(Task)
         .options(
+          selectinload(Task.creator).selectinload(User.profile),
+          selectinload(Task.assignee).selectinload(User.profile),
           selectinload(Task.department),
           selectinload(Task.watchers),
         )
-        .where(or_(*history_filters), Task.status == TaskStatus.DONE)
+        .where(or_(*history_filters))
         .order_by(Task.completed_at.desc(), Task.updated_at.desc())
       )
+    )
+
+    graph_projection_map = (
+      await self._graph_task_projection_map(tasks=tasks)
+      if self._task_center_v2_enabled()
+      else {}
     )
 
     entries: list[TaskHistoryEntry] = []
@@ -1624,11 +1943,31 @@ class TaskService:
         relation_types.append("执行")
       if any(watcher.user_id == actor.id for watcher in task.watchers):
         relation_types.append("关注")
-      if task.id in workflow_related_task_ids:
+      if task.id in workflow_related_task_ids or task.id in graph_projection_map:
         relation_types.append("流程")
-      entries.append(self._build_history_entry(task=task, relation_types=relation_types or ["相关"]))
+      projection = graph_projection_map.get(task.id)
+      if projection is not None:
+        if projection.status != TaskStatus.DONE:
+          continue
+        entries.append(
+          self._build_graph_history_entry(
+            task=task,
+            relation_types=relation_types or ["相关"],
+            projection=projection,
+          )
+        )
+      elif task.status == TaskStatus.DONE:
+        entries.append(self._build_history_entry(task=task, relation_types=relation_types or ["相关"]))
 
-    return entries[:limit]
+    sorted_entries = sorted(
+      entries,
+      key=lambda item: (
+        item.completed_at is None,
+        _normalize_datetime(item.completed_at) if item.completed_at is not None else datetime.max.replace(tzinfo=UTC),
+      ),
+      reverse=True,
+    )
+    return sorted_entries[:limit]
 
   async def update_task(
     self,

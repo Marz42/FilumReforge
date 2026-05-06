@@ -23,8 +23,22 @@ from app.api.dependencies import (
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.core.exceptions import ConflictError
+from app.core.enums import TaskPriority, TaskSourceType, TaskStatus, UserRole
 from app.main import create_app
-from app.models import Base, ErrorEvent, WorkflowDeliverable, WorkflowGraphInstance, WorkflowNodeInstance
+from app.models import (
+  Base,
+  ErrorEvent,
+  Task,
+  TaskTemplate,
+  TaskTemplateInstance,
+  TaskTemplateStep,
+  TaskTemplateStepRun,
+  User,
+  WorkflowDeliverable,
+  WorkflowGraphInstance,
+  WorkflowNodeInstance,
+)
+from app.services.legacy_task_graph_migration_service import LegacyTaskGraphMigrationService
 from app.workers.arq_worker import (
   PROCESS_EMPLOYMENT_EVENT_JOB,
   REBUILD_ALL_DOCUMENT_EMBEDDINGS_JOB,
@@ -161,6 +175,7 @@ async def api_client(
     storage_base_path=str(tmp_path / ".storage"),
     storage_bucket="filum-test",
     jwt_secret_key=TEST_JWT_SECRET,
+    frontend_app_url="https://app.example.com",
     openai_api_key="test-openai-key",
     web_push_public_key="test-public-key",
     web_push_private_key="test-private-key",
@@ -350,6 +365,7 @@ async def test_auth_invitation_api_flow(api_client) -> None:
   )
   assert create_invitation_response.status_code == 201
   invite_payload = create_invitation_response.json()
+  assert invite_payload["invite_url"].startswith("https://app.example.com/login?invite=")
   invite_token = invite_payload["invite_url"].split("invite=", maxsplit=1)[1]
 
   preview_response = await client.get(
@@ -3572,32 +3588,87 @@ async def test_phase6_graph_template_instantiation_api(api_client) -> None:
 @pytest.mark.asyncio
 async def test_phase6_node_completion_triggers_downstream_activation(api_client) -> None:
   """通过 workflow-graph API 完成节点，验证下游激活与 API 响应 progress_percent。"""
-  from sqlalchemy.ext.asyncio import AsyncSession
-  from app.core.database import get_db_session
   from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode, WorkflowGraphTemplateEdge
   from app.core.enums import WorkflowGraphTemplateStatus
   from app.services.workflow_graph_service import WorkflowGraphService
 
-  client, _ = api_client
+  client, queue_publisher = api_client
   admin_headers, admin_payload = await bootstrap_and_login(client)
+  admin_id = UUID(admin_payload["user"]["id"])
 
-  # 需要在 DB 里直接建测试模板；通过依赖注入拿到 session
-  # 使用 admin_payload 获取 admin.id 来创建模板
-  admin_id = admin_payload["user"]["id"]
+  async with queue_publisher._session_factory() as session:
+    template = WorkflowGraphTemplate(
+      code="phase6-complete-api",
+      base_code="phase6-complete-api",
+      version=1,
+      name="Phase 6 Complete API 测试模板",
+      status=WorkflowGraphTemplateStatus.ACTIVE,
+      created_by=admin_id,
+    )
+    session.add(template)
+    await session.flush()
 
-  # 在独立 session 中建图模板（绕开 API 层，直接用 ORM）
-  import uuid
-  from app.core.config import get_settings
-  from app.core.database import get_db_session
+    node_a = WorkflowGraphTemplateNode(
+      template_id=template.id,
+      node_key="node-a",
+      title="节点 A",
+      sort_order=1,
+    )
+    node_b = WorkflowGraphTemplateNode(
+      template_id=template.id,
+      node_key="node-b",
+      title="节点 B",
+      sort_order=2,
+    )
+    session.add_all([node_a, node_b])
+    await session.flush()
 
-  # 通过调用有效 API，再在 fixture DB 里读出结果
-  # 更简单的策略：调用 complete endpoint 对一个不存在的 node_instance_id，验证 404
+    session.add(
+      WorkflowGraphTemplateEdge(
+        template_id=template.id,
+        from_node_id=node_a.id,
+        to_node_id=node_b.id,
+      )
+    )
+    await session.flush()
+
+    wg_service = WorkflowGraphService(session)
+    result = await wg_service.create_multi_node_instance(
+      template_id=template.id,
+      initiator_id=admin_id,
+    )
+    await session.commit()
+
+    node_a_id = str(next(ni for ni in result.node_instances if ni.node_key == "node-a").id)
+    instance_id = result.instance.id
+
   complete_response = await client.post(
-    "/api/v1/workflow-graph/node-instances/00000000-0000-0000-0000-000000000000/complete",
+    f"/api/v1/workflow-graph/node-instances/{node_a_id}/complete",
     headers=admin_headers,
     json={},
   )
-  assert complete_response.status_code == 404
+  assert complete_response.status_code == 200
+  payload = complete_response.json()
+  assert payload["current_node_key"] == "node-b"
+  assert payload["active_node_count"] == 1
+  assert payload["pending_node_count"] == 0
+  assert payload["progress_percent"] == 50
+
+  async with queue_publisher._session_factory() as session:
+    refreshed_instance = await session.get(WorkflowGraphInstance, instance_id)
+    node_instances = list(
+      await session.scalars(
+        select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance_id)
+      )
+    )
+
+  assert refreshed_instance is not None
+  assert refreshed_instance.current_node_key == "node-b"
+  assert refreshed_instance.status.value == "active"
+  assert any(
+    ni.node_key == "node-b" and ni.engine_state.value == "activated"
+    for ni in node_instances
+  )
 
 
 @pytest.mark.asyncio
@@ -3653,6 +3724,235 @@ async def test_phase9_deep_reject_api_blocks_when_iteration_exceeds_limit(api_cl
 
 
 @pytest.mark.asyncio
+async def test_phase11d_complete_api_replay_returns_stable_snapshot(api_client) -> None:
+  client, queue_publisher = api_client
+  admin_headers, admin_payload = await bootstrap_and_login(client)
+  admin_id = UUID(admin_payload["user"]["id"])
+
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus, WorkflowNodeEngineState
+  from app.services.workflow_graph_service import WorkflowGraphService
+
+  async with queue_publisher._session_factory() as session:
+    template = WorkflowGraphTemplate(
+      code="phase11d-complete-api-replay",
+      base_code="phase11d-complete-api-replay",
+      version=1,
+      name="Phase 11-D Complete API 重放测试模板",
+      status=WorkflowGraphTemplateStatus.ACTIVE,
+      created_by=admin_id,
+    )
+    session.add(template)
+    await session.flush()
+
+    node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+    node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+    session.add_all([node_a, node_b])
+    await session.flush()
+
+    session.add(
+      WorkflowGraphTemplateEdge(
+        template_id=template.id,
+        from_node_id=node_a.id,
+        to_node_id=node_b.id,
+      )
+    )
+    await session.flush()
+
+    wg_service = WorkflowGraphService(session)
+    result = await wg_service.create_multi_node_instance(
+      template_id=template.id,
+      initiator_id=admin_id,
+    )
+    await session.commit()
+
+    instance_id = result.instance.id
+    node_a_id = str(next(ni for ni in result.node_instances if ni.node_key == "node-a").id)
+
+  first_response = await client.post(
+    f"/api/v1/workflow-graph/node-instances/{node_a_id}/complete",
+    headers=admin_headers,
+    json={},
+  )
+  assert first_response.status_code == 200
+  first_payload = first_response.json()
+
+  second_response = await client.post(
+    f"/api/v1/workflow-graph/node-instances/{node_a_id}/complete",
+    headers=admin_headers,
+    json={},
+  )
+  assert second_response.status_code == 200
+  second_payload = second_response.json()
+
+  assert first_payload["current_node_key"] == "node-b"
+  assert second_payload["current_node_key"] == "node-b"
+  assert second_payload["active_node_count"] == first_payload["active_node_count"] == 1
+  assert second_payload["pending_node_count"] == first_payload["pending_node_count"] == 0
+  assert second_payload["progress_percent"] == first_payload["progress_percent"] == 50
+
+  async with queue_publisher._session_factory() as session:
+    refreshed_instance = await session.get(WorkflowGraphInstance, instance_id)
+    node_instances = list(
+      await session.scalars(
+        select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance_id)
+      )
+    )
+
+  assert refreshed_instance is not None
+  assert refreshed_instance.current_node_key == "node-b"
+  assert sum(1 for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.ACTIVATED) == 1
+  assert any(
+    ni.node_key == "node-b" and ni.engine_state == WorkflowNodeEngineState.ACTIVATED and ni.node_instance_version == 2
+    for ni in node_instances
+  )
+
+
+@pytest.mark.asyncio
+async def test_phase11d_deep_reject_api_persists_iteration_replay(api_client) -> None:
+  client, queue_publisher = api_client
+  admin_headers, admin_payload = await bootstrap_and_login(client)
+  admin_id = UUID(admin_payload["user"]["id"])
+
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus, WorkflowNodeEngineState
+  from app.services.workflow_graph_service import WorkflowGraphService
+
+  async with queue_publisher._session_factory() as session:
+    template = WorkflowGraphTemplate(
+      code="phase11d-deep-reject-api",
+      base_code="phase11d-deep-reject-api",
+      version=1,
+      name="Phase 11-D Deep Reject API 测试模板",
+      status=WorkflowGraphTemplateStatus.ACTIVE,
+      created_by=admin_id,
+    )
+    session.add(template)
+    await session.flush()
+
+    node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+    node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+    session.add_all([node_a, node_b])
+    await session.flush()
+
+    session.add(
+      WorkflowGraphTemplateEdge(
+        template_id=template.id,
+        from_node_id=node_a.id,
+        to_node_id=node_b.id,
+      )
+    )
+    await session.flush()
+
+    wg_service = WorkflowGraphService(session)
+    result = await wg_service.create_multi_node_instance(
+      template_id=template.id,
+      initiator_id=admin_id,
+    )
+    node_a_instance = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+    node_b_instance = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+    await wg_service.complete_node_instance(node_instance_id=node_a_instance.id, actor_id=admin_id)
+    await session.commit()
+
+    instance_id = result.instance.id
+    node_b_instance_id = str(node_b_instance.id)
+
+  response = await client.post(
+    f"/api/v1/workflow-graph/node-instances/{node_b_instance_id}/deep-reject",
+    headers=admin_headers,
+    json={"target_node_key": "node-a", "reason": "退回重做"},
+  )
+  assert response.status_code == 200
+  payload = response.json()
+  assert payload["current_node_key"] == "node-a"
+
+  async with queue_publisher._session_factory() as session:
+    refreshed_instance = await session.get(WorkflowGraphInstance, instance_id)
+    node_instances = list(
+      await session.scalars(
+        select(WorkflowNodeInstance)
+        .where(WorkflowNodeInstance.instance_id == instance_id)
+        .order_by(WorkflowNodeInstance.created_at.asc())
+      )
+    )
+
+  assert refreshed_instance is not None
+  assert refreshed_instance.current_node_key == "node-a"
+  assert any(
+    ni.node_key == "node-a" and ni.iteration == 2 and ni.engine_state == WorkflowNodeEngineState.ACTIVATED
+    for ni in node_instances
+  )
+  assert any(
+    ni.node_key == "node-b" and ni.iteration == 1 and ni.engine_state == WorkflowNodeEngineState.TERMINATED
+    for ni in node_instances
+  )
+
+
+@pytest.mark.asyncio
+async def test_phase11d_deep_reject_api_blocks_replay_from_stale_node(api_client) -> None:
+  client, queue_publisher = api_client
+  admin_headers, admin_payload = await bootstrap_and_login(client)
+  admin_id = UUID(admin_payload["user"]["id"])
+
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+  from app.services.workflow_graph_service import WorkflowGraphService
+
+  async with queue_publisher._session_factory() as session:
+    template = WorkflowGraphTemplate(
+      code="phase11d-deep-reject-api-replay-block",
+      base_code="phase11d-deep-reject-api-replay-block",
+      version=1,
+      name="Phase 11-D Deep Reject API 旧节点阻断测试模板",
+      status=WorkflowGraphTemplateStatus.ACTIVE,
+      created_by=admin_id,
+    )
+    session.add(template)
+    await session.flush()
+
+    node_a = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-a", title="节点 A", sort_order=1)
+    node_b = WorkflowGraphTemplateNode(template_id=template.id, node_key="node-b", title="节点 B", sort_order=2)
+    session.add_all([node_a, node_b])
+    await session.flush()
+
+    session.add(
+      WorkflowGraphTemplateEdge(
+        template_id=template.id,
+        from_node_id=node_a.id,
+        to_node_id=node_b.id,
+      )
+    )
+    await session.flush()
+
+    wg_service = WorkflowGraphService(session)
+    result = await wg_service.create_multi_node_instance(
+      template_id=template.id,
+      initiator_id=admin_id,
+    )
+    node_a_instance = next(ni for ni in result.node_instances if ni.node_key == "node-a")
+    node_b_instance = next(ni for ni in result.node_instances if ni.node_key == "node-b")
+    await wg_service.complete_node_instance(node_instance_id=node_a_instance.id, actor_id=admin_id)
+    await session.commit()
+
+    node_b_instance_id = str(node_b_instance.id)
+
+  first_response = await client.post(
+    f"/api/v1/workflow-graph/node-instances/{node_b_instance_id}/deep-reject",
+    headers=admin_headers,
+    json={"target_node_key": "node-a", "reason": "第一次深度打回"},
+  )
+  assert first_response.status_code == 200
+
+  replay_response = await client.post(
+    f"/api/v1/workflow-graph/node-instances/{node_b_instance_id}/deep-reject",
+    headers=admin_headers,
+    json={"target_node_key": "node-a", "reason": "旧节点不应允许重放"},
+  )
+  assert replay_response.status_code == 409
+  assert "ACTIVATED/ACKNOWLEDGED" in replay_response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_phase11_takeover_api_propagates_conflict_error(api_client) -> None:
   """Phase 11-B: takeover API 应透传 service 冲突为 409。"""
   client, _ = api_client
@@ -3679,6 +3979,119 @@ async def test_phase11_takeover_api_propagates_conflict_error(api_client) -> Non
 
   assert response.status_code == 409
   assert "不能执行接管" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_phase11d_takeover_api_syncs_task_projection_and_task_center(api_client) -> None:
+  client, queue_publisher = api_client
+  queue_publisher._settings.workflow_graph_engine_enabled = True
+  headers, _ = await bootstrap_and_login(client)
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "phase11d-employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_id = employee_response.json()["id"]
+
+  new_assignee_response = await client.post(
+    "/api/v1/users",
+    headers=headers,
+    json={
+      "email": "phase11d-new@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert new_assignee_response.status_code == 201
+  new_assignee_id = new_assignee_response.json()["id"]
+
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+  for user_id, employee_no, real_name in [
+    (employee_id, "EMP-011D-001", "原执行人"),
+    (new_assignee_id, "EMP-011D-002", "新执行人"),
+  ]:
+    profile_response = await client.post(
+      "/api/v1/profiles",
+      headers=headers,
+      json={
+        "user_id": user_id,
+        "employee_no": employee_no,
+        "real_name": real_name,
+        "department_id": root_department["id"],
+        "custom_fields": {},
+      },
+    )
+    assert profile_response.status_code == 201
+
+  task_response = await client.post(
+    "/api/v1/tasks",
+    headers=headers,
+    json={
+      "title": "等待管理员接管的 API 图任务",
+      "assignee_id": employee_id,
+      "priority": "high",
+    },
+  )
+  assert task_response.status_code == 201
+  task_id = task_response.json()["id"]
+
+  async with queue_publisher._session_factory() as session:
+    instance = await session.scalar(
+      select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == UUID(task_id))
+    )
+    assert instance is not None
+    node_instance = await session.scalar(
+      select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance.id)
+    )
+    assert node_instance is not None
+    node_instance_id = str(node_instance.id)
+
+  takeover_response = await client.post(
+    f"/api/v1/workflow-graph/node-instances/{node_instance_id}/takeover",
+    headers=headers,
+    json={
+      "assignee_user_id": new_assignee_id,
+      "reason": "原执行人离岗",
+    },
+  )
+  assert takeover_response.status_code == 200
+
+  old_assignee_headers = await login(
+    client,
+    email="phase11d-employee@example.com",
+    password="StrongPassword123!",
+  )
+  new_assignee_headers = await login(
+    client,
+    email="phase11d-new@example.com",
+    password="StrongPassword123!",
+  )
+  old_snapshot = await client.get("/api/v1/task-center", headers=old_assignee_headers)
+  new_snapshot = await client.get("/api/v1/task-center", headers=new_assignee_headers)
+  assert old_snapshot.status_code == 200
+  assert new_snapshot.status_code == 200
+
+  async with queue_publisher._session_factory() as session:
+    stored_task = await session.get(Task, UUID(task_id))
+    assert stored_task is not None
+    assert str(stored_task.assignee_id) == new_assignee_id
+    assert stored_task.extra_metadata["latest_handshake_action"] == "takeover"
+    assert stored_task.extra_metadata["latest_takeover_reason"] == "原执行人离岗"
+
+  assert all(item["task_id"] != task_id for item in old_snapshot.json()["task_inbox"])
+  assert any(
+    item["task_id"] == task_id and item["current_stage_label"] == "任务：管理员接管待确认"
+    for item in new_snapshot.json()["task_inbox"]
+  )
 
 
 @pytest.mark.asyncio
@@ -3788,3 +4201,116 @@ async def test_phase7_smart_notice_candidates_api_returns_intermediate_managers(
   payload = candidate_response.json()
   assert payload["reached_initiator"] is True
   assert payload["candidate_user_ids"] == [manager_id]
+
+
+@pytest.mark.asyncio
+async def test_phase11f_task_center_api_uses_graph_first_for_migrated_review_task(api_client) -> None:
+  client, queue_publisher = api_client
+  queue_publisher._settings.task_center_v2_enabled = True
+
+  admin_headers, _ = await bootstrap_and_login(client)
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=admin_headers,
+    json={
+      "email": "phase11f-api-employee@example.com",
+      "password": "StrongPassword123!",
+      "role": UserRole.EMPLOYEE.value,
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_headers = await login(
+    client,
+    email="phase11f-api-employee@example.com",
+    password="StrongPassword123!",
+  )
+
+  async with queue_publisher._session_factory() as session:
+    admin = await session.scalar(select(User).where(User.email == "admin@example.com"))
+    employee = await session.scalar(select(User).where(User.email == "phase11f-api-employee@example.com"))
+    assert admin is not None
+    assert employee is not None
+
+    template = TaskTemplate(
+      code="phase11f-api-template",
+      base_code="phase11f-api-template",
+      version=1,
+      name="API 迁移模板任务",
+      category="ops",
+      created_by=admin.id,
+    )
+    session.add(template)
+    await session.flush()
+
+    step = TaskTemplateStep(
+      template_id=template.id,
+      step_key="review-step",
+      title="历史待验收步骤",
+      default_assignee_rule={},
+      sort_order=1,
+    )
+    session.add(step)
+    await session.flush()
+
+    template_instance = TaskTemplateInstance(
+      template_id=template.id,
+      initiator_user_id=admin.id,
+      department_id=None,
+      status="in_progress",
+      payload={"legacy": True},
+    )
+    session.add(template_instance)
+    await session.flush()
+
+    step_run = TaskTemplateStepRun(
+      instance_id=template_instance.id,
+      template_step_id=step.id,
+      assignee_user_id=employee.id,
+      status="completed",
+      completed_at=datetime.now(UTC),
+    )
+    session.add(step_run)
+    await session.flush()
+
+    task = Task(
+      title="API migrated review task",
+      description="用于验证 task-center graph-first 快照",
+      creator_id=admin.id,
+      assignee_id=employee.id,
+      template_instance_id=template_instance.id,
+      template_step_run_id=step_run.id,
+      source_type=TaskSourceType.TEMPLATE,
+      status=TaskStatus.REVIEW,
+      priority=TaskPriority.HIGH,
+      extra_metadata={
+        "template_instance_id": str(template_instance.id),
+        "template_step_run_id": str(step_run.id),
+        "latest_deliverable_summary": "API 历史交付说明",
+        "latest_deliverable_submitted_at": datetime.now(UTC).isoformat(),
+        "latest_deliverable_submitted_by_user_id": str(employee.id),
+        "latest_review_state": "pending_review",
+      },
+    )
+    session.add(task)
+    await session.flush()
+
+    migration_service = LegacyTaskGraphMigrationService(session)
+    migrate_result = await migration_service.migrate_tasks(batch_id="phase11f-api-batch")
+    assert migrate_result.migrated_count == 1
+    task_id = str(task.id)
+    await session.commit()
+
+  admin_snapshot = await client.get("/api/v1/task-center", headers=admin_headers)
+  employee_snapshot = await client.get("/api/v1/task-center", headers=employee_headers)
+
+  assert admin_snapshot.status_code == 200
+  assert employee_snapshot.status_code == 200
+  assert any(
+    item["task_id"] == task_id and item["current_stage_label"] == "任务：待验收"
+    for item in admin_snapshot.json()["task_inbox"]
+  )
+  assert all(
+    item["task_id"] != task_id
+    for item in employee_snapshot.json()["task_inbox"]
+  )

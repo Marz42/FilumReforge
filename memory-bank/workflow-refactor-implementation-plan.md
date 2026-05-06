@@ -523,7 +523,7 @@
 | 11-C | Outbox Pattern 可靠投递 | 启用 workflow_outbox_events 消费 worker，实现节点事件异步补偿 | done |
 | 11-D | 幂等与并发防御加固 | 补齐节点重复提交、Wait-All 双激活、Wait-Any 双提交的防御边界 | done |
 | 11-E | 旧数据迁移脚本 | 编写旧 Task / TaskTemplateStepRun 到 WorkflowNodeInstance 的迁移与回滚脚本 | done |
-| 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | in_progress |
+| 11-F | 默认路径切流 | 将默认创建路径与任务中心查询切换到新引擎 | done |
 | 11-G | 文档收口与全量回归 | 更新 architecture.md / progress.md / README，执行全量回归与生产近似部署演练 | not_started |
 
 ---
@@ -738,7 +738,7 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall app tests
 
 ### 16.8 Phase 11-F / 默认路径切流
 
-**完成状态：in_progress（2026-05-06，已完成 docs gate）**
+**完成状态：done（2026-05-06）**
 
 #### 目标
 
@@ -782,6 +782,18 @@ Set-Location d:/Repos/FilumReforge/frontend; npm run build
 1. 新建 manual task 默认走 graph 链路，且关闭回退开关后不再依赖旧创建路径。
 2. 任务中心默认优先命中 graph runtime 投影，legacy fallback 只处理迁移遗漏或显式回退场景。
 3. 前后端定向回归通过，graph-first 切流不会破坏任务中心、任务详情和责任链展示。
+
+#### 当前已完成子项（2026-05-06）
+
+1. `TaskService` 新增 `TASK_CENTER_V2_ENABLED` 控制下的 graph-first 读侧投影：`list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 会先解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，再仅对缺失 graph 锚点的数据回退到旧 `Task` 投影。
+2. graph-first 读侧已覆盖 migrated legacy task 的待确认 / 待验收 / 已完成语义，不再把已迁移的 review task 机械地继续显示在执行人 inbox；待验收任务会回到发起人 inbox，history 也优先采用 graph 完成态。
+3. `backend/app/core/config.py` 已把 `WORKFLOW_GRAPH_ENGINE_ENABLED` 与 `TASK_CENTER_V2_ENABLED` 默认值切到 `true`；旧路径只在显式设置为 `false` 时作为紧急回退保留。
+4. `backend/.env.example`、`backend/.env.production.example`、`infra/docker/.env.prod.example`、`infra/docker/docker-compose.prod.yml` 已同步为“默认 graph-first，显式关闭才回退”的部署口径。
+5. API 层已补 `/api/v1/task-center` 定向回归，确认开启 `TASK_CENTER_V2_ENABLED` 后 migrated review task 会进入发起人 inbox，而不是继续停留在执行人 inbox。
+
+#### 验证结论
+
+已执行 backend `pytest -q tests/test_settings.py tests/test_services.py::test_phase11f_task_center_v2_routes_migrated_review_task_to_creator_inbox tests/test_services.py::test_phase11f_task_center_v2_history_prefers_graph_completed_state tests/test_api.py::test_phase11f_task_center_api_uses_graph_first_for_migrated_review_task`，并通过 `python -m compileall app tests`。本轮未改前端代码，因此未额外运行前端回归。
 
 ---
 

@@ -5,7 +5,10 @@ from app.core.config import Settings, get_settings
 
 
 def test_default_settings_align_with_phase_a_baseline() -> None:
-  settings = get_settings()
+  settings = Settings(
+    _env_file=None,
+    jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+  )
 
   assert settings.api_v1_prefix == "/api/v1"
   assert settings.jwt_secret_key == "test-jwt-secret-key-for-suite-123456"
@@ -19,7 +22,7 @@ def test_default_settings_align_with_phase_a_baseline() -> None:
   assert settings.auth_invitation_expiry_hours == 72
   assert settings.frontend_app_url == "http://localhost:5173"
   assert settings.workflow_graph_engine_enabled is True
-  assert settings.task_center_v2_enabled is False
+  assert settings.task_center_v2_enabled is True
   assert settings.workflow_wait_any_enabled is False
   assert settings.workflow_deep_rejection_enabled is False
   assert settings.openai_chat_model == "gpt-5-mini"
@@ -91,10 +94,20 @@ def test_production_settings_do_not_fall_back_to_local_dev_cors_defaults() -> No
     _env_file=None,
     app_env="production",
     jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+    frontend_app_url="https://app.example.com",
   )
 
   assert settings.cors_allowed_origins == []
   assert settings.auth_refresh_cookie_secure is True
+
+
+def test_production_settings_require_explicit_frontend_app_url() -> None:
+  with pytest.raises(ValidationError, match="FRONTEND_APP_URL"):
+    Settings(
+      _env_file=None,
+      app_env="production",
+      jwt_secret_key="test-jwt-secret-key-for-suite-123456",
+    )
 
 
 def test_settings_validate_refresh_cookie_options() -> None:

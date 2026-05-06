@@ -31,6 +31,8 @@ DEFAULT_DEVELOPMENT_CORS_ORIGINS = [
   "http://127.0.0.1:4173",
 ]
 
+DEFAULT_FRONTEND_APP_URL = "http://localhost:5173"
+
 
 class Settings(BaseSettings):
   model_config = SettingsConfigDict(
@@ -56,7 +58,7 @@ class Settings(BaseSettings):
   auth_refresh_cookie_domain: str | None = None
   auth_refresh_cookie_samesite: str = "strict"
   auth_refresh_cookie_secure: bool | None = None
-  frontend_app_url: str = "http://localhost:5173"
+  frontend_app_url: str = DEFAULT_FRONTEND_APP_URL
   cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
   cors_allowed_origin_regex: str | None = None
   cors_allow_credentials: bool = True
@@ -71,9 +73,9 @@ class Settings(BaseSettings):
   auth_refresh_rate_limit: int = 20
   auth_bootstrap_rate_limit: int = 5
   redis_notification_queue: str = "notification:outbox"
-  workflow_graph_engine_enabled: bool = False
+  workflow_graph_engine_enabled: bool = True
   workflow_graph_template_engine_enabled: bool = False
-  task_center_v2_enabled: bool = False
+  task_center_v2_enabled: bool = True
   workflow_wait_any_enabled: bool = False
   workflow_deep_rejection_enabled: bool = False
   openai_api_key: str | None = None
@@ -136,6 +138,8 @@ class Settings(BaseSettings):
       raise ValueError("FRONTEND_APP_URL 不能为空。")
     if not normalized_frontend_app_url.startswith(("http://", "https://")):
       raise ValueError("FRONTEND_APP_URL 必须以 http:// 或 https:// 开头。")
+    if self.app_env == "production" and normalized_frontend_app_url == DEFAULT_FRONTEND_APP_URL:
+      raise ValueError("production 环境必须显式配置 FRONTEND_APP_URL，不能使用 localhost 默认值。")
     self.frontend_app_url = normalized_frontend_app_url
     if self.app_env == "development" and not self.cors_allowed_origins and self.cors_allowed_origin_regex is None:
       self.cors_allowed_origins = list(DEFAULT_DEVELOPMENT_CORS_ORIGINS)
