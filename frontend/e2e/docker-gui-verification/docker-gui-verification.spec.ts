@@ -499,39 +499,40 @@ test.describe('C2 汇报多级', () => {
     reportFlowTitle = ''
     const title = `[E2E-RUP-${flowTag}]`
     await login(page, 'demo.engineer.a@example.com', demoPassword)
-    await navigateReportCenterTab(page, '发起向上汇报')
-    await expect(page).toHaveURL(/tab=upward/, { timeout: 10_000 })
-    const blocked = await page.getByText('当前账号没有可用的逐级上报链路').isVisible().catch(() => false)
-    if (blocked) {
+    await navigateReportCenterTab(page, '待处理')
+    await page.getByTestId('reports-open-create').click()
+    await expect(page.getByTestId('reports-create-dialog')).toBeVisible({ timeout: 10_000 })
+    const pickUp = page.getByTestId('reports-create-pick-upward')
+    if (!(await pickUp.isVisible().catch(() => false))) {
       await page.screenshot({ path: shot('23-c2-l4-upward-blocked.png'), fullPage: true })
       row({
         id: 'C2-1',
         section: 'C2 汇报',
         result: 'SKIP',
-        note: '无向上汇报链路 23',
+        note: '弹窗内无向上汇报入口 23',
       })
       await logout(page)
       return
     }
-    /** Element Plus `label-position="top"` 的表单项文案不会成为 el-select 的 accessible name，勿用 getByLabel */
-    const upwardPane = page.locator('#pane-upward')
-    await expect(upwardPane.locator('.el-form')).toBeVisible({ timeout: 30_000 })
-    await upwardPane.locator('.el-form-item').filter({ hasText: '汇报对象' }).locator('.el-select').click()
+    await pickUp.click()
+    const dlg = page.getByTestId('reports-create-dialog')
+    await expect(dlg.getByTestId('reports-create-form-upward')).toBeVisible({ timeout: 15_000 })
+    await dlg.locator('.el-form-item').filter({ hasText: '汇报对象' }).locator('.el-select').click()
     await page.locator('.el-select-dropdown__item').filter({ hasText: '高原' }).first().click()
-    await upwardPane
+    await dlg
       .locator('.el-form-item')
       .filter({ hasText: '主题' })
       .locator('.el-input__inner')
       .first()
       .fill(title)
-    await upwardPane.locator('.el-form-item').filter({ hasText: '内容' }).locator('textarea').first().fill('E2E 多级汇报正文\n\n- 项 1\n- 项 2')
+    await dlg.locator('.el-form-item').filter({ hasText: '内容' }).locator('textarea').first().fill('E2E 多级汇报正文\n\n- 项 1\n- 项 2')
     await page.screenshot({ path: shot('23-c2-l4-upward-form.png'), fullPage: true })
     await Promise.all([
       page.waitForResponse(
         (r) => /\/api\/v1\/report-center\/reports\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
         { timeout: 45_000 },
       ),
-      page.getByRole('button', { name: '发起向上汇报' }).click(),
+      dlg.getByTestId('reports-create-submit-upward').click(),
     ])
     reportFlowTitle = title
     await page.screenshot({ path: shot('24-c2-l4-after-submit.png'), fullPage: true })

@@ -656,8 +656,15 @@ onMounted(() => {
           </div>
         </el-form-item>
         <el-form-item label="执行人">
-          <div data-testid="task-center-task-assignee">
-            <el-select v-model="publishForm.assignee_user_id" placeholder="请选择执行人">
+          <div data-testid="task-center-task-assignee" class="task-center-view__control-wrap">
+            <el-select
+              v-model="publishForm.assignee_user_id"
+              class="task-center-view__full-select"
+              placeholder="请选择执行人"
+              teleported
+              :popper-options="{ strategy: 'fixed' }"
+              popper-class="task-center-view-select-popper"
+            >
               <el-option
                 v-for="user in publishUserOptions"
                 :key="user.user_id"
@@ -668,8 +675,16 @@ onMounted(() => {
           </div>
         </el-form-item>
         <el-form-item label="所属部门">
-          <div data-testid="task-center-task-department">
-            <el-select v-model="publishForm.department_id" clearable placeholder="可选">
+          <div data-testid="task-center-task-department" class="task-center-view__control-wrap">
+            <el-select
+              v-model="publishForm.department_id"
+              class="task-center-view__full-select"
+              clearable
+              placeholder="可选"
+              teleported
+              :popper-options="{ strategy: 'fixed' }"
+              popper-class="task-center-view-select-popper"
+            >
               <el-option
                 v-for="department in publishDepartmentOptions"
                 :key="department.id"
@@ -680,8 +695,14 @@ onMounted(() => {
           </div>
         </el-form-item>
         <el-form-item label="优先级">
-          <div data-testid="task-center-task-priority">
-            <el-select v-model="publishForm.priority">
+          <div data-testid="task-center-task-priority" class="task-center-view__control-wrap">
+            <el-select
+              v-model="publishForm.priority"
+              class="task-center-view__full-select"
+              teleported
+              :popper-options="{ strategy: 'fixed' }"
+              popper-class="task-center-view-select-popper"
+            >
               <el-option label="低" value="low" />
               <el-option label="中" value="medium" />
               <el-option label="高" value="high" />
@@ -690,12 +711,15 @@ onMounted(() => {
           </div>
         </el-form-item>
         <el-form-item label="截止时间">
-          <div data-testid="task-center-task-due-date">
+          <div data-testid="task-center-task-due-date" class="task-center-view__control-wrap">
             <el-date-picker
               v-model="publishForm.due_date"
               type="datetime"
               placeholder="可选"
               class="task-center-view__date-picker"
+              teleported
+              :popper-options="{ strategy: 'fixed' }"
+              popper-class="task-center-view-select-popper"
             />
           </div>
         </el-form-item>
@@ -751,6 +775,14 @@ onMounted(() => {
 
 .task-center-view__form {
   max-width: 720px;
+}
+
+.task-center-view__control-wrap {
+  width: 100%;
+}
+
+.task-center-view__full-select {
+  width: 100%;
 }
 
 .task-center-view__date-picker {
@@ -810,5 +842,11 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+</style>
+
+<style>
+.task-center-view-select-popper {
+  z-index: 6000 !important;
 }
 </style>

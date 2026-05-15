@@ -42,6 +42,8 @@ export FILUM_TIMEZONE="Asia/Shanghai"
 python3 -c "import secrets; print(secrets.token_hex(48))"
 ```
 
+下文 **§8.5** 说明 `.env` 与 shell 变量的关系、后端/前端/systemd 各自读取哪些文件；具体写入命令仍以 **§9、§10** 为准。
+
 ## 1. 新服务器基线要求
 
 - 系统：Ubuntu 24.04 LTS
@@ -173,6 +175,62 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 '
 ```
+
+## 8.5 环境变量与 `.env` 配置说明
+
+本小节说明本仓库里**环境变量从哪里来、写到哪些文件、谁在什么时候读取**，避免与「§0 里在 shell 里 `export` 的变量」混淆。更具体的生产示例仍按 **§9（后端）**、**§10（前端）** 执行即可。
+
+### 8.5.1 总体原则
+
+| 组件 | 配置文件（本手册约定路径） | 何时读取 |
+|------|---------------------------|----------|
+| 后端 FastAPI / Alembic / 脚本 | `$FILUM_ROOT/backend/.env` | 进程启动时；工作目录在 `backend/` 时相对路径 `.env` 即此文件 |
+| Worker（ARQ） | **与后端同一份** `$FILUM_ROOT/backend/.env` | 同上 |
+| 前端（Vite 生产构建） | `$FILUM_ROOT/frontend/.env.production` | **仅在执行 `npm run build` 时** 注入到前端产物；运行时浏览器不再读该文件 |
+| systemd | `EnvironmentFile=/srv/filum/backend/.env` | 在 `ExecStart` 之前把文件中 `KEY=value` 写入服务进程环境 |
+
+**§0 中的 `export FILUM_*`**：只在你当前 SSH shell 里展开 `heredoc`、生成 `.env` 内容时有用；**长期生效的配置以磁盘上的 `.env` / `.env.production` 为准**，并应交给 `filum` 用户与 systemd 使用。
+
+### 8.5.2 后端：`backend/.env` 与 Pydantic Settings
+
+后端使用 **Pydantic Settings**（`backend/app/core/config.py` 中 `Settings`）：
+
+- 固定从 **`backend` 目录下的 `.env`** 加载（`env_file=".env"`），即部署时路径为 **`$FILUM_ROOT/backend/.env`**。
+- 文件为 **UTF-8** 文本，一行一个 **`UPPER_SNAKE_CASE=value`**，与代码里字段的对应关系由 pydantic-settings 映射（例如 `POSTGRES_DSN` → `postgres_dsn`）。
+- 配置项中未声明的键会被 **`extra="ignore"`** 忽略，不会因笔误多写一行就导致启动失败。
+- **进程环境变量**与 **`.env` 文件**同时存在时，以 pydantic-settings 的解析顺序为准（一般 **环境变量优先于 `.env`**）。因此 systemd 里若额外写了 `Environment=KEY=...`，会覆盖同名的 `.env` 项。
+
+**推荐做法**：
+
+1. 以仓库内 **`backend/.env.production.example`** 为蓝本复制为 **`backend/.env`**（见 §9），再按环境修改。
+2. 密钥、数据库密码等**不要提交 Git**；生产机上的 `.env` 建议 **`chmod 600`**，属主为 **`$FILUM_USER`**。
+3. **`backend` 与 `worker` 必须共用同一份 `.env`**，且 **`STORAGE_BASE_PATH`** 对两个进程均可读写（见 §9 说明）。
+
+### 8.5.3 前端：`frontend/.env.production` 与 `VITE_*`
+
+Vite 只在 **构建阶段** 把以 **`VITE_`** 开头的变量编译进静态资源，例如：
+
+- `VITE_API_BASE_URL=/api/v1`：浏览器请求 API 的前缀（本手册 Nginx 同域反代 `/api/` 时常用此值）。
+
+修改 **`frontend/.env.production`** 后必须 **重新执行 `npm run build`** 并同步 **`dist/`** 到 Nginx 站点根目录，否则线上仍是旧配置。开发机上的 **`frontend/.env.example`** 仅作参考；生产不必复制 `.env` 到 Nginx，只要构建产物即可。
+
+### 8.5.4 与 systemd 叠加时的注意点
+
+`filum-backend.service` / `filum-worker.service` 使用：
+
+```ini
+EnvironmentFile=/srv/filum/backend/.env
+```
+
+该文件中的 `KEY=value` 会成为服务进程的环境变量，后端 Settings 仍会按上节规则解析。**若需临时覆盖某一键**（例如紧急回退某功能开关），可优先使用 **drop-in**（`systemctl edit filum-backend`）写入 `Environment=...=`，而无需改 `.env` 文件本体；变更后执行 `sudo systemctl daemon-reload && sudo systemctl restart filum-backend`（及必要时 worker）。
+
+### 8.5.5 修改环境变量后的操作清单
+
+- **只改后端 `.env`**：`sudo systemctl restart filum-backend filum-worker`（若只影响 backend 可只重启 backend）。
+- **只改前端 `.env.production`**：在 `frontend` 目录 **`npm run build`**，再把 **`dist/`** 部署到 Nginx 根目录（见 §10 与后续 Nginx 章节）。
+- **改数据库 DSN 或 JWT 等核心项**：建议先在维护窗口验证，并保留回滚用的备份与旧 `.env` 副本。
+
+---
 
 ## 9. 写入后端生产环境变量
 
