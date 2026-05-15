@@ -13,7 +13,7 @@
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；工作流重构主线已完成 Phase 11-A 至 11-G，其中 11-G 已补齐前端可测性加固、Playwright mock/live 浏览器基线与前端回归收口。下一步主焦点回到 **部署工程化收口 / Linux 近似环境发布演练 / 更大范围真实业务 E2E 扩面**。本轮新实施周期统一记录在 `memory-bank/improvements-stage2-implementation-plan.md`，而 Phase 11 的直接实施事实继续以 `memory-bank/workflow-refactor-implementation-plan.md` 为准。
+**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；工作流重构主线已完成 Phase 11-A 至 11-G，其中 11-G 已补齐前端可测性加固、Playwright mock/live 浏览器基线与前端回归收口。下一步主焦点回到 **部署工程化收口 / Linux 近似环境发布演练 / 更大范围真实业务 E2E 扩面**。本轮新实施周期统一记录在 `memory-bank/plans/improvements-stage2-implementation-plan.md`，而 Phase 11 的直接实施事实继续以 `memory-bank/plans/workflow-refactor-implementation-plan.md` 为准。
 
 ## 2. 已确认约束
 
@@ -38,7 +38,7 @@
 - 任务协同：任务、依赖、严格状态机、评论、日志、附件、统计
 - 通知骨架：消息落库、delivery 记录、ARQ 入队、adapter 分发、逾期提醒扫描
 - Workflow & Messaging：模板、审批流、周期调度、消息中心、回执、watcher、多视图
-- 工作流重构图引擎：手动任务 graph dual-write、多节点推进、Context 写回、条件边（含 else）、Notice Node、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first**（`TASK_CENTER_V2_ENABLED` 默认 `true`，`backend/app/core/config.py`）、迁移 CLI（Phase 11-A–11-F）；详见 `memory-bank/progress.md` 与 `workflow-refactor-implementation-plan.md`
+- 工作流重构图引擎：手动任务 graph dual-write、多节点推进、Context 写回、条件边（含 else）、Notice Node、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first**（`TASK_CENTER_V2_ENABLED` 默认 `true`，`backend/app/core/config.py`）、迁移 CLI（Phase 11-A–11-F）；详见 `memory-bank/progress.md` 与 `memory-bank/plans/workflow-refactor-implementation-plan.md`
 - Knowledge / AI：文档库、embedding、RAG、`@系统` / `/` 路由、Tool Calling
 - Push / PWA：浏览器订阅管理、Web Push adapter、manifest、service worker
 - 前端：登录、分组导航壳层、总览模块（看板 / 公告 / 待办 / 跟踪）、任务中心聚合入口、汇报中心入口、消息中心、设置模块、知识库、统一人员工作台、部门管理；Playwright mock / live E2E 基线（Phase 11-G）
@@ -53,7 +53,7 @@
 - **工作流 E（`task_templates`）与图模板（`WorkflowGraphTemplate`）的产品级统一**：两套运行时并存属已知边界，不等同于“图条件 / Context / Notice 未实现”（上述已在图引擎侧落地）
 - 更系统的重构、集成测试、E2E 扩面、**Linux / Ubuntu 近似环境**下 `scripts/check-release.sh` 与上线演练结论固化
 
-独立迭代（不并入 Stage 2 串行表内阶段）的积压主题已汇总至 `memory-bank/improvements-stage2-implementation-plan.md` **§11**。
+独立迭代（不并入 Stage 2 串行表内阶段）的积压主题已汇总至 `memory-bank/plans/improvements-stage2-implementation-plan.md` **§11**。
 
 ## 4. 执行原则
 
@@ -70,7 +70,7 @@
 ### 4.2 文档同步原则
 
 - 开始一个新阶段前，先更新 `memory-bank/architecture.md` 中对应的 schema 预案
-- 当前后续增强周期统一按 `memory-bank/improvements-stage2-implementation-plan.md` 推进
+- 当前后续增强周期统一按 `memory-bank/plans/improvements-stage2-implementation-plan.md` 推进
 - 从 Stage 2 开始，每个阶段完成后都必须先更新 `memory-bank/architecture.md` 记录实现事实，再更新 `memory-bank/progress.md` 记录状态与验证结论
 - 若阶段边界发生变化，先更新本文件，再开始编码
 

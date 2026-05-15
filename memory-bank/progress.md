@@ -34,7 +34,7 @@
 
 | 阶段 | 状态 | 结论 |
 | --- | --- | --- |
-| Phase 0 / 基线冻结与术语对齐 | done | 已确认双层状态模型、旧任务映射口径、渐进切换策略与阶段测试出口，并形成 `memory-bank/workflow-refactor-implementation-plan.md` 作为当前工作流重构基线 |
+| Phase 0 / 基线冻结与术语对齐 | done | 已确认双层状态模型、旧任务映射口径、渐进切换策略与阶段测试出口，并形成 `memory-bank/plans/workflow-refactor-implementation-plan.md` 作为当前工作流重构基线 |
 | Phase 1 / 任务中心信息架构重排 | done | 已移除任务中心顶部统计卡片；默认入口切到“待处理”；发布任务从独立标签收敛为页头“建立任务” Drawer；任务中心主标签调整为待处理 / 跟踪 / 备忘 / 模板；保留 tracking 历史区块与 `?selected=` 深链。已执行 frontend `npm run test:unit -- --run tests/TaskCenterView.spec.ts tests/TasksView.spec.ts tests/Router.spec.ts`、`npm run type-check`、`npm run build`，并通过用户验收 |
 | Phase 2 / 图引擎核心模型落库 | done | 已完成后端落库实现：新增 `workflow_graph_templates`、`workflow_graph_template_nodes`、`workflow_graph_template_edges`、`workflow_graph_instances`、`workflow_node_instances`、`workflow_deliverables`、`workflow_outbox_events` 七张表，以及图模板状态、图实例状态、节点引擎态、节点业务投影态、outbox 事件状态枚举；已执行 backend `pytest -q tests/test_models.py -k "workflow_graph or node_instance or deliverable"`、`pytest -q tests/test_migrations.py`、`python -m compileall app tests`，并通过用户验收，可进入 Phase 3 |
 | Phase 3 / 单步任务接入单节点实例 | done | 已完成后端首轮接入：新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` / `TASK_CENTER_V2_ENABLED` / `WORKFLOW_WAIT_ANY_ENABLED` / `WORKFLOW_DEEP_REJECTION_ENABLED` 配置开关、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在开关开启且手动建任务时走 `WorkflowGraphInstance + WorkflowNodeInstance + Task` dual-write 路径；在该基线上又补了单节点交付物提交 / 验收通过 / 打回返工首轮动作，交付快照落到 `workflow_deliverables`，同时禁止 graph 手动任务通过通用状态流转直接跳过交付 / 验收。读取侧继续保持现有 `Task` / `TaskCenterService` 协议不变。已执行 backend `pytest -q tests/test_settings.py tests/test_services.py::test_task_service_creates_task_and_enqueues_notification tests/test_services.py::test_phase3_single_node_workflow_creation_projects_task_and_graph_entities tests/test_services.py -k "phase5_graph_task_supports_deliverable_review_and_rework_cycle" tests/test_api.py -k "phase3_create_task_api_uses_graph_engine or phase5_task_deliverable_review_api_flow or phase5_task_status_api_blocks_direct_review_and_done_for_graph_tasks"`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/TasksView.spec.ts tests/TaskCenterView.spec.ts`、`npm run type-check` |
@@ -57,19 +57,20 @@
 
 | 阶段 | 状态 | 结论 |
 | --- | --- | --- |
-| Stage 2 Phase 0 / 基线冻结与阶段确认 | done | 已将实施计划统一更名为 `improvements-stage2-implementation-plan.md`，并明确当前周期使用 Stage 2 命名，避免与历史 Phase 2 冲突 |
+| Stage 2 Phase 0 / 基线冻结与阶段确认 | done | 已将实施计划统一迁至 `memory-bank/plans/improvements-stage2-implementation-plan.md`，并明确当前周期使用 Stage 2 命名，避免与历史 Phase 2 冲突 |
 | Stage 2 Phase 1 / 前端体验收敛 | done | 首页与任务中心体验收口已完成，并已通过前端 `test:unit`、`type-check`、`build` 验证；后续阶段继续以该结果为前端基线 |
 | Stage 2 Phase 2 / 模板工作台与工作流 E 治理 | done | 已完成三批收口：1）结构化设计器前端校验与流转关系表达；2）模板版本语义、结构锁定与新建版本入口、调度最近执行结果、实例整体进度与步骤迭代展示；3）按模板实例串行化激活入口，补齐 fan-out / join 下游步骤重复激活约束，并补 worker 成功/失败状态回写回归。已执行 backend `pytest -q tests/test_models.py tests/test_services.py tests/test_api.py tests/test_workers.py`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run type-check`、`npm run build` |
 | Stage 2 Phase 3 / 生命周期事件联动 | done | 已完成后端首轮联动：生命周期事件可显式绑定任务模板 / 审批流目标，事件新增触发状态、错误、尝试次数与已生成实例锚点；`HRLifecycleService` 已接入异步入队与 worker 执行，覆盖入队、成功联动、失败回写与幂等场景。已执行 backend `pytest -q tests/test_services.py -k "lifecycle_event_automation or phase3_services_apply_lifecycle_events"`、`pytest -q tests/test_api.py -k "profile_event_api_accepts_lifecycle_automation_targets or people_management" tests/test_workers.py -k "employment_event_automation or run_due_task_schedules_records_failure_state"`、`pytest -q tests/test_migrations.py`、`python -m compileall app tests`；等待用户测试后再进入 Stage 2 Phase 4 |
 | Stage 2 Phase 4 / 消息中心深化 | done | 已完成首轮收口：消息通过 `attachment_links(target_type = notification_message)` 接入附件体系；消息中心补齐来源模块 / 回执状态 / 渠道 / 投递状态 / 时间范围组合筛选；详情页补附件、投递尝试次数与失败原因展示。已执行 backend `pytest -q tests/test_services.py -k "message_center_snapshot" tests/test_api.py -k "message_center_api"`，以及 frontend `npm run test:unit -- --run tests/MessagesView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 5 |
 | Stage 2 Phase 5 / 注册与账号开通 | done | 已完成邀请制注册首轮落地：后端补 `users` 邀请字段、邀请生成 / 预览 / 激活 / 撤销服务与认证路由；登录页支持邀请预览与设置密码激活；人员工作台“新建账号”对话框支持“直接创建 / 邀请注册”双路径。已执行 backend `pytest -q tests/test_settings.py::test_settings_validate_invitation_options tests/test_services.py::test_auth_service_invitation_flow_create_accept_and_revoke tests/test_api.py::test_auth_invitation_api_flow`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/LoginView.spec.ts tests/AuthStore.spec.ts tests/PeopleManagementView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 6 |
-| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | 已纳入两项发布前补丁：1）人员工作台账号页明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；2）管理员可删除未建档且未被业务数据引用的账号。全量自动化回归（backend `pytest -q`、`compileall`；frontend 单测 / `type-check` / `build` / lint）在历史会话已绿。`bash scripts/check-release.sh` 已在 Windows + Git Bash 环境执行（2026-05-14）：P0 项通过（`compileall`、前端 `type-check` / `test:unit` / `build` / `lint`）；同次运行因未激活 backend `.venv`，脚本对 **pytest** 与 **alembic** 给出跳过/未在 PATH 提示，并对 `./.storage` 目录给出部署前 WARN——**不代表 Linux/Ubuntu 主机上已做完带 venv 的全量校验与 Compose/主机部署演练**；该部分仍待 Linux/生产近似环境补跑并在此表收口结论。 |
+| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | 已纳入两项发布前补丁（见上表）。全量自动化回归在历史会话已绿。`bash scripts/check-release.sh` 已在 Windows + Git Bash 执行（2026-05-14）：P0 项通过；同次未激活 backend `.venv` 时 pytest/alembic 被脚本跳过。**Docker GUI 串行 E2E**（`npm run test:e2e:docker-gui`，含任务全链路 C1、汇报多级 C2、汇报中心新入口）已在 `infra/docker` 栈 + `AUTH_LOGIN_RATE_LIMIT` 放宽后跑通 16/16。**memory-bank** 已重组：`handbooks/`（部署 / DB / E2E 手册）、`plans/`（三类实施计划）、`history/`（时点报告与历史提案）、`archive/outdated/`（显著标注的过时草稿），索引见 `memory-bank/README.md`。**仓库内引用**（`.github/instructions`、`copilot-instructions`、`prompts`、`infra/docker/E2E-GUI-VERIFICATION.md`、`verification-runs/README.md` 等）已对齐新路径；对齐审查类报告默认落库路径为 `memory-bank/history/reports/alignment-assessment-YYYYMMDD.md`。Linux/Ubuntu 主机上带 venv 的 `check-release.sh` 与生产部署/回滚演练仍待收口结论。 |
 
 ### Stage 2 文档同步约定
 
 - 每个 Stage 2 阶段完成后，必须先更新 `memory-bank/architecture.md` 记录实现事实、受影响模块职责与结构变化。
 - 随后必须更新 `memory-bank/progress.md` 记录阶段状态、验证命令、验收结论与待用户测试项。
 - 如果某阶段只涉及前端行为变化，也不能跳过 `architecture.md`；需要记录页面行为或模块职责变化。
+- 阶段范围与排期以 `memory-bank/plans/improvements-stage2-implementation-plan.md` 为准；**文档物理路径**以 `memory-bank/README.md` 索引为准（`handbooks/`、`plans/`、`history/`、`archive/outdated/`）。**对齐审查报告**默认写入 `memory-bank/history/reports/alignment-assessment-YYYYMMDD.md`（见 `.github/prompts/memory-bank-alignment-review.prompt.md`）。
 
 ## 近期补丁 / 会话安全改造
 
@@ -87,7 +88,7 @@
 
 | 步骤 | 状态 | 产出 | 验证 |
 | --- | --- | --- | --- |
-| 文档基线与标准入口 | done | 建立 `architecture.md`、`design-document.md`、`progress.md`、`implementation-plan.md` | 已核对文件存在与引用一致性 |
+| 文档基线与标准入口 | done | 建立 `architecture.md`、`design-document.md`、`progress.md`、`plans/implementation-plan.md` 与 `memory-bank/README.md` 索引约定 | 已核对文件存在与引用一致性 |
 | 前端脚手架 | done | Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus | 已执行前端单元测试、构建与 lint |
 | 后端脚手架 | done | FastAPI + Pydantic v2 + SQLAlchemy 2.0 Async + Alembic | 已执行 `pytest`、`compileall` |
 | 容器化编排 | done | Dockerfile、Compose、Nginx、环境模板 | 已完成配置级检查 |

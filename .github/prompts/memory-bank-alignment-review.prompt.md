@@ -32,8 +32,8 @@ git log --oneline -n 20
 - `memory-bank/architecture.md`
 - `memory-bank/design-document.md`
 - `memory-bank/progress.md`
-- `memory-bank/implementation-plan.md`
-- `memory-bank/deployment-runbook-ubuntu-2404.md`
+- `memory-bank/plans/implementation-plan.md`
+- `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md`
 - `README.md`
 - `backend/README.md`
 - `frontend/README.md`
@@ -75,7 +75,7 @@ git log --oneline -n 20
 
 ## 输出要求
 
-- 除非用户另有指定，把报告写到 `memory-bank/alignment-assessment-YYYYMMDD.md`
+- 除非用户另有指定，把报告写到 `memory-bank/history/reports/alignment-assessment-YYYYMMDD.md`
 - 报告语言使用简体中文
 - 报告结构建议如下：
 

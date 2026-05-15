@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.8.8  
-**状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化；工作流重构 Phase 1 / 任务中心信息架构重排 已完成并通过用户验收；工作流重构 Phase 2 / 图引擎核心模型落库 已完成并通过用户验收；工作流重构当前代码基线已完成 Phase 3 的单节点 dual-write 接入、Phase 4 的手动任务握手 / 退回协商 / 转办语义、Phase 5 的单节点交付 / 验收 / 返工质量评分投影、Phase 6 的多节点图实例化 / 顺序流 / fan-out / wait-all 推进 / 实例查询与节点完成接口、Phase 7 的 Context 写回 / 条件边路由 / Notice Node 自动完成 / 智能抄送候选计算、Phase 8 的 Wait-Any 抢单推进与并发撤权语义，以及 Phase 9 的深度打回（Append-Only 版本链、max_iterations 上限防护、尾链重放、旧节点只读保留）  
+**版本**: v3.9.1  
+**状态**: Phase A–5 与重构 Step 1–7 已完成；工作流图引擎 Phase 3–11-G 与 Stage 2 Phase 1–5 已落地；**Stage 2 Phase 6**（Linux 发布演练 / `check-release.sh` 全量闸门）仍为进行中；**memory-bank** 已重组为 `handbooks/`、`plans/`、`history/`、`archive/outdated/`（见 `memory-bank/README.md`），且仓库内 `.github/*`、`infra/`、`verification-runs/` 等指向上述文档的链接已与新目录对齐；汇报中心「发起向上/向下」已收敛为页头 **「发起汇报」** 弹窗统一入口（`/reports`）  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -15,14 +15,15 @@
 
 文档职责分工如下：
 
+- `memory-bank/README.md`：文档索引（手册、计划、历史与归档路径）
 - `design-document.md`：产品目标、业务边界、阶段意图
 - `architecture.md`：当前工程基线、运行时结构、schema 与模块职责
-- `implementation-plan.md`：从当前代码状态出发的未来开发顺序
+- `plans/implementation-plan.md`：从当前代码状态出发的未来开发顺序
 - `progress.md`：已经完成并经过验证的事项
 
 ### 1.1 Stage 2 文档同步约定
 
-当前仓库已完成历史 Phase A-5，本轮后续增强统一归入 `Stage 2` 周期，并以 `memory-bank/improvements-stage2-implementation-plan.md` 作为阶段基线。
+当前仓库已完成历史 Phase A-5，本轮后续增强统一归入 `Stage 2` 周期，并以 `memory-bank/plans/improvements-stage2-implementation-plan.md` 作为阶段基线。
 
 - Stage 2 每个阶段完成后，必须先更新本文件，记录当前实现事实、受影响模块职责、结构约束或 schema 变化。
 - 随后再更新 `memory-bank/progress.md`，记录阶段状态、验证命令与验收结论。
@@ -75,7 +76,7 @@
 - 工作流重构 Phase 11-B/11-C/11-D（已完成）：`WorkflowGraphService` 新增 `takeover_node_instance()`（管理员接管节点、写 takeover 审计信息），并引入 `_write_outbox_event()` 在事务内写入 `workflow_outbox_events`；新增 `backend/app/workers/workflow_outbox_worker.py` 消费 outbox 事件，`backend/app/workers/arq_worker.py` 已注册 30 秒定时任务 `process_workflow_outbox_events_job`，对 `PENDING/RETRYING` 事件执行异步投递与指数退避重试，超上限置 `FAILED`；11-D 已补 graph 写接口事务提交、管理员接管后的手动 `Task` 投影同步（执行人 / 握手标签 / 任务中心入口）、`TaskService` 对失效 graph 节点的 accept / reject / delegate 守卫、`complete_node_instance()` 对 `COMPLETED` 重放的幂等返回与对 `TERMINATED` 迟到提交的 409 拦截，以及 Wait-All / Wait-Any 重放、stale deep-reject、complete API 重放稳定快照的回归覆盖；生产环境 `FRONTEND_APP_URL` 也已改为必填，避免邀请注册链接回落到 localhost
 - 工作流重构 Phase 11-E/11-F（已完成）：`backend/app/services/legacy_task_graph_migration_service.py`、`backend/app/scripts/migrate_legacy_tasks_to_graph.py` 与 `backend/app/scripts/rollback_legacy_task_migration.py` 已支持 legacy task 批次迁移 / rollback；`TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 现已在 `TASK_CENTER_V2_ENABLED` 下默认走 graph-first with legacy fallback，优先解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，修正 migrated review task 的责任链展示；`WORKFLOW_GRAPH_ENGINE_ENABLED` 与 `TASK_CENTER_V2_ENABLED` 默认值均已切到 `true`，旧创建 / 旧读侧仅保留为显式关闭开关时的紧急回退
 - 工作流重构 Phase 11-G（已完成）：前端已新增 Playwright 基线与真实后端联动基线。`frontend/playwright.config.ts` 现覆盖 mock API 驱动的登录 / 会话恢复 / 任务中心标签切换 / graph-first 详情场景；`frontend/playwright.live.config.ts` 则通过 `frontend/e2e/live/docker-compose.playwright-live.yml` + 隔离 Compose 端口启动 PostgreSQL / Redis / backend / worker / frontend / nginx，并在 backend 容器内执行 `python -m app.scripts.seed_sample_data`，验证真实登录与任务中心建立任务链路。为支撑稳定浏览器断言，`LoginView.vue`、`TaskCenterView.vue`、`TasksView.vue` 已补最小 `data-testid` 锚点；`frontend/README.md` 已同步新增 mock/live 两套 E2E 命令说明
-- 汇报中心：向上汇报、向下传达、逐级流转、历史归档与可选审批挂接
+- 汇报中心：向上汇报、向下传达（**统一「发起汇报」弹窗入口**）、逐级流转、历史归档与可选审批挂接
 - 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
 - 任务完成率 / 逾期率 / 负载统计
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
@@ -199,14 +200,19 @@
 
 | 路径 | 作用 |
 | --- | --- |
+| `memory-bank/README.md` | 文档索引：手册、实施计划、历史材料与过时归档路径 |
 | `memory-bank/design-document.md` | 产品能力、非目标与阶段意图 |
 | `memory-bank/architecture.md` | 当前工程基线、完整 schema、模块职责 |
-| `memory-bank/implementation-plan.md` | 未来开发顺序、阶段范围与测试出口 |
+| `memory-bank/plans/implementation-plan.md` | 未来开发顺序、阶段范围与测试出口 |
+| `memory-bank/plans/improvements-stage2-implementation-plan.md` | Stage 2 阶段计划与验收出口 |
+| `memory-bank/plans/workflow-refactor-implementation-plan.md` | 工作流图引擎重构 Phase 0–11 实施基线 |
 | `memory-bank/progress.md` | 已完成事项与验证记录 |
 | `memory-bank/tech-stack.md` | 技术选型与已落地 / 规划状态 |
-| `memory-bank/manual-database-operations.md` | PostgreSQL 手工连接、增删改查注意、Alembic、整库重置与初始化 |
-| `memory-bank/e2e-gui-verification-automation-runbook.md` | Docker 已启动时 Playwright 自动化子集、报告目录与命令说明 |
-| `memory-bank/design-document.md.md` | 历史草稿归档；**勿**作为主文档入口（易与 `design-document.md` 混淆），现行产品边界以 `design-document.md` 为准 |
+| `memory-bank/handbooks/manual-database-operations.md` | PostgreSQL 手工连接、增删改查注意、Alembic、整库重置与初始化 |
+| `memory-bank/handbooks/e2e-gui-verification-automation-runbook.md` | Docker 已启动时 Playwright 自动化子集、报告目录与命令说明 |
+| `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md` | Ubuntu 24.04 LTS 生产部署操作手册 |
+| `memory-bank/history/` | 时点评估报告与历史方案提案（非现行排期唯一来源） |
+| `memory-bank/archive/outdated/` | **已废弃**草稿或重复文件；勿作产品/实现依据 |
 
 ### 5.2 backend 当前热点文件
 
@@ -312,7 +318,7 @@
 | `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为任务中心聚合页；工作流重构 Phase 1 后默认落在“待处理”，主标签为待处理 / 跟踪 / 备忘 / 模板，建立任务改为页头全局 Drawer，历史任务并入跟踪视图；Step 6 起消费消息来源 `?selected=` |
 | `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用；Step 6 起支持外部来源指定初始选中任务 |
 | `frontend/src/views/TaskTemplatesView.vue` | 工作流 E 结构化设计器首版，支持步骤增删改、JSON 导入、实例快照、模板删除与已有模板编辑 |
-| `frontend/src/views/ReportsView.vue` | Step 4 新增的汇报中心工作台，承载待处理、我发起、历史、向上汇报与向下传达；Step 6 起消费消息来源 `?selected=` 高亮 |
+| `frontend/src/views/ReportsView.vue` | 汇报中心工作台：待处理 / 我发起 / 历史三主标签；**「发起汇报」** 页头入口打开弹窗，在弹窗内选择向上汇报或向下传达并填写表单（深链 `?tab=upward|downward` 仍可自动打开对应表单）；消费消息来源 `?selected=` 高亮 |
 | `frontend/src/views/MessagesView.vue` | Step 6 升级后的消息工作台：统计卡、未读 / 未确认 / 来源筛选、我的回执状态与“回到来源”入口 |
 | `frontend/src/views/SettingsView.vue` | 设置页：承载浏览器 Push / PWA 订阅管理，支持多浏览器 / 多设备活跃订阅说明 |
 | `frontend/src/api/overview.ts` | 总览、看板、公告 API client |

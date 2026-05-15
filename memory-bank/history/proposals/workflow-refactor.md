@@ -1,3 +1,5 @@
+> **【目标设计 / 历史方案】** 本文件已迁入 `memory-bank/history/proposals/`。描述图节点化工作流的**目标态**，与现行双轨实现对照使用；**不作为「尚未实现」清单的唯一来源**。现行事实见 `memory-bank/architecture.md`。索引见 `memory-bank/README.md`。
+
 
 
 ### 一、 核心领域模型抽象 (Core Domain Model)

@@ -1,5 +1,7 @@
 # Project Filum 下一周期改进方案（Phase 2）
 
+> **【历史讨论稿】** 本文件已迁入 `memory-bank/history/proposals/`（文件名保留历史拼写 `improvments`）。**现行 Stage 2 排期**请以 `memory-bank/plans/improvements-stage2-implementation-plan.md` 为准。索引见 `memory-bank/README.md`。
+
 ## 1. 文档定位
 
 本文件用于承接当前仓库在 Step 7 收口之后的下一周期改进工作，目标不是重述历史阶段，而是基于当前真实代码、README 与 memory-bank 基线，给出一份可执行的后续推进方案。
@@ -10,7 +12,7 @@
 - 前端改进方向
 - 功能改进方向
 
-说明：`memory-bank/improvements-2.md` 仅作为未收敛草稿参考，不作为当前实现事实来源，也不直接作为排期依据。
+说明：`memory-bank/archive/outdated/improvements-2.md` 仅作为未收敛草稿参考，不作为当前实现事实来源，也不直接作为排期依据。
 
 ## 2. 当前项目情况总结
 
@@ -76,7 +78,7 @@
 
 ### 2.5 `workflow-refactor.md` 与当前实现的差距判断
 
-`memory-bank/workflow-refactor.md` 提出的是一套更激进的图节点化工作流重构方案。它与当前项目并非完全脱节，但也不是“下一周期直接整体替换”的级别，而更适合被拆解为中长期演进方向。
+`memory-bank/history/proposals/workflow-refactor.md` 提出的是一套更激进的图节点化工作流重构方案。它与当前项目并非完全脱节，但也不是“下一周期直接整体替换”的级别，而更适合被拆解为中长期演进方向。
 
 #### 当前实现已经接近该方案的部分
 

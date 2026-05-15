@@ -265,6 +265,6 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 9. 相关文档与入口
 
-- Schema 与表关系：[memory-bank/architecture.md](./architecture.md)
+- Schema 与表关系：[memory-bank/architecture.md](../architecture.md)
 - 本地 / Compose 启动：[README.md](../README.md)、[infra/docker/README.md](../infra/docker/README.md)
 - 基于 Docker 的 GUI 验证清单：[infra/docker/E2E-GUI-VERIFICATION.md](../infra/docker/E2E-GUI-VERIFICATION.md)

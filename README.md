@@ -80,17 +80,18 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 ├── backend/        # FastAPI、服务层、模型、迁移、worker、脚本
 ├── frontend/       # Vue 3 管理后台
 ├── infra/          # Docker Compose 与 Nginx 配置
-└── memory-bank/    # 设计文档、架构基线、实施计划、进度记录
+└── memory-bank/    # 设计/架构/进度（根目录）+ handbooks/ + plans/ + history/ + archive/
 ```
 
 ## 文档入口
 
+- [`memory-bank/README.md`](memory-bank/README.md)：**文档索引**（手册、计划、历史与归档路径）
 - `memory-bank/design-document.md`：产品目标、业务边界、未来增强方向
 - `memory-bank/architecture.md`：当前工程基线、关键模块、运行时结构、完整 schema
-- `memory-bank/implementation-plan.md`：从当前代码状态出发的下一步实施路线
+- `memory-bank/plans/implementation-plan.md`：从当前代码状态出发的下一步实施路线
 - `memory-bank/progress.md`：已完成事项与验测补记
 - `memory-bank/tech-stack.md`：技术选型与落地状态
-- `memory-bank/manual-database-operations.md`：PostgreSQL 手工操作、迁移、整库重置与系统初始化
+- `memory-bank/handbooks/manual-database-operations.md`：PostgreSQL 手工操作、迁移、整库重置与系统初始化
 - `infra/docker/E2E-GUI-VERIFICATION.md`：基于 Docker Compose 的端到端（GUI）分层验证清单
 
 ## 快速开始
@@ -158,7 +159,7 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 推荐优先使用主机部署路径；如果偏好容器编排，可直接使用生产 Compose，而不是把开发态 Compose 暴露到公网。
 
-如果需要一份按真实成功部署整理、可以逐条复制执行的完整操作手册，请直接看 [memory-bank/deployment-runbook-ubuntu-2404.md](memory-bank/deployment-runbook-ubuntu-2404.md)。该文档覆盖 Ubuntu 24.04 LTS 全新服务器初始化、PostgreSQL/Redis/Nginx/systemd 配置、前端静态文件权限、HTTP/HTTPS 验证、推送通知验证以及后续更新发布流程。
+如果需要一份按真实成功部署整理、可以逐条复制执行的完整操作手册，请直接看 [memory-bank/handbooks/deployment-runbook-ubuntu-2404.md](memory-bank/handbooks/deployment-runbook-ubuntu-2404.md)。该文档覆盖 Ubuntu 24.04 LTS 全新服务器初始化、PostgreSQL/Redis/Nginx/systemd 配置、前端静态文件权限、HTTP/HTTPS 验证、推送通知验证以及后续更新发布流程。完整文档索引见 [memory-bank/README.md](memory-bank/README.md)。
 
 ### 推荐拓扑
 

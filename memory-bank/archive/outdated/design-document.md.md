@@ -1,11 +1,13 @@
 # Project Filum 历史设计草稿说明
 
+> **【已归档 / 勿作现行依据】** 本文件已迁入 `memory-bank/archive/outdated/`（错误双扩展名 `design-document.md.md`）。**产品边界**请以 `memory-bank/design-document.md` 为准；**实现与排期**请以 `memory-bank/architecture.md`、`memory-bank/progress.md`、`memory-bank/plans/` 为准。索引见 `memory-bank/README.md`。
+
 > 本文件保留原路径，仅用于**历史归档与跳转**。  
 > 当前请始终以以下文件为准：
 >
 > - `memory-bank/design-document.md`
 > - `memory-bank/architecture.md`
-> - `memory-bank/implementation-plan.md`
+> - `memory-bank/plans/implementation-plan.md`
 > - `memory-bank/progress.md`
 
 ## 为什么不再继续维护本草稿

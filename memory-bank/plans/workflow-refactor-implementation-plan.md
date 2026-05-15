@@ -6,7 +6,7 @@
 
 - 当前仓库已经完成 Phase A-Phase 5、重构 Step 1-7，并进入工作流 E 的后续深化周期。
 - 当前任务域真实基线仍然是 `Task + TaskTemplateInstance + TaskTemplateStepRun`，单任务状态机为 `Todo -> Doing -> Review -> Done`。
-- `memory-bank/workflow-refactor.md` 描述的是**目标设计**，不是当前实现事实。
+- `memory-bank/history/proposals/workflow-refactor.md` 描述的是**目标设计**，不是当前实现事实。
 
 因此，本文件的目标不是重复设计稿，而是把目标设计拆成**可逐阶段实施、可回归、可验收**的工程计划，直到完整实现以下意图：
 
@@ -653,7 +653,7 @@ Phase 11 相关回归通过：7 passed（workers + services）。
 
 #### 当前已完成子项（2026-05-06）
 
-1. **生产域名配置硬化**：`FRONTEND_APP_URL` 在 production 环境下改为必填，禁止继续使用 localhost 默认值；并已同步补齐 `backend/.env.production.example`、`infra/docker/.env.prod.example`、`infra/docker/docker-compose.prod.yml`、`memory-bank/deployment-runbook-ubuntu-2404.md`。
+1. **生产域名配置硬化**：`FRONTEND_APP_URL` 在 production 环境下改为必填，禁止继续使用 localhost 默认值；并已同步补齐 `backend/.env.production.example`、`infra/docker/.env.prod.example`、`infra/docker/docker-compose.prod.yml`、`memory-bank/handbooks/deployment-runbook-ubuntu-2404.md`。
 2. **管理员接管后的兼容读模型同步**：`WorkflowGraphService.takeover_node_instance()` 现在会同步刷新手动 `Task` 投影（执行人、握手 metadata），`TaskService` 对应新增“任务：管理员接管待确认”标签分支，避免 graph runtime 与 `TaskCenterService` 读模型脱节。
 3. **graph 写接口持久化收口**：`workflow_graph_engine` 的 `complete` / `deep-reject` / `takeover` 路由在 service flush 后显式提交事务，避免“接口响应成功但跨会话查询看不到变更”的一致性缺口。
 4. **失效节点握手守卫**：`TaskService` 在回写 graph 握手投影前，现会拒绝对 `COMPLETED/TERMINATED` 节点继续执行 accept / reject / delegate，避免兼容任务链路把已失效 graph 节点重新改回可操作态。
@@ -695,7 +695,7 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall app tests
 2. 新建 `backend/app/scripts/migrate_legacy_tasks_to_graph.py`：扫描尚未写入 graph 锚点的旧 `Task` 与可稳定锚定的 `TaskTemplateStepRun`，创建对应 `WorkflowGraphInstance + WorkflowNodeInstance`；状态映射沿用 Phase 0 口径：`todo→ACTIVATED/Accepted`、`doing→ACKNOWLEDGED/Doing`、`review→COMPLETED/PendingReview`、`done→COMPLETED/Done`。
 3. 迁移逻辑需同步带上现有责任链与关键时间戳：`assignee_id`、`activated_at/acknowledged_at/completed_at`、交付物 / 返工 / 质量评分相关 metadata；graph 侧锚点优先复用 `WorkflowGraphInstance.source_type/source_id`，并在 `WorkflowNodeInstance.config` 中记录 `migration_batch_id`、legacy 来源信息与 dry-run 统计摘要。
 4. 新建 `backend/app/scripts/rollback_legacy_task_migration.py`：按 `migration_batch_id` + `source_type/source_id` 删除 11-E 新建的 graph 实例、节点实例与交付物，不删除原 `Task` / `TaskTemplateStepRun`。
-5. 更新 `memory-bank/deployment-runbook-ubuntu-2404.md`：补齐迁移前备份、`--dry-run`、正式执行、抽样核对、回滚命令与停机/只读窗口建议。
+5. 更新 `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md`：补齐迁移前备份、`--dry-run`、正式执行、抽样核对、回滚命令与停机/只读窗口建议。
 
 #### 主要涉及文件
 
@@ -705,7 +705,7 @@ d:/Repos/FilumReforge/.venv/Scripts/python.exe -m compileall app tests
 - `backend/app/services/task_service.py`
 - `backend/tests/test_services.py`
 - `backend/tests/test_api.py`
-- `memory-bank/deployment-runbook-ubuntu-2404.md`
+- `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md`
 
 #### 验证命令
 
@@ -807,12 +807,12 @@ Set-Location d:/Repos/FilumReforge/frontend; npm run build
 
 #### 本阶段改动
 
-1. docs gate：先更新 `memory-bank/workflow-refactor-implementation-plan.md`、`memory-bank/implementation-plan.md`、`memory-bank/progress.md`，把 11-G 的范围从“纯文档收口与全量回归”锁定为“文档收口 + 前端测试补强 + Playwright E2E 基线 + 最终全量回归”。
+1. docs gate：先更新 `memory-bank/plans/workflow-refactor-implementation-plan.md`、`memory-bank/plans/implementation-plan.md`、`memory-bank/progress.md`，把 11-G 的范围从“纯文档收口与全量回归”锁定为“文档收口 + 前端测试补强 + Playwright E2E 基线 + 最终全量回归”。
 2. 前端可测性加固：针对 `frontend/src/views/LoginView.vue`、`TaskCenterView.vue`、`TasksView.vue` 与必要的模板入口补最小稳定锚点、加载完成态与关键交互选择器，服务于 E2E 稳定性，不借机开启新一轮页面重构。
 3. Playwright 框架接入：已新增 `frontend/playwright.config.ts`、`frontend/playwright.live.config.ts`、`frontend/e2e/` 与配套 npm scripts，分别承载 mock API E2E 与真实 backend/Compose E2E。
 4. 基础浏览器端到端用例：mock 基线已覆盖登录 / 会话恢复、任务中心加载与主标签切换、graph-first 详情展示；live 基线已覆盖隔离 Compose 环境下的真实登录与任务中心建立任务链路，不新增完整 workflow graph 可视化 UI。
 5. 前端单测补强：已扩展 `frontend/tests/LoginView.spec.ts`、`TaskCenterView.spec.ts`，并为登录页 / 任务中心 / 任务详情新增稳定锚点，保证 E2E 所需选择器有单测保护。
-6. 最终文档与回归收口：已更新 `memory-bank/architecture.md`、`memory-bank/progress.md`、`memory-bank/implementation-plan.md` 与 `frontend/README.md`；当前已完成 frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`、`npm run test:e2e`、`npm run test:e2e:live`。Linux/Ubuntu 近似环境上的 `bash scripts/check-release.sh` 继续保留为部署工程化主线闸门，不计入 11-G 的前端交付关闭条件。
+6. 最终文档与回归收口：已更新 `memory-bank/architecture.md`、`memory-bank/progress.md`、`memory-bank/plans/implementation-plan.md` 与 `frontend/README.md`；当前已完成 frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`、`npm run test:e2e`、`npm run test:e2e:live`。Linux/Ubuntu 近似环境上的 `bash scripts/check-release.sh` 继续保留为部署工程化主线闸门，不计入 11-G 的前端交付关闭条件。
 
 #### 当前已确认边界
 

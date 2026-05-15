@@ -1,5 +1,9 @@
 # 20260423 改进执行清单
 
+> **【已归档 / 勿作现行依据】** 本文件已迁入 `memory-bank/archive/outdated/`。内容为 2026-04-23 时点改进清单快照，**多数条目已并入主线**；当前状态请以 `memory-bank/progress.md` 为准。索引见 `memory-bank/README.md`。
+
+---
+
 ## 已完成
 
 ### 前端显示改进

@@ -1,3 +1,7 @@
+> **【已归档 / 勿作现行依据】** 本文件已迁入 `memory-bank/archive/outdated/`。内容为未收敛草稿，**不作为排期或实现事实来源**。现行进度见 `memory-bank/progress.md`，计划见 `memory-bank/plans/`。索引见 `memory-bank/README.md`。
+
+---
+
 ## BUG 修复
 
 ### 总览-公告-发布人不显示

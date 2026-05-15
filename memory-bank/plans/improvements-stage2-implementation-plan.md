@@ -63,10 +63,10 @@
 
 ### 3.3 相关文件
 
-- `memory-bank/improvments-phase2.md`
-- `memory-bank/improvements-stage2-implementation-plan.md`
-- `memory-bank/implementation-plan.md`
-- `memory-bank/workflow-refactor.md`
+- `memory-bank/history/proposals/improvments-phase2.md`
+- `memory-bank/plans/improvements-stage2-implementation-plan.md`
+- `memory-bank/plans/implementation-plan.md`
+- `memory-bank/history/proposals/workflow-refactor.md`
 
 ### 3.4 测试
 
@@ -307,7 +307,7 @@
 ### 9.2 具体步骤
 
 1. 执行根目录 `scripts/check-release.sh`。
-2. 按 `memory-bank/deployment-runbook-ubuntu-2404.md` 做一次完整部署演练。
+2. 按 `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md` 做一次完整部署演练。
 3. 固化回滚步骤与最小恢复路径。
 4. 同步收口 README、architecture、progress 中与本轮事实相关的描述。
 5. 在不偏离部署主目标的前提下，允许纳入发布前阻塞的小范围补丁收口，例如账号开通链路的状态语义澄清、未建档账号管理动作补齐；此类补丁仍需补测试并同步文档。
@@ -339,7 +339,7 @@
 
 ## 11. Stage 2 之后的独立产品积压（迭代拆分建议）
 
-以下条目**不阻塞** Stage 2 Phase 6 的部署文档收口；建议在独立 PR/里程碑中推进，并在开工前更新 `memory-bank/implementation-plan.md` 与根 `README.md`「下一步」以免与 Stage 2 表内阶段混淆。
+以下条目**不阻塞** Stage 2 Phase 6 的部署文档收口；建议在独立 PR/里程碑中推进，并在开工前更新 `memory-bank/plans/implementation-plan.md` 与根 `README.md`「下一步」以免与 Stage 2 表内阶段混淆。
 
 | 主题 | 说明 | 建议依赖/备注 |
 | --- | --- | --- |

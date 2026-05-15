@@ -1,3 +1,6 @@
+> **【讨论笔记】** 本文件已迁入 `memory-bank/history/proposals/`。为任务中心 / 握手等产品讨论记录，**非正式规格**。现行 UI 以代码与 `architecture.md` 为准。索引见 `memory-bank/README.md`。
+
+
 
 我觉得这种设计太别扭了，理解负担过重，我现在希望重新考虑这个逻辑。
 

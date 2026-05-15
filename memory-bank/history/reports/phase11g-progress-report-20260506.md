@@ -1,5 +1,7 @@
 # Phase 11-G 进展报告（2026-05-06）
 
+> **【时点快照】** 本文件已迁入 `memory-bank/history/reports/`。仅作阶段收口记录；**当前主线**见 `memory-bank/progress.md` 与 `memory-bank/plans/`。索引见 `memory-bank/README.md`。
+
 ## 1. 结论摘要
 
 - 工作流重构 Phase 11-A 至 11-G 当前已全部完成，其中 11-G 已完成文档收口、前端可测性加固、Playwright mock/live 双轨浏览器基线与前端回归验证。
@@ -51,7 +53,7 @@ npm run test:e2e:live
 - `frontend/src/views/TasksView.vue`
 - `frontend/tests/LoginView.spec.ts`
 - `frontend/tests/TaskCenterView.spec.ts`
-- `memory-bank/workflow-refactor-implementation-plan.md`
+- `memory-bank/plans/workflow-refactor-implementation-plan.md`
 - `memory-bank/progress.md`
 
 ## 6. 后续建议顺序

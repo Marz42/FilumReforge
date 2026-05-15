@@ -4,7 +4,7 @@
 
 本仓库不是规划态项目，当前已经完成 Phase A、Phase 1-5，并完成重构 Step 1-7 的实现；最新交付状态以 `memory-bank/architecture.md`、`memory-bank/progress.md`、根目录 `README.md` 为准。
 
-当前默认工作主线不是回到 Step 1-7 收口语境，也不是把仓库描述成“仍在补齐 Phase 5”；进一步开发时应以 `memory-bank/implementation-plan.md` 和最近提交历史为准，当前重点是：
+当前默认工作主线不是回到 Step 1-7 收口语境，也不是把仓库描述成“仍在补齐 Phase 5”；进一步开发时应以 `memory-bank/plans/implementation-plan.md` 和最近提交历史为准，当前重点是：
 
 - 工作流 E 的后续深化、回归与稳定性强化
 - 部署工程化与生产运行产物校验
@@ -15,9 +15,9 @@
 - `memory-bank/architecture.md`：当前工程基线、运行结构、完整 schema、关键模块职责
 - `memory-bank/design-document.md`：产品目标、业务边界、非目标、后续增强方向
 - `memory-bank/progress.md`：阶段和重构步骤的完成状态、验证记录
-- `memory-bank/implementation-plan.md`：从当前已交付基线出发的下一轮工作流
+- `memory-bank/plans/implementation-plan.md`：从当前已交付基线出发的下一轮工作流
 - 根目录 `README.md`、`backend/README.md`、`frontend/README.md`：运行、验证、目录入口
-- `memory-bank/deployment-runbook-ubuntu-2404.md`：当前已验证的 Ubuntu 24.04 生产部署路径
+- `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md`：当前已验证的 Ubuntu 24.04 生产部署路径
 
 优先链接这些文档，不要把现有文档整段复制进新的说明文件。
 
@@ -26,11 +26,11 @@
 - 使用简体中文和开发者沟通。
 - 写代码前至少阅读 `memory-bank/architecture.md` 和 `memory-bank/design-document.md`。
 - 如果任务涉及阶段状态、交付边界、是否已验测，还要同步查看 `memory-bank/progress.md`。
-- 如果任务是“继续开发 / 下一轮实现 / 部署 / 发布 / 文档对齐”，先看 `memory-bank/implementation-plan.md` 当前工作流段落，并用 `git log --oneline -n 20` 确认最近主线。
+- 如果任务是“继续开发 / 下一轮实现 / 部署 / 发布 / 文档对齐”，先看 `memory-bank/plans/implementation-plan.md` 当前工作流段落，并用 `git log --oneline -n 20` 确认最近主线。
 - 如果文档和代码冲突，先以实际代码、迁移、测试和可运行命令为行为事实，再明确记录是“文档漂移”还是“实现缺口”。
 - 不要默认提交 git commit；只有用户明确要求时才提交。
 - 不要大段重写 `memory-bank`；仅在确认事实后做最小、可验证的更新。
-- `memory-bank/refactor-plan.md` 与 `memory-bank/design-document.md.md` 属于历史材料，不作为当前实现事实来源。
+- `memory-bank/history/proposals/refactor-plan.md` 与 `memory-bank/archive/outdated/design-document.md.md` 属于历史材料，不作为当前实现事实来源。
 
 ## 当前技术与边界
 
@@ -72,7 +72,7 @@
 
 - 开发 / 集成联调 Compose 入口：`infra/docker/docker-compose.yml`，对应说明见 `infra/docker/README.md`。
 - 生产 Compose 入口：`infra/docker/docker-compose.prod.yml` 与 `infra/docker/.env.prod.example`。
-- 主机部署入口：`memory-bank/deployment-runbook-ubuntu-2404.md`、`infra/nginx/nginx.prod.conf`、`backend/scripts/start-prod.sh`。
+- 主机部署入口：`memory-bank/handbooks/deployment-runbook-ubuntu-2404.md`、`infra/nginx/nginx.prod.conf`、`backend/scripts/start-prod.sh`。
 - 发布前验证入口：`scripts/check-release.sh`。
 
 ## 已验证的常用命令
@@ -138,6 +138,6 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
 
 - 重大实现变化后，优先更新 `memory-bank/architecture.md`。
 - 如果阶段状态、验测结论或交付边界变化，再更新 `memory-bank/progress.md`。
-- 如果产品目标、非目标或路线图变化，再更新 `memory-bank/design-document.md` 或 `memory-bank/implementation-plan.md`。
+- 如果产品目标、非目标或路线图变化，再更新 `memory-bank/design-document.md` 或 `memory-bank/plans/implementation-plan.md`。
 - 更新文档时引用真实文件和真实命令，不写无法从仓库验证的描述。
 

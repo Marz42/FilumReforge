@@ -1,5 +1,7 @@
 # Project Filum 重构方案
 
+> **【历史提案】** 本文件已迁入 `memory-bank/history/proposals/`。内容为 Step 1–7 启动前的方案语境；**当前实现**以 `memory-bank/architecture.md`、`memory-bank/progress.md` 为准。索引见 `memory-bank/README.md`。
+
 **版本**: v1.5  
 **状态**: 历史规划文档；Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测  
 **适用范围**: 记录当前重构批次启动前的方案与目标；当前实现事实以 `architecture.md`、`progress.md`、根目录与子目录 `README.md` 为准
@@ -575,7 +577,7 @@
 
 **产出**
 
-- `memory-bank/refactor-plan.md`
+- `memory-bank/history/proposals/refactor-plan.md`
 - 更新会话 `plan.md`
 - 把新的重构批次写入 SQL todo
 
