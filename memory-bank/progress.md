@@ -63,7 +63,7 @@
 | Stage 2 Phase 3 / 生命周期事件联动 | done | 已完成后端首轮联动：生命周期事件可显式绑定任务模板 / 审批流目标，事件新增触发状态、错误、尝试次数与已生成实例锚点；`HRLifecycleService` 已接入异步入队与 worker 执行，覆盖入队、成功联动、失败回写与幂等场景。已执行 backend `pytest -q tests/test_services.py -k "lifecycle_event_automation or phase3_services_apply_lifecycle_events"`、`pytest -q tests/test_api.py -k "profile_event_api_accepts_lifecycle_automation_targets or people_management" tests/test_workers.py -k "employment_event_automation or run_due_task_schedules_records_failure_state"`、`pytest -q tests/test_migrations.py`、`python -m compileall app tests`；等待用户测试后再进入 Stage 2 Phase 4 |
 | Stage 2 Phase 4 / 消息中心深化 | done | 已完成首轮收口：消息通过 `attachment_links(target_type = notification_message)` 接入附件体系；消息中心补齐来源模块 / 回执状态 / 渠道 / 投递状态 / 时间范围组合筛选；详情页补附件、投递尝试次数与失败原因展示。已执行 backend `pytest -q tests/test_services.py -k "message_center_snapshot" tests/test_api.py -k "message_center_api"`，以及 frontend `npm run test:unit -- --run tests/MessagesView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 5 |
 | Stage 2 Phase 5 / 注册与账号开通 | done | 已完成邀请制注册首轮落地：后端补 `users` 邀请字段、邀请生成 / 预览 / 激活 / 撤销服务与认证路由；登录页支持邀请预览与设置密码激活；人员工作台“新建账号”对话框支持“直接创建 / 邀请注册”双路径。已执行 backend `pytest -q tests/test_settings.py::test_settings_validate_invitation_options tests/test_services.py::test_auth_service_invitation_flow_create_accept_and_revoke tests/test_api.py::test_auth_invitation_api_flow`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/LoginView.spec.ts tests/AuthStore.spec.ts tests/PeopleManagementView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 6 |
-| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | 已纳入两项发布前补丁：1）人员工作台账号页明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；2）管理员可删除未建档且未被业务数据引用的账号。当前已完成等价于 `check-release.sh` 核心校验范围的全量自动化回归：backend `pytest -q`、`python -m compileall app tests`，frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`、`npm exec oxlint .`、`npm exec eslint .` 均通过；本次会话运行在 Windows 工作区，未直接执行 `bash scripts/check-release.sh`，Ubuntu 24.04 目标主机上的完整部署演练与回滚路径固化仍待后续在 Linux/生产近似环境完成。 |
+| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | 已纳入两项发布前补丁：1）人员工作台账号页明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；2）管理员可删除未建档且未被业务数据引用的账号。全量自动化回归（backend `pytest -q`、`compileall`；frontend 单测 / `type-check` / `build` / lint）在历史会话已绿。`bash scripts/check-release.sh` 已在 Windows + Git Bash 环境执行（2026-05-14）：P0 项通过（`compileall`、前端 `type-check` / `test:unit` / `build` / `lint`）；同次运行因未激活 backend `.venv`，脚本对 **pytest** 与 **alembic** 给出跳过/未在 PATH 提示，并对 `./.storage` 目录给出部署前 WARN——**不代表 Linux/Ubuntu 主机上已做完带 venv 的全量校验与 Compose/主机部署演练**；该部分仍待 Linux/生产近似环境补跑并在此表收口结论。 |
 
 ### Stage 2 文档同步约定
 
@@ -79,7 +79,7 @@
 
 ## 当前已知问题
 
-本轮未发现新的阻塞性失败。Phase 11-G 已完成前端单测、构建、mock E2E 与 live E2E 回归；Linux/Ubuntu 近似环境上的 `bash scripts/check-release.sh` 与生产演练仍属于部署工程化主线的后续工作，不作为当前前端测试基线收口的阻塞项。
+本轮未发现新的阻塞性失败。Phase 11-G 已完成前端单测、构建、mock E2E 与 live E2E 回归。`bash scripts/check-release.sh` 已在 Windows + Git Bash 执行一轮（见 Stage 2 Phase 6 表内说明）：P0 通过但 pytest/alembic 因未激活本地 venv 被跳过。**带 venv 的全量脚本跑通与 Ubuntu 24.04 主机部署 / 回滚演练**仍属 Stage 2 Phase 6 待收口项，不作为前端单测基线的阻塞项。
 
 ## 已完成里程碑
 
@@ -431,19 +431,20 @@
 
 | 方向 | 仍未实现或需继续深化的关键能力 | 当前判断 |
 | --- | --- | --- |
-| 注册与账号开通 | 公开注册 / 邀请注册 / 审批式注册方案仍未定 | 待明确设计后实现 |
-| HR 流程自动化 | 生命周期事件与任务模板 / 审批流联动、字段权限可视化管理增强 | 后续增强 |
-| 消息渠道深化 | 消息附件、真实 Email / WebSocket 发送接入、delivery 观测增强 | 后续增强 |
-| 工程质量 | 更细的重构、集成测试、E2E 路径与性能 / 稳定性验证 | 下一轮重点 |
+| 注册与账号开通 | **邀请制注册**（创建未启用账号、预览链接、设置密码激活、撤销）已落地；**访客公开自助注册**与**审批式注册**仍未实现，需产品决策 | 邀请 done；公开 / 审批式待决策与实现 |
+| HR 流程自动化 | 生命周期事件与任务模板 / 审批流**显式绑定 + worker 异步触发**已落地；**规则化默认映射**与**前端结构化配置入口**仍待补齐；字段权限可视化管理增强 | 后续增强 |
+| 消息渠道深化 | 消息附件绑定、筛选与失败详情已落地（Stage 2 Phase 4）；真实 Email / WebSocket 对外发送接入、delivery 观测增强仍待深化 | 后续增强 |
+| 工程质量 | 更细的重构、集成测试、E2E 路径与性能 / 稳定性验证；Linux 主机上 `check-release.sh` 与生产近似部署演练（Stage 2 Phase 6 收口项） | 下一轮重点 |
 
 ## 当前规划焦点
 
 当前建议优先级已经调整为：
 
-1. **基于 Phase 5 现状做重构与测试强化**
-2. **明确并落地注册能力**
-3. **补齐消息附件与更真实的渠道适配**
-4. **推进生命周期事件与模板 / 审批流联动**
+1. **memory-bank / README 与代码事实对齐**（避免按过时缺口排期）
+2. **Stage 2 Phase 6：Linux 近似环境发布演练与 `check-release.sh` 固化结论**
+3. **工作流 E 与图引擎深化、全量回归扩面**
+4. **生命周期规则化默认联动 + 前端结构化配置**
+5. **公开 / 审批式注册（若需要）与真实通知渠道适配**
 
 ## 重构执行补记
 

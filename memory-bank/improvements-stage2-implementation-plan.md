@@ -336,3 +336,17 @@
 
 - 更新 `memory-bank/architecture.md`，记录当前实现事实、受影响模块职责与结构变化
 - 更新 `memory-bank/progress.md`，记录阶段状态、验证命令与验收结论
+
+## 11. Stage 2 之后的独立产品积压（迭代拆分建议）
+
+以下条目**不阻塞** Stage 2 Phase 6 的部署文档收口；建议在独立 PR/里程碑中推进，并在开工前更新 `memory-bank/implementation-plan.md` 与根 `README.md`「下一步」以免与 Stage 2 表内阶段混淆。
+
+| 主题 | 说明 | 建议依赖/备注 |
+| --- | --- | --- |
+| 生命周期规则 UI | 事件级显式绑定 + worker 触发已存在；补**默认规则映射**与**前端结构化配置** | 与 HR 治理页、模板/审批选择器联动 |
+| 工作流 E 深化 | 模板 / 调度管理、设计器校验、实例历史深挖、全量回归 | 与 `TaskTemplateService`、worker 调度回写已有耦合 |
+| 工作流 E 与图引擎统一 | `task_templates` 与 `WorkflowGraphTemplate` 并存的产品决策与迁移/桥接方案 | 架构影响大，需单独设计评审 |
+| 公开或审批式注册 | 邀请制已落地；访客自助或审批流开户仍缺 | 安全与 IAM 策略单独评审 |
+| 通知适配器深化 | Email / WebSocket 真实外发、重试与投递观测 | 与 `NotificationService`、adapter factory |
+
+跟踪入口：根 `README.md`「下一步」与 `memory-bank/progress.md`「当前规划焦点」表。

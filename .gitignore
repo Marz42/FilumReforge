@@ -24,3 +24,4 @@ frontend/coverage/
 frontend/.env
 
 infra/docker/.env
+verification-runs/

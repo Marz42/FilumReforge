@@ -8,16 +8,16 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
   - 用户与会话：管理员初始化、JWT access token、HttpOnly refresh cookie 轮换 / logout 撤销、角色控制
   - 组织与 HR：部门树、一人一档、字段级权限、多岗位、虚线汇报、生命周期事件、代理授权
   - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计、多视图、五主标签任务中心（历史任务并入跟踪视图）
-  - 工作流图引擎重构当前已到 Phase 6：单节点 dual-write、交付 / 验收 / 返工、接单 / 协商 / 转办，以及多节点模板实例化、顺序流 / fan-out / wait-all 推进与实例查询接口
+  - 工作流图引擎重构当前已到 **Phase 11-F**：单节点 dual-write、交付 / 验收 / 返工、接单 / 协商 / 转办、多节点推进、条件边 / Context / Notice、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first 读路径**（默认 `TASK_CENTER_V2_ENABLED=true`）、迁移 CLI 与 Playwright 基线等；详见 `memory-bank/progress.md`
   - 工作流 E 首批：模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚（`all` / `any`）、模板实例快照、结构化设计器首版与已有模板编辑
   - 总览与汇报：总览看板 / 公告 / 当前任务、逐级向上汇报 / 向下传达、历史归档
   - 消息与通知：通知总线、delivery 记录、消息中心、回执、浏览器推送订阅与 Web Push 链路，以及 Step 6 的来源回跳 / 用户级隔离
   - Knowledge / AI：Markdown 知识库、向量检索、`@系统` / `/` 路由、Tool Calling
   - 前端体验：通用模块 / 特殊模块分组导航、统一人员工作台、消息工作台、设置模块、Push 订阅卡片、PWA manifest / service worker
 - **仍待补齐**
-  - 公开注册能力
-  - 生命周期事件的规则化默认联动与前端结构化配置入口
-  - 工作流图引擎的读取侧切换、条件路由、Workflow Context、Notice Node 与智能抄送
+  - 访客公开自助注册与审批式注册（**邀请制注册**已落地：管理员发邀请链接、受邀人设置密码激活；与「完全无注册能力」不同）
+  - 生命周期事件的规则化默认联动与前端结构化配置入口（后端已支持事件上**显式绑定**模板 / 审批目标并由 **worker 异步触发**）
+  - **工作流 E 与图引擎（`WorkflowGraphTemplate`）的产品级统一**、模板 / 调度管理深化、全量回归与部署硬化（任务中心读侧已默认 graph-first，不等同于「条件路由 / Context 未做」）
   - 工作流 E 的后续收口：模板 / 调度管理动作深化、全量回归、部署硬化与更强设计器校验
   - 通知适配器的真实外部集成深化与更完整的投递观测（当前 Email / WebSocket 为最小实现）
   - 针对当前基线的进一步重构与测试强化
@@ -90,6 +90,8 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 - `memory-bank/implementation-plan.md`：从当前代码状态出发的下一步实施路线
 - `memory-bank/progress.md`：已完成事项与验测补记
 - `memory-bank/tech-stack.md`：技术选型与落地状态
+- `memory-bank/manual-database-operations.md`：PostgreSQL 手工操作、迁移、整库重置与系统初始化
+- `infra/docker/E2E-GUI-VERIFICATION.md`：基于 Docker Compose 的端到端（GUI）分层验证清单
 
 ## 快速开始
 
@@ -435,7 +437,7 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 当前已知边界
 
-- **不支持访客自助注册**
+- **不支持访客自助注册**（**邀请制注册**已支持：由管理员创建邀请并由受邀人激活）
 - **不建设独立聊天系统**
 - Email / WebSocket 适配器当前为最小实现，重点先放在通知总线与 delivery 语义稳定
 - PWA 当前提供安装与 Push 基线，不追求复杂离线编辑
@@ -443,10 +445,11 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 下一步
 
-当前重构主体已经完成，工作流 E 首批也已落地；下一轮优先级建议如下：
+当前重构主体已经完成，工作流 E 首批与图引擎 Phase 11 主干已落地；下一轮优先级建议如下：
 
-1. 工作流 E 的回归、部署收口与模板 / 调度管理深化
-2. 重构服务边界与页面状态管理
-3. 扩充集成测试 / E2E 验证
-4. 明确并实现注册能力
-5. 推进 workflow graph 条件路由 / Context / 通知节点与更完整的通知适配器
+1. **Stage 2 Phase 6**：Linux / Ubuntu 近似环境执行 `scripts/check-release.sh` 与生产部署演练，回写 `memory-bank/progress.md` 验收结论
+2. 工作流 E 的回归、部署收口与模板 / 调度管理深化；**工作流 E 与图模板统一化**（若产品需要）
+3. 重构服务边界与页面状态管理
+4. 扩充集成测试 / E2E 验证
+5. **公开或审批式注册**（邀请制已可用）
+6. 通知适配器真实外部集成与观测（条件路由 / Context / Notice 等已在图引擎与任务链路落地，见 `memory-bank/architecture.md` §6.13B）

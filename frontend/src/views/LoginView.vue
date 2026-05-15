@@ -217,10 +217,15 @@ onMounted(() => {
           </el-form>
         </el-tab-pane>
 
-        <el-tab-pane v-if="showBootstrapEntry" label="初始化管理员" name="bootstrap">
+        <el-tab-pane
+          v-if="showBootstrapEntry"
+          label="初始化管理员"
+          name="bootstrap"
+          data-testid="bootstrap-tab-pane"
+        >
           <el-form label-position="top" @submit.prevent="handleBootstrap">
             <el-form-item label="管理员邮箱">
-              <el-input v-model="bootstrapForm.email" autocomplete="username" />
+              <el-input v-model="bootstrapForm.email" autocomplete="username" data-testid="bootstrap-email" />
             </el-form-item>
             <el-form-item label="密码">
               <el-input
@@ -228,18 +233,20 @@ onMounted(() => {
                 type="password"
                 autocomplete="new-password"
                 show-password
+                data-testid="bootstrap-password"
               />
             </el-form-item>
             <el-form-item label="姓名">
-              <el-input v-model="bootstrapForm.real_name" />
+              <el-input v-model="bootstrapForm.real_name" data-testid="bootstrap-real-name" />
             </el-form-item>
             <el-form-item label="员工编号">
-              <el-input v-model="bootstrapForm.employee_no" />
+              <el-input v-model="bootstrapForm.employee_no" data-testid="bootstrap-employee-no" />
             </el-form-item>
             <el-button
               type="primary"
               :loading="bootstrapSubmitting"
               class="login-tabs__action"
+              data-testid="bootstrap-submit"
               @click="handleBootstrap"
             >
               初始化管理员

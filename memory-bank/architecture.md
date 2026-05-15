@@ -1,6 +1,6 @@
 # Project Filum 架构基线
 
-**版本**: v3.8.7  
+**版本**: v3.8.8  
 **状态**: Phase A / 1 / 2 / 3 / 4 / 5 已完成；重构 Step 1 / Step 2 / Step 3 / Step 4 / Step 5 / Step 6 / Step 7 已完成并通过用户验测；工作流 E / 结构化任务模板与多步骤协作首批实现已落地，当前进入 Stage 2 周期下的回归、部署准备与后续深化；工作流重构 Phase 1 / 任务中心信息架构重排 已完成并通过用户验收；工作流重构 Phase 2 / 图引擎核心模型落库 已完成并通过用户验收；工作流重构当前代码基线已完成 Phase 3 的单节点 dual-write 接入、Phase 4 的手动任务握手 / 退回协商 / 转办语义、Phase 5 的单节点交付 / 验收 / 返工质量评分投影、Phase 6 的多节点图实例化 / 顺序流 / fan-out / wait-all 推进 / 实例查询与节点完成接口、Phase 7 的 Context 写回 / 条件边路由 / Notice Node 自动完成 / 智能抄送候选计算、Phase 8 的 Wait-Any 抢单推进与并发撤权语义，以及 Phase 9 的深度打回（Append-Only 版本链、max_iterations 上限防护、尾链重放、旧节点只读保留）  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
@@ -64,8 +64,8 @@
 - Stage 2 Phase 6 补丁增强：人员工作台账号页已明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；管理员可删除未建档且未被业务数据引用的账号
 - Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
 - Inbox-first 任务中心：待处理 / 跟踪 / 备忘 / 模板四主标签，建立任务改为页头全局 Drawer，历史任务并入跟踪视图
-- 工作流重构 Phase 2：图引擎核心 schema 已落库，新增 `workflow_graph_templates`、`workflow_graph_template_nodes`、`workflow_graph_template_edges`、`workflow_graph_instances`、`workflow_node_instances`、`workflow_deliverables`、`workflow_outbox_events` 七张表，以及图模板状态、图实例状态、节点引擎态、节点业务投影态、outbox 事件状态枚举；当前尚未接入任务创建与模板运行入口
-- 工作流重构 Phase 3：后端已新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` 等 feature flag、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在手动创建任务且开关开启时走“graph instance + node instance + 兼容 Task 投影”双写路径；当前读取侧仍由既有 `Task` / `TaskCenterService` 提供
+- 工作流重构 Phase 2：图引擎核心 schema 已落库，新增 `workflow_graph_templates`、`workflow_graph_template_nodes`、`workflow_graph_template_edges`、`workflow_graph_instances`、`workflow_node_instances`、`workflow_deliverables`、`workflow_outbox_events` 七张表，以及图模板状态、图实例状态、节点引擎态、节点业务投影态、outbox 事件状态枚举；Phase 3 起已接入手动任务的 graph dual-write；任务中心待办 / 跟踪 / 历史在默认 `TASK_CENTER_V2_ENABLED=true` 下为 graph-first with legacy fallback（见 Phase 11-F）；工作流 E（`task_templates` / `TaskTemplateService.instantiate_template`）仍为独立运行时，与 `WorkflowGraphTemplate` 多节点图并存，尚未合并为单一模板源
+- 工作流重构 Phase 3：后端已新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` 等 feature flag、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在手动创建任务且开关开启时走“graph instance + node instance + 兼容 Task 投影”双写路径；兼容 `Task` 行仍是列表与详情载体，`TaskCenterService` 仍委托 `TaskService.list_task_inbox()` 等三接口，但在 `TASK_CENTER_V2_ENABLED=true`（`backend/app/core/config.py` 默认）时上述列表优先使用 `_graph_task_projection_map` 解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，未命中图投影时回落既有 legacy 规则
 - 工作流重构单节点交付闭环首轮：基于上述 Phase 3 双写链路，`TaskService` / `tasks` API 已新增“提交交付物”“通过验收”“打回返工”动作，交付快照写入 `workflow_deliverables`，兼容 `Task` 投影通过 `extra_metadata` 暴露最近交付说明、最近提交时间、返工原因、返工次数与最近质量评分；`TaskCenterService` / `task-center` API / `TaskCenterView` 已同步投影待验收、最近提交时间、返工次数、质量评分等跟踪信号；同时禁止 graph 手动任务通过通用状态流转接口直接跳过交付 / 验收动作
 - 工作流重构 Phase 4：graph 手动任务默认以 `ASSIGNED` 节点业务态创建；`TaskService` / `tasks` API / `TasksView` 已新增“接受任务”“退回协商”“转办”动作，`todo -> doing` 现在要求执行人先确认接单；兼容读取侧继续使用 `Task.extra_metadata` + `TaskCenterService` 投影当前握手阶段、当前处理人与最近协商 / 转办原因
 - 工作流重构 Phase 6-7：`WorkflowGraphService` 已支持基于 `WorkflowGraphTemplate` 创建多节点图实例、按入度激活起始节点、在节点完成后推进顺序流 / fan-out / wait-all join，并通过实例级行锁、节点版本号和稳定 `current_node_key` 解析保证幂等收口；同时已支持节点完成时 `context_updates` 写回实例 `context`、条件边求值（含 `else` 默认路由）与 `Notice Node` 触达即完成；`workflow_graph_engine` API 已提供模板实例列表、实例详情、节点完成快照与智能抄送候选计算
@@ -89,7 +89,7 @@
 
 - 公开注册 / 审批式注册仍未落地；邀请制注册已落地
 - 工作流 E 首批已经落地，且 Stage 2 Phase 2 已完成模板设计器拓扑校验、模板版本语义、调度最近执行结果、实例进度展示与 fan-out / join 重复激活约束收口；后续重点转向生命周期事件联动、实例历史深挖与全量回归 / 部署收口
-- 工作流重构已完成 Phase 3-9：手动创建链路 dual-write、单节点交付 / 验收 / 返工、握手 / 拒绝 / 转办，以及多节点图实例化 / 下游推进 / 实例查询、Workflow Context 写回、条件边求值、Notice Node 自动完成、智能抄送候选计算、Wait-Any 抢单推进与同批并发节点自动撤权、深度打回（Append-Only 版本链、max_iterations 防护、旧节点只读保留）；但读取侧仍未切到 graph runtime，`TaskService` / `TaskCenterService` 当前继续以兼容 `Task` 投影作为运行时读模型，`TaskTemplateService` 也尚未接入 graph engine
+- 工作流重构已完成 Phase 3-11-G：含手动创建 dual-write、交付 / 验收 / 返工、握手 / 转办、多节点推进、Context 写回、条件边与 Notice、智能抄送候选、Wait-Any 撤权、深度打回、routing_rules 桥接、outbox、迁移 CLI、**任务中心列表 graph-first 读路径**（`TASK_CENTER_V2_ENABLED`）、Playwright 基线等。仍待产品化深化的方向：工作流 E 与图模板 / 调度的进一步统一、全量回归与部署演练；`TaskTemplateService` 仍未改为从 `WorkflowGraphTemplate` 一步实例化（两套入口并存属已知架构边界，而非“读侧未切换”）
 - 生命周期事件与任务模板 / 审批流的规则化默认联动、前端结构化配置入口仍未落地；当前已支持在事件写入时显式绑定目标并异步触发
 - 生产 compose、主机部署脚本与 Nginx 生产配置已落地；当前主要缺全量上线演练与发布稳定性验证
 - HR 字段权限的可视化规则管理页仍偏基础
@@ -106,7 +106,7 @@
 | HR Profiles | 主档案、动态字段、基础资料 | 已实现 Phase 3 增强版 | 与模板 / 审批联动 |
 | HR Governance | 奖惩、晋升、离职、授权与关系模型 | 已实现 | 事件与模板 / 审批联动 |
 | Workflow Core | 任务、依赖、状态机、统计 | 已实现 Phase 4 增强版；任务开始前可阻止未满足依赖的流转 | 与模板实例运行态、Knowledge / AI / 生命周期自动化联动 |
-| Workflow Engine | 模板、审批、自动触发、周期调度，以及图引擎核心 schema | 已实现增强版；模板实例运行态、逐步激活、多人扇出 / 汇聚、实例快照与结构化设计器首版已落地；工作流重构 Phase 2 已补图引擎核心表与双层节点状态枚举，Phase 3-5 已补手动创建任务的 graph dual-write、交付验收与握手语义，Phase 6 已补多节点实例化、顺序流 / fan-out / wait-all 推进、实例查询与节点完成接口，Phase 7 已补 Context 写回、条件边路由（含 else）与 Notice Node 自动完成，Phase 8 已补 Wait-Any 抢单推进、同批并发节点自动撤权与撤权后二次提交拦截；Phase 9 已补深度打回（`deep_reject_to_upstream`）、Append-Only 版本链克隆、max_iterations 上限阻断、旧节点只读保留、前端迭代版本标签与打回原因展示 | 模板 / 调度管理深化、graph runtime 读侧切换 |
+| Workflow Engine | 模板、审批、自动触发、周期调度，以及图引擎核心 schema | 已实现增强版；模板实例运行态、逐步激活、多人扇出 / 汇聚、实例快照与结构化设计器首版已落地；工作流重构 Phase 2 已补图引擎核心表与双层节点状态枚举，Phase 3-5 已补手动创建任务的 graph dual-write、交付验收与握手语义，Phase 6 已补多节点实例化、顺序流 / fan-out / wait-all 推进、实例查询与节点完成接口，Phase 7 已补 Context 写回、条件边路由（含 else）与 Notice Node 自动完成，Phase 8 已补 Wait-Any 抢单推进、同批并发节点自动撤权与撤权后二次提交拦截；Phase 9 已补深度打回（`deep_reject_to_upstream`）、Append-Only 版本链克隆、max_iterations 上限阻断、旧节点只读保留、前端迭代版本标签与打回原因展示；Phase 11-F 起任务中心列表默认 graph-first | 模板 E 与图引擎统一化评估、模板 / 调度管理深化、全量回归 |
 | Task Collaboration | 评论、日志、评论附件、时间线、watcher | 已实现 Phase 4 增强版 | 与消息中心、推送渠道打通 |
 | Notification Bus | 消息落库、delivery 记录、ARQ 入队、逾期扫描 | 已实现 Phase 4 增强版 | 真实渠道适配器、浏览器推送 |
 | Messaging Center | 收件箱、确认回执、审批提醒聚合 | 已实现 Step 6 增强版；Stage 2 Phase 4 已补消息附件、渠道 / 投递状态 / 时间筛选与失败详情展示 | 渠道融合、推送 |
@@ -204,7 +204,9 @@
 | `memory-bank/implementation-plan.md` | 未来开发顺序、阶段范围与测试出口 |
 | `memory-bank/progress.md` | 已完成事项与验证记录 |
 | `memory-bank/tech-stack.md` | 技术选型与已落地 / 规划状态 |
-| `memory-bank/design-document.md.md` | 历史草稿归档说明，不再承载现行设计 |
+| `memory-bank/manual-database-operations.md` | PostgreSQL 手工连接、增删改查注意、Alembic、整库重置与初始化 |
+| `memory-bank/e2e-gui-verification-automation-runbook.md` | Docker 已启动时 Playwright 自动化子集、报告目录与命令说明 |
+| `memory-bank/design-document.md.md` | 历史草稿归档；**勿**作为主文档入口（易与 `design-document.md` 混淆），现行产品边界以 `design-document.md` 为准 |
 
 ### 5.2 backend 当前热点文件
 
@@ -460,7 +462,7 @@
 ### 6.13 任务中心链路（已完成并通过验测）
 
 1. `TaskCenterView.vue` 进入 `/task-center` 后调用 `GET /task-center`，默认落在“待处理”，并兼容旧的 `?tab=tasks` / `?tab=history` -> `tracking`、`?tab=publish` -> 默认入口。
-2. `TaskCenterService` 聚合模板摘要、发布权限、发布部门 / 用户选项、待办、跟踪、历史与个人备忘；当前待办 / 跟踪 / 历史三条列表仍全部委托 `TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 读取兼容 `Task` 投影。
+2. `TaskCenterService` 聚合模板摘要、发布权限、发布部门 / 用户选项、待办、跟踪、历史与个人备忘；待办 / 跟踪 / 历史仍委托 `TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()`，在默认 `TASK_CENTER_V2_ENABLED=true` 时上述方法内部优先使用 `_graph_task_projection_map` 等 graph-first 逻辑，兼容 `Task` 行作为投影与 legacy 回退载体，而非“仅扫描裸 `Task` 表语义”。
 3. `TaskTemplateService` 与 `TaskAutomationService` 使用“管理角色 + 部门负责人 + 部门能力”判断模板管理与组织任务发布权限。
 4. `TaskService` 输出 `list_task_inbox()`、`list_task_tracking()` 与 `list_task_history()`，前端据此拆分待办 / 跟踪，并在跟踪视图中附带历史任务区块。
 5. `TaskMemoService` 负责 `task_memos` 的新增、编辑、删除，并校验关联任务是否对当前用户可见。
@@ -480,7 +482,7 @@
 10. Phase 7 在 `complete_node_instance()` 上补 `context_updates` 输入，节点完成时可把结构化字段写入 `WorkflowGraphInstance.context` 并递增 `context_version`；出边路由支持 `eq/neq/gt/gte/lt/lte/in/not_in/contains/exists` 与 `else` 默认分支，未命中普通规则时走 `else`。
 11. Phase 7 补齐 `Notice Node` 触达即完成：Notice 节点被激活后会在同一事务链中自动置为 `COMPLETED` 并继续推进下游，不阻塞主链路。
 12. `backend/app/api/routes/workflow_graph_engine.py` 现提供 `GET /workflow-graph/templates/{template_id}/instances`、`GET /workflow-graph/instances/{instance_id}`、`POST /workflow-graph/node-instances/{node_instance_id}/complete`、`POST /workflow-graph/smart-notice-candidates` 四个端点，返回图实例与节点实例快照、节点统计和 `progress_percent`，并支持越级派发场景下中间领导候选计算。
-13. 当前读取侧仍未切到 graph runtime：`TaskService.list_task_inbox`、`list_task_tracking`、`list_task_history` 与 `TaskCenterService.get_task_center()` 继续直接读取兼容 `Task` 投影，因此前端协议与现有任务列表行为保持不变；11-E 的旧数据迁移与 11-F 的 graph-first 读侧切流尚未进入代码实施，深度打回迭代链路也仍留待后续阶段。
+13. **任务中心读路径（Phase 11-F，与代码一致）**：`TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 在 `TASK_CENTER_V2_ENABLED=true`（`Settings` 默认值，见 `backend/app/core/config.py`）下对具备图锚点的任务优先解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，再与未迁移的 legacy 任务合并排序；`TaskCenterService.get_task_center()` 仍调用上述三方法，前端 `GET /task-center` 协议保持稳定。Phase 11-E 迁移 CLI 与 Phase 11-F 默认切流已在仓库落地；深度打回等写路径见 Phase 9 / 11-D。若环境显式关闭 `TASK_CENTER_V2_ENABLED`，则回退为纯 legacy 列表语义。
 
 ### 6.13A 工作流 E 模板运行态链路（当前）
 
@@ -542,7 +544,7 @@
 | `comment_format` | `plain_text`, `markdown` | 已实现 |
 | `attachment_visibility` | `private`, `internal`, `public` | 已实现 |
 | `attachment_status` | `uploaded`, `deleted`, `quarantined` | 已实现 |
-| `attachment_target_type` | `task_comment`, `task`, `profile`, `document` | 已实现（未来将扩展到消息等对象） |
+| `attachment_target_type` | `task_comment`, `task`, `profile`, `document`, `notification_message` | 已实现（Stage 2 Phase 4 起支持消息附件绑定） |
 | `notification_channel` | `email`, `web_push`, `websocket` | 已实现，adapter 第一版已落地 |
 | `notification_message_status` | `queued`, `processing`, `completed`, `failed` | 已实现 |
 | `notification_delivery_status` | `pending`, `sent`, `failed`, `retrying` | 已实现 |

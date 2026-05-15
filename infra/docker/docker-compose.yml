@@ -51,6 +51,14 @@ services:
       STORAGE_PROVIDER: local
       STORAGE_BUCKET: filum-dev
       STORAGE_BASE_PATH: /app/.storage
+      # 与下方 nginx 统一入口（默认 HTTP_PORT=8080）一致，便于邀请链接、回跳 URL 演练；若只走 Vite :5173 可改为 http://127.0.0.1:5173
+      FRONTEND_APP_URL: ${FRONTEND_APP_URL:-http://127.0.0.1:8080}
+      # 默认同 IP 每 60s 仅 10 次 POST /auth/login；Docker GUI 串行 E2E 多账号会超限（429）导致后半段用例假失败
+      AUTH_LOGIN_RATE_LIMIT: ${AUTH_LOGIN_RATE_LIMIT:-120}
+      WORKFLOW_GRAPH_ENGINE_ENABLED: ${WORKFLOW_GRAPH_ENGINE_ENABLED:-true}
+      TASK_CENTER_V2_ENABLED: ${TASK_CENTER_V2_ENABLED:-true}
+      WORKFLOW_WAIT_ANY_ENABLED: ${WORKFLOW_WAIT_ANY_ENABLED:-false}
+      WORKFLOW_DEEP_REJECTION_ENABLED: ${WORKFLOW_DEEP_REJECTION_ENABLED:-false}
     working_dir: /app
     volumes:
       - ../../backend:/app
@@ -93,6 +101,11 @@ services:
       STORAGE_PROVIDER: local
       STORAGE_BUCKET: filum-dev
       STORAGE_BASE_PATH: /app/.storage
+      FRONTEND_APP_URL: ${FRONTEND_APP_URL:-http://127.0.0.1:8080}
+      WORKFLOW_GRAPH_ENGINE_ENABLED: ${WORKFLOW_GRAPH_ENGINE_ENABLED:-true}
+      TASK_CENTER_V2_ENABLED: ${TASK_CENTER_V2_ENABLED:-true}
+      WORKFLOW_WAIT_ANY_ENABLED: ${WORKFLOW_WAIT_ANY_ENABLED:-false}
+      WORKFLOW_DEEP_REJECTION_ENABLED: ${WORKFLOW_DEEP_REJECTION_ENABLED:-false}
     working_dir: /app
     volumes:
       - ../../backend:/app
@@ -111,6 +124,8 @@ services:
       dockerfile: Dockerfile
     environment:
       VITE_DEV_API_PROXY_TARGET: http://backend:8000
+      # 浏览器经 Nginx:8080 访问；DEV 默认 axios 会指向宿主机 :8000 导致请求失败，改为同源 /api/v1
+      VITE_API_BASE_URL: /api/v1
     working_dir: /app
     volumes:
       - ../../frontend:/app

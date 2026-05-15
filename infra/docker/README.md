@@ -11,10 +11,17 @@
 ## 准备
 
 ```sh
+cd infra/docker
 cp .env.example .env
 # Edit .env and set JWT_SECRET_KEY before starting.
 docker compose -f docker-compose.yml up --build -d
 ```
+
+Compose 已为 `backend` / `worker` 注入与当前代码基线一致的环境变量（可在 `.env` 覆盖）：
+
+- `FRONTEND_APP_URL`：默认 `http://127.0.0.1:8080`，与 **Nginx 统一入口**一致，便于邀请注册、外链回跳演练；若只使用 Vite `:5173` 直连，请在 `.env` 中改为 `http://127.0.0.1:5173`。
+- `WORKFLOW_GRAPH_ENGINE_ENABLED` / `TASK_CENTER_V2_ENABLED`：默认 `true`，与 `backend/app/core/config.py` 及生产 Compose 对齐。
+- `WORKFLOW_WAIT_ANY_ENABLED` / `WORKFLOW_DEEP_REJECTION_ENABLED`：默认 `false`，与 Settings 默认一致；需要演练或签 / 深度打回时可改为 `true`。
 
 启动后：
 
@@ -28,6 +35,10 @@ docker compose -f docker-compose.yml up --build -d
 ```sh
 docker compose -f docker-compose.yml logs -f backend worker frontend nginx
 ```
+
+## 端到端（GUI）验证
+
+基于本 Compose 栈的 **分层账号、拟真浏览器操作** 清单见 [E2E-GUI-VERIFICATION.md](./E2E-GUI-VERIFICATION.md)（含环境前置、L0–L4 权限矩阵、任务/汇报/消息闭环与可选知识库 / AI / Push）。
 
 ## 生产部署
 
@@ -79,8 +90,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
 生成 demo 数据：
 
 ```sh
-docker compose -f docker-compose.yml exec backend python -m app.scripts.seed_sample_data --password 'F123456'
+docker compose -f docker-compose.yml exec backend python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 ```
+
+（与仓库根目录 `README.md` 中 demo 账号说明一致；若需自定义密码，请同步更新验证清单中的登录凭据。）
 
 停止环境：
 
