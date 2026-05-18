@@ -3,6 +3,11 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, type UploadFile } from 'element-plus'
 
 import { listAttachments, uploadAttachment } from '@/api/attachments'
+import {
+  ATTACHMENT_ACCEPT,
+  attachmentMimeIsInlineViewable,
+  validateAttachmentFile,
+} from '@/constants/attachments'
 import { listDepartments } from '@/api/departments'
 import { acceptTaskAssignment,
   addTaskWatchers,
@@ -659,6 +664,15 @@ function handleTaskFileRemove(): void {
   selectedTaskFile.value = null
 }
 
+function beforeUploadAttachmentFile(raw: File): boolean {
+  const err = validateAttachmentFile(raw)
+  if (err) {
+    ElMessage.error(err)
+    return false
+  }
+  return true
+}
+
 function normalizeUploadFiles(uploadFiles: UploadFile[]): File[] {
   return uploadFiles.reduce<File[]>((files, uploadFile) => {
     if (uploadFile.raw) {
@@ -939,6 +953,21 @@ watch(
     }
     selectedTaskId.value = nextTaskId
     await loadSelectedTaskDetails(nextTaskId)
+  },
+)
+
+watch(
+  () => tasks.value,
+  async (taskList) => {
+    const preferred = props.initialSelectedTaskId?.trim()
+    if (!preferred || !taskList.some((task) => task.id === preferred)) {
+      return
+    }
+    if (selectedTaskId.value === preferred) {
+      return
+    }
+    selectedTaskId.value = preferred
+    await loadSelectedTaskDetails(preferred)
   },
 )
 </script>
@@ -1331,18 +1360,22 @@ watch(
 
             <el-divider>任务资料附件</el-divider>
 
-            <el-upload
-              class="page__upload"
-              :auto-upload="false"
-              :limit="1"
-              :show-file-list="true"
-              :on-change="handleTaskFileChange"
-              :on-remove="handleTaskFileRemove"
-            >
-              <template #trigger>
-                <el-button>选择附件</el-button>
-              </template>
-            </el-upload>
+            <div data-testid="tasks-attachment-upload">
+              <el-upload
+                class="page__upload"
+                :auto-upload="false"
+                :limit="1"
+                :show-file-list="true"
+                :accept="ATTACHMENT_ACCEPT"
+                :before-upload="beforeUploadAttachmentFile"
+                :on-change="handleTaskFileChange"
+                :on-remove="handleTaskFileRemove"
+              >
+                <template #trigger>
+                  <el-button>选择附件</el-button>
+                </template>
+              </el-upload>
+            </div>
 
             <el-button
               type="primary"
@@ -1367,14 +1400,27 @@ watch(
                     <strong>{{ attachment.original_filename }}</strong>
                     <p>{{ attachment.mime_type }} · {{ attachment.size_bytes }} bytes</p>
                   </div>
-                  <el-link
-                    v-if="attachment.download_url"
-                    :href="attachment.download_url"
-                    target="_blank"
-                    type="primary"
-                  >
-                    下载
-                  </el-link>
+                  <template v-if="attachment.download_url">
+                    <el-space>
+                      <el-link
+                        v-if="attachmentMimeIsInlineViewable(attachment.mime_type)"
+                        :href="attachment.download_url"
+                        target="_blank"
+                        type="primary"
+                        data-testid="task-attachment-view"
+                      >
+                        查看
+                      </el-link>
+                      <el-link
+                        :href="attachment.download_url"
+                        target="_blank"
+                        type="primary"
+                        data-testid="task-attachment-download"
+                      >
+                        {{ attachmentMimeIsInlineViewable(attachment.mime_type) ? '下载' : '打开/下载' }}
+                      </el-link>
+                    </el-space>
+                  </template>
                 </div>
               </el-card>
             </el-space>
@@ -1398,6 +1444,8 @@ watch(
                   :auto-upload="false"
                   multiple
                   :show-file-list="true"
+                  :accept="ATTACHMENT_ACCEPT"
+                  :before-upload="beforeUploadAttachmentFile"
                   :on-change="handleCommentFileChange"
                   :on-remove="handleCommentFileRemove"
                 >

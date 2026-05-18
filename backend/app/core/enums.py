@@ -70,6 +70,7 @@ class AttachmentTargetType(StrEnum):
   PROFILE = "profile"
   DOCUMENT = "document"
   NOTIFICATION_MESSAGE = "notification_message"
+  REPORT = "report"
 
 
 class NotificationChannel(StrEnum):

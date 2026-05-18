@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.9.1  
-**状态**: Phase A–5 与重构 Step 1–7 已完成；工作流图引擎 Phase 3–11-G 与 Stage 2 Phase 1–5 已落地；**Stage 2 Phase 6**（Linux 发布演练 / `check-release.sh` 全量闸门）仍为进行中；**memory-bank** 已重组为 `handbooks/`、`plans/`、`history/`、`archive/outdated/`（见 `memory-bank/README.md`），且仓库内 `.github/*`、`infra/`、`verification-runs/` 等指向上述文档的链接已与新目录对齐；汇报中心「发起向上/向下」已收敛为页头 **「发起汇报」** 弹窗统一入口（`/reports`）  
+**版本**: v3.11.0  
+**状态**: Phase A–5 与重构 Step 1–7 已完成；工作流图引擎 Phase 3–11-G 与 Stage 2 Phase 1–5 已落地；**Stage 2 Phase 6**（Linux 发布演练 / `check-release.sh` 全量闸门）仍为进行中；**附件**已统一 MIME/大小策略并支持汇报 `attachment_links(report)`；图引擎写接口已 **`session.commit()`** 持久化，实例详情 API 避免 ORM 关系懒加载；**memory-bank** 已重组为 `handbooks/`、`plans/`、`history/`、`archive/outdated/`（见 `memory-bank/README.md`），且仓库内 `.github/*`、`infra/`、`verification-runs/` 等指向上述文档的链接已与新目录对齐；汇报中心「发起向上/向下」已收敛为页头 **「发起汇报」** 弹窗统一入口（`/reports`）  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -243,9 +243,10 @@
 | `backend/app/services/delegation_service.py` | 代理授权创建、撤销、状态刷新 |
 | `backend/app/services/people_management_service.py` | Step 5 人员聚合服务，统一编排 users / profiles 的列表摘要与详情读模型 |
 | `backend/app/services/task_service.py` | 任务状态机、评论、日志、统计、交付物提交 / 验收 / 返工，以及 watcher / board / gantt 扩展 |
-| `backend/app/services/workflow_graph_service.py` | 工作流重构图引擎服务：负责单节点 dual-write、多节点图实例化、下游节点激活、实例收口、`current_node_key` 维护与实例查询；条件边求值统一委托给 `condition_evaluator` 模块 |
+| `backend/app/services/workflow_graph_service.py` | 工作流重构图引擎服务：负责单节点 dual-write、多节点图实例化、下游节点激活、实例收口、`current_node_key` 维护与实例查询；条件边求值统一委托给 `condition_evaluator`；**写路径**（`complete_node_instance` / `takeover_node_instance` / `deep_reject_to_upstream`）在成功结束时 **`await session.commit()`**；管理员接管后通过 `_sync_manual_task_projection_after_takeover` 同步手动 `Task.assignee_id` 与握手 metadata（`source_type=manual`） |
 | `backend/app/services/condition_evaluator.py` | 共享条件求值模块（Phase 11-A 新增）：`is_else_condition` / `evaluate_condition` / `evaluate_routing_rules`，被图引擎（出边路由）与旧模板系统（routing_rules 桥接）共同引用 |
-| `backend/app/api/routes/workflow_graph_engine.py` | 工作流重构 Phase 6-7 图实例读写入口：模板实例列表、实例详情、节点完成（含 context 更新）快照返回与智能抄送候选计算 |
+| `backend/app/api/attachment_serializers.py` | 附件读模型序列化：`serialize_attachment_read`（含 `download_url`），供 `attachments` / `report_center` 路由复用 |
+| `backend/app/api/routes/workflow_graph_engine.py` | 工作流重构 Phase 6-7 图实例读写入口：模板实例列表、实例详情、节点完成 / 深度打回 / 接管快照；**详情响应**用显式列字段 + 已查询的 `node_instances` 组装 Pydantic，避免 `model_validate(ORM)` 触发 `node_instances` 异步懒加载 |
 | `backend/app/services/workflow_rule_resolver.py` | 模板与审批流共用的 assignee rule 解析器 |
 | `backend/app/services/task_template_service.py` | 模板 CRUD、步骤替换与模板实例化 |
 | `backend/app/services/task_center_service.py` | 任务中心聚合服务；当前通过 `TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 聚合 graph-first with legacy fallback 结果，输出模板摘要、发布范围、待办、跟踪、历史与备忘 |
@@ -296,6 +297,8 @@
 | `backend/alembic/versions/20260421_01_error_events.py` | Step 4 排障新增的 `error_events` 迁移 |
 | `backend/alembic/versions/20260422_01_template_runtime.py` | 工作流 E 模板运行态迁移，新增 template instances / step runs 与 task 回链 |
 | `backend/alembic/versions/20260429_04_workflow_graph_core.py` | 工作流重构 Phase 2 图引擎核心迁移，新增 graph templates / nodes / edges、instances、node instances、deliverables 与 outbox events |
+| `backend/alembic/versions/20260515_01_attachment_target_report.py` | `attachment_links.target_type` 枚举扩展 **`report`**（downgrade 前先删 `report` 类 link） |
+| `backend/tests/conftest.py` | 测试夹具；在 import `app` 前将 `backend/` 插入 `sys.path`，支持在**仓库根**执行 `python -m pytest backend/tests` |
 | `backend/app/scripts/seed_sample_data.py` | 测试组织与 demo 账号初始化脚本 |
 | `backend/app/scripts/migrate_legacy_tasks_to_graph.py` | Phase 11-E 旧任务迁移 CLI，支持 `--batch-id`、`--limit`、`--dry-run` |
 | `backend/app/scripts/rollback_legacy_task_migration.py` | Phase 11-E 迁移回滚 CLI，按 `batch_id` 清理 graph 侧记录并恢复任务 metadata |
@@ -397,10 +400,12 @@
 
 ### 6.4 附件绑定链路（当前）
 
-1. 前端上传文件。
-2. `AttachmentService` 通过 `ObjectStorageService` 写入对象存储。
-3. 写入 `attachments` 元数据。
-4. 使用 `attachment_links` 绑定到任务、档案、评论、消息等业务对象。
+1. 前端上传文件（`el-upload` + `before-upload` 预检；`POST /api/v1/attachments`）。
+2. `AttachmentService` 校验 **MIME 白名单**（图片、PDF、`.xlsx`、`.txt`/`.md`、`.docx`、`.mp3`/`.wav`；`audio/x-wav` 归一为 `audio/wav`）与 **魔数 / 文本编码**；按类型限制大小：**文本类（plain/markdown/docx）≤10MB**，**音频 ≤50MB**，**其余允许类型 ≤25MB**。
+3. 通过 `ObjectStorageService` 写入对象存储，写入 `attachments` 元数据。
+4. 使用 `attachment_links` 绑定到任务、档案、评论、消息、**汇报（`report`）** 等业务对象。
+5. `GET /attachments`：对 `task` / `task_comment` / `report` 目标在通过对应读权限校验后，**不按 uploader 过滤**，便于参与人查看任务与汇报资料附件。
+6. 前端统一预检：`frontend/src/constants/attachments.ts`（`ATTACHMENT_ACCEPT`、`validateAttachmentFile`、`attachmentMimeIsInlineViewable`）；任务 / 知识库 / 汇报创建页在 `el-upload` 的 `before-upload` 与后端规则对齐；任务资料上传区使用 **`data-testid="tasks-attachment-upload"`** 包裹层（便于 E2E 与 Element Plus 内部 file input 解耦）。
 
 ### 6.5 字段级权限解析链路（当前 / Phase 3）
 
@@ -487,7 +492,7 @@
 9. Phase 6 的图实例收口逻辑已补实例级 `SELECT ... FOR UPDATE`、节点版本号递增、重复完成幂等保护，以及基于模板 `sort_order` 的稳定 `current_node_key` 解析，避免 fan-out 场景下因激活顺序不稳定导致前端当前节点指示漂移。
 10. Phase 7 在 `complete_node_instance()` 上补 `context_updates` 输入，节点完成时可把结构化字段写入 `WorkflowGraphInstance.context` 并递增 `context_version`；出边路由支持 `eq/neq/gt/gte/lt/lte/in/not_in/contains/exists` 与 `else` 默认分支，未命中普通规则时走 `else`。
 11. Phase 7 补齐 `Notice Node` 触达即完成：Notice 节点被激活后会在同一事务链中自动置为 `COMPLETED` 并继续推进下游，不阻塞主链路。
-12. `backend/app/api/routes/workflow_graph_engine.py` 现提供 `GET /workflow-graph/templates/{template_id}/instances`、`GET /workflow-graph/instances/{instance_id}`、`POST /workflow-graph/node-instances/{node_instance_id}/complete`、`POST /workflow-graph/smart-notice-candidates` 四个端点，返回图实例与节点实例快照、节点统计和 `progress_percent`，并支持越级派发场景下中间领导候选计算。
+12. `backend/app/api/routes/workflow_graph_engine.py` 现提供 `GET /workflow-graph/templates/{template_id}/instances`、`GET /workflow-graph/instances/{instance_id}`、`POST /workflow-graph/node-instances/{node_instance_id}/complete`、`POST /workflow-graph/node-instances/{node_instance_id}/deep-reject`、`POST /workflow-graph/node-instances/{node_instance_id}/takeover`、`POST /workflow-graph/smart-notice-candidates` 等端点，返回图实例与节点实例快照、节点统计和 `progress_percent`；写操作由 `WorkflowGraphService` 提交事务后跨请求可见。
 13. **任务中心读路径（Phase 11-F，与代码一致）**：`TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 在 `TASK_CENTER_V2_ENABLED=true`（`Settings` 默认值，见 `backend/app/core/config.py`）下对具备图锚点的任务优先解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，再与未迁移的 legacy 任务合并排序；`TaskCenterService.get_task_center()` 仍调用上述三方法，前端 `GET /task-center` 协议保持稳定。Phase 11-E 迁移 CLI 与 Phase 11-F 默认切流已在仓库落地；深度打回等写路径见 Phase 9 / 11-D。若环境显式关闭 `TASK_CENTER_V2_ENABLED`，则回退为纯 legacy 列表语义。
 
 ### 6.13A 工作流 E 模板运行态链路（当前）
@@ -550,7 +555,7 @@
 | `comment_format` | `plain_text`, `markdown` | 已实现 |
 | `attachment_visibility` | `private`, `internal`, `public` | 已实现 |
 | `attachment_status` | `uploaded`, `deleted`, `quarantined` | 已实现 |
-| `attachment_target_type` | `task_comment`, `task`, `profile`, `document`, `notification_message` | 已实现（Stage 2 Phase 4 起支持消息附件绑定） |
+| `attachment_target_type` | `task_comment`, `task`, `profile`, `document`, `notification_message`, `report` | 已实现（含汇报附件绑定） |
 | `notification_channel` | `email`, `web_push`, `websocket` | 已实现，adapter 第一版已落地 |
 | `notification_message_status` | `queued`, `processing`, `completed`, `failed` | 已实现 |
 | `notification_delivery_status` | `pending`, `sent`, `failed`, `retrying` | 已实现 |

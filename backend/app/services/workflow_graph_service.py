@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import (
   TaskPriority,
+  TaskSourceType,
   UserRole,
   UserStatus,
   WorkflowGraphInstanceStatus,
@@ -19,7 +20,6 @@ from app.core.enums import (
   WorkflowOutboxEventStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
-from app.models import User
 from app.services.access_control import ensure_active_user
 from app.services.condition_evaluator import (
   evaluate_condition,
@@ -28,6 +28,8 @@ from app.services.condition_evaluator import (
 )
 from app.services.notification_service import NotificationService
 from app.models import (
+  Task,
+  User,
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
   WorkflowGraphTemplateEdge,
@@ -82,6 +84,38 @@ class WorkflowGraphService:
     )
     self._session.add(event)
     await self._session.flush()
+
+  async def _sync_manual_task_projection_after_takeover(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+    new_assignee_id: UUID,
+    reason: str,
+    actor_id: UUID,
+  ) -> None:
+    """手动图任务：管理员接管节点后同步兼容读模型上的 assignee 与握手元数据。"""
+    if graph_instance.source_id is None:
+      return
+    # 与 TaskService._create_single_node_workflow_projection 对齐：source_type 存枚举 value（如 manual）
+    if graph_instance.source_type not in {TaskSourceType.MANUAL.value, "task"}:
+      return
+    task = await self._session.get(Task, graph_instance.source_id)
+    if task is None or task.source_type != TaskSourceType.MANUAL:
+      return
+    metadata = dict(task.extra_metadata or {})
+    if not metadata.get("workflow_node_instance_id"):
+      return
+    task.assignee_id = new_assignee_id
+    metadata.update(
+      {
+        "workflow_handshake_state": "assigned",
+        "latest_handshake_action": "takeover",
+        "latest_handshake_actor_user_id": str(actor_id),
+        "latest_takeover_reason": reason,
+      }
+    )
+    task.extra_metadata = metadata
+    task.updated_at = datetime.now(UTC)
 
   async def takeover_node_instance(
     self,
@@ -166,6 +200,13 @@ class WorkflowGraphService:
           },
         )
 
+    await self._sync_manual_task_projection_after_takeover(
+      graph_instance=graph_instance,
+      new_assignee_id=assignee.id,
+      reason=normalized_reason,
+      actor_id=actor_id,
+    )
+    await self._session.commit()
     return graph_instance.id
 
   async def deep_reject_to_upstream(
@@ -323,6 +364,7 @@ class WorkflowGraphService:
     graph_instance.completed_at = None
     await self._session.flush()
 
+    await self._session.commit()
     return graph_instance.id
 
   def _collect_reachable_template_node_ids(
@@ -615,6 +657,7 @@ class WorkflowGraphService:
 
     graph_instance = await self._lock_graph_instance(instance_id=node_instance.instance_id)
     if node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
+      await self._session.commit()
       return  # 幂等保护
     if node_instance.engine_state == WorkflowNodeEngineState.TERMINATED:
       raise ConflictError("当前节点已被系统撤权，不能继续提交。")
@@ -645,6 +688,7 @@ class WorkflowGraphService:
       completed_node_instance=node_instance,
       now=now,
     )
+    await self._session.commit()
 
   async def _activate_downstream(
     self,

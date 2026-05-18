@@ -4,31 +4,26 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import (
   get_attachment_service,
   get_current_user,
+  get_db_session,
   get_object_storage_service,
+  get_report_service,
+  get_task_service,
 )
 from app.core.enums import AttachmentTargetType, AttachmentVisibility
-from app.models import Attachment, User
+from app.api.attachment_serializers import serialize_attachment_read
+from app.models import Attachment, TaskComment, User
 from app.schemas.attachments import AttachmentRead
 from app.services.attachment_service import AttachmentService
 from app.services.object_storage_service import ObjectStorageService
+from app.services.report_service import ReportService
+from app.services.task_service import TaskService
 
 router = APIRouter(prefix="/attachments")
-
-
-async def _build_attachment_read(
-  attachment: Attachment,
-  object_storage_service: ObjectStorageService,
-) -> AttachmentRead:
-  download_url = None
-  if attachment.status.value != "deleted":
-    download_url = await object_storage_service.generate_download_url(
-      object_key=attachment.object_key
-    )
-  return AttachmentRead.model_validate(attachment).model_copy(update={"download_url": download_url})
 
 
 def _validate_attachment_target(
@@ -43,23 +38,61 @@ def _validate_attachment_target(
     )
 
 
+async def _resolve_bypass_uploader_filter(
+  *,
+  session: AsyncSession,
+  actor: User,
+  target_type: AttachmentTargetType | None,
+  target_id: UUID | None,
+  task_service: TaskService,
+  report_service: ReportService,
+) -> bool:
+  if target_type is None or target_id is None:
+    return False
+  if target_type == AttachmentTargetType.TASK:
+    await task_service.get_task(actor=actor, task_id=target_id)
+    return True
+  if target_type == AttachmentTargetType.TASK_COMMENT:
+    comment = await session.get(TaskComment, target_id)
+    if comment is None:
+      raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="评论不存在。")
+    await task_service.get_task(actor=actor, task_id=comment.task_id)
+    return True
+  if target_type == AttachmentTargetType.REPORT:
+    await report_service.get_report(actor=actor, report_id=target_id)
+    return True
+  return False
+
+
 @router.get("", response_model=list[AttachmentRead])
 async def list_attachments(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   actor: Annotated[User, Depends(get_current_user)],
   attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
   object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  report_service: Annotated[ReportService, Depends(get_report_service)],
   target_type: AttachmentTargetType | None = None,
   target_id: UUID | None = None,
 ) -> list[AttachmentRead]:
   _validate_attachment_target(target_type=target_type, target_id=target_id)
+  bypass = await _resolve_bypass_uploader_filter(
+    session=session,
+    actor=actor,
+    target_type=target_type,
+    target_id=target_id,
+    task_service=task_service,
+    report_service=report_service,
+  )
   attachments = await attachment_service.list_attachments(
     actor=actor,
     target_type=target_type,
     target_id=target_id,
+    bypass_uploader_filter=bypass,
   )
   result: list[AttachmentRead] = []
   for attachment in attachments:
-    result.append(await _build_attachment_read(attachment, object_storage_service))
+    result.append(await serialize_attachment_read(attachment, object_storage_service))
   return result
 
 
@@ -87,7 +120,7 @@ async def upload_attachment(
     target_id=target_id,
     relation=relation,
   )
-  return await _build_attachment_read(attachment, object_storage_service)
+  return await serialize_attachment_read(attachment, object_storage_service)
 
 
 @router.delete("/{attachment_id}", response_model=AttachmentRead)
@@ -95,9 +128,10 @@ async def delete_attachment(
   attachment_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
   attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
 ) -> AttachmentRead:
   attachment = await attachment_service.delete_attachment(
     actor=actor,
     attachment_id=attachment_id,
   )
-  return AttachmentRead.model_validate(attachment)
+  return await serialize_attachment_read(attachment, object_storage_service)

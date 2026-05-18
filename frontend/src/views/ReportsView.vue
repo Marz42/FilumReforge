@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type UploadFile } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import { actReport, createReport, getReportCenterSnapshot } from '@/api/report-center'
+import { uploadAttachment } from '@/api/attachments'
+import { ATTACHMENT_ACCEPT, attachmentMimeIsInlineViewable, validateAttachmentFile } from '@/constants/attachments'
 import type {
   ReportActionOption,
   ReportCenterSnapshot,
@@ -60,12 +62,52 @@ const upwardForm = reactive({
   workflow_definition_id: '',
 })
 
+const reportDraftAttachments = ref<
+  Array<{ id: string; original_filename: string; mime_type: string; download_url: string | null }>
+>([])
+const reportDraftUploading = ref(false)
+
 const downwardForm = reactive({
   target_user_id: '',
   title: '',
   content_md: '',
   workflow_definition_id: '',
 })
+
+function resetReportDraftAttachments(): void {
+  reportDraftAttachments.value = []
+}
+
+function removeReportDraftAttachment(id: string): void {
+  reportDraftAttachments.value = reportDraftAttachments.value.filter((a) => a.id !== id)
+}
+
+async function handleReportDraftFileChange(uploadFile: UploadFile): Promise<void> {
+  const raw = uploadFile.raw
+  if (!raw) {
+    return
+  }
+  const err = validateAttachmentFile(raw)
+  if (err) {
+    ElMessage.error(err)
+    return
+  }
+  reportDraftUploading.value = true
+  try {
+    const att = await uploadAttachment({ file: raw })
+    reportDraftAttachments.value.push({
+      id: att.id,
+      original_filename: att.original_filename,
+      mime_type: att.mime_type,
+      download_url: att.download_url,
+    })
+    ElMessage.success('附件已加入，将在发起时绑定到汇报')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    reportDraftUploading.value = false
+  }
+}
 
 const activeTab = computed<ReportCenterTab>(() => normalizeTab(route.query.tab))
 const selectedReportId = computed(() => (typeof route.query.selected === 'string' ? route.query.selected : ''))
@@ -111,6 +153,7 @@ function resetForm(direction: ReportDirection): void {
   form.title = ''
   form.content_md = ''
   form.workflow_definition_id = ''
+  resetReportDraftAttachments()
 }
 
 function resolveStatusLabel(status: ReportStatus): string {
@@ -145,6 +188,7 @@ async function loadSnapshot(): Promise<void> {
 function resetCreateReportDialogUi(): void {
   createReportStep.value = 'pick'
   createReportMode.value = null
+  resetReportDraftAttachments()
 }
 
 function openCreateReportDialog(): void {
@@ -165,6 +209,7 @@ function selectCreateReportDirection(direction: ReportDirection): void {
 function goCreateReportPickStep(): void {
   createReportStep.value = 'pick'
   createReportMode.value = null
+  resetReportDraftAttachments()
 }
 
 function onCreateReportDialogClosed(): void {
@@ -215,6 +260,8 @@ async function handleCreate(direction: ReportDirection): Promise<void> {
       title: form.title.trim(),
       content_md: form.content_md.trim(),
       workflow_definition_id: form.workflow_definition_id || null,
+      attachment_ids:
+        reportDraftAttachments.value.length > 0 ? reportDraftAttachments.value.map((a) => a.id) : undefined,
     })
     ElMessage.success(direction === 'upward' ? '汇报已发起' : '传达已发起')
     resetForm(direction)
@@ -330,6 +377,36 @@ onMounted(async () => {
               </template>
 
               <div class="reports-page__content">{{ report.content_md }}</div>
+              <div v-if="report.attachments?.length" class="reports-page__attachments">
+                <el-divider content-position="left">附件</el-divider>
+                <el-space wrap>
+                  <el-card v-for="a in report.attachments" :key="a.id" shadow="never" class="reports-page__att-card">
+                    <div>
+                      <strong>{{ a.original_filename }}</strong>
+                    </div>
+                    <div class="reports-page__att-meta">{{ a.mime_type }}</div>
+                    <el-space v-if="a.download_url">
+                      <el-link
+                        v-if="attachmentMimeIsInlineViewable(a.mime_type)"
+                        :href="a.download_url"
+                        target="_blank"
+                        type="primary"
+                        data-testid="report-attachment-view"
+                      >
+                        查看
+                      </el-link>
+                      <el-link
+                        :href="a.download_url"
+                        target="_blank"
+                        type="primary"
+                        data-testid="report-attachment-open"
+                      >
+                        {{ attachmentMimeIsInlineViewable(a.mime_type) ? '下载' : '打开/下载' }}
+                      </el-link>
+                    </el-space>
+                  </el-card>
+                </el-space>
+              </div>
               <div class="reports-page__meta">
                 <span>目标：{{ report.target_label }}</span>
                 <span>创建时间：{{ formatDateTime(report.created_at) }}</span>
@@ -391,6 +468,36 @@ onMounted(async () => {
               </template>
 
               <div class="reports-page__content">{{ report.content_md }}</div>
+              <div v-if="report.attachments?.length" class="reports-page__attachments">
+                <el-divider content-position="left">附件</el-divider>
+                <el-space wrap>
+                  <el-card v-for="a in report.attachments" :key="a.id" shadow="never" class="reports-page__att-card">
+                    <div>
+                      <strong>{{ a.original_filename }}</strong>
+                    </div>
+                    <div class="reports-page__att-meta">{{ a.mime_type }}</div>
+                    <el-space v-if="a.download_url">
+                      <el-link
+                        v-if="attachmentMimeIsInlineViewable(a.mime_type)"
+                        :href="a.download_url"
+                        target="_blank"
+                        type="primary"
+                        data-testid="report-attachment-view"
+                      >
+                        查看
+                      </el-link>
+                      <el-link
+                        :href="a.download_url"
+                        target="_blank"
+                        type="primary"
+                        data-testid="report-attachment-open"
+                      >
+                        {{ attachmentMimeIsInlineViewable(a.mime_type) ? '下载' : '打开/下载' }}
+                      </el-link>
+                    </el-space>
+                  </el-card>
+                </el-space>
+              </div>
               <div class="reports-page__meta">
                 <span>目标：{{ report.target_label }}</span>
                 <span>创建时间：{{ formatDateTime(report.created_at) }}</span>
@@ -445,6 +552,36 @@ onMounted(async () => {
               </template>
 
               <div class="reports-page__content">{{ report.content_md }}</div>
+              <div v-if="report.attachments?.length" class="reports-page__attachments">
+                <el-divider content-position="left">附件</el-divider>
+                <el-space wrap>
+                  <el-card v-for="a in report.attachments" :key="a.id" shadow="never" class="reports-page__att-card">
+                    <div>
+                      <strong>{{ a.original_filename }}</strong>
+                    </div>
+                    <div class="reports-page__att-meta">{{ a.mime_type }}</div>
+                    <el-space v-if="a.download_url">
+                      <el-link
+                        v-if="attachmentMimeIsInlineViewable(a.mime_type)"
+                        :href="a.download_url"
+                        target="_blank"
+                        type="primary"
+                        data-testid="report-attachment-view"
+                      >
+                        查看
+                      </el-link>
+                      <el-link
+                        :href="a.download_url"
+                        target="_blank"
+                        type="primary"
+                        data-testid="report-attachment-open"
+                      >
+                        {{ attachmentMimeIsInlineViewable(a.mime_type) ? '下载' : '打开/下载' }}
+                      </el-link>
+                    </el-space>
+                  </el-card>
+                </el-space>
+              </div>
               <div class="reports-page__meta">
                 <span>目标：{{ report.target_label }}</span>
                 <span v-if="report.completed_at">完成时间：{{ formatDateTime(report.completed_at) }}</span>
@@ -528,6 +665,29 @@ onMounted(async () => {
           <el-form-item label="内容">
             <el-input v-model="upwardForm.content_md" type="textarea" :rows="8" maxlength="4000" show-word-limit />
           </el-form-item>
+          <el-form-item label="附件（可选）">
+            <el-upload
+              :auto-upload="false"
+              :show-file-list="false"
+              :accept="ATTACHMENT_ACCEPT"
+              :disabled="reportDraftUploading"
+              :on-change="handleReportDraftFileChange"
+              data-testid="reports-draft-upload"
+            >
+              <el-button :loading="reportDraftUploading">选择附件</el-button>
+            </el-upload>
+            <div v-if="reportDraftAttachments.length" class="reports-page__draft-tags">
+              <el-tag
+                v-for="a in reportDraftAttachments"
+                :key="a.id"
+                closable
+                class="reports-page__draft-tag"
+                @close="removeReportDraftAttachment(a.id)"
+              >
+                {{ a.original_filename }}
+              </el-tag>
+            </div>
+          </el-form-item>
           <el-form-item label="挂接审批流程（可选）">
             <el-select
               v-model="upwardForm.workflow_definition_id"
@@ -588,6 +748,29 @@ onMounted(async () => {
           </el-form-item>
           <el-form-item label="内容">
             <el-input v-model="downwardForm.content_md" type="textarea" :rows="8" maxlength="4000" show-word-limit />
+          </el-form-item>
+          <el-form-item label="附件（可选）">
+            <el-upload
+              :auto-upload="false"
+              :show-file-list="false"
+              :accept="ATTACHMENT_ACCEPT"
+              :disabled="reportDraftUploading"
+              :on-change="handleReportDraftFileChange"
+              data-testid="reports-draft-upload-downward"
+            >
+              <el-button :loading="reportDraftUploading">选择附件</el-button>
+            </el-upload>
+            <div v-if="reportDraftAttachments.length" class="reports-page__draft-tags">
+              <el-tag
+                v-for="a in reportDraftAttachments"
+                :key="a.id"
+                closable
+                class="reports-page__draft-tag"
+                @close="removeReportDraftAttachment(a.id)"
+              >
+                {{ a.original_filename }}
+              </el-tag>
+            </div>
           </el-form-item>
           <el-form-item label="挂接审批流程（可选）">
             <el-select

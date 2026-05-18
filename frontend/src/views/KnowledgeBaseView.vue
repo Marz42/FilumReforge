@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, type UploadFile } from 'element-plus'
 
 import { uploadAttachment } from '@/api/attachments'
+import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import {
   archiveDocument,
   createDocument,
@@ -190,6 +191,15 @@ async function handleArchiveDocument(): Promise<void> {
 
 function handleAttachmentChange(uploadFile: UploadFile): void {
   selectedAttachmentFile.value = uploadFile.raw ?? null
+}
+
+function beforeKbAttachmentUpload(raw: File): boolean {
+  const err = validateAttachmentFile(raw)
+  if (err) {
+    ElMessage.error(err)
+    return false
+  }
+  return true
 }
 
 async function handleUploadAttachment(): Promise<void> {
@@ -385,7 +395,13 @@ defineExpose({
               v-if="authStore.isManagementRole"
               class="knowledge-page__attachment-upload"
             >
-              <el-upload :auto-upload="false" :limit="1" :on-change="handleAttachmentChange">
+              <el-upload
+                :auto-upload="false"
+                :limit="1"
+                :accept="ATTACHMENT_ACCEPT"
+                :before-upload="beforeKbAttachmentUpload"
+                :on-change="handleAttachmentChange"
+              >
                 <template #trigger>
                   <el-button plain>选择附件</el-button>
                 </template>

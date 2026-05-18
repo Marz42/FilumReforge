@@ -107,8 +107,8 @@ test.afterAll(() => {
     '',
     '## 覆盖范围说明',
     '',
-    '- **已自动化**：A5 网关健康检查；登录页截图；空库时「初始化管理员」；宿主 Docker `seed_sample_data`；L0 部门/总览侧栏；L1 HR 菜单与 `/departments` 重定向；L4 员工菜单与 `/people` 重定向；**C1** 任务建立→待办→开始处理→提交交付→创建人验收→完成；**C1** 跨部门指派（L2→客户成功，若可发布）；**C1** 消息中心截图与「回到来源」（若存在）；**C2** 向上汇报多级（L4→L3 继续上报→L2 确认完成→发起人归档）。',
-    '- **未自动化**（仍依赖人工或环境）：图引擎握手「转办」、向下传达全链路细粒度、Web Push、知识库发布、邀请注册等。',
+    '- **已自动化**：A5 网关健康检查；登录页截图；空库时「初始化管理员」；宿主 Docker `seed_sample_data`；L0 部门/总览侧栏；L1 HR 菜单与 `/departments` 重定向；L4 员工菜单与 `/people` 重定向；**C1** 任务建立→待办→**任务资料附件上传**→开始处理→提交交付→创建人验收→完成；**C1** 跨部门指派（L2→客户成功，若可发布）；**C1** 消息中心截图与「回到来源」（若存在）；**C2** 向上汇报多级（L4→L3 继续上报→L2 确认完成→发起人归档）；**C3** 向下传达发起（探测式，若种子数据具备链路）。',
+    '- **未自动化**（仍依赖人工或环境）：图引擎握手「转办」、向下传达接收方全链路细粒度、Web Push、知识库发布、邀请注册等。',
     '',
     '## 结果汇总',
     '',
@@ -329,6 +329,55 @@ test.describe('C1 任务全链路 + 消息', () => {
     await expect(page.getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({ timeout: 30_000 })
     await page.screenshot({ path: shot('12-c1-l4-inbox.png'), fullPage: true })
     row({ id: 'C1-2', section: 'C1 任务', result: 'PASS', note: 'L4 待办含新建任务 12' })
+    await logout(page)
+  })
+
+  test('C1.2b L4 任务资料附件上传', async ({ page }) => {
+    const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
+    const fixturePng = path.join(repoRoot, 'frontend', 'e2e', 'fixtures', 'minimal.png')
+    if (!fs.existsSync(fixturePng)) {
+      row({
+        id: 'C1-2b',
+        section: 'C1 任务',
+        result: 'SKIP',
+        note: `缺少 fixture ${fixturePng}`,
+      })
+      return
+    }
+    expect(flowTaskId.length).toBeGreaterThan(0)
+    await login(page, 'demo.engineer.a@example.com', demoPassword)
+    await page.goto(`/task-center?tab=tracking&selected=${flowTaskId}`)
+    await page.waitForSelector('[data-testid="task-center-view"]', { timeout: 25_000 })
+    await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
+    await page.waitForTimeout(1200)
+    await page.goto(`/task-center?tab=tracking&selected=${flowTaskId}`)
+    await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
+    const detailPanel = page.getByTestId('tasks-detail-panel')
+    await expect(detailPanel.getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({
+      timeout: 25_000,
+    })
+    const chooseAttachment = detailPanel.getByRole('button', { name: '选择附件' })
+    await expect(chooseAttachment).toBeVisible({ timeout: 30_000 })
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      chooseAttachment.click(),
+    ])
+    await fileChooser.setFiles(fixturePng)
+    await Promise.all([
+      page.waitForResponse(
+        (r) => /\/api\/v1\/attachments\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+        { timeout: 45_000 },
+      ),
+      page.getByRole('button', { name: '上传到任务' }).click(),
+    ])
+    await expect(page.getByTestId('task-attachment-download')).toBeVisible({ timeout: 30_000 })
+    await page.screenshot({ path: shot('12b-c1-l4-task-attachment.png'), fullPage: true })
+    row({
+      id: 'C1-2b',
+      section: 'C1 任务',
+      result: 'PASS',
+      note: 'L4 上传 PNG 任务资料附件 12b',
+    })
     await logout(page)
   })
 
@@ -617,6 +666,54 @@ test.describe('C2 汇报多级', () => {
     ])
     await page.screenshot({ path: shot('30-c2-l4-after-archive.png'), fullPage: true })
     row({ id: 'C2-4', section: 'C2 汇报', result: 'PASS', note: '发起人归档 29–30' })
+    await logout(page)
+  })
+})
+
+test.describe('C3 向下传达（探测式）', () => {
+  test.setTimeout(120_000)
+
+  test('C3.1 L3 发起向下传达', async ({ page }) => {
+    const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
+    const title = `[E2E-DN-${flowTag}]`
+    const fixturePng = path.join(repoRoot, 'frontend', 'e2e', 'fixtures', 'minimal.png')
+    await login(page, 'demo.platform.lead@example.com', demoPassword)
+    await navigateReportCenterTab(page, '待处理')
+    await page.getByTestId('reports-open-create').click()
+    const pickDown = page.getByTestId('reports-create-pick-downward')
+    if (!(await pickDown.isVisible().catch(() => false))) {
+      row({ id: 'C3-1', section: 'C3 向下', result: 'SKIP', note: '无向下传达入口' })
+      await logout(page)
+      return
+    }
+    await pickDown.click()
+    const dlg = page.getByTestId('reports-create-dialog')
+    await expect(dlg.getByTestId('reports-create-form-downward')).toBeVisible({ timeout: 15_000 })
+    await dlg.locator('.el-form-item').filter({ hasText: '传达对象' }).locator('.el-select').click()
+    await page.locator('.el-select-dropdown__item').first().click()
+    await dlg
+      .locator('.el-form-item')
+      .filter({ hasText: '主题' })
+      .locator('.el-input__inner')
+      .first()
+      .fill(title)
+    await dlg.locator('.el-form-item').filter({ hasText: '内容' }).locator('textarea').first().fill('E2E 向下传达正文')
+    if (fs.existsSync(fixturePng)) {
+      await dlg.getByTestId('reports-draft-upload-downward').locator('input[type="file"]').setInputFiles(fixturePng)
+      await page.waitForResponse(
+        (r) => /\/api\/v1\/attachments\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+        { timeout: 45_000 },
+      )
+    }
+    await Promise.all([
+      page.waitForResponse(
+        (r) => /\/api\/v1\/report-center\/reports\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+        { timeout: 45_000 },
+      ),
+      dlg.getByTestId('reports-create-submit-downward').click(),
+    ])
+    await page.screenshot({ path: shot('31-c3-downward-created.png'), fullPage: true })
+    row({ id: 'C3-1', section: 'C3 向下', result: 'PASS', note: `向下传达已提交 ${title}` })
     await logout(page)
   })
 })

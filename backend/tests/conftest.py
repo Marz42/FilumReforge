@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Pytest only applies `pythonpath` from the config file whose directory is the
+# rootdir. Invoking `pytest` / `python -m pytest` from the monorepo root skips
+# `backend/pyproject.toml`, so ensure the backend package root is importable.
+_backend_dir = Path(__file__).resolve().parent.parent
+_backend_str = str(_backend_dir)
+if _backend_str not in sys.path:
+  sys.path.insert(0, _backend_str)
+
 import os
 
 import pytest

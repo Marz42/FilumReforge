@@ -63,7 +63,7 @@
 | Stage 2 Phase 3 / 生命周期事件联动 | done | 已完成后端首轮联动：生命周期事件可显式绑定任务模板 / 审批流目标，事件新增触发状态、错误、尝试次数与已生成实例锚点；`HRLifecycleService` 已接入异步入队与 worker 执行，覆盖入队、成功联动、失败回写与幂等场景。已执行 backend `pytest -q tests/test_services.py -k "lifecycle_event_automation or phase3_services_apply_lifecycle_events"`、`pytest -q tests/test_api.py -k "profile_event_api_accepts_lifecycle_automation_targets or people_management" tests/test_workers.py -k "employment_event_automation or run_due_task_schedules_records_failure_state"`、`pytest -q tests/test_migrations.py`、`python -m compileall app tests`；等待用户测试后再进入 Stage 2 Phase 4 |
 | Stage 2 Phase 4 / 消息中心深化 | done | 已完成首轮收口：消息通过 `attachment_links(target_type = notification_message)` 接入附件体系；消息中心补齐来源模块 / 回执状态 / 渠道 / 投递状态 / 时间范围组合筛选；详情页补附件、投递尝试次数与失败原因展示。已执行 backend `pytest -q tests/test_services.py -k "message_center_snapshot" tests/test_api.py -k "message_center_api"`，以及 frontend `npm run test:unit -- --run tests/MessagesView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 5 |
 | Stage 2 Phase 5 / 注册与账号开通 | done | 已完成邀请制注册首轮落地：后端补 `users` 邀请字段、邀请生成 / 预览 / 激活 / 撤销服务与认证路由；登录页支持邀请预览与设置密码激活；人员工作台“新建账号”对话框支持“直接创建 / 邀请注册”双路径。已执行 backend `pytest -q tests/test_settings.py::test_settings_validate_invitation_options tests/test_services.py::test_auth_service_invitation_flow_create_accept_and_revoke tests/test_api.py::test_auth_invitation_api_flow`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/LoginView.spec.ts tests/AuthStore.spec.ts tests/PeopleManagementView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 6 |
-| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | 已纳入两项发布前补丁（见上表）。全量自动化回归在历史会话已绿。`bash scripts/check-release.sh` 已在 Windows + Git Bash 执行（2026-05-14）：P0 项通过；同次未激活 backend `.venv` 时 pytest/alembic 被脚本跳过。**Docker GUI 串行 E2E**（`npm run test:e2e:docker-gui`，含任务全链路 C1、汇报多级 C2、汇报中心新入口）已在 `infra/docker` 栈 + `AUTH_LOGIN_RATE_LIMIT` 放宽后跑通 16/16。**memory-bank** 已重组：`handbooks/`（部署 / DB / E2E 手册）、`plans/`（三类实施计划）、`history/`（时点报告与历史提案）、`archive/outdated/`（显著标注的过时草稿），索引见 `memory-bank/README.md`。**仓库内引用**（`.github/instructions`、`copilot-instructions`、`prompts`、`infra/docker/E2E-GUI-VERIFICATION.md`、`verification-runs/README.md` 等）已对齐新路径；对齐审查类报告默认落库路径为 `memory-bank/history/reports/alignment-assessment-YYYYMMDD.md`。Linux/Ubuntu 主机上带 venv 的 `check-release.sh` 与生产部署/回滚演练仍待收口结论。 |
+| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | **附件策略**已落地：后端 MIME/大小白名单、`attachment_links(report)` 迁移 `20260515_01`、汇报 `attachment_ids` 与列表 `attachments`；前端 `constants/attachments.ts` + 任务/知识库/汇报预检与「查看/下载」。**后端回归**：`python -m pytest` 在仓库根目录 **151 passed**（`backend/tests/conftest.py` 补 `sys.path`）；图引擎 **11-D 收口**：`WorkflowGraphService` 写接口 `commit`、接管同步手动 `Task` 投影、`workflow_graph_engine` 详情响应避免 ORM 懒加载。**Docker GUI**（`npm run test:e2e:docker-gui`）现为 **18** 条用例（含 **C1.2b** 附件、**C3** 探测式）；C1.2b 通过「选择附件」+ `filechooser` 与 `tasks-attachment-upload` 包裹层稳定化（勿依赖 `el-upload` 根节点上的 `data-testid` 直连隐藏 `input`）。`bash scripts/check-release.sh` 已在 Windows + Git Bash 执行（2026-05-14）：P0 通过；带 venv 的全量脚本与 **Ubuntu 生产构建**（`npm ci && npm run build` 成功；Vite 8 与 devtools 插件 peer 警告可忽略）仍待正式记入验收。**UI 信息架构**见 `memory-bank/plans/ui-information-architecture-plan.md`。 |
 
 ### Stage 2 文档同步约定
 
@@ -77,10 +77,13 @@
 | 项目 | 状态 | 结论 |
 | --- | --- | --- |
 | 第二批会话安全改造 | done | refresh token 已切换为 HttpOnly cookie，前端 access token 改为内存态，`/auth/logout` 已支持服务端撤销与清 cookie；已执行 backend `pytest -q`、`python -m compileall app tests` 与 frontend `npm run test:unit -- --run`、`npm run type-check` |
+| 附件策略与汇报绑定 | done | `AttachmentService` 扩展白名单与分类型大小上限；`report` target + `ReportCreateRequest.attachment_ids`；`attachment_serializers`；前端三处上传预检与任务附件查看/下载；迁移 `20260515_01` |
+| 图引擎写路径与 API 快照 | done | `WorkflowGraphService` 对 complete / takeover / deep-reject **commit**；接管同步 `Task` 投影（`manual` source）；`workflow_graph_engine` 显式字段组装 `WorkflowGraphInstanceDetailRead` |
+| 测试与 Docker GUI E2E | done | `conftest` 支持仓库根 `pytest`；docker-gui **C1.2b** 使用 filechooser；`TasksView` 附件 testid 包裹层 + `initialSelectedTaskId` 列表就绪后再选中 |
 
 ## 当前已知问题
 
-本轮未发现新的阻塞性失败。Phase 11-G 已完成前端单测、构建、mock E2E 与 live E2E 回归。`bash scripts/check-release.sh` 已在 Windows + Git Bash 执行一轮（见 Stage 2 Phase 6 表内说明）：P0 通过但 pytest/alembic 因未激活本地 venv 被跳过。**带 venv 的全量脚本跑通与 Ubuntu 24.04 主机部署 / 回滚演练**仍属 Stage 2 Phase 6 待收口项，不作为前端单测基线的阻塞项。
+本轮无阻塞性后端单测失败（仓库根 `pytest` 151 passed）。Docker GUI **C1.2b** 曾在旧选择器下超时，已通过 filechooser 与 UI testid 包裹修复；需在 **`infra/docker` 栈已更新并 seed** 的环境重跑 `npm run test:e2e:docker-gui` 以刷新 `verification-runs/docker-gui-*/report.md`。**带 venv 的 `check-release.sh` 全绿**与 **Ubuntu 主机回滚演练**仍为 Stage 2 Phase 6 待收口项。生产前端 `npm ci && npm run build` 的 Vite 8 / `vite-plugin-vue-devtools` peer 警告不阻断构建（可选：仅 `vite dev` 时加载 devtools 以减噪）。
 
 ## 已完成里程碑
 

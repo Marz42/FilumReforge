@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
+from app.api.attachment_serializers import serialize_attachment_read
 from app.api.dependencies import (
+  get_attachment_service,
   get_current_user,
+  get_object_storage_service,
   get_report_center_service,
   get_report_service,
 )
-from app.models import Report, ReportRoute, User
+from app.core.enums import AttachmentTargetType
 from app.core.request_context import merge_error_context, set_error_stage
+from app.models import Report, ReportRoute, User
 from app.schemas.report_center import (
   ReportActionRequest,
   ReportCenterPermissionsRead,
@@ -21,6 +26,8 @@ from app.schemas.report_center import (
   ReportRouteRead,
   WorkflowDefinitionOptionRead,
 )
+from app.services.attachment_service import AttachmentService
+from app.services.object_storage_service import ObjectStorageService
 from app.services.report_center_service import ReportCenterService
 from app.services.report_service import ReportService
 
@@ -52,7 +59,23 @@ def _build_route_read(route: ReportRoute) -> ReportRouteRead:
   )
 
 
-def _build_report_read(*, actor: User, report_service: ReportService, report: Report) -> ReportRead:
+async def _build_report_read(
+  *,
+  actor: User,
+  report_service: ReportService,
+  report: Report,
+  attachment_service: AttachmentService,
+  object_storage_service: ObjectStorageService,
+) -> ReportRead:
+  attachments = await attachment_service.list_attachments(
+    actor=actor,
+    target_type=AttachmentTargetType.REPORT,
+    target_id=report.id,
+    bypass_uploader_filter=True,
+  )
+  attachment_reads = await asyncio.gather(
+    *[serialize_attachment_read(a, object_storage_service) for a in attachments]
+  )
   return ReportRead(
     id=report.id,
     direction=report.direction,
@@ -80,6 +103,7 @@ def _build_report_read(*, actor: User, report_service: ReportService, report: Re
     archived_at=report.archived_at,
     available_actions=report_service.build_action_options(actor=actor, report=report),
     routes=[_build_route_read(route) for route in report.routes],
+    attachments=list(attachment_reads),
   )
 
 
@@ -88,8 +112,46 @@ async def read_report_center(
   actor: Annotated[User, Depends(get_current_user)],
   report_center_service: Annotated[ReportCenterService, Depends(get_report_center_service)],
   report_service: Annotated[ReportService, Depends(get_report_service)],
+  attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
 ) -> ReportCenterRead:
   snapshot = await report_center_service.get_snapshot(actor=actor)
+  pending = await asyncio.gather(
+    *[
+      _build_report_read(
+        actor=actor,
+        report_service=report_service,
+        report=report,
+        attachment_service=attachment_service,
+        object_storage_service=object_storage_service,
+      )
+      for report in snapshot.pending_reports
+    ]
+  )
+  initiated = await asyncio.gather(
+    *[
+      _build_report_read(
+        actor=actor,
+        report_service=report_service,
+        report=report,
+        attachment_service=attachment_service,
+        object_storage_service=object_storage_service,
+      )
+      for report in snapshot.initiated_reports
+    ]
+  )
+  history = await asyncio.gather(
+    *[
+      _build_report_read(
+        actor=actor,
+        report_service=report_service,
+        report=report,
+        attachment_service=attachment_service,
+        object_storage_service=object_storage_service,
+      )
+      for report in snapshot.history_reports
+    ]
+  )
   return ReportCenterRead(
     permissions=ReportCenterPermissionsRead(
       can_create_upward=snapshot.permissions["can_create_upward"],
@@ -101,18 +163,9 @@ async def read_report_center(
       WorkflowDefinitionOptionRead(id=definition.id, name=definition.name)
       for definition in snapshot.workflow_definition_options
     ],
-    pending_reports=[
-      _build_report_read(actor=actor, report_service=report_service, report=report)
-      for report in snapshot.pending_reports
-    ],
-    initiated_reports=[
-      _build_report_read(actor=actor, report_service=report_service, report=report)
-      for report in snapshot.initiated_reports
-    ],
-    history_reports=[
-      _build_report_read(actor=actor, report_service=report_service, report=report)
-      for report in snapshot.history_reports
-    ],
+    pending_reports=list(pending),
+    initiated_reports=list(initiated),
+    history_reports=list(history),
   )
 
 
@@ -121,6 +174,8 @@ async def create_report(
   payload: ReportCreateRequest,
   actor: Annotated[User, Depends(get_current_user)],
   report_service: Annotated[ReportService, Depends(get_report_service)],
+  attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
 ) -> ReportRead:
   report = await report_service.create_report(
     actor=actor,
@@ -129,10 +184,17 @@ async def create_report(
     title=payload.title,
     content_md=payload.content_md,
     workflow_definition_id=payload.workflow_definition_id,
+    attachment_ids=payload.attachment_ids,
   )
   merge_error_context({"source_id": str(report.id)})
   set_error_stage("serialize_response")
-  return _build_report_read(actor=actor, report_service=report_service, report=report)
+  return await _build_report_read(
+    actor=actor,
+    report_service=report_service,
+    report=report,
+    attachment_service=attachment_service,
+    object_storage_service=object_storage_service,
+  )
 
 
 @router.get("/reports/{report_id}", response_model=ReportRead)
@@ -140,9 +202,17 @@ async def read_report(
   report_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
   report_service: Annotated[ReportService, Depends(get_report_service)],
+  attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
 ) -> ReportRead:
   report = await report_service.get_report(actor=actor, report_id=report_id)
-  return _build_report_read(actor=actor, report_service=report_service, report=report)
+  return await _build_report_read(
+    actor=actor,
+    report_service=report_service,
+    report=report,
+    attachment_service=attachment_service,
+    object_storage_service=object_storage_service,
+  )
 
 
 @router.post("/reports/{report_id}/actions", response_model=ReportRead)
@@ -151,6 +221,8 @@ async def act_report(
   payload: ReportActionRequest,
   actor: Annotated[User, Depends(get_current_user)],
   report_service: Annotated[ReportService, Depends(get_report_service)],
+  attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
+  object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
 ) -> ReportRead:
   report = await report_service.act_report(
     actor=actor,
@@ -158,4 +230,10 @@ async def act_report(
     action=payload.action,
     note=payload.note,
   )
-  return _build_report_read(actor=actor, report_service=report_service, report=report)
+  return await _build_report_read(
+    actor=actor,
+    report_service=report_service,
+    report=report,
+    attachment_service=attachment_service,
+    object_storage_service=object_storage_service,
+  )

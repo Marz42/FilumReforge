@@ -1,7 +1,7 @@
 # Project Filum 设计文档
 
-**版本**: v2.7.1  
-**状态**: Living / Step 1–7 已完成；工作流 E 与图引擎主线持续演进；**文档索引**见 [`memory-bank/README.md`](./README.md)（`handbooks/`、`plans/`、`history/`、`archive/outdated/`）  
+**版本**: v2.7.3  
+**状态**: Living / Step 1–7 已完成；工作流 E 与图引擎主线持续演进；**文档索引**见 [`memory-bank/README.md`](./README.md)（`handbooks/`、`plans/`、`history/`、`archive/outdated/`）；**附件**允许类型与单文件大小上限以实现为准（见 `architecture.md` §6.4）；汇报创建可绑定草稿附件（`attachment_ids` / `report` link）  
 **目标受众**: 产品、架构、前后端研发、后续接手开发者
 
 ## 1. 产品定位

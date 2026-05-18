@@ -27,9 +27,25 @@ from app.services.workflow_graph_service import WorkflowGraphService
 
 router = APIRouter(prefix="/workflow-graph")
 
+_WORKFLOW_GRAPH_INSTANCE_READ_COLUMNS: frozenset[str] = frozenset(
+  name for name in WorkflowGraphInstanceRead.model_fields if name != "node_instances"
+)
+
 
 def _build_node_instance_read(ni: WorkflowNodeInstance) -> WorkflowNodeInstanceRead:
   return WorkflowNodeInstanceRead.model_validate(ni)
+
+
+def _workflow_graph_instance_read(
+  instance: WorkflowGraphInstance,
+  node_instances: list[WorkflowNodeInstance],
+) -> WorkflowGraphInstanceRead:
+  """Build read model without touching ORM relationships (avoids async lazy loads)."""
+  payload = {name: getattr(instance, name) for name in _WORKFLOW_GRAPH_INSTANCE_READ_COLUMNS}
+  return WorkflowGraphInstanceRead(
+    **payload,
+    node_instances=[_build_node_instance_read(ni) for ni in node_instances],
+  )
 
 
 def _build_instance_detail(
@@ -42,15 +58,14 @@ def _build_instance_detail(
   pending = sum(1 for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.PENDING)
   progress = int((completed / total) * 100) if total else 0
 
-  return WorkflowGraphInstanceDetailRead.model_validate(instance).model_copy(
-    update={
-      "node_instances": [_build_node_instance_read(ni) for ni in node_instances],
-      "total_node_count": total,
-      "completed_node_count": completed,
-      "active_node_count": active,
-      "pending_node_count": pending,
-      "progress_percent": progress,
-    }
+  base = _workflow_graph_instance_read(instance, node_instances)
+  return WorkflowGraphInstanceDetailRead(
+    **base.model_dump(),
+    total_node_count=total,
+    completed_node_count=completed,
+    active_node_count=active,
+    pending_node_count=pending,
+    progress_percent=progress,
   )
 
 
@@ -74,11 +89,7 @@ async def list_graph_instances_for_template(
     node_instances = await workflow_graph_service.list_node_instances_for_graph(
       instance_id=instance.id,
     )
-    results.append(
-      WorkflowGraphInstanceRead.model_validate(instance).model_copy(
-        update={"node_instances": [_build_node_instance_read(ni) for ni in node_instances]}
-      )
-    )
+    results.append(_workflow_graph_instance_read(instance, node_instances))
   return results
 
 

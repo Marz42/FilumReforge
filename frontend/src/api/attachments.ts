@@ -6,8 +6,10 @@ export interface ListAttachmentsPayload {
   target_id: string
 }
 
-export interface UploadAttachmentPayload extends ListAttachmentsPayload {
+export interface UploadAttachmentPayload {
   file: File
+  target_type?: AttachmentTargetType
+  target_id?: string
   visibility?: AttachmentVisibility
   relation?: string
 }
@@ -22,8 +24,10 @@ export async function listAttachments(payload: ListAttachmentsPayload): Promise<
 export async function uploadAttachment(payload: UploadAttachmentPayload): Promise<Attachment> {
   const formData = new FormData()
   formData.append('file', payload.file)
-  formData.append('target_type', payload.target_type)
-  formData.append('target_id', payload.target_id)
+  if (payload.target_type != null && payload.target_id != null) {
+    formData.append('target_type', payload.target_type)
+    formData.append('target_id', payload.target_id)
+  }
   formData.append('visibility', payload.visibility ?? 'private')
   formData.append('relation', payload.relation ?? 'primary')
 

@@ -10,6 +10,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.enums import (
   DEFAULT_USER_NOTIFICATION_CHANNELS,
+  AttachmentStatus,
+  AttachmentTargetType,
   DelegationScopeType,
   DelegationStatus,
   ReportDirection,
@@ -19,7 +21,17 @@ from app.core.enums import (
 )
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.request_context import merge_error_context, set_error_scope, set_error_stage
-from app.models import Delegation, Report, ReportRoute, ReportingLine, User, WorkflowDefinition, WorkflowInstance
+from app.models import (
+  Attachment,
+  AttachmentLink,
+  Delegation,
+  Report,
+  ReportRoute,
+  ReportingLine,
+  User,
+  WorkflowDefinition,
+  WorkflowInstance,
+)
 from app.schemas.messages import NotificationMessage
 from app.schemas.report_center import ReportActionOptionRead, ReportTargetOptionRead
 from app.services.access_control import ensure_active_user
@@ -44,6 +56,8 @@ def _excerpt(value: str, *, limit: int = 160) -> str:
 
 
 class ReportService:
+  _MAX_REPORT_ATTACHMENTS = 10
+
   def __init__(
     self,
     session: AsyncSession,
@@ -369,6 +383,48 @@ class ReportService:
   async def get_report(self, *, actor: User, report_id: UUID) -> Report:
     return await self._get_report_or_raise(actor=actor, report_id=report_id)
 
+  async def _bind_attachments_to_report(
+    self,
+    *,
+    actor: User,
+    report_id: UUID,
+    attachment_ids: list[UUID],
+  ) -> None:
+    if len(attachment_ids) > self._MAX_REPORT_ATTACHMENTS:
+      raise ConflictError(f"汇报附件最多 {self._MAX_REPORT_ATTACHMENTS} 个。")
+    unique: list[UUID] = []
+    seen: set[UUID] = set()
+    for raw in attachment_ids:
+      if raw in seen:
+        continue
+      seen.add(raw)
+      unique.append(raw)
+
+    for att_id in unique:
+      att = await self._session.get(
+        Attachment,
+        att_id,
+        options=(selectinload(Attachment.links),),
+      )
+      if att is None:
+        raise ConflictError("附件不存在。")
+      if att.uploader_id != actor.id:
+        raise ConflictError("只能绑定本人上传的附件。")
+      if att.status != AttachmentStatus.UPLOADED:
+        raise ConflictError("附件不可用。")
+      if list(att.links):
+        raise ConflictError("附件已绑定其他业务对象，请先使用新上传的附件。")
+      self._session.add(
+        AttachmentLink(
+          attachment_id=att.id,
+          target_type=AttachmentTargetType.REPORT,
+          target_id=report_id,
+          relation="primary",
+          created_by=actor.id,
+        )
+      )
+    await self._session.flush()
+
   async def create_report(
     self,
     *,
@@ -378,6 +434,7 @@ class ReportService:
     title: str,
     content_md: str,
     workflow_definition_id: UUID | None = None,
+    attachment_ids: list[UUID] | None = None,
   ) -> Report:
     ensure_active_user(actor)
     normalized_title = title.strip()
@@ -418,6 +475,9 @@ class ReportService:
     self._session.add(report)
     await self._session.flush()
     merge_error_context({"source_id": str(report.id)})
+
+    if attachment_ids:
+      await self._bind_attachments_to_report(actor=actor, report_id=report.id, attachment_ids=attachment_ids)
 
     previous_user_id = actor.id
     routes: list[ReportRoute] = []

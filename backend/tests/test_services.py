@@ -676,6 +676,120 @@ async def test_attachment_service_rejects_mismatched_binary_content(db_session) 
       )
 
 
+def _minimal_xlsx_bytes() -> bytes:
+  import io
+  import zipfile
+
+  buf = io.BytesIO()
+  with zipfile.ZipFile(buf, "w") as zf:
+    zf.writestr(
+      "[Content_Types].xml",
+      b'<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+      b'<Default Extension="xml" ContentType="application/xml"/></Types>',
+    )
+    zf.writestr("_rels/.rels", b"")
+    zf.writestr(
+      "xl/workbook.xml",
+      b'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>',
+    )
+  return buf.getvalue()
+
+
+def _minimal_docx_bytes() -> bytes:
+  import io
+  import zipfile
+
+  buf = io.BytesIO()
+  with zipfile.ZipFile(buf, "w") as zf:
+    zf.writestr(
+      "[Content_Types].xml",
+      b'<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+      b'<Default Extension="xml" ContentType="application/xml"/></Types>',
+    )
+    zf.writestr("_rels/.rels", b"")
+    zf.writestr(
+      "word/document.xml",
+      b'<document xmlns="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>',
+    )
+  return buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_attachment_service_accepts_xlsx_docx_wav_mp3(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  with TemporaryDirectory() as tmp_dir:
+    storage_service = ObjectStorageService(
+      LocalStorageAdapter(base_path=tmp_dir, bucket="filum-test")
+    )
+    attachment_service = AttachmentService(db_session, storage_service)
+
+    xlsx = await attachment_service.upload_attachment(
+      actor=admin,
+      filename="t.xlsx",
+      content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      content=_minimal_xlsx_bytes(),
+    )
+    assert 'spreadsheetml' in xlsx.mime_type
+
+    docx = await attachment_service.upload_attachment(
+      actor=admin,
+      filename="t.docx",
+      content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      content=_minimal_docx_bytes(),
+    )
+    assert "wordprocessingml" in docx.mime_type
+
+    wav = await attachment_service.upload_attachment(
+      actor=admin,
+      filename="t.wav",
+      content_type="audio/wav",
+      content=b"RIFF" + (4).to_bytes(4, "little") + b"WAVE",
+    )
+    assert wav.mime_type == "audio/wav"
+
+    mp3 = await attachment_service.upload_attachment(
+      actor=admin,
+      filename="t.mp3",
+      content_type="audio/mpeg",
+      content=b"\xff\xfb\x90\x00" + b"\x00" * 64,
+    )
+    assert mp3.mime_type == "audio/mpeg"
+
+
+@pytest.mark.asyncio
+async def test_attachment_service_rejects_oversized_text(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+
+  with TemporaryDirectory() as tmp_dir:
+    storage_service = ObjectStorageService(
+      LocalStorageAdapter(base_path=tmp_dir, bucket="filum-test")
+    )
+    attachment_service = AttachmentService(db_session, storage_service)
+    big = b"a" * (10 * 1024 * 1024 + 1)
+    with pytest.raises(AppValidationError, match="10MB"):
+      await attachment_service.upload_attachment(
+        actor=admin,
+        filename="big.txt",
+        content_type="text/plain",
+        content=big,
+      )
+
+
 @pytest.mark.asyncio
 async def test_task_service_creates_task_and_enqueues_notification(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)

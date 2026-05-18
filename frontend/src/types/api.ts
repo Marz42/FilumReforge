@@ -14,7 +14,13 @@ export type TaskActionType =
 export type CommentFormat = 'plain_text' | 'markdown'
 export type AttachmentVisibility = 'private' | 'internal' | 'public'
 export type AttachmentStatus = 'uploaded' | 'deleted' | 'quarantined'
-export type AttachmentTargetType = 'task_comment' | 'task' | 'profile' | 'document' | 'notification_message'
+export type AttachmentTargetType =
+  | 'task_comment'
+  | 'task'
+  | 'profile'
+  | 'document'
+  | 'notification_message'
+  | 'report'
 export type PositionAssignmentType = 'primary' | 'part_time' | 'acting'
 export type ReportingLineType = 'solid' | 'dotted'
 export type EmploymentEventType =
@@ -777,6 +783,7 @@ export interface ReportRecord {
   archived_at: string | null
   available_actions: ReportActionOption[]
   routes: ReportRoute[]
+  attachments: Attachment[]
 }
 
 export interface ReportCenterPermissions {

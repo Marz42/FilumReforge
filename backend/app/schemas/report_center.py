@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.core.enums import ReportDirection, ReportRouteStatus, ReportStatus
+from app.schemas.attachments import AttachmentRead
 
 
 class ReportActionOptionRead(BaseModel):
@@ -64,6 +65,7 @@ class ReportRead(BaseModel):
   archived_at: datetime | None = None
   available_actions: list[ReportActionOptionRead] = Field(default_factory=list)
   routes: list[ReportRouteRead] = Field(default_factory=list)
+  attachments: list[AttachmentRead] = Field(default_factory=list)
 
 
 class ReportCenterPermissionsRead(BaseModel):
@@ -87,6 +89,7 @@ class ReportCreateRequest(BaseModel):
   title: str = Field(min_length=1, max_length=255)
   content_md: str = Field(min_length=1, max_length=4000)
   workflow_definition_id: UUID | None = None
+  attachment_ids: list[UUID] | None = Field(default=None, max_length=10)
 
 
 class ReportActionRequest(BaseModel):

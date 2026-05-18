@@ -12,6 +12,7 @@ test('switches to tracking and renders graph-backed task details', async ({ mock
   await expect(page.getByText('工作流节点追踪')).toBeVisible()
   await expect(page.getByTestId('tasks-graph-panel')).toContainText('需求澄清')
   await expect(page.getByTestId('tasks-graph-panel')).toContainText('验收确认')
+  await expect(page.getByTestId('task-attachment-download')).toBeVisible()
 })
 
 test('keeps inbox and tracking tabs reachable in the browser flow', async ({ mockApi, page }) => {

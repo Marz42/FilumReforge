@@ -307,7 +307,21 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
     }
 
     if (request.method() === 'GET' && apiPath.startsWith('/attachments?')) {
-      await fulfillJson(route, [])
+      await fulfillJson(route, [
+        {
+          id: 'att-mock-1',
+          original_filename: 'mock-spec.pdf',
+          mime_type: 'application/pdf',
+          size_bytes: 128,
+          checksum_sha256: '0'.repeat(64),
+          uploader_id: adminUser.id,
+          visibility: 'private',
+          status: 'uploaded',
+          deleted_at: null,
+          created_at: '2025-04-04T08:00:00Z',
+          download_url: 'https://example.com/mock.pdf',
+        },
+      ])
       return
     }
 

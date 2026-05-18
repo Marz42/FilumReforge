@@ -32,7 +32,10 @@ npx playwright test -c playwright.docker-gui.config.ts
    - **L0**：`admin` 登录 → 总览截图 → 断言侧栏存在「部门管理」「人员管理」→ 打开 `/departments` 截图 → 退出。  
    - **L1**：`demo.hr@example.com` 登录 → 断言无「部门管理」→ 访问 `/departments` 应重定向到 `/overview`（与 [frontend/src/router/index.ts](../frontend/src/router/index.ts) `meta.roles` 一致）→ 截图 → 退出。  
    - **L4**：`demo.engineer.a@example.com` 登录 → 断言无「人员管理」「部门管理」→ 访问 `/people` 重定向 `/overview` → 截图 → 退出。  
-   - **L3（任务中心预检）**：`demo.platform.lead@example.com` 打开 `/task-center`，`data-testid="task-center-view"` 截图（完整 C1 建任务仍建议手测）。  
+   - **L3（任务中心预检）**：`demo.platform.lead@example.com` 打开 `/task-center`，`data-testid="task-center-view"` 截图。  
+   - **C1 任务链（串行）**：含 **C1.2b** 任务资料附件上传（`frontend/e2e/fixtures/minimal.png`）：在 `tasks-detail-panel` 内点击 **「选择附件」** 并用 Playwright `filechooser` 选文件（勿依赖 `el-upload` 根上的 `data-testid` 直连隐藏 `input`）；再点 **「上传到任务」** 并断言 `task-attachment-download`。交付与验收等步骤详见 spec 内 `row` 表。  
+   - 当前 spec 为 **18** 条用例（`test.describe.configure({ mode: 'serial' })`），报告写入 `verification-runs/docker-gui-<时间戳>/report.md`。  
+   - **C2 向上汇报多级**、**C3 向下传达（探测式，若种子链路具备）**。  
    - **`test.afterAll`**：将上述每步 **PASS/FAIL/SKIP** 写入 `VERIFY_RUN_DIR/report.md`，并列出 `screenshots/*.png` 索引。
 
 3. **`frontend/package.json` scripts（可选）**  

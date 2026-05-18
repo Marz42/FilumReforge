@@ -8,6 +8,7 @@ export interface CreateReportPayload {
   title: string
   content_md: string
   workflow_definition_id?: string | null
+  attachment_ids?: string[] | null
 }
 
 export interface ReportActionPayload {
