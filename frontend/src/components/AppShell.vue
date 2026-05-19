@@ -43,7 +43,7 @@ const generalNavigationItems = computed<NavigationItem[]>(() => [
   { label: '知识库', routeName: 'knowledge-base', icon: Collection },
   { label: '汇报中心', routeName: 'reports', icon: Memo },
   { label: '消息中心', routeName: 'messages', icon: Message },
-  { label: '设置', routeName: 'settings', icon: Setting },
+  { label: '设置', routeName: 'settings-profile', icon: Setting },
 ])
 
 const specialNavigationItems = computed(() => {
@@ -63,6 +63,10 @@ const specialNavigationItems = computed(() => {
 const activeMenu = computed(() => {
   if (typeof route.name !== 'string') {
     return 'overview'
+  }
+
+  if (route.name.startsWith('settings-')) {
+    return 'settings-profile'
   }
 
   const legacyRouteMap: Record<string, string> = {

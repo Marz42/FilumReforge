@@ -1,6 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import AppShell from '@/components/AppShell.vue'
+import SettingsLayout from '@/components/settings/SettingsLayout.vue'
+import ProfileSection from '@/components/settings/ProfileSection.vue'
+import SecuritySection from '@/components/settings/SecuritySection.vue'
+import NotificationsSection from '@/components/settings/NotificationsSection.vue'
 import { useAuthStore } from '@/stores/auth'
 import HomeView from '@/views/HomeView.vue'
 import KnowledgeBaseView from '@/views/KnowledgeBaseView.vue'
@@ -10,7 +14,6 @@ import DepartmentsView from '@/views/DepartmentsView.vue'
 import MessagesView from '@/views/MessagesView.vue'
 import PeopleManagementView from '@/views/PeopleManagementView.vue'
 import ReportsView from '@/views/ReportsView.vue'
-import SettingsView from '@/views/SettingsView.vue'
 import TaskCenterView from '@/views/TaskCenterView.vue'
 
 const router = createRouter({
@@ -134,8 +137,30 @@ const router = createRouter({
         },
         {
           path: 'settings',
-          name: 'settings',
-          component: SettingsView,
+          component: SettingsLayout,
+          children: [
+            {
+              path: '',
+              redirect: {
+                name: 'settings-profile',
+              },
+            },
+            {
+              path: 'profile',
+              name: 'settings-profile',
+              component: ProfileSection,
+            },
+            {
+              path: 'security',
+              name: 'settings-security',
+              component: SecuritySection,
+            },
+            {
+              path: 'notifications',
+              name: 'settings-notifications',
+              component: NotificationsSection,
+            },
+          ],
         },
       ],
     },

@@ -30,7 +30,7 @@ describe('Login view', () => {
     vi.clearAllMocks()
   })
 
-  it('shows bootstrap entry when backend still requires admin initialization', async () => {
+  it('shows bootstrap wizard when backend still requires admin initialization', async () => {
     vi.mocked(getBootstrapStatus).mockResolvedValue({ bootstrap_required: true })
 
     const wrapper = mount(LoginView, {
@@ -42,16 +42,13 @@ describe('Login view', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="login-page"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="login-submit"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('第一次进入系统时，请先初始化管理员账号')
-    expect(wrapper.text()).toContain('初始化管理员')
-
-    const inputs = wrapper.findAll('input')
-    expect(inputs[0]?.element).toHaveProperty('value', '')
-    expect(inputs[1]?.element).toHaveProperty('value', '')
+    expect(wrapper.find('[data-testid="bootstrap-wizard"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="login-form"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('系统初始化')
+    expect(wrapper.text()).toContain('管理员邮箱')
   })
 
-  it('hides bootstrap entry after backend reports initialization completed', async () => {
+  it('shows normal login when backend reports initialization completed', async () => {
     vi.mocked(getBootstrapStatus).mockResolvedValue({ bootstrap_required: false })
 
     const wrapper = mount(LoginView, {
@@ -62,13 +59,13 @@ describe('Login view', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('第一次进入系统时，请先初始化管理员账号')
-    expect(wrapper.text()).not.toContain('初始化管理员')
+    expect(wrapper.find('[data-testid="login-form"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="bootstrap-wizard"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('登录系统')
-    expect(wrapper.text()).toContain('统一协同与人事工作台')
+    expect(wrapper.text()).toContain('本系统采用邀请制，请联系 HR 获取账号')
   })
 
-  it('shows invitation registration when invite token is present', async () => {
+  it('shows invite activation when invite token is present', async () => {
     route.query = { invite: 'invite-token' }
     vi.mocked(getBootstrapStatus).mockResolvedValue({ bootstrap_required: false })
     vi.mocked(getInvitationPreview).mockResolvedValue({
@@ -86,8 +83,9 @@ describe('Login view', () => {
 
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="login-tabs"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('邀请注册链接')
+    expect(wrapper.find('[data-testid="login-invite-activate"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="login-form"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('欢迎加入，请设置密码')
     expect(wrapper.text()).toContain('invitee@example.com')
     expect(wrapper.text()).toContain('完成注册')
   })

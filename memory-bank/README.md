@@ -18,6 +18,7 @@
 | [handbooks/deployment-runbook-ubuntu-2404.md](./handbooks/deployment-runbook-ubuntu-2404.md) | Ubuntu 24.04 LTS 生产部署全流程 |
 | [handbooks/manual-database-operations.md](./handbooks/manual-database-operations.md) | PostgreSQL 手工操作、迁移、整库重置 |
 | [handbooks/e2e-gui-verification-automation-runbook.md](./handbooks/e2e-gui-verification-automation-runbook.md) | Docker GUI + Playwright 自动化验证与报告 |
+| [handbooks/user-manual.md](./handbooks/user-manual.md) | **用户说明书**（按页面操作指南，IA-0 基线，供审阅与 UI 重构前事实对齐） |
 
 ## [plans/](./plans/) — 实施计划（排期与阶段出口）
 
@@ -26,6 +27,8 @@
 | [plans/implementation-plan.md](./plans/implementation-plan.md) | 从当前代码出发的下一轮工作流与主线说明 |
 | [plans/improvements-stage2-implementation-plan.md](./plans/improvements-stage2-implementation-plan.md) | Stage 2 周期阶段计划 |
 | [plans/workflow-refactor-implementation-plan.md](./plans/workflow-refactor-implementation-plan.md) | 工作流图引擎重构 Phase 0–11 实施与验收基线 |
+| [plans/ui-information-architecture-plan.md](./plans/ui-information-architecture-plan.md) | UI 信息架构里程碑总览（IA-0…IA-4） |
+| [plans/ui-refactor-spec-v2.md](./plans/ui-refactor-spec-v2.md) | **UI 重构实施规格 v2**（Phase A–F 逐步验收，依据 user-manual 审阅批注） |
 
 ## [history/reports/](./history/reports/) — 时点评估与阶段报告（存档）
 

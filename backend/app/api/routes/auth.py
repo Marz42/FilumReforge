@@ -18,6 +18,7 @@ from app.schemas.auth import (
   InvitationCreateRequest,
   InvitationPreviewRead,
   InvitationRead,
+  ChangePasswordRequest,
   LoginRequest,
 )
 from app.schemas.users import UserRead
@@ -204,3 +205,17 @@ async def read_current_user(
   current_user: Annotated[User, Depends(get_current_user)],
 ) -> UserRead:
   return UserRead.model_validate(current_user)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+  payload: ChangePasswordRequest,
+  current_user: Annotated[User, Depends(get_current_user)],
+  auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> Response:
+  await auth_service.change_password(
+    user=current_user,
+    current_password=payload.current_password,
+    new_password=payload.new_password,
+  )
+  return Response(status_code=status.HTTP_204_NO_CONTENT)

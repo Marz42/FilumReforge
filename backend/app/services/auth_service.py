@@ -277,6 +277,19 @@ class AuthService:
     await self._session.commit()
     return True
 
+  async def change_password(
+    self,
+    *,
+    user: User,
+    current_password: str,
+    new_password: str,
+  ) -> None:
+    if not verify_password(current_password, user.password_hash):
+      raise AuthenticationError("当前密码不正确。")
+
+    user.password_hash = hash_password(new_password)
+    await self._session.commit()
+
   async def get_user_from_access_token(self, token: str) -> User:
     payload = decode_token(
       settings=self._settings,

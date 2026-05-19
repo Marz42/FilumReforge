@@ -67,6 +67,6 @@ describe('router navigation refactor', () => {
     await seedUser('employee')
 
     await router.push('/settings')
-    expect(router.currentRoute.value.name).toBe('settings')
+    expect(router.currentRoute.value.name).toBe('settings-profile')
   })
 })

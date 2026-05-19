@@ -31,6 +31,11 @@ export interface BootstrapStatus {
   bootstrap_required: boolean
 }
 
+export interface ChangePasswordPayload {
+  current_password: string
+  new_password: string
+}
+
 export async function bootstrapAdmin(payload: BootstrapAdminPayload): Promise<User> {
   const { data } = await rawHttp.post<User>('/auth/bootstrap-admin', payload)
   return data
@@ -75,4 +80,8 @@ export async function getCurrentUser(): Promise<User> {
 export async function getBootstrapStatus(): Promise<BootstrapStatus> {
   const { data } = await rawHttp.get<BootstrapStatus>('/auth/bootstrap-status')
   return data
+}
+
+export async function changePassword(payload: ChangePasswordPayload): Promise<void> {
+  await http.post('/auth/change-password', payload)
 }

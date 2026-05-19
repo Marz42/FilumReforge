@@ -473,6 +473,62 @@ async def test_password_policy_rejects_weak_passwords_on_write_paths(api_client)
 
 
 @pytest.mark.asyncio
+async def test_change_password_updates_credentials(api_client) -> None:
+  client, _ = api_client
+  headers, _ = await bootstrap_and_login(client)
+  email = "admin@example.com"
+  original_password = "StrongPassword123!"
+
+  weak_change_response = await client.post(
+    "/api/v1/auth/change-password",
+    headers=headers,
+    json={
+      "current_password": original_password,
+      "new_password": "12345678",
+    },
+  )
+  assert weak_change_response.status_code == 422
+
+  wrong_current_response = await client.post(
+    "/api/v1/auth/change-password",
+    headers=headers,
+    json={
+      "current_password": "WrongPassword123!",
+      "new_password": "AnotherStrong123!",
+    },
+  )
+  assert wrong_current_response.status_code == 401
+
+  change_response = await client.post(
+    "/api/v1/auth/change-password",
+    headers=headers,
+    json={
+      "current_password": original_password,
+      "new_password": "UpdatedStrong123!",
+    },
+  )
+  assert change_response.status_code == 204
+
+  old_login_response = await client.post(
+    "/api/v1/auth/login",
+    json={
+      "email": email,
+      "password": original_password,
+    },
+  )
+  assert old_login_response.status_code == 401
+
+  new_login_response = await client.post(
+    "/api/v1/auth/login",
+    json={
+      "email": email,
+      "password": "UpdatedStrong123!",
+    },
+  )
+  assert new_login_response.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_people_management_api_returns_aggregated_people_workspace(api_client) -> None:
   client, _ = api_client
   headers, _ = await bootstrap_and_login(client)

@@ -36,6 +36,7 @@ import type {
   UserStatus,
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
+import { formatPasswordValidationMessage, validatePasswordClient } from '@/utils/passwordPolicy'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 
 type DetailTab = 'account' | 'profile' | 'relations' | 'lifecycle' | 'permissions'
@@ -612,6 +613,12 @@ async function handleCreateUser(): Promise<void> {
       return
     }
 
+    const passwordValidation = validatePasswordClient(createUserForm.password)
+    if (!passwordValidation.valid) {
+      ElMessage.error(formatPasswordValidationMessage(passwordValidation.reasons))
+      return
+    }
+
     const createdUser = await createUser({
       email: createUserForm.email.trim(),
       password: createUserForm.password,
@@ -636,9 +643,18 @@ async function handleSaveAccount(): Promise<void> {
 
   accountSubmitting.value = true
   try {
+    const nextPassword = accountForm.password.trim()
+    if (nextPassword) {
+      const passwordValidation = validatePasswordClient(nextPassword)
+      if (!passwordValidation.valid) {
+        ElMessage.error(formatPasswordValidationMessage(passwordValidation.reasons))
+        return
+      }
+    }
+
     await updateUser(selectedDetail.value.account.id, {
       email: accountForm.email.trim(),
-      password: accountForm.password.trim() || undefined,
+      password: nextPassword || undefined,
       role: accountForm.role,
       status: accountForm.status,
     })
