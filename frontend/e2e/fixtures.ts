@@ -135,6 +135,55 @@ const taskStatsSummary = {
   },
 }
 
+const messageCenterSnapshot = {
+  items: [
+    {
+      id: 'message-1',
+      source_type: 'task',
+      source_id: 'task-inbox-1',
+      recipient_user_id: adminUser.id,
+      recipient_email: adminUser.email,
+      message_type: 'task_assigned',
+      title: '整理四月周报',
+      body_text: '你有一条新的任务待处理。',
+      body_html: null,
+      payload: {},
+      status: 'completed',
+      scheduled_at: null,
+      enqueued_at: '2025-04-04T08:00:00Z',
+      completed_at: '2025-04-04T08:00:00Z',
+      created_at: '2025-04-04T08:00:00Z',
+      delivery_state: 'sent',
+      source: {
+        module_key: 'task',
+        module_label: '任务中心',
+        object_type: 'task',
+        object_id: 'task-inbox-1',
+        object_label: '整理四月周报',
+        target: {
+          route_name: 'task-center',
+          route_query: { tab: 'tracking', selected: 'task-inbox-1' },
+          can_navigate: true,
+        },
+      },
+      receipt_state: {
+        is_read: false,
+        is_acknowledged: false,
+        read_at: null,
+        acknowledged_at: null,
+      },
+      attachments: [],
+      deliveries: [],
+      receipts: [],
+    },
+  ],
+  total_count: 1,
+  filtered_count: 1,
+  unread_count: 1,
+  unacknowledged_count: 1,
+  source_counts: [{ source_type: 'task', label: '任务中心', count: 1 }],
+}
+
 const graphInstance = {
   id: 'graph-instance-1',
   workflow_definition_id: 'workflow-def-1',
@@ -256,6 +305,11 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
 
     if (request.method() === 'GET' && apiPath === '/users') {
       await fulfillJson(route, [adminUser])
+      return
+    }
+
+    if (request.method() === 'GET' && apiPath.startsWith('/messages')) {
+      await fulfillJson(route, messageCenterSnapshot)
       return
     }
 

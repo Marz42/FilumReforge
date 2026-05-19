@@ -252,9 +252,9 @@ Response: 204 或 UserRead
 
 ### 5.3 Phase B 出口清单
 
-- [ ] AppHeader + NotificationDrawer 上线
-- [ ] 侧栏导航与 `user-manual.md` §1.2 一致（无消息项）
-- [ ] E2E docker-gui §B 菜单断言更新
+- [x] AppHeader + NotificationDrawer 上线
+- [x] 侧栏导航与 `user-manual.md` §1.2 一致（无消息项）
+- [x] E2E `shell.spec.ts`；docker-gui 菜单仍通过侧栏项计数间接覆盖
 
 ---
 

@@ -21,6 +21,28 @@ const RouterViewStub = defineComponent({
   },
 })
 
+const AppHeaderStub = defineComponent({
+  name: 'AppHeaderStub',
+  props: {
+    isMobileViewport: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  emits: ['openMobileNav', 'logout'],
+  template: `
+    <div class="app-header-stub">
+      <button
+        v-if="isMobileViewport"
+        data-testid="mobile-nav-trigger"
+        type="button"
+        @click="$emit('openMobileNav')"
+      >
+        menu
+      </button>
+    </div>
+  `,
+})
 const DrawerStub = defineComponent({
   name: 'ElDrawer',
   props: {
@@ -72,6 +94,7 @@ describe('App shell', () => {
         plugins: [pinia, router, ElementPlus],
         stubs: {
           CommandBar: true,
+          AppHeader: AppHeaderStub,
           RouterView: RouterViewStub,
           ElDrawer: DrawerStub,
           teleport: true,
@@ -81,14 +104,13 @@ describe('App shell', () => {
 
     expect(wrapper.text()).toContain('Project Filum')
     expect(wrapper.text()).toContain('统一协同工作台')
-    expect(wrapper.text()).toContain('人事、任务、汇报、消息与知识库统一入口')
     expect(wrapper.text()).toContain('通用模块')
     expect(wrapper.text()).toContain('特殊模块')
     expect(wrapper.text()).toContain('总览')
     expect(wrapper.text()).toContain('任务中心')
     expect(wrapper.text()).toContain('知识库')
     expect(wrapper.text()).toContain('汇报中心')
-    expect(wrapper.text()).toContain('消息中心')
+    expect(wrapper.text()).not.toContain('消息中心')
     expect(wrapper.text()).toContain('设置')
     expect(wrapper.text()).toContain('人员管理')
     expect(wrapper.text()).toContain('部门管理')
@@ -109,6 +131,7 @@ describe('App shell', () => {
         plugins: [pinia, router, ElementPlus],
         stubs: {
           CommandBar: true,
+          AppHeader: AppHeaderStub,
           RouterView: RouterViewStub,
           ElDrawer: DrawerStub,
           teleport: true,
@@ -128,6 +151,7 @@ describe('App shell', () => {
         plugins: [pinia, router, ElementPlus],
         stubs: {
           CommandBar: true,
+          AppHeader: AppHeaderStub,
           RouterView: RouterViewStub,
           ElDrawer: DrawerStub,
           teleport: true,
@@ -160,6 +184,7 @@ describe('App shell', () => {
         plugins: [pinia, router, ElementPlus],
         stubs: {
           CommandBar: true,
+          AppHeader: AppHeaderStub,
           RouterView: RouterViewStub,
           ElDrawer: DrawerStub,
           teleport: true,

@@ -6,17 +6,14 @@ import {
   Collection,
   House,
   Memo,
-  Message,
   OfficeBuilding,
-  Operation,
   Setting,
   User,
 } from '@element-plus/icons-vue'
 
-import CommandBar from '@/components/CommandBar.vue'
+import AppHeader from '@/components/shell/AppHeader.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import type { UserRole } from '@/types/api'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
@@ -31,18 +28,11 @@ type NavigationItem = {
   icon: Component
 }
 
-const roleLabelMap: Record<UserRole, string> = {
-  admin: '管理员',
-  hr: 'HR',
-  employee: '员工',
-}
-
 const generalNavigationItems = computed<NavigationItem[]>(() => [
   { label: '总览', routeName: 'overview', icon: House },
   { label: '任务中心', routeName: 'task-center', icon: Briefcase },
   { label: '知识库', routeName: 'knowledge-base', icon: Collection },
   { label: '汇报中心', routeName: 'reports', icon: Memo },
-  { label: '消息中心', routeName: 'messages', icon: Message },
   { label: '设置', routeName: 'settings-profile', icon: Setting },
 ])
 
@@ -79,13 +69,6 @@ const activeMenu = computed(() => {
   }
 
   return legacyRouteMap[route.name] ?? route.name
-})
-const currentRoleLabel = computed(() => {
-  if (!authStore.user) {
-    return '访客'
-  }
-
-  return roleLabelMap[authStore.user.role]
 })
 
 function handleSelect(routeName: string): void {
@@ -217,28 +200,11 @@ onBeforeUnmount(() => {
     </el-drawer>
 
     <el-container>
-      <el-header class="app-shell__header">
-        <div class="app-shell__header-copy">
-          <el-button
-            v-if="isMobileViewport"
-            circle
-            class="app-shell__menu-button"
-            data-testid="mobile-nav-trigger"
-            @click="openMobileNav"
-          >
-            <el-icon><Operation /></el-icon>
-          </el-button>
-          <h2>{{ appStore.headerTitle }}</h2>
-          <p>{{ appStore.deliveryStatus }}</p>
-        </div>
-
-        <div class="app-shell__user">
-          <CommandBar />
-          <el-tag type="primary" effect="plain" round>{{ currentRoleLabel }}</el-tag>
-          <span class="app-shell__user-email">{{ authStore.user?.email ?? '未登录' }}</span>
-          <el-button link type="primary" class="app-shell__logout" @click="handleLogout">退出登录</el-button>
-        </div>
-      </el-header>
+      <AppHeader
+        :is-mobile-viewport="isMobileViewport"
+        @open-mobile-nav="openMobileNav"
+        @logout="handleLogout"
+      />
 
       <el-main class="app-shell__main">
         <RouterView v-slot="{ Component }">
@@ -323,67 +289,6 @@ onBeforeUnmount(() => {
   font-size: 16px;
 }
 
-.app-shell__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 0 28px;
-  height: 64px !important;
-  background: var(--filum-surface);
-  border-bottom: 1px solid var(--filum-border);
-  box-shadow: var(--filum-shadow-shell);
-}
-
-.app-shell__header-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.app-shell__menu-button {
-  display: none;
-  align-self: flex-start;
-  border-color: rgba(91, 110, 245, 0.16);
-  background: var(--filum-surface-muted);
-  color: var(--el-color-primary);
-}
-
-.app-shell__header h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--filum-text);
-}
-
-.app-shell__header p {
-  margin: 3px 0 0;
-  font-size: 12px;
-  color: var(--filum-text-muted);
-}
-
-.app-shell__user {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-  color: var(--filum-text);
-}
-
-.app-shell__user-email {
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-  color: var(--filum-text-secondary);
-}
-
-.app-shell__logout {
-  font-weight: 600;
-}
-
 .app-shell__main {
   padding: 24px 28px;
 }
@@ -424,42 +329,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1080px) {
-  .app-shell__header {
-    padding: 0 20px;
-  }
-
   .app-shell__main {
     padding: 20px;
-  }
-
-  .app-shell__user {
-    gap: 10px;
-  }
-
-  .app-shell__user-email {
-    max-width: 180px;
-  }
-}
-
-@media (max-width: 860px) {
-  .app-shell__menu-button {
-    display: inline-flex;
-  }
-
-  .app-shell__header {
-    align-items: flex-start;
-    flex-direction: column;
-    justify-content: center;
-    height: auto !important;
-    padding: 18px 20px;
-  }
-
-  .app-shell__user {
-    flex-wrap: wrap;
-  }
-
-  .app-shell__user-email {
-    max-width: 100%;
   }
 }
 </style>
