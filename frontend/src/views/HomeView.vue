@@ -146,10 +146,10 @@ function openAnnouncementDialog(): void {
   announcementDialogVisible.value = true
 }
 
-function navigateToTaskCenter(tab: 'inbox' | 'tracking'): void {
+function navigateToTaskCenter(filter: 'inbox' | 'tracking'): void {
   void router.push({
     name: 'task-center',
-    query: { tab },
+    query: filter === 'inbox' ? undefined : { filter },
   })
 }
 

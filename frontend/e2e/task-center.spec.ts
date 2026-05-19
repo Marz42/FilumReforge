@@ -3,7 +3,7 @@ import { expect, test } from './fixtures'
 test('switches to tracking and renders graph-backed task details', async ({ mockApi, page }) => {
   await mockApi()
 
-  await page.goto('/task-center?tab=tracking&selected=task-graph-1')
+  await page.goto('/task-center?filter=tracking&selected=task-graph-1')
 
   await expect(page.getByTestId('task-center-tracking-panel')).toBeVisible()
   await expect(page.getByTestId('tasks-detail-panel')).toBeVisible()
@@ -15,14 +15,24 @@ test('switches to tracking and renders graph-backed task details', async ({ mock
   await expect(page.getByTestId('task-attachment-download')).toBeVisible()
 })
 
-test('keeps inbox and tracking tabs reachable in the browser flow', async ({ mockApi, page }) => {
+test('keeps inbox and tracking filters reachable in the browser flow', async ({ mockApi, page }) => {
   await mockApi()
 
   await page.goto('/task-center')
 
   await expect(page.getByText('整理四月周报')).toBeVisible()
-  await page.getByRole('tab', { name: '任务跟踪' }).click()
-  await expect(page).toHaveURL(/tab=tracking/)
+  await page.getByTestId('task-filter-tracking').click()
+  await expect(page).toHaveURL(/filter=tracking/)
   await expect(page.getByTestId('task-center-tracking-panel')).toBeVisible()
   await expect(page.getByTestId('task-center-tracking-panel').getByText('完善工作流看板验收流')).toBeVisible()
+})
+
+test('legacy tab query redirects to filter query', async ({ mockApi, page }) => {
+  await mockApi()
+
+  await page.goto('/task-center?tab=tracking&selected=task-graph-1')
+
+  await expect(page).toHaveURL(/filter=tracking/)
+  await expect(page).toHaveURL(/selected=task-graph-1/)
+  await expect(page.getByTestId('task-center-tracking-panel')).toBeVisible()
 })

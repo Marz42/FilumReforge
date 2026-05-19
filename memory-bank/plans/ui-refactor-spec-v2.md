@@ -345,10 +345,10 @@ Response: 204 或 UserRead
 
 ### 6.4 Phase C 出口清单
 
-- [ ] TaskCenter Master-Detail + Chips + View Toggle
-- [ ] GlobalMemoFloat + `/task-templates` 路由
-- [ ] 旧 tab query redirect 文档化
-- [ ] `task-center.spec.ts` + docker-gui C1 更新
+- [x] TaskCenter Master-Detail + Chips + View Toggle
+- [x] GlobalMemoFloat + `/task-templates` 路由
+- [x] 旧 tab query redirect 文档化
+- [x] `task-center.spec.ts` + docker-gui C1 更新
 
 ---
 

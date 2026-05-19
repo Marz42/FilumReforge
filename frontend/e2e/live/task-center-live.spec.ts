@@ -26,8 +26,8 @@ test('logs in with the real backend and creates a task through task center', asy
   await page.getByTestId('task-center-task-submit').click()
 
   await expect(page.getByText('任务已发布')).toBeVisible()
-  await page.getByRole('tab', { name: '任务跟踪' }).click()
-  await expect(page).toHaveURL(/tab=tracking/)
+  await page.getByTestId('task-filter-tracking').click()
+  await expect(page).toHaveURL(/filter=tracking/)
   await expect(page.getByTestId('task-center-tracking-panel').getByText(taskTitle)).toBeVisible()
   await expect(page.getByTestId('tasks-detail-panel')).toContainText(taskTitle)
 })

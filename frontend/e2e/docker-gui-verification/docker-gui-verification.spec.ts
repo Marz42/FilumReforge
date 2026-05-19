@@ -346,11 +346,11 @@ test.describe('C1 任务全链路 + 消息', () => {
     }
     expect(flowTaskId.length).toBeGreaterThan(0)
     await login(page, 'demo.engineer.a@example.com', demoPassword)
-    await page.goto(`/task-center?tab=tracking&selected=${flowTaskId}`)
+    await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
     await page.waitForSelector('[data-testid="task-center-view"]', { timeout: 25_000 })
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
     await page.waitForTimeout(1200)
-    await page.goto(`/task-center?tab=tracking&selected=${flowTaskId}`)
+    await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
     const detailPanel = page.getByTestId('tasks-detail-panel')
     await expect(detailPanel.getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({
@@ -385,12 +385,12 @@ test.describe('C1 任务全链路 + 消息', () => {
     const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
     expect(flowTaskId.length).toBeGreaterThan(0)
     await login(page, 'demo.engineer.a@example.com', demoPassword)
-    await page.goto(`/task-center?tab=tracking&selected=${flowTaskId}`)
+    await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
     await page.waitForSelector('[data-testid="task-center-view"]', { timeout: 25_000 })
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
     /** TasksView 在 loadData 完成前可能忽略 initialSelectedTaskId，再导航一次以触发选中 */
     await page.waitForTimeout(1500)
-    await page.goto(`/task-center?tab=tracking&selected=${flowTaskId}`)
+    await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
     await expect(page.locator('[data-testid="tasks-detail-panel"]').getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({
       timeout: 25_000,
@@ -436,10 +436,10 @@ test.describe('C1 任务全链路 + 消息', () => {
   test('C1.4 L3 验收通过', async ({ page }) => {
     const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
     await login(page, 'demo.platform.lead@example.com', demoPassword)
-    await page.goto(`/task-center?tab=tracking&selected=${flowTaskId}`)
+    await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
     await page.waitForTimeout(1500)
-    await page.goto(`/task-center?tab=tracking&selected=${flowTaskId}`)
+    await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
     await expect(page.locator('[data-testid="tasks-detail-panel"]').getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({
       timeout: 25_000,

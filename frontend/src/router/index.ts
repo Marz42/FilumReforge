@@ -15,6 +15,7 @@ import MessagesView from '@/views/MessagesView.vue'
 import PeopleManagementView from '@/views/PeopleManagementView.vue'
 import ReportsView from '@/views/ReportsView.vue'
 import TaskCenterView from '@/views/TaskCenterView.vue'
+import TaskTemplatesView from '@/views/TaskTemplatesView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -106,17 +107,16 @@ const router = createRouter({
           redirect: {
             name: 'task-center',
             query: {
-              tab: 'tracking',
+              filter: 'tracking',
             },
           },
         },
         {
           path: 'task-templates',
-          redirect: {
-            name: 'task-center',
-            query: {
-              tab: 'templates',
-            },
+          name: 'task-templates',
+          component: TaskTemplatesView,
+          meta: {
+            roles: ['admin', 'hr'] satisfies UserRole[],
           },
         },
         {

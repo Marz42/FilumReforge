@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import { createTask, createTaskComment } from '@/api/tasks'
-import { createTaskMemo, deleteTaskMemo, getTaskCenterSnapshot, updateTaskMemo } from '@/api/task-center'
-import TaskTemplatesView from '@/views/TaskTemplatesView.vue'
+import { getTaskCenterSnapshot } from '@/api/task-center'
+import { useGlobalMemoPanel } from '@/composables/useGlobalMemoPanel'
 import TasksView from '@/views/TasksView.vue'
 import type {
   TaskCenterHistoryItem,
   TaskCenterInboxItem,
   TaskCenterSnapshot,
   TaskCenterTrackingItem,
-  TaskMemo,
   TaskPriority,
   TaskSourceType,
   TaskStatus,
@@ -20,7 +19,8 @@ import type {
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
-type TaskCenterTab = 'templates' | 'inbox' | 'tracking' | 'memos'
+type TaskCenterFilter = 'inbox' | 'tracking' | 'history'
+type TaskCenterViewMode = 'list' | 'board' | 'gantt'
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: '待办',
@@ -57,19 +57,20 @@ const SOURCE_TYPE_LABELS: Record<TaskSourceType, string> = {
   ai: 'AI 工具',
 }
 
-const LEGACY_TAB_MAP: Record<string, TaskCenterTab> = {
+const LEGACY_TAB_TO_FILTER: Record<string, TaskCenterFilter> = {
+  inbox: 'inbox',
+  tracking: 'tracking',
+  history: 'history',
   tasks: 'tracking',
-  templates: 'templates',
-  history: 'tracking',
   publish: 'inbox',
 }
 
 const route = useRoute()
 const router = useRouter()
+const { openPanel: openGlobalMemoPanel } = useGlobalMemoPanel()
 const loading = ref(false)
 const taskDrawerVisible = ref(false)
 const publishSubmitting = ref(false)
-const memoSubmitting = ref(false)
 const snapshot = ref<TaskCenterSnapshot | null>(null)
 
 const publishForm = reactive({
@@ -81,15 +82,11 @@ const publishForm = reactive({
   due_date: null as Date | null,
 })
 
-const memoForm = reactive({
-  memo_id: '',
-  content: '',
-  related_task_id: '',
-  is_pinned: false,
-})
-
-const activeTab = computed<TaskCenterTab>(() => normalizeTab(route.query.tab))
+const activeFilter = computed<TaskCenterFilter>(() => normalizeFilter(route.query.filter ?? route.query.tab))
+const workspaceViewMode = computed<TaskCenterViewMode>(() => normalizeViewMode(route.query.view))
 const selectedTaskId = computed(() => (typeof route.query.selected === 'string' ? route.query.selected : ''))
+const isListLayout = computed(() => workspaceViewMode.value === 'list')
+
 const permissions = computed(() => {
   return (
     snapshot.value?.permissions ?? {
@@ -100,47 +97,69 @@ const permissions = computed(() => {
 })
 const publishDepartmentOptions = computed(() => snapshot.value?.publish_department_options ?? [])
 const publishUserOptions = computed(() => snapshot.value?.publish_user_options ?? [])
-const pinnedMemos = computed(() => (snapshot.value?.task_memos ?? []).filter((memo) => memo.is_pinned))
-const regularMemos = computed(() => (snapshot.value?.task_memos ?? []).filter((memo) => !memo.is_pinned))
-const memoTaskOptions = computed(() => {
-  const options = new Map<string, { id: string; label: string }>()
 
-  const addOption = (id: string, title: string): void => {
-    if (!options.has(id)) {
-      options.set(id, { id, label: title })
-    }
+const masterListItems = computed(() => {
+  if (activeFilter.value === 'inbox') {
+    return snapshot.value?.task_inbox ?? []
   }
-
-  for (const item of snapshot.value?.task_inbox ?? []) {
-    addOption(item.task_id, item.title)
+  if (activeFilter.value === 'history') {
+    return snapshot.value?.task_history ?? []
   }
-  for (const item of snapshot.value?.task_tracking ?? []) {
-    addOption(item.task_id, item.title)
-  }
-  for (const item of snapshot.value?.task_history ?? []) {
-    addOption(item.task_id, item.title)
-  }
-
-  return Array.from(options.values())
+  return snapshot.value?.task_tracking ?? []
 })
 
-function normalizeTab(rawTab: unknown): TaskCenterTab {
-  if (typeof rawTab !== 'string') {
+const masterPanelTestId = computed(() => {
+  if (activeFilter.value === 'inbox') {
+    return 'task-center-inbox-panel'
+  }
+  if (activeFilter.value === 'history') {
+    return 'task-center-history-panel'
+  }
+  return 'task-center-tracking-panel'
+})
+
+function normalizeFilter(rawFilter: unknown): TaskCenterFilter {
+  if (typeof rawFilter !== 'string') {
     return 'inbox'
   }
-  const legacyTab = LEGACY_TAB_MAP[rawTab]
-  if (legacyTab) {
-    return legacyTab
+  const mapped = LEGACY_TAB_TO_FILTER[rawFilter]
+  if (mapped) {
+    return mapped
   }
-  if (
-    rawTab === 'templates' ||
-    rawTab === 'inbox' ||
-    rawTab === 'tracking' ||
-    rawTab === 'memos'
-  ) {
-    return rawTab
+  if (rawFilter === 'inbox' || rawFilter === 'tracking' || rawFilter === 'history') {
+    return rawFilter
   }
   return 'inbox'
+}
+
+function normalizeViewMode(rawView: unknown): TaskCenterViewMode {
+  if (rawView === 'board' || rawView === 'gantt' || rawView === 'list') {
+    return rawView
+  }
+  return 'list'
+}
+
+function buildRouteQuery(options: {
+  filter?: TaskCenterFilter
+  view?: TaskCenterViewMode
+  selected?: string
+}): Record<string, string> | undefined {
+  const filter = options.filter ?? activeFilter.value
+  const view = options.view ?? workspaceViewMode.value
+  const selected = options.selected ?? selectedTaskId.value
+  const query: Record<string, string> = {}
+
+  if (filter !== 'inbox') {
+    query.filter = filter
+  }
+  if (view !== 'list') {
+    query.view = view
+  }
+  if (selected) {
+    query.selected = selected
+  }
+
+  return Object.keys(query).length > 0 ? query : undefined
 }
 
 function resolveStatusLabel(status: TaskStatus): string {
@@ -162,13 +181,6 @@ function resetPublishForm(): void {
   publishForm.department_id = publishDepartmentOptions.value[0]?.id ?? ''
   publishForm.priority = 'medium'
   publishForm.due_date = null
-}
-
-function resetMemoForm(): void {
-  memoForm.memo_id = ''
-  memoForm.content = ''
-  memoForm.related_task_id = ''
-  memoForm.is_pinned = false
 }
 
 function openTaskDrawer(): void {
@@ -193,21 +205,33 @@ async function loadSnapshot(): Promise<void> {
   }
 }
 
-function handleTabChange(value: string): void {
-  const nextTab = normalizeTab(value)
-  const selectedQuery = typeof route.query.selected === 'string' ? route.query.selected : undefined
-  const nextQuery = nextTab === 'inbox'
-    ? undefined
-    : nextTab === 'tracking'
-      ? selectedQuery
-        ? { tab: nextTab, selected: selectedQuery }
-        : { tab: nextTab }
-      : { tab: nextTab }
-
+function handleFilterChange(value: TaskCenterFilter): void {
   void router.replace({
     name: 'task-center',
-    query: nextQuery,
+    query: buildRouteQuery({ filter: value, selected: '' }),
   })
+}
+
+function handleViewModeChange(value: TaskCenterViewMode): void {
+  void router.replace({
+    name: 'task-center',
+    query: buildRouteQuery({ view: value }),
+  })
+}
+
+function handleMasterRowClick(taskId: string): void {
+  void router.replace({
+    name: 'task-center',
+    query: buildRouteQuery({ selected: taskId }),
+  })
+}
+
+function masterRowClassName({
+  row,
+}: {
+  row: TaskCenterInboxItem | TaskCenterTrackingItem | TaskCenterHistoryItem
+}): string {
+  return row.task_id === selectedTaskId.value ? 'task-center-view__row--selected' : ''
 }
 
 async function handlePublishTask(): Promise<void> {
@@ -234,72 +258,11 @@ async function handlePublishTask(): Promise<void> {
     taskDrawerVisible.value = false
     resetPublishForm()
     await loadSnapshot()
-    handleTabChange('inbox')
+    handleFilterChange('inbox')
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
   } finally {
     publishSubmitting.value = false
-  }
-}
-
-function startEditMemo(memo: TaskMemo): void {
-  memoForm.memo_id = memo.id
-  memoForm.content = memo.content
-  memoForm.related_task_id = memo.related_task_id ?? ''
-  memoForm.is_pinned = memo.is_pinned
-}
-
-async function handleMemoSubmit(): Promise<void> {
-  if (!memoForm.content.trim()) {
-    ElMessage.warning('请输入备忘内容')
-    return
-  }
-
-  memoSubmitting.value = true
-  try {
-    if (memoForm.memo_id) {
-      await updateTaskMemo(memoForm.memo_id, {
-        content: memoForm.content.trim(),
-        related_task_id: memoForm.related_task_id || null,
-        is_pinned: memoForm.is_pinned,
-      })
-      ElMessage.success('备忘已更新')
-    } else {
-      await createTaskMemo({
-        content: memoForm.content.trim(),
-        related_task_id: memoForm.related_task_id || null,
-        is_pinned: memoForm.is_pinned,
-      })
-      ElMessage.success('备忘已创建')
-    }
-    resetMemoForm()
-    await loadSnapshot()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    memoSubmitting.value = false
-  }
-}
-
-async function handleDeleteMemo(memo: TaskMemo): Promise<void> {
-  try {
-    await ElMessageBox.confirm('删除后无法恢复，是否继续？', '删除备忘', {
-      type: 'warning',
-    })
-    await deleteTaskMemo(memo.id)
-    if (memoForm.memo_id === memo.id) {
-      resetMemoForm()
-    }
-    ElMessage.success('备忘已删除')
-    await loadSnapshot()
-  } catch (error) {
-    if (error === 'cancel' || error === 'close') {
-      return
-    }
-    if (error instanceof Error && (error.message === 'cancel' || error.message === 'close')) {
-      return
-    }
-    ElMessage.error(getErrorMessage(error))
   }
 }
 
@@ -343,6 +306,42 @@ function rowKey(item: TaskCenterInboxItem | TaskCenterTrackingItem | TaskCenterH
   return item.task_id
 }
 
+function migrateLegacyQuery(): void {
+  const rawTab = route.query.tab
+  if (typeof rawTab !== 'string') {
+    return
+  }
+
+  if (rawTab === 'templates') {
+    void router.replace({ name: 'task-templates' })
+    return
+  }
+
+  if (rawTab === 'memos') {
+    openGlobalMemoPanel()
+    void router.replace({
+      name: 'task-center',
+      query: buildRouteQuery({ filter: 'inbox', selected: '' }),
+    })
+    return
+  }
+
+  const nextFilter = normalizeFilter(rawTab)
+  const nextSelected = typeof route.query.selected === 'string' ? route.query.selected : ''
+  void router.replace({
+    name: 'task-center',
+    query: buildRouteQuery({ filter: nextFilter, selected: nextSelected }),
+  })
+}
+
+watch(
+  () => route.fullPath,
+  () => {
+    migrateLegacyQuery()
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   resetPublishForm()
   void loadSnapshot()
@@ -357,15 +356,47 @@ onMounted(() => {
           <div class="filum-page-header__copy">
             <span class="filum-page-header__eyebrow">Workflow</span>
             <strong class="filum-page-header__title">任务中心</strong>
-            <p class="task-center-view__subtitle">默认聚焦待处理、任务跟踪、个人备忘与任务模板，建立任务改为全局入口。</p>
+            <p class="task-center-view__subtitle">
+              通过筛选与视图切换聚焦待处理、跟踪与历史任务；个人备忘与任务模板已独立入口。
+            </p>
           </div>
           <el-space wrap>
             <el-tag :type="permissions.can_publish_task ? 'success' : 'info'" effect="plain">
               {{ permissions.can_publish_task ? '可发布任务' : '仅查看任务' }}
             </el-tag>
-            <el-tag :type="permissions.can_manage_templates ? 'success' : 'info'" effect="plain">
-              {{ permissions.can_manage_templates ? '可管理模板' : '仅查看模板' }}
-            </el-tag>
+            <el-button-group>
+              <el-button
+                size="small"
+                :type="workspaceViewMode === 'list' ? 'primary' : undefined"
+                data-testid="task-view-list"
+                @click="handleViewModeChange('list')"
+              >
+                列表
+              </el-button>
+              <el-button
+                size="small"
+                :type="workspaceViewMode === 'board' ? 'primary' : undefined"
+                data-testid="task-view-board"
+                @click="handleViewModeChange('board')"
+              >
+                看板
+              </el-button>
+              <el-button
+                size="small"
+                :type="workspaceViewMode === 'gantt' ? 'primary' : undefined"
+                data-testid="task-view-gantt"
+                @click="handleViewModeChange('gantt')"
+              >
+                甘特
+              </el-button>
+            </el-button-group>
+            <el-button
+              v-if="permissions.can_manage_templates"
+              data-testid="task-center-open-templates"
+              @click="router.push({ name: 'task-templates' })"
+            >
+              模板管理
+            </el-button>
             <el-button
               type="primary"
               :disabled="!permissions.can_publish_task"
@@ -378,263 +409,174 @@ onMounted(() => {
         </div>
       </template>
 
-      <el-tabs :model-value="activeTab" data-testid="task-center-tabs" @update:model-value="handleTabChange">
-        <el-tab-pane label="待处理" name="inbox" />
-        <el-tab-pane label="任务跟踪" name="tracking" />
-        <el-tab-pane label="备忘" name="memos" />
-        <el-tab-pane label="任务模板" name="templates" />
-      </el-tabs>
+      <div class="task-center-view__filters" data-testid="task-center-filter-chips">
+        <el-check-tag
+          :checked="activeFilter === 'inbox'"
+          data-testid="task-filter-inbox"
+          @click="handleFilterChange('inbox')"
+        >
+          需要我处理的
+        </el-check-tag>
+        <el-check-tag
+          :checked="activeFilter === 'tracking'"
+          data-testid="task-filter-tracking"
+          @click="handleFilterChange('tracking')"
+        >
+          我参与的/跟踪
+        </el-check-tag>
+        <el-check-tag
+          :checked="activeFilter === 'history'"
+          data-testid="task-filter-history"
+          @click="handleFilterChange('history')"
+        >
+          已完成/历史
+        </el-check-tag>
+      </div>
     </el-card>
 
-    <TaskTemplatesView
-      v-if="activeTab === 'templates'"
-      :can-manage-templates="permissions.can_manage_templates"
-      :can-publish-task="permissions.can_publish_task"
-      :department-options="publishDepartmentOptions"
-    />
-
-    <template v-else-if="activeTab === 'inbox'">
-      <el-card shadow="never" class="filum-panel-card" data-testid="task-center-inbox-panel">
-        <template #header>
-          <div class="task-center-view__section-header">
-            <span>待处理</span>
-            <small>集中查看首页汇入的流转任务</small>
-          </div>
-        </template>
-
-        <el-empty v-if="(snapshot?.task_inbox.length ?? 0) === 0" description="暂无待办任务" />
-        <el-table v-else :data="snapshot?.task_inbox ?? []" row-key="task_id" stripe>
-          <el-table-column prop="title" label="任务标题" min-width="220" />
-          <el-table-column label="优先级" width="120">
-            <template #default="{ row }: { row: TaskCenterInboxItem }">
-              <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
-                {{ resolvePriorityLabel(row.priority) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="120">
-            <template #default="{ row }: { row: TaskCenterInboxItem }">
-              <el-tag :type="STATUS_TAG_TYPES[row.status]" effect="plain">
-                {{ resolveStatusLabel(row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="department_name" label="部门" min-width="180" />
-          <el-table-column prop="current_stage_label" label="当前阶段" min-width="160" />
-          <el-table-column prop="current_handler_label" label="当前处理人" min-width="180" />
-          <el-table-column label="截止时间" min-width="180">
-            <template #default="{ row }: { row: TaskCenterInboxItem }">
-              {{ formatDateTime(row.due_date) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
-    </template>
-
-    <template v-else-if="activeTab === 'tracking'">
-      <el-card shadow="never" class="filum-panel-card" data-testid="task-center-tracking-panel">
-        <template #header>
-          <span>任务跟踪</span>
-        </template>
-
-        <el-empty v-if="(snapshot?.task_tracking.length ?? 0) === 0" description="暂无需要跟踪的任务" />
-        <el-table v-else :data="snapshot?.task_tracking ?? []" :row-key="rowKey" stripe>
-          <el-table-column label="任务标题" min-width="220">
-            <template #default="{ row }: { row: TaskCenterTrackingItem }">
-              <el-space wrap>
-                <span>{{ row.title }}</span>
-                <el-tag v-if="isOverdue(row)" type="danger" size="small" effect="plain">已逾期</el-tag>
-              </el-space>
-            </template>
-          </el-table-column>
-          <el-table-column prop="department_name" label="部门" min-width="160" />
-          <el-table-column label="关联方式" min-width="180">
-            <template #default="{ row }: { row: TaskCenterTrackingItem }">
-              {{ renderRelationTypes(row) }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="current_stage_label" label="当前阶段" min-width="160" />
-          <el-table-column prop="current_handler_label" label="当前处理人" min-width="180" />
-          <el-table-column label="交付信号" min-width="180">
-            <template #default="{ row }: { row: TaskCenterTrackingItem }">
-              {{ renderTrackingSignals(row) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="最近提交" min-width="180">
-            <template #default="{ row }: { row: TaskCenterTrackingItem }">
-              {{ formatDateTime(row.latest_deliverable_submitted_at ?? null) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="截止时间" min-width="180">
-            <template #default="{ row }: { row: TaskCenterTrackingItem }">
-              {{ formatDateTime(row.due_date) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right">
-            <template #default="{ row }: { row: TaskCenterTrackingItem }">
-              <el-button
-                size="small"
-                :loading="nudgingTaskIds.has(row.task_id)"
-                @click="handleNudge(row.task_id)"
-              >
-                催办
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
-
-      <TasksView
-        :show-create-task-composer="false"
-        :initial-selected-task-id="selectedTaskId"
-        :delegate-user-options="publishUserOptions"
-      />
-
-      <el-card shadow="never" class="filum-panel-card">
-        <template #header>
-          <span>历史任务</span>
-        </template>
-
-        <el-empty v-if="(snapshot?.task_history.length ?? 0) === 0" description="暂无历史任务" />
-        <el-table v-else :data="snapshot?.task_history ?? []" :row-key="rowKey" stripe>
-          <el-table-column prop="title" label="任务标题" min-width="220" />
-          <el-table-column label="来源" width="120">
-            <template #default="{ row }: { row: TaskCenterHistoryItem }">
-              {{ resolveSourceTypeLabel(row.source_type) }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="department_name" label="部门" min-width="160" />
-          <el-table-column label="关联方式" min-width="180">
-            <template #default="{ row }: { row: TaskCenterHistoryItem }">
-              {{ renderRelationTypes(row) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="优先级" width="120">
-            <template #default="{ row }: { row: TaskCenterHistoryItem }">
-              <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
-                {{ resolvePriorityLabel(row.priority) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="截止时间" min-width="180">
-            <template #default="{ row }: { row: TaskCenterHistoryItem }">
-              {{ formatDateTime(row.due_date) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="完成时间" min-width="180">
-            <template #default="{ row }: { row: TaskCenterHistoryItem }">
-              {{ formatDateTime(row.completed_at) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
-    </template>
-
-    <template v-else-if="activeTab === 'memos'">
-      <el-row :gutter="20">
-        <el-col :xs="24" :xl="10">
-          <el-card shadow="never" class="filum-panel-card">
-            <template #header>
-              <div class="task-center-view__memo-header">
-                <span>{{ memoForm.memo_id ? '编辑备忘' : '新增备忘' }}</span>
-                <el-button v-if="memoForm.memo_id" text @click="resetMemoForm">取消编辑</el-button>
-              </div>
-            </template>
-
-            <el-form label-position="top" class="task-center-view__form">
-              <el-form-item label="内容">
-                <el-input
-                  v-model="memoForm.content"
-                  type="textarea"
-                  :rows="6"
-                  placeholder="记录推进要点、跟进事项或协作提醒"
-                />
-              </el-form-item>
-              <el-form-item label="关联任务">
-                <el-select v-model="memoForm.related_task_id" clearable placeholder="可选">
-                  <el-option
-                    v-for="task in memoTaskOptions"
-                    :key="task.id"
-                    :label="task.label"
-                    :value="task.id"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="置顶">
-                <el-switch v-model="memoForm.is_pinned" />
-              </el-form-item>
-              <el-button type="primary" :loading="memoSubmitting" @click="handleMemoSubmit">
-                {{ memoForm.memo_id ? '保存备忘' : '创建备忘' }}
-              </el-button>
-            </el-form>
-          </el-card>
-        </el-col>
-
-        <el-col :xs="24" :xl="14">
-          <el-card shadow="never" class="filum-panel-card">
-            <template #header>
-              <span>我的备忘</span>
-            </template>
-
-            <el-empty
-              v-if="(snapshot?.task_memos.length ?? 0) === 0"
-              description="还没有备忘，建议记录任务交接与后续提醒。"
-            />
-
-            <div v-else class="task-center-view__memo-list">
-              <template v-if="pinnedMemos.length > 0">
-                <div class="task-center-view__memo-section-title">置顶备忘</div>
-                <el-card
-                  v-for="memo in pinnedMemos"
-                  :key="memo.id"
-                  shadow="never"
-                  class="task-center-view__memo-card"
-                >
-                  <div class="task-center-view__memo-actions">
-                    <el-tag type="warning" effect="plain">置顶</el-tag>
-                    <el-space>
-                      <el-button text @click="startEditMemo(memo)">编辑</el-button>
-                      <el-button text type="danger" @click="handleDeleteMemo(memo)">删除</el-button>
-                    </el-space>
-                  </div>
-                  <p class="task-center-view__memo-content">{{ memo.content }}</p>
-                  <div class="task-center-view__memo-meta">
-                    <span>更新时间：{{ formatDateTime(memo.updated_at) }}</span>
-                    <span v-if="memo.related_task">
-                      关联任务：{{ memo.related_task.title }}
-                    </span>
-                  </div>
-                </el-card>
-              </template>
-
-              <template v-if="regularMemos.length > 0">
-                <div class="task-center-view__memo-section-title">其他备忘</div>
-                <el-card
-                  v-for="memo in regularMemos"
-                  :key="memo.id"
-                  shadow="never"
-                  class="task-center-view__memo-card"
-                >
-                  <div class="task-center-view__memo-actions">
-                    <span class="task-center-view__memo-time">
-                      更新于 {{ formatDateTime(memo.updated_at) }}
-                    </span>
-                    <el-space>
-                      <el-button text @click="startEditMemo(memo)">编辑</el-button>
-                      <el-button text type="danger" @click="handleDeleteMemo(memo)">删除</el-button>
-                    </el-space>
-                  </div>
-                  <p class="task-center-view__memo-content">{{ memo.content }}</p>
-                  <div v-if="memo.related_task" class="task-center-view__memo-meta">
-                    关联任务：{{ memo.related_task.title }}
-                  </div>
-                </el-card>
-              </template>
+    <template v-if="isListLayout">
+      <div class="task-center-view__master-detail">
+        <el-card
+          shadow="never"
+          class="filum-panel-card task-center-view__master"
+          :data-testid="masterPanelTestId"
+        >
+          <template #header>
+            <div class="task-center-view__section-header">
+              <span v-if="activeFilter === 'inbox'">待处理</span>
+              <span v-else-if="activeFilter === 'tracking'">任务跟踪</span>
+              <span v-else>历史任务</span>
+              <small v-if="activeFilter === 'inbox'">集中查看需要你处理或确认的任务</small>
             </div>
-          </el-card>
-        </el-col>
-      </el-row>
+          </template>
+
+          <el-empty v-if="masterListItems.length === 0" description="暂无任务" />
+
+          <el-table
+            v-else
+            :data="masterListItems"
+            :row-key="rowKey"
+            :row-class-name="masterRowClassName"
+            stripe
+            highlight-current-row
+            data-testid="task-center-master-table"
+            @row-click="(row: TaskCenterInboxItem | TaskCenterTrackingItem | TaskCenterHistoryItem) => handleMasterRowClick(row.task_id)"
+          >
+            <template v-if="activeFilter === 'inbox'">
+              <el-table-column prop="title" label="任务标题" min-width="220" />
+              <el-table-column label="优先级" width="120">
+                <template #default="{ row }: { row: TaskCenterInboxItem }">
+                  <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
+                    {{ resolvePriorityLabel(row.priority) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="120">
+                <template #default="{ row }: { row: TaskCenterInboxItem }">
+                  <el-tag :type="STATUS_TAG_TYPES[row.status]" effect="plain">
+                    {{ resolveStatusLabel(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="department_name" label="部门" min-width="160" />
+              <el-table-column prop="current_stage_label" label="当前阶段" min-width="160" />
+              <el-table-column prop="current_handler_label" label="当前处理人" min-width="160" />
+              <el-table-column label="截止时间" min-width="180">
+                <template #default="{ row }: { row: TaskCenterInboxItem }">
+                  {{ formatDateTime(row.due_date) }}
+                </template>
+              </el-table-column>
+            </template>
+
+            <template v-else-if="activeFilter === 'tracking'">
+              <el-table-column label="任务标题" min-width="220">
+                <template #default="{ row }: { row: TaskCenterTrackingItem }">
+                  <el-space wrap>
+                    <span>{{ row.title }}</span>
+                    <el-tag v-if="isOverdue(row)" type="danger" size="small" effect="plain">已逾期</el-tag>
+                  </el-space>
+                </template>
+              </el-table-column>
+              <el-table-column prop="department_name" label="部门" min-width="160" />
+              <el-table-column label="关联方式" min-width="160">
+                <template #default="{ row }: { row: TaskCenterTrackingItem }">
+                  {{ renderRelationTypes(row) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="current_stage_label" label="当前阶段" min-width="160" />
+              <el-table-column label="交付信号" min-width="160">
+                <template #default="{ row }: { row: TaskCenterTrackingItem }">
+                  {{ renderTrackingSignals(row) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="截止时间" min-width="180">
+                <template #default="{ row }: { row: TaskCenterTrackingItem }">
+                  {{ formatDateTime(row.due_date) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="100" fixed="right">
+                <template #default="{ row }: { row: TaskCenterTrackingItem }">
+                  <el-button
+                    size="small"
+                    :loading="nudgingTaskIds.has(row.task_id)"
+                    @click.stop="handleNudge(row.task_id)"
+                  >
+                    催办
+                  </el-button>
+                </template>
+              </el-table-column>
+            </template>
+
+            <template v-else>
+              <el-table-column prop="title" label="任务标题" min-width="220" />
+              <el-table-column label="来源" width="120">
+                <template #default="{ row }: { row: TaskCenterHistoryItem }">
+                  {{ resolveSourceTypeLabel(row.source_type) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="department_name" label="部门" min-width="160" />
+              <el-table-column label="关联方式" min-width="160">
+                <template #default="{ row }: { row: TaskCenterHistoryItem }">
+                  {{ renderRelationTypes(row) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="优先级" width="120">
+                <template #default="{ row }: { row: TaskCenterHistoryItem }">
+                  <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
+                    {{ resolvePriorityLabel(row.priority) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="完成时间" min-width="180">
+                <template #default="{ row }: { row: TaskCenterHistoryItem }">
+                  {{ formatDateTime(row.completed_at) }}
+                </template>
+              </el-table-column>
+            </template>
+          </el-table>
+        </el-card>
+
+        <div class="task-center-view__detail">
+          <TasksView
+            :show-create-task-composer="false"
+            :initial-selected-task-id="selectedTaskId"
+            :delegate-user-options="publishUserOptions"
+            detail-only
+            hide-stats
+          />
+        </div>
+      </div>
     </template>
+
+    <TasksView
+      v-else
+      :show-create-task-composer="false"
+      :initial-selected-task-id="selectedTaskId"
+      :delegate-user-options="publishUserOptions"
+      hide-stats
+      hide-view-toggle
+      :external-view-mode="workspaceViewMode"
+    />
 
     <el-drawer
       v-model="taskDrawerVisible"
@@ -762,6 +704,27 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.task-center-view__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.task-center-view__master-detail {
+  display: grid;
+  grid-template-columns: minmax(280px, 35%) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.task-center-view__master {
+  min-width: 0;
+}
+
+.task-center-view__detail {
+  min-width: 0;
+}
+
 .task-center-view__section-header {
   display: flex;
   flex-direction: column;
@@ -795,53 +758,14 @@ onMounted(() => {
   gap: 12px;
 }
 
-.task-center-view__memo-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+:deep(.task-center-view__row--selected > td) {
+  background: rgba(37, 99, 235, 0.08) !important;
 }
 
-.task-center-view__memo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.task-center-view__memo-section-title {
-  color: var(--filum-text-secondary);
-  font-size: 13px;
-}
-
-.task-center-view__memo-card {
-  border-radius: 10px;
-  border: 1px solid var(--filum-border-strong);
-  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
-}
-
-.task-center-view__memo-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.task-center-view__memo-content {
-  margin: 12px 0;
-  line-height: 1.7;
-  white-space: pre-wrap;
-}
-
-.task-center-view__memo-meta,
-.task-center-view__memo-time {
-  color: var(--filum-text-muted);
-  font-size: 13px;
-}
-
-.task-center-view__memo-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+@media (max-width: 1080px) {
+  .task-center-view__master-detail {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 

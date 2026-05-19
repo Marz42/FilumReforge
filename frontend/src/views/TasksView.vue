@@ -54,6 +54,10 @@ interface Props {
   showCreateTaskComposer?: boolean
   initialSelectedTaskId?: string
   delegateUserOptions?: TaskCenterUserOption[]
+  detailOnly?: boolean
+  hideStats?: boolean
+  hideViewToggle?: boolean
+  externalViewMode?: 'list' | 'board' | 'gantt'
 }
 
 type StatusAction = {
@@ -112,6 +116,9 @@ const authStore = useAuthStore()
 const props = withDefaults(defineProps<Props>(), {
   showCreateTaskComposer: true,
   delegateUserOptions: () => [],
+  detailOnly: false,
+  hideStats: false,
+  hideViewToggle: false,
 })
 const loading = ref(false)
 const submitting = ref(false)
@@ -946,9 +953,29 @@ onMounted(() => {
 })
 
 watch(
+  () => props.externalViewMode,
+  (nextViewMode) => {
+    if (nextViewMode) {
+      viewMode.value = nextViewMode
+    }
+  },
+  { immediate: true },
+)
+
+watch(
   () => props.initialSelectedTaskId,
   async (nextTaskId) => {
-    if (!nextTaskId || !tasks.value.some((task) => task.id === nextTaskId)) {
+    if (!nextTaskId) {
+      if (props.detailOnly) {
+        selectedTaskId.value = ''
+        taskAttachments.value = []
+        taskActivity.value = []
+        taskWatchers.value = []
+        graphInstance.value = null
+      }
+      return
+    }
+    if (!tasks.value.some((task) => task.id === nextTaskId)) {
       return
     }
     selectedTaskId.value = nextTaskId
@@ -974,7 +1001,7 @@ watch(
 
 <template>
   <div class="page" data-testid="tasks-view">
-    <el-row :gutter="16" class="page__summary">
+    <el-row v-if="!props.hideStats" :gutter="16" class="page__summary">
       <el-col :xs="12" :lg="6">
         <el-card shadow="never">
           <el-statistic title="任务总数" :value="statsSummary?.total_tasks ?? 0" />
@@ -1003,16 +1030,17 @@ watch(
     </el-row>
 
     <el-row :gutter="20">
-      <el-col :xs="24" :xl="12">
+      <el-col v-if="!props.detailOnly" :xs="24" :xl="12">
         <el-card shadow="never" v-loading="loading" data-testid="tasks-workspace-panel">
           <template #header>
             <div class="page__header">
               <el-space>
                 <span>任务中心</span>
-                <el-button-group>
+                <el-button-group v-if="!props.hideViewToggle">
                   <el-button
                     size="small"
                     :type="viewMode === 'list' ? 'primary' : undefined"
+                    data-testid="task-view-list"
                     @click="viewMode = 'list'"
                   >
                     列表
@@ -1020,6 +1048,7 @@ watch(
                   <el-button
                     size="small"
                     :type="viewMode === 'board' ? 'primary' : undefined"
+                    data-testid="task-view-board"
                     @click="viewMode = 'board'"
                   >
                     看板
@@ -1027,6 +1056,7 @@ watch(
                   <el-button
                     size="small"
                     :type="viewMode === 'gantt' ? 'primary' : undefined"
+                    data-testid="task-view-gantt"
                     @click="viewMode = 'gantt'"
                   >
                     甘特
@@ -1138,7 +1168,7 @@ watch(
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :xl="12">
+      <el-col :xs="24" :xl="props.detailOnly ? 24 : 12">
         <el-card shadow="never" class="page__detail" data-testid="tasks-detail-panel">
           <template #header>
             <div class="page__header">

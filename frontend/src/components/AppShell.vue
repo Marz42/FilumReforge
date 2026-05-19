@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   Briefcase,
   Collection,
+  DocumentCopy,
   House,
   Memo,
   OfficeBuilding,
@@ -12,6 +13,7 @@ import {
 } from '@element-plus/icons-vue'
 
 import AppHeader from '@/components/shell/AppHeader.vue'
+import GlobalMemoFloat from '@/components/shell/GlobalMemoFloat.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
@@ -41,6 +43,7 @@ const specialNavigationItems = computed(() => {
 
   if (authStore.isManagementRole) {
     items.push({ label: '人员管理', routeName: 'people', icon: User })
+    items.push({ label: '任务模板', routeName: 'task-templates', icon: DocumentCopy })
   }
 
   if (authStore.user?.role === 'admin') {
@@ -62,7 +65,6 @@ const activeMenu = computed(() => {
   const legacyRouteMap: Record<string, string> = {
     dashboard: 'overview',
     tasks: 'task-center',
-    'task-templates': 'task-center',
     approvals: 'reports',
     users: 'people',
     profiles: 'people',
@@ -168,6 +170,8 @@ onBeforeUnmount(() => {
         </RouterView>
       </el-main>
     </el-container>
+
+    <GlobalMemoFloat v-if="authStore.isAuthenticated" />
   </el-container>
 
   <el-drawer

@@ -65,8 +65,8 @@
 | Stage 2 Phase 5 / 注册与账号开通 | done | 已完成邀请制注册首轮落地：后端补 `users` 邀请字段、邀请生成 / 预览 / 激活 / 撤销服务与认证路由；登录页支持邀请预览与设置密码激活；人员工作台“新建账号”对话框支持“直接创建 / 邀请注册”双路径。已执行 backend `pytest -q tests/test_settings.py::test_settings_validate_invitation_options tests/test_services.py::test_auth_service_invitation_flow_create_accept_and_revoke tests/test_api.py::test_auth_invitation_api_flow`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/LoginView.spec.ts tests/AuthStore.spec.ts tests/PeopleManagementView.spec.ts`、`npm run type-check`；等待用户测试后再进入 Stage 2 Phase 6 |
 | IA-0 / 用户说明书 v1 | done | [`memory-bank/handbooks/user-manual.md`](handbooks/user-manual.md) 已成稿并完成审阅批注；作为 UI 重构事实基线。 |
 | IA-1 / UI Phase A（登录与设置） | done | 三场景登录、设置三分栏、改密 API；见 commit `51d2331`。 |
-| IA-1 / UI Phase B（壳层与消息） | done | AppHeader、铃铛 NotificationDrawer、侧栏去消息；`/messages` 与 `?drawer=1` 保留。 |
-| IA-1～IA-4 / UI 重构规格 v2 | in_progress | 下一步 Phase C（任务中心）见 [`ui-refactor-spec-v2.md`](plans/ui-refactor-spec-v2.md)。 |
+| IA-1 / UI Phase B（壳层与消息） | done | AppHeader、铃铛 Drawer、侧栏去消息；布局修复 `f4880f0`（`el-container direction=vertical`）。 |
+| IA-2 / UI Phase C（任务中心） | done | Quick Chips + Master-Detail、GlobalMemoFloat、`/task-templates` 独立路由；见 commit 待填。 |
 | Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | **附件策略**已落地：后端 MIME/大小白名单、`attachment_links(report)` 迁移 `20260515_01`、汇报 `attachment_ids` 与列表 `attachments`；前端 `constants/attachments.ts` + 任务/知识库/汇报预检与「查看/下载」。**后端回归**：`python -m pytest` 在仓库根目录 **151 passed**（`backend/tests/conftest.py` 补 `sys.path`）；图引擎 **11-D 收口**：`WorkflowGraphService` 写接口 `commit`、接管同步手动 `Task` 投影、`workflow_graph_engine` 详情响应避免 ORM 懒加载。**Docker GUI**（`npm run test:e2e:docker-gui`）现为 **18** 条用例（含 **C1.2b** 附件、**C3** 探测式）；C1.2b 通过「选择附件」+ `filechooser` 与 `tasks-attachment-upload` 包裹层稳定化（勿依赖 `el-upload` 根节点上的 `data-testid` 直连隐藏 `input`）。`bash scripts/check-release.sh` 已在 Windows + Git Bash 执行（2026-05-14）：P0 通过；带 venv 的全量脚本与 **Ubuntu 生产构建**（`npm ci && npm run build` 成功；Vite 8 与 devtools 插件 peer 警告可忽略）仍待正式记入验收。**UI 信息架构**见 `memory-bank/plans/ui-information-architecture-plan.md`。 |
 
 ### Stage 2 文档同步约定
