@@ -404,9 +404,9 @@ Response: 204 或 UserRead
 
 ### 7.4 Phase D 出口清单
 
-- [ ] Reports Master-Detail + Compose Drawer
-- [ ] 旧 `?tab=` 兼容
-- [ ] user-manual §7 操作步骤可同步
+- [x] Reports Master-Detail + Compose Drawer
+- [x] 旧 `?tab=` 兼容
+- [x] user-manual §7 操作步骤可同步
 
 ---
 

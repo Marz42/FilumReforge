@@ -75,6 +75,11 @@ async function logout(page: import('@playwright/test').Page): Promise<void> {
 
 /** 经侧栏进入汇报中心（避免整页 goto /reports 与 refresh 竞态导致快照未拉取） */
 async function navigateReportCenterTab(page: import('@playwright/test').Page, tabLabel: string): Promise<void> {
+  const chipMap: Record<string, string> = {
+    待处理: 'reports-filter-pending',
+    我发起: 'reports-filter-initiated',
+    历史归档: 'reports-filter-history',
+  }
   const snapshotResp = page.waitForResponse(
     (r) =>
       r.request().method() === 'GET' &&
@@ -86,7 +91,10 @@ async function navigateReportCenterTab(page: import('@playwright/test').Page, ta
   await expect(page).toHaveURL(/\/reports/, { timeout: 15_000 })
   const snapGet = await snapshotResp
   expect(snapGet.ok(), `GET report-center → HTTP ${snapGet.status()}`).toBeTruthy()
-  await page.getByRole('tab', { name: tabLabel }).click()
+  const chipTestId = chipMap[tabLabel]
+  if (chipTestId) {
+    await page.getByTestId(chipTestId).click()
+  }
 }
 
 test.describe.configure({ mode: 'serial' })
@@ -549,39 +557,32 @@ test.describe('C2 汇报多级', () => {
     const title = `[E2E-RUP-${flowTag}]`
     await login(page, 'demo.engineer.a@example.com', demoPassword)
     await navigateReportCenterTab(page, '待处理')
-    await page.getByTestId('reports-open-create').click()
-    await expect(page.getByTestId('reports-create-dialog')).toBeVisible({ timeout: 10_000 })
-    const pickUp = page.getByTestId('reports-create-pick-upward')
-    if (!(await pickUp.isVisible().catch(() => false))) {
+    await page.getByTestId('reports-compose-button').click()
+    await expect(page.getByTestId('reports-compose-drawer')).toBeVisible({ timeout: 10_000 })
+    const drawer = page.getByTestId('reports-compose-drawer')
+    const recipientSelect = drawer.getByTestId('reports-compose-recipient').locator('.el-select')
+    if (!(await recipientSelect.isVisible().catch(() => false))) {
       await page.screenshot({ path: shot('23-c2-l4-upward-blocked.png'), fullPage: true })
       row({
         id: 'C2-1',
         section: 'C2 汇报',
         result: 'SKIP',
-        note: '弹窗内无向上汇报入口 23',
+        note: '撰写汇报抽屉无可用收件人 23',
       })
       await logout(page)
       return
     }
-    await pickUp.click()
-    const dlg = page.getByTestId('reports-create-dialog')
-    await expect(dlg.getByTestId('reports-create-form-upward')).toBeVisible({ timeout: 15_000 })
-    await dlg.locator('.el-form-item').filter({ hasText: '汇报对象' }).locator('.el-select').click()
+    await recipientSelect.click()
     await page.locator('.el-select-dropdown__item').filter({ hasText: '高原' }).first().click()
-    await dlg
-      .locator('.el-form-item')
-      .filter({ hasText: '主题' })
-      .locator('.el-input__inner')
-      .first()
-      .fill(title)
-    await dlg.locator('.el-form-item').filter({ hasText: '内容' }).locator('textarea').first().fill('E2E 多级汇报正文\n\n- 项 1\n- 项 2')
+    await drawer.getByTestId('reports-compose-title').locator('input').fill(title)
+    await drawer.getByTestId('reports-compose-content').locator('textarea').fill('E2E 多级汇报正文\n\n- 项 1\n- 项 2')
     await page.screenshot({ path: shot('23-c2-l4-upward-form.png'), fullPage: true })
     await Promise.all([
       page.waitForResponse(
         (r) => /\/api\/v1\/report-center\/reports\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
         { timeout: 45_000 },
       ),
-      dlg.getByTestId('reports-create-submit-upward').click(),
+      drawer.getByTestId('reports-compose-submit').click(),
     ])
     reportFlowTitle = title
     await page.screenshot({ path: shot('24-c2-l4-after-submit.png'), fullPage: true })
@@ -597,9 +598,10 @@ test.describe('C2 汇报多级', () => {
     const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
     await login(page, 'demo.platform.lead@example.com', demoPassword)
     await navigateReportCenterTab(page, '待处理')
-    await expect(page.getByText(reportFlowTitle, { exact: false })).toBeVisible({ timeout: 30_000 })
+    await page.getByTestId('reports-list-item').filter({ hasText: reportFlowTitle }).first().click()
+    await expect(page.getByTestId('reports-detail-panel')).toContainText(reportFlowTitle, { timeout: 15_000 })
     await page.screenshot({ path: shot('25-c2-l3-pending.png'), fullPage: true })
-    const adv = page.getByRole('button', { name: '继续上报' })
+    const adv = page.getByTestId('reports-detail-panel').getByRole('button', { name: '继续上报' })
     if ((await adv.count()) === 0) {
       await page.screenshot({ path: shot('26-c2-l3-no-advance-btn.png'), fullPage: true })
       row({ id: 'C2-2', section: 'C2 汇报', result: 'SKIP', note: '未出现继续上报 25–26' })
@@ -626,9 +628,10 @@ test.describe('C2 汇报多级', () => {
     const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
     await login(page, 'demo.tech.director@example.com', demoPassword)
     await navigateReportCenterTab(page, '待处理')
-    await expect(page.getByText(reportFlowTitle, { exact: false })).toBeVisible({ timeout: 30_000 })
+    await page.getByTestId('reports-list-item').filter({ hasText: reportFlowTitle }).first().click()
+    await expect(page.getByTestId('reports-detail-panel')).toContainText(reportFlowTitle, { timeout: 30_000 })
     await page.screenshot({ path: shot('27-c2-l2-pending.png'), fullPage: true })
-    const done = page.getByRole('button', { name: '确认完成' })
+    const done = page.getByTestId('reports-detail-panel').getByRole('button', { name: '确认完成' })
     await Promise.all([
       page.waitForResponse(
         (r) => /\/report-center\/reports\/[^/]+\/actions/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
@@ -649,9 +652,10 @@ test.describe('C2 汇报多级', () => {
     const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
     await login(page, 'demo.engineer.a@example.com', demoPassword)
     await navigateReportCenterTab(page, '历史归档')
-    await expect(page.getByText(reportFlowTitle, { exact: false })).toBeVisible({ timeout: 30_000 })
+    await page.getByTestId('reports-list-item').filter({ hasText: reportFlowTitle }).first().click()
+    await expect(page.getByTestId('reports-detail-panel')).toContainText(reportFlowTitle, { timeout: 30_000 })
     await page.screenshot({ path: shot('29-c2-l4-history.png'), fullPage: true })
-    const arch = page.getByRole('button', { name: '归档' })
+    const arch = page.getByTestId('reports-detail-panel').getByRole('button', { name: '归档' })
     if ((await arch.count()) === 0) {
       row({ id: 'C2-4', section: 'C2 汇报', result: 'SKIP', note: '历史无归档按钮 29' })
       await logout(page)
@@ -679,27 +683,21 @@ test.describe('C3 向下传达（探测式）', () => {
     const fixturePng = path.join(repoRoot, 'frontend', 'e2e', 'fixtures', 'minimal.png')
     await login(page, 'demo.platform.lead@example.com', demoPassword)
     await navigateReportCenterTab(page, '待处理')
-    await page.getByTestId('reports-open-create').click()
-    const pickDown = page.getByTestId('reports-create-pick-downward')
-    if (!(await pickDown.isVisible().catch(() => false))) {
-      row({ id: 'C3-1', section: 'C3 向下', result: 'SKIP', note: '无向下传达入口' })
+    await page.getByTestId('reports-compose-button').click()
+    const drawer = page.getByTestId('reports-compose-drawer')
+    await expect(drawer).toBeVisible({ timeout: 10_000 })
+    const recipientSelect = drawer.getByTestId('reports-compose-recipient').locator('.el-select')
+    if (!(await recipientSelect.isVisible().catch(() => false))) {
+      row({ id: 'C3-1', section: 'C3 向下', result: 'SKIP', note: '无向下传达收件人' })
       await logout(page)
       return
     }
-    await pickDown.click()
-    const dlg = page.getByTestId('reports-create-dialog')
-    await expect(dlg.getByTestId('reports-create-form-downward')).toBeVisible({ timeout: 15_000 })
-    await dlg.locator('.el-form-item').filter({ hasText: '传达对象' }).locator('.el-select').click()
-    await page.locator('.el-select-dropdown__item').first().click()
-    await dlg
-      .locator('.el-form-item')
-      .filter({ hasText: '主题' })
-      .locator('.el-input__inner')
-      .first()
-      .fill(title)
-    await dlg.locator('.el-form-item').filter({ hasText: '内容' }).locator('textarea').first().fill('E2E 向下传达正文')
+    await recipientSelect.click()
+    await page.locator('.el-select-dropdown__item').filter({ hasText: '向下' }).first().click()
+    await drawer.getByTestId('reports-compose-title').locator('input').fill(title)
+    await drawer.getByTestId('reports-compose-content').locator('textarea').fill('E2E 向下传达正文')
     if (fs.existsSync(fixturePng)) {
-      await dlg.getByTestId('reports-draft-upload-downward').locator('input[type="file"]').setInputFiles(fixturePng)
+      await drawer.getByTestId('reports-compose-upload').locator('input[type="file"]').setInputFiles(fixturePng)
       await page.waitForResponse(
         (r) => /\/api\/v1\/attachments\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
         { timeout: 45_000 },
@@ -710,7 +708,7 @@ test.describe('C3 向下传达（探测式）', () => {
         (r) => /\/api\/v1\/report-center\/reports\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
         { timeout: 45_000 },
       ),
-      dlg.getByTestId('reports-create-submit-downward').click(),
+      drawer.getByTestId('reports-compose-submit').click(),
     ])
     await page.screenshot({ path: shot('31-c3-downward-created.png'), fullPage: true })
     row({ id: 'C3-1', section: 'C3 向下', result: 'PASS', note: `向下传达已提交 ${title}` })

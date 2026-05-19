@@ -11,6 +11,10 @@ vi.mock('@/api/report-center', () => ({
   getReportCenterSnapshot: vi.fn(),
 }))
 
+vi.mock('@/api/attachments', () => ({
+  uploadAttachment: vi.fn(),
+}))
+
 const route = reactive({
   query: {} as Record<string, string | undefined>,
 })
@@ -77,6 +81,7 @@ const mockSnapshot: ReportCenterSnapshot = {
       completed_at: null,
       returned_at: null,
       archived_at: null,
+      attachments: [],
       available_actions: [
         {
           action: 'advance',
@@ -114,7 +119,9 @@ describe('Reports view', () => {
     vi.mocked(actReport).mockResolvedValue(mockSnapshot.pending_reports[0]!)
   })
 
-  it('renders pending reports by default and submits actions', async () => {
+  it('renders pending reports in master-detail layout and submits actions', async () => {
+    route.query = { selected: 'report-1' }
+
     const wrapper = mount(ReportsView, {
       global: {
         plugins: [ElementPlus],
@@ -123,11 +130,15 @@ describe('Reports view', () => {
 
     await flushPromises()
 
+    expect(wrapper.find('[data-testid="reports-view"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="reports-filter-pending"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('项目周报')
     expect(wrapper.text()).toContain('代理经理')
-    expect(wrapper.text()).toContain('待处理')
 
-    const actionButton = wrapper.findAll('button').find((node) => node.text().includes('继续上报'))
+    const actionButton = wrapper
+      .find('[data-testid="reports-detail-panel"]')
+      .findAll('button')
+      .find((node) => node.text().includes('继续上报'))
     expect(actionButton).toBeTruthy()
     await actionButton?.trigger('click')
     await flushPromises()
@@ -135,7 +146,7 @@ describe('Reports view', () => {
     expect(actReport).toHaveBeenCalledWith('report-1', { action: 'advance' })
   })
 
-  it('updates route query when tab changes', async () => {
+  it('updates route query when filter chip changes', async () => {
     const wrapper = mount(ReportsView, {
       global: {
         plugins: [ElementPlus],
@@ -144,15 +155,50 @@ describe('Reports view', () => {
 
     await flushPromises()
 
-    const tabs = wrapper.findComponent({ name: 'ElTabs' })
-    tabs.vm.$emit('tab-change', 'upward')
+    await wrapper.find('[data-testid="reports-filter-initiated"]').trigger('click')
     await flushPromises()
 
     expect(replace).toHaveBeenCalledWith({
       name: 'reports',
       query: {
-        tab: 'upward',
+        filter: 'initiated',
       },
+    })
+  })
+
+  it('migrates legacy tab query to filter query', async () => {
+    route.query = { tab: 'history' }
+
+    mount(ReportsView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(replace).toHaveBeenCalledWith({
+      name: 'reports',
+      query: {
+        filter: 'history',
+      },
+    })
+  })
+
+  it('migrates legacy upward tab query after snapshot loads', async () => {
+    route.query = { tab: 'upward' }
+
+    mount(ReportsView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(replace).toHaveBeenCalledWith({
+      name: 'reports',
+      query: undefined,
     })
   })
 })

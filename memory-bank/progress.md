@@ -67,7 +67,8 @@
 | IA-1 / UI Phase A（登录与设置） | done | 三场景登录、设置三分栏、改密 API；见 commit `51d2331`。 |
 | IA-1 / UI Phase B（壳层与消息） | done | AppHeader、铃铛 Drawer、侧栏去消息；布局修复 `f4880f0`（`el-container direction=vertical`）。 |
 | IA-2 / UI Phase C（任务中心） | done | Quick Chips + Master-Detail、GlobalMemoFloat、`/task-templates` 独立路由；见 commit `080f814`。 |
-| IA-3 / UI Phase D（汇报中心） | pending | Master-Detail 邮件客户端式布局；见 [`ui-refactor-spec-v2.md`](plans/ui-refactor-spec-v2.md) §7。 |
+| IA-3 / UI Phase D（汇报中心） | done | Master-Detail + ReportComposeDrawer；见 commit 待填。 |
+| IA-4 / UI Phase E（组织管理） | pending | 人员 Drawer + 部门树；见 [`ui-refactor-spec-v2.md`](plans/ui-refactor-spec-v2.md) §8。 |
 | Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | **附件策略**已落地：后端 MIME/大小白名单、`attachment_links(report)` 迁移 `20260515_01`、汇报 `attachment_ids` 与列表 `attachments`；前端 `constants/attachments.ts` + 任务/知识库/汇报预检与「查看/下载」。**后端回归**：`python -m pytest` 在仓库根目录 **151 passed**（`backend/tests/conftest.py` 补 `sys.path`）；图引擎 **11-D 收口**：`WorkflowGraphService` 写接口 `commit`、接管同步手动 `Task` 投影、`workflow_graph_engine` 详情响应避免 ORM 懒加载。**Docker GUI**（`npm run test:e2e:docker-gui`）现为 **18** 条用例（含 **C1.2b** 附件、**C3** 探测式）；C1.2b 通过「选择附件」+ `filechooser` 与 `tasks-attachment-upload` 包裹层稳定化（勿依赖 `el-upload` 根节点上的 `data-testid` 直连隐藏 `input`）。`bash scripts/check-release.sh` 已在 Windows + Git Bash 执行（2026-05-14）：P0 通过；带 venv 的全量脚本与 **Ubuntu 生产构建**（`npm ci && npm run build` 成功；Vite 8 与 devtools 插件 peer 警告可忽略）仍待正式记入验收。**UI 信息架构**见 `memory-bank/plans/ui-information-architecture-plan.md`。 |
 
 ### Stage 2 文档同步约定
