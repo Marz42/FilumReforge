@@ -153,53 +153,7 @@ onBeforeUnmount(() => {
       </el-menu>
     </el-aside>
 
-    <el-drawer
-      v-model="isMobileNavOpen"
-      :with-header="false"
-      size="240px"
-      direction="ltr"
-      append-to-body
-      destroy-on-close
-      class="app-shell__drawer"
-      @close="closeMobileNav"
-    >
-      <div class="app-shell__brand app-shell__brand--drawer">
-        <h1>{{ appStore.projectName }}</h1>
-        <p>{{ appStore.currentPhase }}</p>
-      </div>
-
-      <el-menu
-        :default-active="activeMenu"
-        class="app-shell__menu app-shell__menu--drawer"
-        @select="handleSelect"
-      >
-        <el-menu-item-group title="通用模块">
-          <el-menu-item
-            v-for="item in generalNavigationItems"
-            :key="item.routeName"
-            :index="item.routeName"
-            class="app-shell__menu-item"
-          >
-            <el-icon class="app-shell__menu-icon"><component :is="item.icon" /></el-icon>
-            <span>{{ item.label }}</span>
-          </el-menu-item>
-        </el-menu-item-group>
-
-        <el-menu-item-group v-if="specialNavigationItems.length > 0" title="特殊模块">
-          <el-menu-item
-            v-for="item in specialNavigationItems"
-            :key="item.routeName"
-            :index="item.routeName"
-            class="app-shell__menu-item"
-          >
-            <el-icon class="app-shell__menu-icon"><component :is="item.icon" /></el-icon>
-            <span>{{ item.label }}</span>
-          </el-menu-item>
-        </el-menu-item-group>
-      </el-menu>
-    </el-drawer>
-
-    <el-container>
+    <el-container direction="vertical" class="app-shell__content">
       <AppHeader
         :is-mobile-viewport="isMobileViewport"
         @open-mobile-nav="openMobileNav"
@@ -215,12 +169,63 @@ onBeforeUnmount(() => {
       </el-main>
     </el-container>
   </el-container>
+
+  <el-drawer
+    v-model="isMobileNavOpen"
+    :with-header="false"
+    size="240px"
+    direction="ltr"
+    append-to-body
+    destroy-on-close
+    class="app-shell__drawer"
+    @close="closeMobileNav"
+  >
+    <div class="app-shell__brand app-shell__brand--drawer">
+      <h1>{{ appStore.projectName }}</h1>
+      <p>{{ appStore.currentPhase }}</p>
+    </div>
+
+    <el-menu
+      :default-active="activeMenu"
+      class="app-shell__menu app-shell__menu--drawer"
+      @select="handleSelect"
+    >
+      <el-menu-item-group title="通用模块">
+        <el-menu-item
+          v-for="item in generalNavigationItems"
+          :key="item.routeName"
+          :index="item.routeName"
+          class="app-shell__menu-item"
+        >
+          <el-icon class="app-shell__menu-icon"><component :is="item.icon" /></el-icon>
+          <span>{{ item.label }}</span>
+        </el-menu-item>
+      </el-menu-item-group>
+
+      <el-menu-item-group v-if="specialNavigationItems.length > 0" title="特殊模块">
+        <el-menu-item
+          v-for="item in specialNavigationItems"
+          :key="item.routeName"
+          :index="item.routeName"
+          class="app-shell__menu-item"
+        >
+          <el-icon class="app-shell__menu-icon"><component :is="item.icon" /></el-icon>
+          <span>{{ item.label }}</span>
+        </el-menu-item>
+      </el-menu-item-group>
+    </el-menu>
+  </el-drawer>
 </template>
 
 <style scoped>
 .app-shell {
   min-height: 100vh;
   background: var(--filum-bg);
+}
+
+.app-shell__content {
+  flex: 1;
+  min-width: 0;
 }
 
 .app-shell__aside {
@@ -290,6 +295,8 @@ onBeforeUnmount(() => {
 }
 
 .app-shell__main {
+  flex: 1;
+  min-width: 0;
   padding: 24px 28px;
 }
 
