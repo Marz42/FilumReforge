@@ -115,7 +115,7 @@ test.afterAll(() => {
     '',
     '## 覆盖范围说明',
     '',
-    '- **已自动化**：A5 网关健康检查；登录页截图；空库时「初始化管理员」；宿主 Docker `seed_sample_data`；L0 部门/总览侧栏；L1 HR 菜单与 `/departments` 重定向；L4 员工菜单与 `/people` 重定向；**C1** 任务建立→待办→**任务资料附件上传**→开始处理→提交交付→创建人验收→完成；**C1** 跨部门指派（L2→客户成功，若可发布）；**C1** 消息中心截图与「回到来源」（若存在）；**C2** 向上汇报多级（L4→L3 继续上报→L2 确认完成→发起人归档）；**C3** 向下传达发起（探测式，若种子数据具备链路）。',
+    '- **已自动化**：A5 网关健康检查；登录页截图；空库时「初始化管理员」；宿主 Docker `seed_sample_data`；L0 总览 widget + 部门树 + 人员 Drawer；L1 HR 菜单与 `/departments` 重定向；L4 员工菜单与 `/people` 重定向；**C1** 任务建立→待办→**任务资料附件上传**→开始处理→提交交付→创建人验收→完成；**C1** 跨部门指派（L2→客户成功，若可发布）；**C1** 消息中心截图与「回到来源」（若存在）；**C2** 向上汇报多级（L4→L3 继续上报→L2 确认完成→发起人归档）；**C3** 向下传达发起（探测式，若种子数据具备链路）。',
     '- **未自动化**（仍依赖人工或环境）：图引擎握手「转办」、向下传达接收方全链路细粒度、Web Push、知识库发布、邀请注册等。',
     '',
     '## 结果汇总',
@@ -255,10 +255,29 @@ test('L0: 部门管理入口（管理员）', async ({ page }) => {
 
   await expect(page.getByRole('menuitem', { name: '部门管理' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '人员管理' })).toBeVisible()
+
+  await page.goto('/overview')
+  await expect(page.getByTestId('overview-widget-messages')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('overview-widget-announcement-board')).toBeVisible()
+  await expect(page.getByTestId('overview-widget-todos')).toBeVisible()
+  await page.screenshot({ path: shot('04-admin-overview-widgets.png'), fullPage: true })
+
   await page.goto('/departments')
-  await page.waitForTimeout(800)
-  await page.screenshot({ path: shot('04-admin-departments.png'), fullPage: true })
-  row({ id: 'B-L0', section: 'B 权限', result: 'PASS', note: 'L0 部门管理 + 人员管理可见，/departments 截图 04' })
+  await expect(page.getByTestId('departments-tree')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('departments-detail-panel')).toBeVisible()
+  await page.screenshot({ path: shot('05-admin-departments.png'), fullPage: true })
+
+  await page.goto('/people')
+  await page.locator('.people-workspace tbody tr').first().click()
+  await expect(page.getByTestId('people-detail-drawer')).toBeVisible({ timeout: 15_000 })
+  await page.screenshot({ path: shot('06-admin-people-drawer.png'), fullPage: true })
+
+  row({
+    id: 'B-L0',
+    section: 'B 权限',
+    result: 'PASS',
+    note: 'L0 总览 widget + 部门树 + 人员 Drawer，截图 04–06',
+  })
   await logout(page)
 })
 

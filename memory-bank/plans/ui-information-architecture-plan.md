@@ -25,7 +25,7 @@
 | IA-1 | 登录、设置、壳层、消息降级 | 三场景登录、设置三分栏、铃铛 Drawer、侧栏去消息 | Phase A + B |
 | IA-2 | 任务中心 | Quick Chips + Master-Detail；模板/备忘迁出 | Phase C |
 | IA-3 | 汇报中心 | Master-Detail + 「撰写汇报」抽屉 | Phase D |
-| IA-4 | 人员、部门、总览 | 人员宽抽屉；部门树；Dashboard 小组件 | Phase E + F |
+| IA-4 | 人员、部门、总览 | 人员宽抽屉；部门树；Dashboard 小组件 | Phase E + F **done** |
 
 ## 4. 与测试的协调
 

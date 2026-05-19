@@ -14,9 +14,12 @@ import { getErrorMessage } from '@/utils/errors'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const loading = ref(false)
+const loadingOverview = ref(false)
+const loadingReports = ref(false)
 const overview = ref<OverviewSnapshot | null>(null)
 const pendingReports = ref<ReportRecord[]>([])
+
+const todoLoading = computed(() => loadingOverview.value || loadingReports.value)
 
 const quickActions = computed(() => {
   const items = [
@@ -37,20 +40,31 @@ function navigateToPath(path: string): void {
   void router.push(path)
 }
 
-async function loadOverview(): Promise<void> {
-  loading.value = true
+async function loadOverviewSnapshot(): Promise<void> {
+  loadingOverview.value = true
   try {
-    const [overviewSnapshot, reportSnapshot] = await Promise.all([
-      getOverview(),
-      getReportCenterSnapshot(),
-    ])
-    overview.value = overviewSnapshot
+    overview.value = await getOverview()
+  } catch (error) {
+    ElMessage.error(`总览数据加载失败：${getErrorMessage(error)}`)
+  } finally {
+    loadingOverview.value = false
+  }
+}
+
+async function loadPendingReports(): Promise<void> {
+  loadingReports.value = true
+  try {
+    const reportSnapshot = await getReportCenterSnapshot()
     pendingReports.value = reportSnapshot.pending_reports
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    ElMessage.error(`待审汇报加载失败：${getErrorMessage(error)}`)
   } finally {
-    loading.value = false
+    loadingReports.value = false
   }
+}
+
+async function loadOverview(): Promise<void> {
+  await Promise.all([loadOverviewSnapshot(), loadPendingReports()])
 }
 
 onMounted(() => {
@@ -65,14 +79,14 @@ onMounted(() => {
       <OverviewAnnouncementBoard
         class="overview__grid-item overview__grid-item--announcement"
         :overview="overview"
-        :loading="loading"
-        @refresh="loadOverview"
+        :loading="loadingOverview"
+        @refresh="loadOverviewSnapshot"
       />
       <OverviewTodoWidget
         class="overview__grid-item overview__grid-item--todos"
         :inbox-tasks="overview?.task_inbox ?? []"
         :pending-reports="pendingReports"
-        :loading="loading"
+        :loading="todoLoading"
       />
     </div>
 
