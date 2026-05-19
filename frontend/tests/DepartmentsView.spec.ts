@@ -3,7 +3,7 @@ import { ElMessageBox } from 'element-plus'
 import ElementPlus from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Department, DepartmentTreeNode, User } from '@/types/api'
+import type { Department, DepartmentTreeNode, PeopleManagementSnapshot, User } from '@/types/api'
 
 vi.mock('@/api/departments', () => ({
   createDepartment: vi.fn(),
@@ -11,6 +11,10 @@ vi.mock('@/api/departments', () => ({
   listDepartments: vi.fn(),
   listDepartmentTree: vi.fn(),
   updateDepartment: vi.fn(),
+}))
+
+vi.mock('@/api/people-management', () => ({
+  getPeopleManagement: vi.fn(),
 }))
 
 vi.mock('@/api/users', () => ({
@@ -24,6 +28,7 @@ import {
   listDepartmentTree,
   updateDepartment,
 } from '@/api/departments'
+import { getPeopleManagement } from '@/api/people-management'
 import { listUsers } from '@/api/users'
 import DepartmentsView from '@/views/DepartmentsView.vue'
 
@@ -37,9 +42,9 @@ type DepartmentsViewSetupState = {
     is_active: boolean
   }
   handleSubmit: () => Promise<void>
-  handleDelete: (department: Department) => Promise<void>
-  openCreateDialog: () => void
-  openEditDialog: (department: Department) => void
+  handleDelete: () => Promise<void>
+  selectDepartment: (departmentId: string) => void
+  openCreateRootDialog: () => void
 }
 
 const mockDepartments: Department[] = [
@@ -97,16 +102,44 @@ const mockUsers: User[] = [
   },
 ]
 
+const mockPeopleSnapshot: PeopleManagementSnapshot = {
+  summary: {
+    total_people: 1,
+    profiled_people: 1,
+    unprofiled_people: 0,
+    inactive_people: 0,
+  },
+  people: [
+    {
+      user_id: 'user-1',
+      email: 'manager@example.com',
+      role: 'employee',
+      status: 'active',
+      last_login_at: null,
+      has_profile: true,
+      profile_completion_state: 'complete',
+      employee_no: 'EMP-001',
+      real_name: '部门负责人',
+      department_id: 'dept-marketing',
+      department_name: '市场部',
+      job_title: '经理',
+      hire_date: '2025-01-01',
+      updated_at: '2025-01-01T00:00:00Z',
+    },
+  ],
+}
+
 describe('Departments view', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(listDepartments).mockResolvedValue(mockDepartments)
     vi.mocked(listDepartmentTree).mockResolvedValue(mockTree)
     vi.mocked(listUsers).mockResolvedValue(mockUsers)
+    vi.mocked(getPeopleManagement).mockResolvedValue(mockPeopleSnapshot)
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
   })
 
-  it('updates an existing department and hides delete for the root node', async () => {
+  it('renders tree and detail panels and updates an existing department', async () => {
     vi.mocked(updateDepartment).mockResolvedValue({
       ...mockDepartments[1]!,
       name: '品牌市场部',
@@ -121,12 +154,12 @@ describe('Departments view', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('公司')
+    expect(wrapper.find('[data-testid="departments-tree"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="departments-detail-panel"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('市场部')
-    expect(wrapper.findAll('button').filter((node) => node.text().includes('删除'))).toHaveLength(1)
 
     const setupState = wrapper.vm.$.setupState as unknown as DepartmentsViewSetupState
-    setupState.openEditDialog(mockDepartments[1]!)
+    setupState.selectDepartment('dept-marketing')
     setupState.form.name = '品牌市场部'
     setupState.form.manager_id = ''
 
@@ -155,7 +188,7 @@ describe('Departments view', () => {
     await flushPromises()
 
     const setupState = wrapper.vm.$.setupState as unknown as DepartmentsViewSetupState
-    setupState.openCreateDialog()
+    setupState.openCreateRootDialog()
     setupState.form.name = '运营部'
     setupState.form.code = 'operations'
     setupState.form.parent_id = 'dept-root'
@@ -173,7 +206,8 @@ describe('Departments view', () => {
       sort_order: 20,
     })
 
-    await setupState.handleDelete(mockDepartments[1]!)
+    setupState.selectDepartment('dept-marketing')
+    await setupState.handleDelete()
     await flushPromises()
 
     expect(deleteDepartment).toHaveBeenCalledWith('dept-marketing')

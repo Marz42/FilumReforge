@@ -1,8 +1,9 @@
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia, setActivePinia } from 'pinia'
+import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus, { ElMessageBox } from 'element-plus'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   Department,
@@ -53,6 +54,39 @@ import {
 } from '@/api/profiles'
 import { createUser, deleteUser, updateUser } from '@/api/users'
 import PeopleManagementView from '@/views/PeopleManagementView.vue'
+import PeopleDetailDrawer from '@/components/people/PeopleDetailDrawer.vue'
+
+const DrawerStub = defineComponent({
+  name: 'ElDrawer',
+  props: {
+    modelValue: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  template: `
+    <div v-if="modelValue" class="drawer-stub">
+      <div class="drawer-stub__header"><slot name="header" /></div>
+      <slot />
+    </div>
+  `,
+})
+
+const DialogStub = defineComponent({
+  name: 'ElDialog',
+  props: {
+    modelValue: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  template: `
+    <div v-if="modelValue" class="dialog-stub">
+      <slot />
+      <slot name="footer" />
+    </div>
+  `,
+})
 
 type PeopleManagementViewSetupState = {
   accountForm: {
@@ -271,6 +305,10 @@ describe('PeopleManagementView', () => {
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
   })
 
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
   async function mountView(initialPath = '/people?selected=user-1&detailTab=account') {
     const router = createRouter({
       history: createMemoryHistory(),
@@ -288,7 +326,13 @@ describe('PeopleManagementView', () => {
     const wrapper = mount(PeopleManagementView, {
       global: {
         plugins: [ElementPlus, router],
+        stubs: {
+          teleport: true,
+          ElDrawer: DrawerStub,
+          ElDialog: DialogStub,
+        },
       },
+      attachTo: document.body,
     })
 
     await flushPromises()
@@ -296,19 +340,15 @@ describe('PeopleManagementView', () => {
     return { wrapper, router }
   }
 
-  it('renders unified workspace and updates route when switching tabs', async () => {
+  it('renders unified workspace and updates route when switching anchors', async () => {
     const { wrapper, router } = await mountView()
 
     expect(wrapper.text()).toContain('档案管理 & 用户管理')
     expect(wrapper.text()).toContain('研发工程师')
-    expect(wrapper.text()).toContain('后端工程师')
-    expect(wrapper.text()).toContain('已完成注册（非撤销）')
+    const drawer = wrapper.findComponent(PeopleDetailDrawer)
+    expect(drawer.props('modelValue')).toBe(true)
 
-    const permissionsTab = wrapper
-      .findAll('.el-tabs__item')
-      .find((item) => item.text().includes('权限视图'))
-    expect(permissionsTab).toBeTruthy()
-    await permissionsTab?.trigger('click')
+    await wrapper.find('[data-testid="people-anchor-permissions"]').trigger('click')
     await flushPromises()
 
     expect(router.currentRoute.value.query.detailTab).toBe('permissions')
@@ -326,7 +366,7 @@ describe('PeopleManagementView', () => {
     })
   })
 
-  it('creates a profile for an unprofiled account from the unified workspace', async () => {
+  it('creates a profile for an unprofiled account from the detail drawer', async () => {
     const { wrapper } = await mountView('/people?selected=user-2&detailTab=profile')
 
     expect(wrapper.text()).toContain('当前账号尚未建立档案')

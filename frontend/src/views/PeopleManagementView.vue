@@ -35,11 +35,13 @@ import type {
   UserInvitation,
   UserStatus,
 } from '@/types/api'
+import PeopleDetailDrawer from '@/components/people/PeopleDetailDrawer.vue'
+import type { PeopleAnchorId } from '@/components/people/PeopleAnchorNav.vue'
 import { getErrorMessage } from '@/utils/errors'
 import { formatPasswordValidationMessage, validatePasswordClient } from '@/utils/passwordPolicy'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 
-type DetailTab = 'account' | 'profile' | 'relations' | 'lifecycle' | 'permissions'
+type DetailTab = PeopleAnchorId
 
 type SelectionOption = {
   value: string
@@ -153,6 +155,7 @@ const departmentFilter = ref<'all' | string>('all')
 
 const createUserDialogVisible = ref(false)
 const createProfileDialogVisible = ref(false)
+const detailDrawerVisible = ref(false)
 const createUserMode = ref<'direct' | 'invite'>('direct')
 const createdInvitation = ref<UserInvitation | null>(null)
 
@@ -291,6 +294,14 @@ const filteredPeople = computed(() => {
 const selectedPersonLabel = computed(() => {
   return selectedSummary.value?.real_name ?? selectedDetail.value?.account.email ?? '未选择人员'
 })
+
+const anchorItems = [
+  { id: 'account' as const, label: '账号', testId: 'people-anchor-account' },
+  { id: 'profile' as const, label: '档案', testId: 'people-anchor-profile' },
+  { id: 'relations' as const, label: '岗位与汇报', testId: 'people-anchor-relations' },
+  { id: 'lifecycle' as const, label: '生命周期', testId: 'people-anchor-lifecycle' },
+  { id: 'permissions' as const, label: '权限', testId: 'people-anchor-permissions' },
+]
 
 const managerOptions = computed<SelectionOption[]>(() =>
   people.value
@@ -557,6 +568,9 @@ async function refreshWorkspace(preferredUserId?: string): Promise<void> {
     }
 
     await loadSelectedPerson(fallbackUserId)
+    if (requestedRouteUserId) {
+      detailDrawerVisible.value = true
+    }
     updateRouteQuery({
       selected: fallbackUserId,
       detailTab: activeDetailTab.value,
@@ -570,11 +584,14 @@ async function refreshWorkspace(preferredUserId?: string): Promise<void> {
 }
 
 async function selectPerson(userId: string): Promise<void> {
-  if (!userId || userId === selectedPersonId.value) {
+  if (!userId) {
     return
   }
 
-  await loadSelectedPerson(userId)
+  detailDrawerVisible.value = true
+  if (userId !== selectedPersonId.value) {
+    await loadSelectedPerson(userId)
+  }
   updateRouteQuery({
     selected: userId,
     detailTab: activeDetailTab.value,
@@ -582,20 +599,17 @@ async function selectPerson(userId: string): Promise<void> {
   })
 }
 
-function handleDetailTabChange(value: string): void {
-  const nextTab: DetailTab =
-    value === 'profile' ||
-    value === 'relations' ||
-    value === 'lifecycle' ||
-    value === 'permissions'
-      ? value
-      : 'account'
-
+function handleDetailAnchorChange(value: DetailTab): void {
   updateRouteQuery({
     selected: selectedPersonId.value || null,
-    detailTab: nextTab,
+    detailTab: value,
     tab: null,
   })
+}
+
+function scrollToAccountSection(): void {
+  detailDrawerVisible.value = true
+  handleDetailAnchorChange('account')
 }
 
 async function handleCreateUser(): Promise<void> {
@@ -919,10 +933,13 @@ onMounted(async () => {
 watch(
   () => route.query.selected,
   async (value) => {
-    if (typeof value !== 'string' || !value || value === selectedPersonId.value || !peopleMap.value.has(value)) {
+    if (typeof value !== 'string' || !value || !peopleMap.value.has(value)) {
       return
     }
-    await loadSelectedPerson(value)
+    detailDrawerVisible.value = true
+    if (value !== selectedPersonId.value) {
+      await loadSelectedPerson(value)
+    }
   },
 )
 </script>
@@ -984,124 +1001,109 @@ watch(
         </div>
       </template>
 
-      <el-row :gutter="20" class="people-workspace__body">
-        <el-col :xs="24" :lg="9">
-          <div class="people-workspace__column">
-            <el-card shadow="never">
-              <template #header>
-                <div class="people-workspace__panel-header">
-                  <span>人员列表</span>
-                  <el-tag type="info" effect="plain">{{ filteredPeople.length }} / {{ people.length }}</el-tag>
-                </div>
-              </template>
+      <div class="people-workspace__list-only">
+        <el-card shadow="never">
+          <template #header>
+            <div class="people-workspace__panel-header">
+              <span>人员列表</span>
+              <el-tag type="info" effect="plain">{{ filteredPeople.length }} / {{ people.length }}</el-tag>
+            </div>
+          </template>
 
-              <div class="filters">
-                <el-input v-model="keyword" placeholder="搜索姓名、邮箱、部门、岗位" clearable />
-                <div class="filters__grid">
-                  <el-select v-model="roleFilter">
-                    <el-option label="全部角色" value="all" />
-                    <el-option v-for="option in ROLE_OPTIONS" :key="option.value" :label="option.label" :value="option.value" />
-                  </el-select>
-                  <el-select v-model="statusFilter">
-                    <el-option label="全部状态" value="all" />
-                    <el-option
-                      v-for="option in STATUS_OPTIONS"
-                      :key="option.value"
-                      :label="option.label"
-                      :value="option.value"
-                    />
-                  </el-select>
-                  <el-select v-model="profileFilter">
-                    <el-option label="全部档案状态" value="all" />
-                    <el-option label="已建档" value="profiled" />
-                    <el-option label="未建档" value="unprofiled" />
-                  </el-select>
-                  <el-select v-model="departmentFilter">
-                    <el-option label="全部部门" value="all" />
-                    <el-option
-                      v-for="department in departments"
-                      :key="department.id"
-                      :label="department.name"
-                      :value="department.id"
-                    />
-                  </el-select>
-                </div>
-              </div>
-
-              <el-table
-                v-loading="loading"
-                :data="filteredPeople"
-                stripe
-                highlight-current-row
-                row-key="user_id"
-                @row-click="(row: PeopleManagementPerson) => void selectPerson(row.user_id)"
-              >
-                <el-table-column label="人员" min-width="220">
-                  <template #default="{ row }: { row: PeopleManagementPerson }">
-                    <div class="person-cell">
-                      <strong>{{ row.real_name ?? '未建档账号' }}</strong>
-                      <span>{{ row.email }}</span>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="部门 / 岗位" min-width="180">
-                  <template #default="{ row }: { row: PeopleManagementPerson }">
-                    <div class="person-cell">
-                      <strong>{{ row.department_name ?? '—' }}</strong>
-                      <span>{{ row.job_title ?? '—' }}</span>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="状态" min-width="130">
-                  <template #default="{ row }: { row: PeopleManagementPerson }">
-                    <el-tag :type="STATUS_TAG_TYPES[row.status]" size="small">
-                      {{ STATUS_LABELS[row.status] }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="建档" min-width="110">
-                  <template #default="{ row }: { row: PeopleManagementPerson }">
-                    <el-tag :type="row.has_profile ? 'success' : 'warning'" size="small">
-                      {{ row.has_profile ? '已建档' : '未建档' }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </el-card>
+          <div class="filters">
+            <el-input v-model="keyword" placeholder="搜索姓名、邮箱、部门、岗位" clearable />
+            <div class="filters__grid">
+              <el-select v-model="roleFilter">
+                <el-option label="全部角色" value="all" />
+                <el-option v-for="option in ROLE_OPTIONS" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+              <el-select v-model="statusFilter">
+                <el-option label="全部状态" value="all" />
+                <el-option
+                  v-for="option in STATUS_OPTIONS"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+              <el-select v-model="profileFilter">
+                <el-option label="全部档案状态" value="all" />
+                <el-option label="已建档" value="profiled" />
+                <el-option label="未建档" value="unprofiled" />
+              </el-select>
+              <el-select v-model="departmentFilter">
+                <el-option label="全部部门" value="all" />
+                <el-option
+                  v-for="department in departments"
+                  :key="department.id"
+                  :label="department.name"
+                  :value="department.id"
+                />
+              </el-select>
+            </div>
           </div>
-        </el-col>
 
-        <el-col :xs="24" :lg="15">
-          <div class="people-workspace__column">
-            <el-card shadow="never" v-loading="detailLoading">
-              <template #header>
-                <div class="people-workspace__detail-header">
-                  <div>
-                    <div class="page__title">{{ selectedPersonLabel }}</div>
-                    <div class="page__subtitle">
-                      {{ selectedDetail?.account.email ?? '请选择左侧人员' }}
-                      <template v-if="selectedSummary">
-                        · {{ selectedSummary.employee_no ?? '未建工号' }}
-                        · {{ selectedSummary.department_name ?? '未归属部门' }}
-                      </template>
-                    </div>
-                  </div>
-                  <div class="people-workspace__detail-meta" v-if="selectedDetail">
-                    <el-tag :type="STATUS_TAG_TYPES[selectedDetail.account.status]">
-                      {{ STATUS_LABELS[selectedDetail.account.status] }}
-                    </el-tag>
-                    <span>最后登录：{{ formatDateTime(selectedDetail.account.last_login_at) }}</span>
-                    <span>更新时间：{{ formatDateTime(selectedDetail.summary.updated_at) }}</span>
-                  </div>
+          <el-table
+            v-loading="loading"
+            :data="filteredPeople"
+            stripe
+            highlight-current-row
+            row-key="user_id"
+            @row-click="(row: PeopleManagementPerson) => void selectPerson(row.user_id)"
+          >
+            <el-table-column label="人员" min-width="220">
+              <template #default="{ row }: { row: PeopleManagementPerson }">
+                <div class="person-cell">
+                  <strong>{{ row.real_name ?? '未建档账号' }}</strong>
+                  <span>{{ row.email }}</span>
                 </div>
               </template>
+            </el-table-column>
+            <el-table-column label="部门 / 岗位" min-width="180">
+              <template #default="{ row }: { row: PeopleManagementPerson }">
+                <div class="person-cell">
+                  <strong>{{ row.department_name ?? '—' }}</strong>
+                  <span>{{ row.job_title ?? '—' }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" min-width="130">
+              <template #default="{ row }: { row: PeopleManagementPerson }">
+                <el-tag :type="STATUS_TAG_TYPES[row.status]" size="small">
+                  {{ STATUS_LABELS[row.status] }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="建档" min-width="110">
+              <template #default="{ row }: { row: PeopleManagementPerson }">
+                <el-tag :type="row.has_profile ? 'success' : 'warning'" size="small">
+                  {{ row.has_profile ? '已建档' : '未建档' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </div>
+    </el-card>
 
-              <el-empty v-if="!selectedDetail" description="请选择左侧人员" />
-
-              <template v-else>
-                <el-tabs :model-value="activeDetailTab" @update:model-value="handleDetailTabChange">
-                  <el-tab-pane label="账号信息" name="account">
-                    <div class="tab-grid tab-grid--two">
+    <PeopleDetailDrawer
+      v-model="detailDrawerVisible"
+      :active-anchor="activeDetailTab"
+      :loading="detailLoading"
+      :person-label="selectedPersonLabel"
+      :person-email="selectedDetail?.account.email ?? ''"
+      :status-label="selectedDetail ? STATUS_LABELS[selectedDetail.account.status] : ''"
+      :status-tag-type="selectedDetail ? STATUS_TAG_TYPES[selectedDetail.account.status] : 'info'"
+      :can-create-profile="selectedDetail?.actions.can_create_profile ?? false"
+      :anchor-items="anchorItems"
+      @update:active-anchor="handleDetailAnchorChange"
+      @create-profile="openCreateProfileDialogForSelected"
+      @scroll-to-account="scrollToAccountSection"
+    >
+      <template v-if="selectedDetail">
+        <section id="people-section-account" class="people-detail-section" data-people-section="account">
+          <h3 class="people-detail-section__title">账号信息</h3>
+          <div class="tab-grid tab-grid--two">
                       <el-card shadow="never">
                         <template #header>账号概览</template>
                         <el-descriptions :column="2" border>
@@ -1183,9 +1185,10 @@ watch(
                         </el-form>
                       </el-card>
                     </div>
-                  </el-tab-pane>
+          </section>
 
-                  <el-tab-pane label="档案信息" name="profile">
+          <section id="people-section-profile" class="people-detail-section" data-people-section="profile">
+            <h3 class="people-detail-section__title">档案信息</h3>
                     <el-empty
                       v-if="!selectedProfile"
                       description="当前账号尚未建立档案"
@@ -1270,9 +1273,10 @@ watch(
                         </el-card>
                       </div>
                     </template>
-                  </el-tab-pane>
+          </section>
 
-                  <el-tab-pane label="岗位 / 汇报" name="relations">
+          <section id="people-section-relations" class="people-detail-section" data-people-section="relations">
+            <h3 class="people-detail-section__title">岗位 / 汇报</h3>
                     <el-empty v-if="!selectedProfile" description="请先建立档案后再维护任职关系" />
 
                     <template v-else>
@@ -1472,9 +1476,10 @@ watch(
                         </el-card>
                       </div>
                     </template>
-                  </el-tab-pane>
+          </section>
 
-                  <el-tab-pane label="生命周期" name="lifecycle">
+          <section id="people-section-lifecycle" class="people-detail-section" data-people-section="lifecycle">
+            <h3 class="people-detail-section__title">生命周期</h3>
                     <el-empty v-if="!selectedProfile" description="请先建立档案后再记录生命周期事件" />
 
                     <template v-else>
@@ -1531,9 +1536,10 @@ watch(
                         </el-card>
                       </div>
                     </template>
-                  </el-tab-pane>
+          </section>
 
-                  <el-tab-pane label="权限视图" name="permissions">
+          <section id="people-section-permissions" class="people-detail-section" data-people-section="permissions">
+            <h3 class="people-detail-section__title">权限视图</h3>
                     <el-empty v-if="!selectedProfile" description="请先建立档案后再查看权限视图" />
 
                     <template v-else>
@@ -1660,14 +1666,9 @@ watch(
                         </el-card>
                       </div>
                     </template>
-                  </el-tab-pane>
-                </el-tabs>
-              </template>
-            </el-card>
-          </div>
-        </el-col>
-      </el-row>
-    </el-card>
+          </section>
+      </template>
+    </PeopleDetailDrawer>
 
     <el-dialog
       v-model="createUserDialogVisible"
@@ -1829,6 +1830,7 @@ watch(
   gap: 12px;
 }
 
+.people-workspace__list-only,
 .people-workspace__body,
 .people-workspace__column {
   min-height: 100%;
