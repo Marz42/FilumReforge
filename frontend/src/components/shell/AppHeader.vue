@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, provide, ref, watch } from 'vue'
+import { computed, onMounted, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Bell, Operation } from '@element-plus/icons-vue'
 
 import CommandBar from '@/components/CommandBar.vue'
+import DeadlineCountdown from '@/components/overview/DeadlineCountdown.vue'
 import NotificationDrawer from '@/components/shell/NotificationDrawer.vue'
 import { useMessagesInbox } from '@/composables/useMessagesInbox'
 import { useAppStore } from '@/stores/app'
@@ -22,12 +23,22 @@ const emit = defineEmits<{
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const route = useRoute()
-const notificationDrawerOpen = ref(false)
 const inbox = useMessagesInbox()
 
 provide('messagesInbox', inbox)
 
 const { unreadCount, refreshUnreadCount, startPolling } = inbox
+
+const notificationDrawerOpen = computed({
+  get: () => appStore.notificationDrawerOpen,
+  set: (value: boolean) => {
+    if (value) {
+      appStore.notificationDrawerOpen = true
+      return
+    }
+    appStore.closeNotificationDrawer()
+  },
+})
 
 const roleLabelMap: Record<UserRole, string> = {
   admin: '管理员',
@@ -46,7 +57,7 @@ watch(
   () => route.fullPath,
   () => {
     if (route.name === 'messages' && route.query.drawer === '1') {
-      notificationDrawerOpen.value = true
+      appStore.openNotificationDrawer()
     }
   },
   { immediate: true },
@@ -75,13 +86,17 @@ onMounted(() => {
     </div>
 
     <div class="app-header__actions">
+      <DeadlineCountdown />
       <CommandBar />
       <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
-        <el-button circle data-testid="header-notification-bell" @click="notificationDrawerOpen = true">
+        <el-button circle data-testid="header-notification-bell" @click="appStore.openNotificationDrawer()">
           <el-icon><Bell /></el-icon>
         </el-button>
       </el-badge>
-      <NotificationDrawer v-model="notificationDrawerOpen" />
+      <NotificationDrawer
+        v-model="notificationDrawerOpen"
+        :initial-message-id="appStore.notificationDrawerMessageId"
+      />
       <el-tag type="primary" effect="plain" round>{{ currentRoleLabel() }}</el-tag>
       <span class="app-header__email">{{ authStore.user?.email ?? '未登录' }}</span>
       <el-button link type="primary" class="app-header__logout" @click="emit('logout')">退出登录</el-button>

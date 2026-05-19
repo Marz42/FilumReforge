@@ -7,41 +7,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OverviewSnapshot } from '@/types/api'
 
 vi.mock('@/api/overview', () => ({
-  archiveBoardCard: vi.fn(),
-  createAnnouncement: vi.fn(),
-  createBoardCard: vi.fn(),
   getOverview: vi.fn(),
-  withdrawAnnouncement: vi.fn(),
 }))
 
-import {
-  archiveBoardCard,
-  createAnnouncement,
-  createBoardCard,
-  getOverview,
-  withdrawAnnouncement,
-} from '@/api/overview'
+vi.mock('@/api/report-center', () => ({
+  getReportCenterSnapshot: vi.fn(),
+}))
+
+vi.mock('@/api/messages', () => ({
+  getMessageCenterSnapshot: vi.fn(),
+}))
+
+import { getOverview } from '@/api/overview'
+import { getReportCenterSnapshot } from '@/api/report-center'
+import { getMessageCenterSnapshot } from '@/api/messages'
 import { useAuthStore } from '@/stores/auth'
 import HomeView from '@/views/HomeView.vue'
-
-type HomeViewVm = {
-  boardForm: {
-    scope_department_id: string
-    title: string
-    content_md: string
-  }
-  announcementForm: {
-    publisher_department_id: string
-    title: string
-    content_md: string
-  }
-  openBoardDialog: () => void
-  openAnnouncementDialog: () => void
-  submitBoardCard: () => Promise<void>
-  submitAnnouncement: () => Promise<void>
-  handleArchiveBoardCard: (cardId: string) => Promise<void>
-  handleWithdrawAnnouncement: (announcementId: string) => Promise<void>
-}
 
 const overviewSnapshot: OverviewSnapshot = {
   board_cards: [
@@ -81,24 +62,9 @@ const overviewSnapshot: OverviewSnapshot = {
       current_handler_label: '管理员',
     },
   ],
-  task_tracking: [
-    {
-      task_id: 'task-2',
-      title: '跟踪排期同步',
-      priority: 'high',
-      status: 'doing',
-      due_date: '2025-01-03T10:00:00Z',
-      department_name: '研发部',
-      relation_types: ['关注', '流程'],
-      current_stage_label: '审批：部门确认',
-      current_handler_label: '部门经理',
-    },
-  ],
+  task_tracking: [],
   permissions: {
-    board_scope_options: [
-      { id: 'company', label: '公司' },
-      { id: 'dept-1', label: '研发部' },
-    ],
+    board_scope_options: [{ id: 'company', label: '公司' }],
     announcement_scope_options: [{ id: 'dept-1', label: '财务行政部' }],
     can_publish_board: true,
     can_publish_announcement: true,
@@ -125,10 +91,87 @@ describe('Home view', () => {
     }
 
     vi.mocked(getOverview).mockResolvedValue(overviewSnapshot)
-    vi.mocked(createBoardCard).mockResolvedValue(overviewSnapshot.board_cards[0]!)
-    vi.mocked(createAnnouncement).mockResolvedValue(overviewSnapshot.announcements[0]!)
-    vi.mocked(archiveBoardCard).mockResolvedValue()
-    vi.mocked(withdrawAnnouncement).mockResolvedValue()
+    vi.mocked(getReportCenterSnapshot).mockResolvedValue({
+      permissions: {
+        can_create_upward: true,
+        can_create_downward: true,
+      },
+      upward_target_options: [],
+      downward_target_options: [],
+      workflow_definition_options: [],
+      pending_reports: [
+        {
+          id: 'report-1',
+          direction: 'upward',
+          status: 'in_progress',
+          title: '周报提交',
+          content_md: '本周进展',
+          initiator_user_id: 'user-2',
+          initiator_label: '工程师',
+          target_user_id: 'user-1',
+          target_label: '管理员',
+          current_recipient_user_id: 'user-1',
+          current_recipient_label: '管理员',
+          current_route_sequence: 1,
+          workflow_definition_id: null,
+          workflow_definition_name: null,
+          workflow_instance_id: null,
+          created_at: '2025-01-02T08:00:00Z',
+          updated_at: '2025-01-02T08:30:00Z',
+          completed_at: null,
+          returned_at: null,
+          archived_at: null,
+        },
+      ],
+      initiated_reports: [],
+      history_reports: [],
+    })
+    vi.mocked(getMessageCenterSnapshot).mockResolvedValue({
+      items: [
+        {
+          id: 'message-1',
+          source_type: 'task',
+          source_id: 'task-1',
+          recipient_user_id: 'user-1',
+          recipient_email: 'admin@example.com',
+          message_type: 'assignment',
+          title: '新任务指派',
+          body_text: '你有一条新任务',
+          body_html: null,
+          payload: {},
+          status: 'completed',
+          scheduled_at: null,
+          enqueued_at: '2025-01-02T08:00:00Z',
+          completed_at: '2025-01-02T08:00:00Z',
+          created_at: '2025-01-02T08:00:00Z',
+          source: {
+            module_label: '任务',
+            target: {
+              can_navigate: true,
+              route_name: 'task-center',
+              route_params: {},
+              route_query: { selected: 'task-1' },
+            },
+          },
+          receipt_state: {
+            is_read: false,
+            is_acknowledged: false,
+          },
+          deliveries: [],
+        },
+      ],
+      total_count: 1,
+      filtered_count: 1,
+      unread_count: 1,
+      unacknowledged_count: 1,
+      source_counts: [],
+      applied_source_type: null,
+      applied_state: 'all',
+      applied_channel: null,
+      applied_delivery_status: null,
+      applied_created_from: null,
+      applied_created_to: null,
+    })
   })
 
   async function createTestRouter() {
@@ -143,9 +186,7 @@ describe('Home view', () => {
         {
           path: '/task-center',
           name: 'task-center',
-          component: {
-            template: '<div>task-center</div>',
-          },
+          component: { template: '<div>task-center</div>' },
         },
       ],
     })
@@ -154,7 +195,7 @@ describe('Home view', () => {
     return router
   }
 
-  it('renders overview sections and data', async () => {
+  it('renders overview widgets and quick links', async () => {
     const router = await createTestRouter()
     const wrapper = mount(HomeView, {
       attachTo: document.body,
@@ -168,150 +209,29 @@ describe('Home view', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain('本周值班安排')
+    expect(wrapper.find('[data-testid="overview-widget-messages"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="overview-widget-announcement-board"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="overview-widget-todos"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('补齐总览首页')
+    expect(wrapper.text()).toContain('周报提交')
     expect(wrapper.text()).toContain('办公区维护通知')
-    expect(wrapper.text()).toContain('我的待办')
-    expect(wrapper.text()).toContain('跟踪任务')
-    expect(wrapper.text()).toContain('待办事项')
-    expect(wrapper.text()).toContain('任务跟踪')
-    expect(wrapper.text()).toContain('查看待办')
-    expect(wrapper.text()).toContain('查看跟踪')
+    expect(wrapper.text()).toContain('快捷入口')
     wrapper.unmount()
   })
 
-  it('navigates to the matching task center tab from summary cards', async () => {
+  it('loads overview and report center snapshots on mount', async () => {
     const router = await createTestRouter()
     const wrapper = mount(HomeView, {
       attachTo: document.body,
       global: {
         plugins: [ElementPlus, router],
-        stubs: {
-          transition: false,
-        },
       },
     })
 
     await flushPromises()
 
-    const trackingButton = wrapper
-      .findAll('button')
-      .find((node) => node.text().includes('查看跟踪'))
-    expect(trackingButton).toBeTruthy()
-
-    await trackingButton?.trigger('click')
-    await flushPromises()
-
-    expect(router.currentRoute.value.name).toBe('task-center')
-    expect(router.currentRoute.value.query.tab).toBe('tracking')
-    wrapper.unmount()
-  })
-
-  it('navigates to inbox explicitly from the summary card', async () => {
-    const router = await createTestRouter()
-    const wrapper = mount(HomeView, {
-      attachTo: document.body,
-      global: {
-        plugins: [ElementPlus, router],
-        stubs: {
-          transition: false,
-        },
-      },
-    })
-
-    await flushPromises()
-
-    const inboxButton = wrapper
-      .findAll('button')
-      .find((node) => node.text().includes('查看待办'))
-    expect(inboxButton).toBeTruthy()
-
-    await inboxButton?.trigger('click')
-    await flushPromises()
-
-    expect(router.currentRoute.value.name).toBe('task-center')
-    expect(router.currentRoute.value.query.tab).toBe('inbox')
-    wrapper.unmount()
-  })
-
-  it('submits a new board card', async () => {
-    const router = await createTestRouter()
-    const wrapper = mount(HomeView, {
-      attachTo: document.body,
-      global: {
-        plugins: [ElementPlus, router],
-        stubs: {
-          transition: false,
-        },
-      },
-    })
-
-    await flushPromises()
-
-    const vm = wrapper.vm as unknown as HomeViewVm
-    vm.openBoardDialog()
-    vm.boardForm.title = '研发同步'
-    vm.boardForm.content_md = '请在今天下班前更新排期。'
-    await vm.submitBoardCard()
-    await flushPromises()
-
-    expect(createBoardCard).toHaveBeenCalledWith({
-      scope_department_id: null,
-      title: '研发同步',
-      content_md: '请在今天下班前更新排期。',
-    })
-    wrapper.unmount()
-  })
-
-  it('submits a new announcement', async () => {
-    const router = await createTestRouter()
-    const wrapper = mount(HomeView, {
-      attachTo: document.body,
-      global: {
-        plugins: [ElementPlus, router],
-        stubs: {
-          transition: false,
-        },
-      },
-    })
-
-    await flushPromises()
-
-    const vm = wrapper.vm as unknown as HomeViewVm
-    vm.openAnnouncementDialog()
-    vm.announcementForm.title = '全员通知'
-    vm.announcementForm.content_md = '请注意机房维护窗口。'
-    await vm.submitAnnouncement()
-    await flushPromises()
-
-    expect(createAnnouncement).toHaveBeenCalledWith({
-      publisher_department_id: 'dept-1',
-      title: '全员通知',
-      content_md: '请注意机房维护窗口。',
-    })
-    wrapper.unmount()
-  })
-
-  it('archives a board card and withdraws an announcement', async () => {
-    const router = await createTestRouter()
-    const wrapper = mount(HomeView, {
-      attachTo: document.body,
-      global: {
-        plugins: [ElementPlus, router],
-        stubs: {
-          transition: false,
-        },
-      },
-    })
-
-    await flushPromises()
-
-    const vm = wrapper.vm as unknown as HomeViewVm
-    await vm.handleArchiveBoardCard('board-1')
-    await vm.handleWithdrawAnnouncement('announcement-1')
-    await flushPromises()
-
-    expect(archiveBoardCard).toHaveBeenCalledWith('board-1')
-    expect(withdrawAnnouncement).toHaveBeenCalledWith('announcement-1')
+    expect(getOverview).toHaveBeenCalled()
+    expect(getReportCenterSnapshot).toHaveBeenCalled()
     wrapper.unmount()
   })
 })

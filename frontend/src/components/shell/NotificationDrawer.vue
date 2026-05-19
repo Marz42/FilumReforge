@@ -11,6 +11,7 @@ type MessagesInbox = ReturnType<typeof useMessagesInbox>
 
 const props = defineProps<{
   modelValue: boolean
+  initialMessageId?: string
 }>()
 
 const emit = defineEmits<{
@@ -36,8 +37,10 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
-      detailMessageId.value = ''
-      void loadInbox({ state: 'unread', sourceType: 'all' })
+      const messageId = props.initialMessageId ?? ''
+      detailMessageId.value = messageId
+      selectedMessageId.value = messageId
+      void loadInbox({ state: messageId ? 'all' : 'unread', sourceType: 'all' })
     }
   },
 )
