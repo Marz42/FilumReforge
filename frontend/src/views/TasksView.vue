@@ -3,11 +3,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, type UploadFile } from 'element-plus'
 
 import { listAttachments, uploadAttachment } from '@/api/attachments'
-import {
-  ATTACHMENT_ACCEPT,
-  attachmentMimeIsInlineViewable,
-  validateAttachmentFile,
-} from '@/constants/attachments'
+import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
+import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import { listDepartments } from '@/api/departments'
 import { acceptTaskAssignment,
   addTaskWatchers,
@@ -1430,27 +1427,11 @@ watch(
                     <strong>{{ attachment.original_filename }}</strong>
                     <p>{{ attachment.mime_type }} · {{ attachment.size_bytes }} bytes</p>
                   </div>
-                  <template v-if="attachment.download_url">
-                    <el-space>
-                      <el-link
-                        v-if="attachmentMimeIsInlineViewable(attachment.mime_type)"
-                        :href="attachment.download_url"
-                        target="_blank"
-                        type="primary"
-                        data-testid="task-attachment-view"
-                      >
-                        查看
-                      </el-link>
-                      <el-link
-                        :href="attachment.download_url"
-                        target="_blank"
-                        type="primary"
-                        data-testid="task-attachment-download"
-                      >
-                        {{ attachmentMimeIsInlineViewable(attachment.mime_type) ? '下载' : '打开/下载' }}
-                      </el-link>
-                    </el-space>
-                  </template>
+                  <AttachmentActions
+                    :attachment="attachment"
+                    view-test-id="task-attachment-view"
+                    download-test-id="task-attachment-download"
+                  />
                 </div>
               </el-card>
             </el-space>
@@ -1558,16 +1539,14 @@ watch(
                       v-if="entry.comment.attachments.length > 0"
                       class="page__comment-attachments"
                     >
-                      <el-link
+                      <div
                         v-for="attachment in entry.comment.attachments"
                         :key="attachment.id"
-                        :href="attachment.download_url || undefined"
-                        :underline="false"
-                        target="_blank"
-                        type="primary"
+                        class="page__comment-attachment-row"
                       >
-                        {{ attachment.original_filename }}
-                      </el-link>
+                        <span>{{ attachment.original_filename }}</span>
+                        <AttachmentActions :attachment="attachment" />
+                      </div>
                     </div>
                   </template>
 
@@ -1865,9 +1844,16 @@ watch(
 
 .page__comment-attachments {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 12px;
+}
+
+.page__comment-attachment-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
 }
 
 .page__date-picker {

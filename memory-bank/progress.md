@@ -70,7 +70,7 @@
 | IA-3 / UI Phase D（汇报中心） | done | Master-Detail + ReportComposeDrawer；见 commit `c3fec3a`。 |
 | IA-4 / UI Phase E（组织管理） | done | 人员宽 Drawer + 锚点导航、部门树 Master-Detail；`PeopleManagementView.spec.ts` + `DepartmentsView.spec.ts` 通过。 |
 | IA-5 / UI Phase F（总览 Dashboard） | done | 小组件化 HomeView、顶栏 DeadlineCountdown、消息/公告/待办 widgets；见 commit `50c32c8`。 |
-| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | **附件策略**已落地：后端 MIME/大小白名单、`attachment_links(report)` 迁移 `20260515_01`、汇报 `attachment_ids` 与列表 `attachments`；前端 `constants/attachments.ts` + 任务/知识库/汇报预检与「查看/下载」。**后端回归**：`python -m pytest` 在仓库根目录 **151 passed**（`backend/tests/conftest.py` 补 `sys.path`）；图引擎 **11-D 收口**：`WorkflowGraphService` 写接口 `commit`、接管同步手动 `Task` 投影、`workflow_graph_engine` 详情响应避免 ORM 懒加载。**Docker GUI**（`npm run test:e2e:docker-gui`）现为 **18** 条用例（含 **C1.2b** 附件、**C3** 探测式）；C1.2b 通过「选择附件」+ `filechooser` 与 `tasks-attachment-upload` 包裹层稳定化（勿依赖 `el-upload` 根节点上的 `data-testid` 直连隐藏 `input`）。`bash scripts/check-release.sh` 已在 Windows + Git Bash 执行（2026-05-14）：P0 通过；带 venv 的全量脚本与 **Ubuntu 生产构建**（`npm ci && npm run build` 成功；Vite 8 与 devtools 插件 peer 警告可忽略）仍待正式记入验收。**UI 信息架构**见 `memory-bank/plans/ui-information-architecture-plan.md`。 |
+| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | **附件策略**已落地；**后端回归** 仓库根 `pytest` **151 passed**。**前端单元测试** `npm run test:unit -- --run`：**27 文件 / 96 用例**（含总览 widget、`AppStore`、人员锚点等）。**Docker GUI E2E** `npm run test:e2e:docker-gui`：**18/18 passed**（L0 总览/部门树/人员 Drawer、C1 任务全链路含附件、C2 汇报多级、C3 向下传达探测）；规格见 `frontend/e2e/docker-gui-verification/docker-gui-verification.spec.ts`（侧栏导航任务/汇报中心、撰写汇报 teleported 下拉、Element Plus `data-testid` 在 input 上直接 `fill`）。`bash scripts/check-release.sh` 与 **Ubuntu 生产演练**仍待正式记入验收。**用户说明书** [`handbooks/user-manual.md`](handbooks/user-manual.md) 已升至 v1.1 与 IA A–F 对齐。 |
 
 ### Stage 2 文档同步约定
 
@@ -90,7 +90,7 @@
 
 ## 当前已知问题
 
-本轮无阻塞性后端单测失败（仓库根 `pytest` 151 passed）。Docker GUI **C1.2b** 曾在旧选择器下超时，已通过 filechooser 与 UI testid 包裹修复；需在 **`infra/docker` 栈已更新并 seed** 的环境重跑 `npm run test:e2e:docker-gui` 以刷新 `verification-runs/docker-gui-*/report.md`。**带 venv 的 `check-release.sh` 全绿**与 **Ubuntu 主机回滚演练**仍为 Stage 2 Phase 6 待收口项。生产前端 `npm ci && npm run build` 的 Vite 8 / `vite-plugin-vue-devtools` peer 警告不阻断构建（可选：仅 `vite dev` 时加载 devtools 以减噪）。
+本轮无阻塞性后端单测失败（仓库根 `pytest` 151 passed）。Docker GUI 自动化在 `http://127.0.0.1:8080` 栈上 **18/18** 已通过（2026-05-20）；报告与截图输出至 `verification-runs/docker-gui-<时间戳>/`。**带 venv 的 `check-release.sh` 全绿**与 **Ubuntu 主机回滚演练**仍为 Stage 2 Phase 6 待收口项。生产前端 `npm ci && npm run build` 的 Vite 8 / `vite-plugin-vue-devtools` peer 警告不阻断构建（可选：仅 `vite dev` 时加载 devtools 以减噪）。
 
 ## 已完成里程碑
 

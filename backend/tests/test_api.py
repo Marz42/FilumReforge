@@ -929,7 +929,24 @@ async def test_department_profile_task_and_attachment_api_flow(api_client) -> No
   )
   assert upload_response.status_code == 201
   attachment_id = upload_response.json()["id"]
-  assert upload_response.json()["download_url"] is not None
+  assert upload_response.json()["download_url"] == f"/api/v1/attachments/{attachment_id}/content"
+
+  download_response = await client.get(
+    f"/api/v1/attachments/{attachment_id}/content",
+    headers=headers,
+    params={"disposition": "attachment"},
+  )
+  assert download_response.status_code == 200
+  assert download_response.content == b"phase-1 attachment"
+  assert "attachment" in download_response.headers.get("content-disposition", "").lower()
+
+  inline_response = await client.get(
+    f"/api/v1/attachments/{attachment_id}/content",
+    headers=headers,
+    params={"disposition": "inline"},
+  )
+  assert inline_response.status_code == 200
+  assert inline_response.headers.get("content-disposition", "").startswith("inline")
 
   list_attachments_response = await client.get(
     "/api/v1/attachments",

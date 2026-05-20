@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, type UploadFile } from 'element-plus'
 
 import { uploadAttachment } from '@/api/attachments'
+import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import {
   archiveDocument,
@@ -379,16 +380,17 @@ defineExpose({
               v-if="selectedDocument.attachments.length === 0"
               description="暂无文档附件"
             />
-            <el-space v-else wrap>
-              <el-link
+            <el-space v-else direction="vertical" fill>
+              <el-card
                 v-for="attachment in selectedDocument.attachments"
                 :key="attachment.id"
-                :href="attachment.download_url ?? undefined"
-                target="_blank"
-                type="primary"
+                shadow="never"
               >
-                {{ attachment.original_filename }}
-              </el-link>
+                <div class="knowledge-page__attachment-row">
+                  <strong>{{ attachment.original_filename }}</strong>
+                  <AttachmentActions :attachment="attachment" />
+                </div>
+              </el-card>
             </el-space>
 
             <div
@@ -577,5 +579,13 @@ defineExpose({
   align-items: center;
   gap: 12px;
   margin-top: 16px;
+}
+
+.knowledge-page__attachment-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 </style>

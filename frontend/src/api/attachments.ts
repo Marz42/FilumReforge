@@ -21,6 +21,19 @@ export async function listAttachments(payload: ListAttachmentsPayload): Promise<
   return data
 }
 
+export type AttachmentContentDisposition = 'inline' | 'attachment'
+
+export async function fetchAttachmentContent(
+  attachmentId: string,
+  disposition: AttachmentContentDisposition = 'attachment',
+): Promise<Blob> {
+  const { data } = await http.get<Blob>(`/attachments/${attachmentId}/content`, {
+    params: { disposition },
+    responseType: 'blob',
+  })
+  return data
+}
+
 export async function uploadAttachment(payload: UploadAttachmentPayload): Promise<Attachment> {
   const formData = new FormData()
   formData.append('file', payload.file)

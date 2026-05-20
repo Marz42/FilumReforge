@@ -18,7 +18,7 @@
 | [handbooks/deployment-runbook-ubuntu-2404.md](./handbooks/deployment-runbook-ubuntu-2404.md) | Ubuntu 24.04 LTS 生产部署全流程 |
 | [handbooks/manual-database-operations.md](./handbooks/manual-database-operations.md) | PostgreSQL 手工操作、迁移、整库重置 |
 | [handbooks/e2e-gui-verification-automation-runbook.md](./handbooks/e2e-gui-verification-automation-runbook.md) | Docker GUI + Playwright 自动化验证与报告 |
-| [handbooks/user-manual.md](./handbooks/user-manual.md) | **用户说明书**（按页面操作指南，IA-0 基线，供审阅与 UI 重构前事实对齐） |
+| [handbooks/user-manual.md](./handbooks/user-manual.md) | **用户说明书** v1.1（与 IA Phase A–F 界面对齐的操作指南） |
 
 ## [plans/](./plans/) — 实施计划（排期与阶段出口）
 

@@ -1,16 +1,22 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.attachment_access import assert_can_download_attachment
+from app.api.attachment_content import build_content_disposition
 from app.api.dependencies import (
   get_attachment_service,
   get_current_user,
   get_db_session,
+  get_document_service,
+  get_message_center_service,
   get_object_storage_service,
+  get_profile_service,
   get_report_service,
   get_task_service,
 )
@@ -19,7 +25,10 @@ from app.api.attachment_serializers import serialize_attachment_read
 from app.models import Attachment, TaskComment, User
 from app.schemas.attachments import AttachmentRead
 from app.services.attachment_service import AttachmentService
+from app.services.document_service import DocumentService
+from app.services.message_center_service import MessageCenterService
 from app.services.object_storage_service import ObjectStorageService
+from app.services.profile_service import ProfileService
 from app.services.report_service import ReportService
 from app.services.task_service import TaskService
 
@@ -121,6 +130,45 @@ async def upload_attachment(
     relation=relation,
   )
   return await serialize_attachment_read(attachment, object_storage_service)
+
+
+@router.get("/{attachment_id}/content")
+async def download_attachment_content(
+  attachment_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  attachment_service: Annotated[AttachmentService, Depends(get_attachment_service)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  report_service: Annotated[ReportService, Depends(get_report_service)],
+  document_service: Annotated[DocumentService, Depends(get_document_service)],
+  message_center_service: Annotated[MessageCenterService, Depends(get_message_center_service)],
+  profile_service: Annotated[ProfileService, Depends(get_profile_service)],
+  disposition: Annotated[Literal["inline", "attachment"], Query()] = "attachment",
+) -> Response:
+  attachment = await attachment_service.get_attachment_with_links(attachment_id=attachment_id)
+  await assert_can_download_attachment(
+    session=session,
+    actor=actor,
+    attachment=attachment,
+    task_service=task_service,
+    report_service=report_service,
+    document_service=document_service,
+    message_center_service=message_center_service,
+    profile_service=profile_service,
+  )
+  content = await attachment_service.read_attachment_bytes(attachment=attachment)
+  header_disposition = "inline" if disposition == "inline" else "attachment"
+  return Response(
+    content=content,
+    media_type=attachment.mime_type,
+    headers={
+      "Content-Disposition": build_content_disposition(
+        disposition=header_disposition,
+        filename=attachment.original_filename,
+      ),
+      "Cache-Control": "private, no-store",
+    },
+  )
 
 
 @router.delete("/{attachment_id}", response_model=AttachmentRead)

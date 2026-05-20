@@ -37,12 +37,9 @@ async def _build_attachment_read(
   attachment: Attachment,
   object_storage_service: ObjectStorageService,
 ) -> AttachmentRead:
-  download_url = None
-  if attachment.status != AttachmentStatus.DELETED:
-    download_url = await object_storage_service.generate_download_url(
-      object_key=attachment.object_key
-    )
-  return AttachmentRead.model_validate(attachment).model_copy(update={"download_url": download_url})
+  from app.api.attachment_serializers import serialize_attachment_read
+
+  return await serialize_attachment_read(attachment, object_storage_service)
 
 
 def _build_document_summary(document) -> DocumentSummaryRead:  # noqa: ANN001

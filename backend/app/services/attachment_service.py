@@ -12,6 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import AuthorizationError
+
 from app.core.enums import AttachmentStatus, AttachmentTargetType, AttachmentVisibility, UserRole
 from app.core.exceptions import AppValidationError, NotFoundError
 from app.models import Attachment, AttachmentLink, User
@@ -246,3 +248,19 @@ class AttachmentService:
     await self._session.commit()
     await self._session.refresh(attachment)
     return attachment
+
+  async def get_attachment_with_links(self, *, attachment_id: UUID) -> Attachment:
+    attachment = await self._session.scalar(
+      select(Attachment)
+      .options(selectinload(Attachment.links))
+      .where(Attachment.id == attachment_id, Attachment.status != AttachmentStatus.DELETED)
+    )
+    if attachment is None:
+      raise NotFoundError("附件不存在。")
+    return attachment
+
+  async def read_attachment_bytes(self, *, attachment: Attachment) -> bytes:
+    try:
+      return await self._object_storage_service.read_object(object_key=attachment.object_key)
+    except FileNotFoundError as exc:
+      raise NotFoundError("附件文件不存在或已被清理。") from exc

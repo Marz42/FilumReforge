@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { createMessageReceipt, getMessageCenterSnapshot } from '@/api/messages'
+import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
 import type {
   Message,
   MessageCenterSnapshot,
@@ -400,14 +401,7 @@ onMounted(() => {
                   <strong>{{ attachment.original_filename }}</strong>
                   <p>{{ attachment.mime_type }} · {{ attachment.size_bytes }} bytes</p>
                 </div>
-                <el-link
-                  v-if="attachment.download_url"
-                  :href="attachment.download_url"
-                  target="_blank"
-                  type="primary"
-                >
-                  下载
-                </el-link>
+                <AttachmentActions :attachment="attachment" />
               </div>
             </div>
 

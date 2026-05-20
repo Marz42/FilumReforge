@@ -45,3 +45,9 @@ class LocalStorageAdapter(StorageAdapter):
     expires_in_seconds: int = 300,
   ) -> str:
     return str(self._resolve_path(object_key))
+
+  async def read_object(self, *, object_key: str) -> bytes:
+    target_path = self._resolve_path(object_key)
+    if not target_path.is_file():
+      raise FileNotFoundError(object_key)
+    return target_path.read_bytes()

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { attachmentMimeIsInlineViewable } from '@/constants/attachments'
+import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
 import type { ReportActionOption, ReportDirection, ReportRecord, ReportRouteStatus, ReportStatus } from '@/types/api'
 import { formatDateTime } from '@/utils/formatters'
 
@@ -88,25 +88,11 @@ function isActionLoading(reportId: string, action: string): boolean {
               <strong>{{ attachment.original_filename }}</strong>
             </div>
             <div class="report-detail-panel__att-meta">{{ attachment.mime_type }}</div>
-            <el-space v-if="attachment.download_url">
-              <el-link
-                v-if="attachmentMimeIsInlineViewable(attachment.mime_type)"
-                :href="attachment.download_url"
-                target="_blank"
-                type="primary"
-                data-testid="report-attachment-view"
-              >
-                查看
-              </el-link>
-              <el-link
-                :href="attachment.download_url"
-                target="_blank"
-                type="primary"
-                data-testid="report-attachment-open"
-              >
-                {{ attachmentMimeIsInlineViewable(attachment.mime_type) ? '下载' : '打开/下载' }}
-              </el-link>
-            </el-space>
+            <AttachmentActions
+              :attachment="attachment"
+              view-test-id="report-attachment-view"
+              download-test-id="report-attachment-open"
+            />
           </el-card>
         </el-space>
       </div>

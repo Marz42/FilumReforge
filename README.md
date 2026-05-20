@@ -1,19 +1,19 @@
 # Project Filum
 
-Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管理平台，统一承载 **人事档案、事务协同、流程 / 汇报、消息中心、知识库与 AI 指令入口**。当前仓库已经完成 **Phase A–Phase 5** 与重构 **Step 1–Step 7**，且 Step 7 已通过用户验测；当前已进入工作流 E 的后续增强阶段，并已完成首批“结构化任务模板与多步骤协作”实现。
+Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管理平台，统一承载 **人事档案、事务协同、流程 / 汇报、消息中心、知识库与 AI 指令入口**。当前仓库已完成 **Phase A–Phase 5**、重构 **Step 1–Step 7**、**UI 信息架构 Phase A–F**（登录/壳层/任务中心/汇报中心/组织管理/总览 Dashboard），以及工作流图引擎 **Phase 11** 主干与工作流 E 首批能力。
 
 ## 当前状态
 
 - **已完成**
   - 用户与会话：管理员初始化、JWT access token、HttpOnly refresh cookie 轮换 / logout 撤销、角色控制
   - 组织与 HR：部门树、一人一档、字段级权限、多岗位、虚线汇报、生命周期事件、代理授权
-  - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计、多视图、五主标签任务中心（历史任务并入跟踪视图）
+  - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计；任务中心 **Quick Chips + Master-Detail**（待处理 / 跟踪 / 历史）、列表/看板/甘特视图、页头建立任务 Drawer、全局备忘浮窗、独立 **任务模板** 路由
   - 工作流图引擎重构当前已到 **Phase 11-F**：单节点 dual-write、交付 / 验收 / 返工、接单 / 协商 / 转办、多节点推进、条件边 / Context / Notice、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first 读路径**（默认 `TASK_CENTER_V2_ENABLED=true`）、迁移 CLI 与 Playwright 基线等；详见 `memory-bank/progress.md`
   - 工作流 E 首批：模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚（`all` / `any`）、模板实例快照、结构化设计器首版与已有模板编辑
   - 总览与汇报：总览看板 / 公告 / 当前任务、逐级向上汇报 / 向下传达、历史归档
   - 消息与通知：通知总线、delivery 记录、消息中心、回执、浏览器推送订阅与 Web Push 链路，以及 Step 6 的来源回跳 / 用户级隔离
   - Knowledge / AI：Markdown 知识库、向量检索、`@系统` / `/` 路由、Tool Calling
-  - 前端体验：通用模块 / 特殊模块分组导航、统一人员工作台、消息工作台、设置模块、Push 订阅卡片、PWA manifest / service worker
+  - 前端体验：分组侧栏导航、顶栏 **AI 命令 + 消息铃铛 Drawer + 截止倒计时**、总览 Dashboard 小组件、设置三分栏（资料/安全/通知）、人员宽 Drawer + 部门树 Master-Detail、邀请制登录三场景、Playwright 单元测试与 Docker GUI E2E（18 用例）
 - **仍待补齐**
   - 访客公开自助注册与审批式注册（**邀请制注册**已落地：管理员发邀请链接、受邀人设置密码激活；与「完全无注册能力」不同）
   - 生命周期事件的规则化默认联动与前端结构化配置入口（后端已支持事件上**显式绑定**模板 / 审批目标并由 **worker 异步触发**）
@@ -46,9 +46,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 - 审批流定义、实例、会签 / 或签 / 驳回 / 打回 / 代理审批
 - 列表 / 看板 / 甘特图
 
-当前任务模板的工作流 E 首批已经落地：实例化只会激活当前可执行步骤，后续步骤会随着任务完成自动推进；模板页已提供结构化设计器、JSON 导入、实例运行态快照与已有模板的结构化编辑。下一批重点转向模板 / 调度管理深化、生命周期联动、全量回归与部署收口。
-
-并行推进中的 workflow graph 重构当前代码基线已到 Phase 6：后端已具备图模板实例化、多节点运行态推进、实例详情 / 进度快照与节点完成接口，但任务中心等读取侧仍旧依赖兼容 `Task` 投影，后续将继续推进条件路由、上下文写回与通知型节点。
+工作流 E 首批已落地：模板实例按依赖逐步激活、fan-out / join、结构化设计器与实例快照。图引擎已至 **Phase 11-F**：多节点运行时、条件边、Wait-Any、深度打回、outbox、**任务中心默认 graph-first 读路径**（`TASK_CENTER_V2_ENABLED=true`）。任务中心界面仍以兼容 `Task` 投影展示详情，与图运行时 dual-write 并存。
 
 ### 消息、Push 与 AI
 
@@ -91,7 +89,9 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 - `memory-bank/plans/implementation-plan.md`：从当前代码状态出发的下一步实施路线
 - `memory-bank/progress.md`：已完成事项与验测补记
 - `memory-bank/tech-stack.md`：技术选型与落地状态
+- `memory-bank/handbooks/user-manual.md`：**用户说明书**（当前界面操作指南，v1.1）
 - `memory-bank/handbooks/manual-database-operations.md`：PostgreSQL 手工操作、迁移、整库重置与系统初始化
+- `memory-bank/handbooks/e2e-gui-verification-automation-runbook.md`：Docker + Playwright GUI 自动化验证
 - `infra/docker/E2E-GUI-VERIFICATION.md`：基于 Docker Compose 的端到端（GUI）分层验证清单
 
 ## 快速开始
@@ -364,6 +364,15 @@ npm run build
 npm run lint
 ```
 
+### Docker GUI E2E（需 `infra/docker` 栈运行于 `http://127.0.0.1:8080`）
+
+```sh
+cd frontend
+npm run test:e2e:docker-gui
+```
+
+报告与截图默认写入仓库根目录 `verification-runs/docker-gui-<时间戳>/`。详见 `memory-bank/handbooks/e2e-gui-verification-automation-runbook.md`。
+
 ## 测试组织与 demo 账号
 
 仓库内置了可重复执行的测试数据脚本：
@@ -399,27 +408,33 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 当前主要页面与路由
 
-- `/login`：登录与管理员初始化
-- `/overview`：总览（看板、公告、待办事项、任务跟踪）
-- `/task-center`：任务中心（待办、跟踪、发布、模板、备忘；历史任务并入跟踪视图）
-- `/reports`：汇报中心（待处理、我发起、历史、向上汇报、向下传达）
-- `/messages`：消息中心与 Push 订阅
-- `/knowledge-base`：知识库
-- `/people`：统一人员工作台（管理员 / HR）
-- `/departments`：部门管理（仅管理员）
+| 路径 | 说明 |
+| --- | --- |
+| `/login` | 日常登录 / 邀请激活 / 空库系统初始化（三场景自动切换） |
+| `/overview` | 总览 Dashboard：消息预览、公告/白板、待办与待审汇报、快捷入口 |
+| `/task-center` | 任务中心：`filter=inbox\|tracking\|history`，`view=list\|board\|gantt`，`selected=` 深链 |
+| `/task-templates` | 任务模板管理（管理员 / HR，侧栏「特殊模块」） |
+| `/reports` | 汇报中心：Master-Detail + 撰写汇报 Drawer |
+| `/messages` | 消息全页（侧栏无入口；主入口为顶栏铃铛 Drawer） |
+| `/knowledge-base` | 知识库 |
+| `/settings/profile` · `/security` · `/notifications` | 设置：个人资料、改密、推送/PWA |
+| `/people` | 人员管理（管理员 / HR）：列表 + 宽 Drawer 锚点导航 |
+| `/departments` | 部门管理（仅管理员）：树 + 详情分栏 |
 
-兼容旧入口仍然保留重定向：
+兼容旧书签（自动跳转）：
 
-- `/dashboard` -> `/overview`
-- `/tasks`、`/task-templates` -> `/task-center`
-- `/approvals` -> `/reports`
-- `/users`、`/profiles` -> `/people`
+- `/dashboard` → `/overview`
+- `/tasks` → `/task-center?filter=tracking`
+- `/approvals` → `/reports`
+- `/users`、`/profiles` → `/people`（保留 `tab` 查询参数映射）
+
+操作细节见 [`memory-bank/handbooks/user-manual.md`](memory-bank/handbooks/user-manual.md)。
 
 ## 浏览器推送说明
 
 要收到浏览器通知，需要同时满足：
 
-1. 前端消息页完成 Push 订阅
+1. 在 **设置 → 通知偏好**（或全页 `/messages`）完成 Push 订阅
 2. 登录后前端能从 `/api/v1/push-subscriptions/config` 读取运行时 Web Push 公钥
 3. `backend/.env` 中配置 `WEB_PUSH_PUBLIC_KEY`、`WEB_PUSH_PRIVATE_KEY` 和 `WEB_PUSH_SUBJECT`
 4. worker 正在运行
@@ -442,15 +457,13 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 - **不建设独立聊天系统**
 - Email / WebSocket 适配器当前为最小实现，重点先放在通知总线与 delivery 语义稳定
 - PWA 当前提供安装与 Push 基线，不追求复杂离线编辑
-- 当前重构收口已经完成，并已进入后续增强工作流
+- UI 信息架构 Phase A–F 已交付；消息主入口为顶栏铃铛，非侧栏一级菜单
 
 ## 下一步
 
-当前重构主体已经完成，工作流 E 首批与图引擎 Phase 11 主干已落地；下一轮优先级建议如下：
+1. **Stage 2 Phase 6**：Linux / Ubuntu 上 `scripts/check-release.sh` 全绿与生产部署演练
+2. 工作流 E 与图模板产品级统一、模板 / 调度管理深化
+3. **公开或审批式注册**（邀请制已可用）
+4. 通知适配器真实外部集成与投递观测
 
-1. **Stage 2 Phase 6**：Linux / Ubuntu 近似环境执行 `scripts/check-release.sh` 与生产部署演练，回写 `memory-bank/progress.md` 验收结论
-2. 工作流 E 的回归、部署收口与模板 / 调度管理深化；**工作流 E 与图模板统一化**（若产品需要）
-3. 重构服务边界与页面状态管理
-4. 扩充集成测试 / E2E 验证
-5. **公开或审批式注册**（邀请制已可用）
-6. 通知适配器真实外部集成与观测（条件路由 / Context / Notice 等已在图引擎与任务链路落地，见 `memory-bank/architecture.md` §6.13B）
+进度与验测记录见 [`memory-bank/progress.md`](memory-bank/progress.md)。

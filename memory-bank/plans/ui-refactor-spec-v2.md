@@ -1,7 +1,7 @@
 # UI 重构实施规格 v2（前端）
 
-**状态**：草案 · 待排期  
-**依据**：[`handbooks/user-manual.md`](../handbooks/user-manual.md) 各章「审阅批注区」及 IA-0 走读结论  
+**状态**：已交付（Phase A–F，2026-05）  
+**依据**：[`handbooks/user-manual.md`](../handbooks/user-manual.md) v1.1（与当前界面对齐）  
 **上位规划**：[`ui-information-architecture-plan.md`](./ui-information-architecture-plan.md)（本文件为其 v2 细化版，取代原 §3 分期表的粗粒度描述）  
 **事实来源**：[`frontend/src/router/index.ts`](../../frontend/src/router/index.ts)、各 `views/`、`AppShell.vue`、Playwright E2E
 

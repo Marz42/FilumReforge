@@ -32,3 +32,6 @@ class ObjectStorageService:
       object_key=object_key,
       expires_in_seconds=expires_in_seconds,
     )
+
+  async def read_object(self, *, object_key: str) -> bytes:
+    return await self._adapter.read_object(object_key=object_key)
