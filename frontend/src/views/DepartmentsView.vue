@@ -18,6 +18,7 @@ import { getErrorMessage } from '@/utils/errors'
 
 const loading = ref(false)
 const submitting = ref(false)
+const isCreatingDepartment = ref(false)
 const selectedDepartmentId = ref('')
 const departments = ref<Department[]>([])
 const departmentTree = ref<DepartmentTreeNode[]>([])
@@ -55,7 +56,7 @@ async function loadData(): Promise<void> {
     users.value = userList
     people.value = workspace?.people ?? []
 
-    if (!selectedDepartmentId.value && departmentList.length > 0) {
+    if (!selectedDepartmentId.value && !isCreatingDepartment.value && departmentList.length > 0) {
       selectDepartment(departmentList[0]!.id)
     } else if (selectedDepartmentId.value) {
       hydrateForm(selectedDepartmentId.value)
@@ -92,19 +93,37 @@ function hydrateForm(departmentId: string): void {
 }
 
 function selectDepartment(departmentId: string): void {
+  isCreatingDepartment.value = false
   selectedDepartmentId.value = departmentId
   hydrateForm(departmentId)
 }
 
 function openCreateRootDialog(): void {
+  isCreatingDepartment.value = true
   selectedDepartmentId.value = ''
   resetForm('')
 }
 
 function openCreateChildDialog(parentId: string): void {
+  isCreatingDepartment.value = true
   selectedDepartmentId.value = ''
   resetForm(parentId)
 }
+
+function cancelCreateDepartment(): void {
+  isCreatingDepartment.value = false
+  if (!selectedDepartmentId.value && departments.value.length > 0) {
+    selectDepartment(departments.value[0]!.id)
+  }
+}
+
+const createModeTitle = computed(() => {
+  if (!form.parent_id) {
+    return '新建根部门'
+  }
+  const parent = departments.value.find((department) => department.id === form.parent_id)
+  return parent ? `新建子部门（上级：${parent.name}）` : '新建子部门'
+})
 
 async function handleSubmit(): Promise<void> {
   submitting.value = true
@@ -129,6 +148,7 @@ async function handleSubmit(): Promise<void> {
         sort_order: form.sort_order,
       })
       ElMessage.success('部门已创建')
+      isCreatingDepartment.value = false
       selectedDepartmentId.value = created.id
     }
 
@@ -208,6 +228,8 @@ onMounted(() => {
 
         <DepartmentDetailPanel
           :department="selectedDepartment"
+          :is-creating="isCreatingDepartment"
+          :create-mode-title="createModeTitle"
           :departments="departments"
           :users="users"
           :subordinates="subordinatePeople"
@@ -216,6 +238,7 @@ onMounted(() => {
           :is-editing-root-department="isEditingRootDepartment"
           @submit="handleSubmit"
           @delete="handleDelete"
+          @cancel-create="cancelCreateDepartment"
         />
       </div>
     </el-card>

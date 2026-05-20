@@ -176,6 +176,24 @@ describe('Departments view', () => {
     })
   })
 
+  it('shows create form when clicking 新建根部门', async () => {
+    const wrapper = mount(DepartmentsView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="departments-form-submit"]').text()).toContain('保存部门')
+
+    await wrapper.find('[data-testid="departments-create-root"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="departments-form-submit"]').text()).toContain('创建部门')
+    expect(wrapper.text()).toContain('新建根部门')
+  })
+
   it('creates and deletes a non-root department', async () => {
     vi.mocked(createDepartment).mockResolvedValue(mockDepartments[1]!)
 
