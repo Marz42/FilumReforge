@@ -62,13 +62,49 @@ function runSeedFromHost(): string {
 
 async function login(page: import('@playwright/test').Page, email: string, password: string): Promise<void> {
   await page.goto('/login')
+  await page.waitForSelector('[data-testid="login-form"]', { timeout: 30_000 })
   await page.getByTestId('login-email').locator('input').fill(email)
   await page.getByTestId('login-password').locator('input').fill(password)
-  await page.getByTestId('login-submit').click()
+  const [loginResp] = await Promise.all([
+    page.waitForResponse(
+      (r) => /\/api\/v1\/auth\/login\b/.test(r.url()) && r.request().method() === 'POST',
+      { timeout: 45_000 },
+    ),
+    page.getByTestId('login-submit').click(),
+  ])
+  expect(loginResp.ok(), `login HTTP ${loginResp.status()}`).toBeTruthy()
   await expect(page).toHaveURL(/\/(overview|task-center)/, { timeout: 45_000 })
 }
 
+/** 经侧栏进入任务中心，等待聚合快照返回 */
+async function navigateTaskCenter(page: import('@playwright/test').Page): Promise<void> {
+  const snapshotResp = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'GET' &&
+      /\/api\/v1\/task-center\b/.test(r.url()) &&
+      !r.url().includes('/task-center/memos'),
+    { timeout: 45_000 },
+  )
+  await page.locator('.app-shell__aside').getByText('任务中心', { exact: true }).click()
+  await expect(page).toHaveURL(/\/task-center/, { timeout: 15_000 })
+  const snapGet = await snapshotResp
+  expect(snapGet.ok(), `GET task-center → HTTP ${snapGet.status()}`).toBeTruthy()
+  await page.waitForSelector('[data-testid="task-center-view"]', { timeout: 25_000 })
+}
+
+async function dismissOpenOverlays(page: import('@playwright/test').Page): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const drawer = page.locator('.el-overlay.is-drawer')
+    if ((await drawer.count()) === 0) {
+      return
+    }
+    await page.keyboard.press('Escape')
+    await drawer.first().waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => undefined)
+  }
+}
+
 async function logout(page: import('@playwright/test').Page): Promise<void> {
+  await dismissOpenOverlays(page)
   await page.getByText('退出登录', { exact: true }).first().click({ timeout: 15_000 })
   await expect(page).toHaveURL(/\/login/, { timeout: 20_000 })
 }
@@ -95,6 +131,31 @@ async function navigateReportCenterTab(page: import('@playwright/test').Page, ta
   if (chipTestId) {
     await page.getByTestId(chipTestId).click()
   }
+}
+
+/** 在撰写汇报抽屉中选择收件人（teleported el-select） */
+async function selectComposeRecipient(page: import('@playwright/test').Page, labelFragment: string): Promise<void> {
+  await page.getByTestId('reports-compose-recipient').locator('.el-select').click()
+  const popper = page.locator('.reports-compose-drawer-select-popper:visible')
+  const option = popper.locator('.el-select-dropdown__item').filter({ hasText: labelFragment }).first()
+  await expect(option).toBeVisible({ timeout: 15_000 })
+  await option.click()
+  await popper.waitFor({ state: 'hidden', timeout: 5_000 }).catch(async () => {
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+  })
+  await expect(page.locator('.reports-compose-drawer-select-popper:visible')).toHaveCount(0, { timeout: 5_000 })
+}
+
+async function fillComposeForm(
+  page: import('@playwright/test').Page,
+  title: string,
+  content: string,
+): Promise<void> {
+  const drawer = page.getByTestId('reports-compose-drawer')
+  await expect(drawer.getByTestId('reports-compose-form')).toBeVisible({ timeout: 15_000 })
+  await drawer.getByTestId('reports-compose-title').fill(title)
+  await drawer.getByTestId('reports-compose-content').fill(content)
 }
 
 test.describe.configure({ mode: 'serial' })
@@ -169,14 +230,13 @@ test('登录页与初始化管理员（空库）', async ({ page }) => {
   await page.screenshot({ path: shot('01-login-page.png'), fullPage: true })
   row({ id: 'A-ui-1', section: 'A 环境', result: 'PASS', note: '登录页 01-login-page.png' })
 
-  const bootstrapTab = page.getByRole('tab', { name: '初始化管理员' })
+  const bootstrapWizard = page.getByTestId('bootstrap-wizard')
 
   const bootstrapEmail = process.env.GUI_BOOTSTRAP_EMAIL ?? 'admin@example.com'
   const bootstrapPassword = process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
 
   if (needBootstrap) {
-    await expect(bootstrapTab).toBeVisible({ timeout: 10_000 })
-    await bootstrapTab.click()
+    await expect(bootstrapWizard).toBeVisible({ timeout: 15_000 })
     await page.screenshot({ path: shot('02-bootstrap-tab.png'), fullPage: true })
     await page.getByTestId('bootstrap-email').locator('input').fill(bootstrapEmail)
     await page.getByTestId('bootstrap-password').locator('input').fill(bootstrapPassword)
@@ -193,7 +253,7 @@ test('登录页与初始化管理员（空库）', async ({ page }) => {
       note: `已执行初始化管理员 → ${bootstrapEmail}，见 02/03 截图`,
     })
   } else {
-    await page.getByRole('tab', { name: '登录系统' }).click()
+    await page.waitForSelector('[data-testid="login-form"]', { timeout: 30_000 })
     await page.getByTestId('login-email').locator('input').fill(bootstrapEmail)
     await page.getByTestId('login-password').locator('input').fill(bootstrapPassword)
     const [loginResp] = await Promise.all([
@@ -248,6 +308,7 @@ test('A6: seed_sample_data（宿主 Docker）', async () => {
 })
 
 test('L0: 部门管理入口（管理员）', async ({ page }) => {
+  test.setTimeout(120_000)
   const bootstrapEmail = process.env.GUI_BOOTSTRAP_EMAIL ?? 'admin@example.com'
   const bootstrapPassword = process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
 
@@ -267,8 +328,16 @@ test('L0: 部门管理入口（管理员）', async ({ page }) => {
   await expect(page.getByTestId('departments-detail-panel')).toBeVisible()
   await page.screenshot({ path: shot('05-admin-departments.png'), fullPage: true })
 
-  await page.goto('/people')
-  await page.locator('.people-workspace tbody tr').first().click()
+  await Promise.all([
+    page.waitForResponse(
+      (r) => /\/api\/v1\/people-management\b/.test(r.url()) && r.request().method() === 'GET' && r.ok(),
+      { timeout: 45_000 },
+    ),
+    page.goto('/people'),
+  ])
+  const peopleRow = page.locator('.people-workspace .el-table__body tr.el-table__row').first()
+  await expect(peopleRow).toBeVisible({ timeout: 30_000 })
+  await peopleRow.click()
   await expect(page.getByTestId('people-detail-drawer')).toBeVisible({ timeout: 15_000 })
   await page.screenshot({ path: shot('06-admin-people-drawer.png'), fullPage: true })
 
@@ -290,8 +359,7 @@ test('L1-HR: 无部门管理；/departments → overview', async ({ page }) => {
   row({ id: 'B-L1-nav', section: 'B 权限', result: 'PASS', note: 'HR 无部门管理菜单' })
 
   await page.goto('/departments')
-  await page.waitForTimeout(800)
-  expect(page.url()).toMatch(/\/overview/)
+  await expect(page).toHaveURL(/\/overview/, { timeout: 15_000 })
   await page.screenshot({ path: shot('06-hr-dept-redirect.png'), fullPage: true })
   row({ id: 'B-L1-dept', section: 'B 权限', result: 'PASS', note: '/departments 重定向 overview' })
   await logout(page)
@@ -306,8 +374,7 @@ test('L4: 无人员/部门菜单；/people → overview', async ({ page }) => {
   row({ id: 'B-L4-nav', section: 'B 权限', result: 'PASS', note: '工程师无管理菜单' })
 
   await page.goto('/people')
-  await page.waitForTimeout(800)
-  expect(page.url()).toMatch(/\/overview/)
+  await expect(page).toHaveURL(/\/overview/, { timeout: 15_000 })
   await page.screenshot({ path: shot('08-engineer-people-redirect.png'), fullPage: true })
   row({ id: 'B-L4-people', section: 'B 权限', result: 'PASS', note: '/people 重定向 overview' })
   await logout(page)
@@ -353,7 +420,9 @@ test.describe('C1 任务全链路 + 消息', () => {
     await login(page, 'demo.engineer.a@example.com', demoPassword)
     await page.goto('/task-center')
     await page.waitForSelector('[data-testid="task-center-view"]', { timeout: 25_000 })
-    await expect(page.getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({ timeout: 30_000 })
+    await expect(
+      page.getByTestId('task-center-master-table').getByText(`[E2E-T1-${flowTag}]`, { exact: false }),
+    ).toBeVisible({ timeout: 30_000 })
     await page.screenshot({ path: shot('12-c1-l4-inbox.png'), fullPage: true })
     row({ id: 'C1-2', section: 'C1 任务', result: 'PASS', note: 'L4 待办含新建任务 12' })
     await logout(page)
@@ -380,10 +449,13 @@ test.describe('C1 任务全链路 + 消息', () => {
     await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
     const detailPanel = page.getByTestId('tasks-detail-panel')
-    await expect(detailPanel.getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({
+    await expect(detailPanel.getByText(`[E2E-T1-${flowTag}]`, { exact: false }).first()).toBeVisible({
       timeout: 25_000,
     })
-    const chooseAttachment = detailPanel.getByRole('button', { name: '选择附件' })
+    const chooseAttachment = detailPanel
+      .getByTestId('tasks-attachment-upload')
+      .getByRole('button', { name: '选择附件' })
+      .first()
     await expect(chooseAttachment).toBeVisible({ timeout: 30_000 })
     const [fileChooser] = await Promise.all([
       page.waitForEvent('filechooser'),
@@ -419,7 +491,9 @@ test.describe('C1 任务全链路 + 消息', () => {
     await page.waitForTimeout(1500)
     await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
-    await expect(page.locator('[data-testid="tasks-detail-panel"]').getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({
+    await expect(
+      page.locator('[data-testid="tasks-detail-panel"]').getByText(`[E2E-T1-${flowTag}]`, { exact: false }).first(),
+    ).toBeVisible({
       timeout: 25_000,
     })
     await page.screenshot({ path: shot('13-c1-l4-detail-todo.png'), fullPage: true })
@@ -463,12 +537,20 @@ test.describe('C1 任务全链路 + 消息', () => {
   test('C1.4 L3 验收通过', async ({ page }) => {
     const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
     await login(page, 'demo.platform.lead@example.com', demoPassword)
-    await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
+    await navigateTaskCenter(page)
+    await page.getByTestId('task-filter-inbox').click()
+    const taskTitle = `[E2E-T1-${flowTag}]`
+    let taskRow = page.getByTestId('task-center-master-table').getByText(taskTitle, { exact: false }).first()
+    if (!(await taskRow.isVisible().catch(() => false))) {
+      await page.getByTestId('task-filter-tracking').click()
+      taskRow = page.getByTestId('task-center-master-table').getByText(taskTitle, { exact: false }).first()
+    }
+    await expect(taskRow).toBeVisible({ timeout: 30_000 })
+    await taskRow.click()
     await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
-    await page.waitForTimeout(1500)
-    await page.goto(`/task-center?filter=tracking&selected=${flowTaskId}`)
-    await page.waitForSelector('[data-testid="tasks-detail-panel"]', { timeout: 30_000 })
-    await expect(page.locator('[data-testid="tasks-detail-panel"]').getByText(`[E2E-T1-${flowTag}]`, { exact: false })).toBeVisible({
+    await expect(
+      page.locator('[data-testid="tasks-detail-panel"]').getByText(`[E2E-T1-${flowTag}]`, { exact: false }).first(),
+    ).toBeVisible({
       timeout: 25_000,
     })
     await expect(page.getByRole('button', { name: '验收通过' })).toBeVisible({ timeout: 25_000 })
@@ -493,8 +575,7 @@ test.describe('C1 任务全链路 + 消息', () => {
     const demoPassword = process.env.GUI_DEMO_PASSWORD ?? process.env.GUI_BOOTSTRAP_PASSWORD ?? 'FilumTest123!'
     const title = `[E2E-XDEPT-${flowTag}]`
     await login(page, 'demo.tech.director@example.com', demoPassword)
-    await page.goto('/task-center')
-    await page.waitForSelector('[data-testid="task-center-view"]', { timeout: 25_000 })
+    await navigateTaskCenter(page)
     const canPublish = await page.getByTestId('task-center-create-task').isEnabled().catch(() => false)
     await page.screenshot({ path: shot('18-c1-l2-task-center.png'), fullPage: true })
     if (!canPublish) {
@@ -530,8 +611,7 @@ test.describe('C1 任务全链路 + 消息', () => {
     await page.screenshot({ path: shot('19-c1-l2-after-xdept-create.png'), fullPage: true })
     await logout(page)
     await login(page, 'demo.success@example.com', demoPassword)
-    await page.goto('/task-center')
-    await page.waitForSelector('[data-testid="task-center-view"]', { timeout: 25_000 })
+    await navigateTaskCenter(page)
     await expect(page.getByText(title, { exact: false })).toBeVisible({ timeout: 30_000 })
     await page.screenshot({ path: shot('20-c1-success-inbox.png'), fullPage: true })
     row({ id: 'C1-5', section: 'C1 任务', result: 'PASS', note: 'L2 建跨部门任务 + 客户成功待办 18–20' })
@@ -591,10 +671,8 @@ test.describe('C2 汇报多级', () => {
       await logout(page)
       return
     }
-    await recipientSelect.click()
-    await page.locator('.el-select-dropdown__item').filter({ hasText: '高原' }).first().click()
-    await drawer.getByTestId('reports-compose-title').locator('input').fill(title)
-    await drawer.getByTestId('reports-compose-content').locator('textarea').fill('E2E 多级汇报正文\n\n- 项 1\n- 项 2')
+    await selectComposeRecipient(page, '上级 - 高原')
+    await fillComposeForm(page, title, 'E2E 多级汇报正文\n\n- 项 1\n- 项 2')
     await page.screenshot({ path: shot('23-c2-l4-upward-form.png'), fullPage: true })
     await Promise.all([
       page.waitForResponse(
@@ -711,10 +789,8 @@ test.describe('C3 向下传达（探测式）', () => {
       await logout(page)
       return
     }
-    await recipientSelect.click()
-    await page.locator('.el-select-dropdown__item').filter({ hasText: '向下' }).first().click()
-    await drawer.getByTestId('reports-compose-title').locator('input').fill(title)
-    await drawer.getByTestId('reports-compose-content').locator('textarea').fill('E2E 向下传达正文')
+    await selectComposeRecipient(page, '(向下)')
+    await fillComposeForm(page, title, 'E2E 向下传达正文')
     if (fs.existsSync(fixturePng)) {
       await drawer.getByTestId('reports-compose-upload').locator('input[type="file"]').setInputFiles(fixturePng)
       await page.waitForResponse(

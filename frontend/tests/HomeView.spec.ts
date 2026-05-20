@@ -234,4 +234,24 @@ describe('Home view', () => {
     expect(getReportCenterSnapshot).toHaveBeenCalled()
     wrapper.unmount()
   })
+
+  it('still renders todo widget when report center loading fails', async () => {
+    vi.mocked(getReportCenterSnapshot).mockRejectedValue(new Error('report center unavailable'))
+
+    const router = await createTestRouter()
+    const wrapper = mount(HomeView, {
+      attachTo: document.body,
+      global: {
+        plugins: [ElementPlus, router],
+      },
+    })
+
+    await flushPromises()
+
+    expect(getOverview).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="overview-widget-todos"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('补齐总览首页')
+    expect(wrapper.text()).not.toContain('周报提交')
+    wrapper.unmount()
+  })
 })
