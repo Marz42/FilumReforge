@@ -166,6 +166,7 @@ class TaskMemo(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     ForeignKey("tasks.id", name="fk_task_memos_related_task", ondelete="SET NULL"),
     nullable=True,
   )
+  title: Mapped[str | None] = mapped_column(String(200), nullable=True)
   content: Mapped[str] = mapped_column(Text, nullable=False)
   is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

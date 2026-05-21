@@ -4,6 +4,7 @@ import { ElMessage, type UploadFile } from 'element-plus'
 
 import { listAttachments, uploadAttachment } from '@/api/attachments'
 import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
+import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import { listDepartments } from '@/api/departments'
 import { acceptTaskAssignment,
@@ -16,6 +17,7 @@ import { acceptTaskAssignment,
   listTaskActivity,
   listTaskBoard,
   listTaskGantt,
+  getTask,
   listTasks,
   listTaskWatchers,
   rejectTaskAssignment,
@@ -542,7 +544,20 @@ function resetDeliverableForm(): void {
   deliverableForm.summary = ''
 }
 
+async function ensureTaskInList(taskId: string): Promise<void> {
+  if (tasks.value.some((task) => task.id === taskId)) {
+    return
+  }
+  try {
+    const task = await getTask(taskId)
+    tasks.value = [task, ...tasks.value.filter((item) => item.id !== task.id)]
+  } catch {
+    // ignore — detail loaders will surface errors
+  }
+}
+
 async function loadSelectedTaskDetails(taskId: string): Promise<void> {
+  await ensureTaskInList(taskId)
   const [attachments, activity, watchers] = await Promise.all([
     listAttachments({
       target_type: 'task',
@@ -576,6 +591,34 @@ async function loadData(): Promise<void> {
   loading.value = true
 
   try {
+    if (props.detailOnly) {
+      tasks.value = []
+      taskBoard.value = []
+      taskGantt.value = []
+      departments.value = []
+      statsSummary.value = null
+      workloadRows.value = []
+
+      if (authStore.isManagementRole) {
+        users.value = await listUsers()
+      } else if (authStore.user) {
+        users.value = [authStore.user]
+      }
+
+      const preferredTaskId = props.initialSelectedTaskId?.trim()
+      if (preferredTaskId) {
+        selectedTaskId.value = preferredTaskId
+        await loadSelectedTaskDetails(preferredTaskId)
+      } else {
+        selectedTaskId.value = ''
+        taskAttachments.value = []
+        taskActivity.value = []
+        taskWatchers.value = []
+        graphInstance.value = null
+      }
+      return
+    }
+
     const [taskList, boardColumns, ganttEntries, departmentList, summary, workload] = await Promise.all([
       listTasks(),
       listTaskBoard(),
@@ -983,9 +1026,6 @@ watch(
       }
       return
     }
-    if (!tasks.value.some((task) => task.id === nextTaskId)) {
-      return
-    }
     selectedTaskId.value = nextTaskId
     await loadSelectedTaskDetails(nextTaskId)
   },
@@ -1269,6 +1309,12 @@ watch(
               </div>
             </div>
           </template>
+
+          <el-empty
+            v-if="props.detailOnly && !selectedTask"
+            description="请从左侧选择任务"
+            data-testid="tasks-detail-empty"
+          />
 
           <template v-if="selectedTask">
             <el-descriptions :column="1" border>
@@ -1636,12 +1682,7 @@ watch(
           </el-select>
         </el-form-item>
         <el-form-item label="截止时间">
-          <el-date-picker
-            v-model="form.due_date"
-            type="datetime"
-            placeholder="可选"
-            class="page__date-picker"
-          />
+          <FilumDateTimePicker v-model="form.due_date" class="page__date-picker" />
         </el-form-item>
       </el-form>
 

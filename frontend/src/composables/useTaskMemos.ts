@@ -5,13 +5,28 @@ import { createTaskMemo, deleteTaskMemo, getTaskCenterSnapshot, updateTaskMemo }
 import type { TaskCenterSnapshot, TaskMemo } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 
+export function memoDisplayTitle(memo: Pick<TaskMemo, 'title'>): string {
+  const trimmed = memo.title?.trim()
+  return trimmed ? trimmed : '无标题'
+}
+
+export function memoContentExcerpt(content: string, maxLength = 80): string {
+  const normalized = content.replace(/\s+/g, ' ').trim()
+  if (normalized.length <= maxLength) {
+    return normalized
+  }
+  return `${normalized.slice(0, maxLength)}…`
+}
+
 export function useTaskMemos() {
   const loading = ref(false)
   const submitting = ref(false)
+  const createDialogVisible = ref(false)
   const snapshot = ref<TaskCenterSnapshot | null>(null)
 
   const form = reactive({
     memo_id: '',
+    title: '',
     content: '',
     related_task_id: '',
     is_pinned: false,
@@ -44,9 +59,29 @@ export function useTaskMemos() {
 
   function resetForm(): void {
     form.memo_id = ''
+    form.title = ''
     form.content = ''
     form.related_task_id = ''
     form.is_pinned = false
+  }
+
+  function openCreateDialog(): void {
+    resetForm()
+    createDialogVisible.value = true
+  }
+
+  function openEditDialog(memo: TaskMemo): void {
+    form.memo_id = memo.id
+    form.title = memo.title ?? ''
+    form.content = memo.content
+    form.related_task_id = memo.related_task_id ?? ''
+    form.is_pinned = memo.is_pinned
+    createDialogVisible.value = true
+  }
+
+  function closeCreateDialog(): void {
+    createDialogVisible.value = false
+    resetForm()
   }
 
   async function refreshMemos(): Promise<void> {
@@ -60,23 +95,19 @@ export function useTaskMemos() {
     }
   }
 
-  function startEdit(memo: TaskMemo): void {
-    form.memo_id = memo.id
-    form.content = memo.content
-    form.related_task_id = memo.related_task_id ?? ''
-    form.is_pinned = memo.is_pinned
-  }
-
   async function submitMemo(): Promise<void> {
     if (!form.content.trim()) {
       ElMessage.warning('请输入备忘内容')
       return
     }
 
+    const title = form.title.trim() || null
+
     submitting.value = true
     try {
       if (form.memo_id) {
         await updateTaskMemo(form.memo_id, {
+          title,
           content: form.content.trim(),
           related_task_id: form.related_task_id || null,
           is_pinned: form.is_pinned,
@@ -84,13 +115,14 @@ export function useTaskMemos() {
         ElMessage.success('备忘已更新')
       } else {
         await createTaskMemo({
+          title,
           content: form.content.trim(),
           related_task_id: form.related_task_id || null,
           is_pinned: form.is_pinned,
         })
         ElMessage.success('备忘已创建')
       }
-      resetForm()
+      closeCreateDialog()
       await refreshMemos()
     } catch (error) {
       ElMessage.error(getErrorMessage(error))
@@ -106,7 +138,7 @@ export function useTaskMemos() {
       })
       await deleteTaskMemo(memo.id)
       if (form.memo_id === memo.id) {
-        resetForm()
+        closeCreateDialog()
       }
       ElMessage.success('备忘已删除')
       await refreshMemos()
@@ -124,13 +156,16 @@ export function useTaskMemos() {
   return {
     loading,
     submitting,
+    createDialogVisible,
     form,
     pinnedMemos,
     regularMemos,
     taskOptions,
     resetForm,
     refreshMemos,
-    startEdit,
+    openCreateDialog,
+    openEditDialog,
+    closeCreateDialog,
     submitMemo,
     removeMemo,
   }

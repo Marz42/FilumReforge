@@ -17,6 +17,7 @@ vi.mock('@/api/attachments', () => ({
 vi.mock('@/api/tasks', () => ({
   createTask: vi.fn(),
   createTaskComment: vi.fn(),
+  searchTasks: vi.fn(),
 }))
 
 const route = reactive({
@@ -153,14 +154,16 @@ describe('TaskCenter view', () => {
 
     expect(wrapper.find('[data-testid="task-center-view"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="task-center-create-task"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="task-center-filter-cards"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="task-filter-inbox"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="task-center-inbox-panel"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('整理四月周报')
     expect(wrapper.find('[data-testid="tasks-detail-stub"]').exists()).toBe(true)
   })
 
-  it('renders stable selectors for the task creation drawer', async () => {
+  it('renders stable selectors for the task creation dialog', async () => {
     const wrapper = mount(TaskCenterView, {
+      attachTo: document.body,
       global: {
         plugins: [ElementPlus],
         stubs: {
@@ -174,11 +177,13 @@ describe('TaskCenter view', () => {
     await wrapper.find('[data-testid="task-center-create-task"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="task-center-task-title"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="task-center-task-department"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="task-center-task-assignee"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="task-center-task-attachments"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="task-center-task-submit"]').exists()).toBe(true)
+    expect(document.querySelector('[data-testid="task-center-task-dialog"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="task-center-task-title"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="task-center-task-department"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="task-center-task-assignee"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="task-center-task-attachments"]')).not.toBeNull()
+    expect(document.querySelector('[data-testid="task-center-task-submit"]')).not.toBeNull()
+    wrapper.unmount()
   })
 
   it('filters assignee options by selected department', async () => {
@@ -359,6 +364,60 @@ describe('TaskCenter view', () => {
 
     expect(wrapper.text()).toContain('逾期任务示例')
     expect(wrapper.text()).toContain('已逾期')
+  })
+
+  it('clears invalid selected query when inbox is empty', async () => {
+    vi.mocked(getTaskCenterSnapshot).mockResolvedValue({
+      ...mockSnapshot,
+      task_inbox: [],
+      task_tracking: [],
+      task_history: [],
+    })
+    route.query = { filter: 'inbox', selected: 'missing-task' }
+
+    mount(TaskCenterView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          TasksView: {
+            props: ['initialSelectedTaskId'],
+            template: '<div data-testid="tasks-detail-stub">{{ initialSelectedTaskId }}</div>',
+          },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(replace).toHaveBeenCalledWith({
+      name: 'task-center',
+      query: undefined,
+    })
+  })
+
+  it('does not pass selected id to detail when master list is empty', async () => {
+    vi.mocked(getTaskCenterSnapshot).mockResolvedValue({
+      ...mockSnapshot,
+      task_inbox: [],
+      task_tracking: [],
+      task_history: [],
+    })
+
+    const wrapper = mount(TaskCenterView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          TasksView: {
+            props: ['initialSelectedTaskId'],
+            template: '<div data-testid="tasks-detail-stub">{{ initialSelectedTaskId || "empty" }}</div>',
+          },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="tasks-detail-stub"]').text()).toBe('empty')
   })
 
   it('calls createTaskComment when nudge button is clicked', async () => {

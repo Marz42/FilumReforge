@@ -1662,18 +1662,23 @@ async def test_step3_task_center_permissions_history_and_memos(db_session) -> No
 
   memo = await task_memo_service.create_memo(
     actor=employee,
+    title="  周报备忘  ",
     content="完成后同步到周报。",
     related_task_id=created_task.id,
     is_pinned=True,
   )
+  assert memo.title == "周报备忘"
+
   updated_memo = await task_memo_service.update_memo(
     actor=employee,
     memo_id=memo.id,
+    title="",
     content="完成后同步到周报和群公告。",
   )
   memos = await task_memo_service.list_memos(actor=employee)
 
   assert updated_memo.related_task_id == created_task.id
+  assert updated_memo.title is None
   assert memos[0].content == "完成后同步到周报和群公告。"
 
 

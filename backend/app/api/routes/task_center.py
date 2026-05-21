@@ -44,6 +44,7 @@ def _build_task_memo_read(memo: TaskMemo) -> TaskMemoRead:
     id=memo.id,
     owner_user_id=memo.owner_user_id,
     related_task_id=memo.related_task_id,
+    title=memo.title,
     content=memo.content,
     is_pinned=memo.is_pinned,
     created_at=memo.created_at,
@@ -144,6 +145,7 @@ async def create_task_memo(
 ) -> TaskMemoRead:
   memo = await task_memo_service.create_memo(
     actor=actor,
+    title=payload.title,
     content=payload.content,
     related_task_id=payload.related_task_id,
     is_pinned=payload.is_pinned,
@@ -161,6 +163,7 @@ async def update_task_memo(
   memo = await task_memo_service.update_memo(
     actor=actor,
     memo_id=memo_id,
+    title=payload.title if "title" in payload.model_fields_set else UNSET,
     content=payload.content,
     related_task_id=payload.related_task_id if "related_task_id" in payload.model_fields_set else UNSET,
     is_pinned=payload.is_pinned,

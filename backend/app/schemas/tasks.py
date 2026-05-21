@@ -11,6 +11,18 @@ from app.core.enums import CommentFormat, TaskActionType, TaskPriority, TaskSour
 from app.schemas.attachments import AttachmentRead
 
 
+class TaskSearchResultRead(BaseModel):
+  id: UUID
+  title: str
+  description: str | None
+  status: TaskStatus
+  priority: TaskPriority
+  department_id: UUID | None
+  department_name: str | None = None
+  assignee_id: UUID
+  updated_at: datetime
+
+
 class TaskRead(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 

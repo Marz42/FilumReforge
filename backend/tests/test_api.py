@@ -911,6 +911,15 @@ async def test_department_profile_task_and_attachment_api_flow(api_client) -> No
   assert tasks_response.status_code == 200
   assert len(tasks_response.json()) == 1
 
+  search_response = await client.get(
+    "/api/v1/tasks/search",
+    headers=headers,
+    params={"q": "基础模块"},
+  )
+  assert search_response.status_code == 200
+  assert len(search_response.json()) == 1
+  assert search_response.json()[0]["title"] == "完成基础模块开发"
+
   tree_response = await client.get("/api/v1/departments/tree", headers=headers)
   assert tree_response.status_code == 200
   root_node = next(item for item in tree_response.json() if item["code"] == "root")
@@ -2924,6 +2933,7 @@ async def test_task_center_api_supports_snapshot_and_memos(api_client) -> None:
     "/api/v1/task-center/memos",
     headers=employee_headers,
     json={
+      "title": "周报备忘",
       "content": "完成后同步到团队周报。",
       "related_task_id": task_id,
       "is_pinned": True,
@@ -2931,6 +2941,7 @@ async def test_task_center_api_supports_snapshot_and_memos(api_client) -> None:
   )
   assert memo_response.status_code == 201
   memo_id = memo_response.json()["id"]
+  assert memo_response.json()["title"] == "周报备忘"
 
   snapshot_response = await client.get("/api/v1/task-center", headers=employee_headers)
   assert snapshot_response.status_code == 200

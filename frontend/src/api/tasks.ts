@@ -56,6 +56,30 @@ export async function listTasks(): Promise<Task[]> {
   return data
 }
 
+export async function getTask(taskId: string): Promise<Task> {
+  const { data } = await http.get<Task>(`/tasks/${taskId}`)
+  return data
+}
+
+export interface TaskSearchResult {
+  id: string
+  title: string
+  description: string | null
+  status: TaskStatus
+  priority: TaskPriority
+  department_id: string | null
+  department_name: string | null
+  assignee_id: string
+  updated_at: string
+}
+
+export async function searchTasks(query: string, limit = 30): Promise<TaskSearchResult[]> {
+  const { data } = await http.get<TaskSearchResult[]>('/tasks/search', {
+    params: { q: query, limit },
+  })
+  return data
+}
+
 export async function listTaskBoard(): Promise<TaskBoardColumn[]> {
   const { data } = await http.get<TaskBoardColumn[]>('/tasks/views/board')
   return data

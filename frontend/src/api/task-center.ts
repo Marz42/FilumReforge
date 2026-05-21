@@ -3,12 +3,14 @@ import type { TaskCenterSnapshot, TaskMemo } from '@/types/api'
 import { http } from './http'
 
 export interface CreateTaskMemoPayload {
+  title?: string | null
   content: string
   related_task_id?: string | null
   is_pinned?: boolean
 }
 
 export interface UpdateTaskMemoPayload {
+  title?: string | null
   content?: string
   related_task_id?: string | null
   is_pinned?: boolean

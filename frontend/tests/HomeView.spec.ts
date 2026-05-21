@@ -195,7 +195,7 @@ describe('Home view', () => {
     return router
   }
 
-  it('renders overview widgets and quick links', async () => {
+  it('renders overview widgets without quick links', async () => {
     const router = await createTestRouter()
     const wrapper = mount(HomeView, {
       attachTo: document.body,
@@ -213,9 +213,21 @@ describe('Home view', () => {
     expect(wrapper.find('[data-testid="overview-widget-announcement-board"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="overview-widget-todos"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('补齐总览首页')
+    const todoWidget = wrapper.find('[data-testid="overview-widget-todos"]')
+    expect(todoWidget.find('[data-testid="overview-todo-task-list"]').exists()).toBe(true)
+    expect(todoWidget.find('.overview-widget__item').exists()).toBe(false)
+
+    const reportPaneButton = wrapper
+      .findAll('[data-testid="overview-todo-pane-switch"] .el-radio-button')
+      .find((node) => node.text().includes('汇报'))
+    expect(reportPaneButton).toBeDefined()
+    await reportPaneButton!.trigger('click')
+    await flushPromises()
+
     expect(wrapper.text()).toContain('周报提交')
     expect(wrapper.text()).toContain('办公区维护通知')
-    expect(wrapper.text()).toContain('快捷入口')
+    expect(wrapper.text()).not.toContain('快捷入口')
+    expect(wrapper.find('[data-testid="overview-todo-pane-switch"]').exists()).toBe(true)
     wrapper.unmount()
   })
 

@@ -391,7 +391,7 @@ test.describe('C1 任务全链路 + 消息', () => {
     await page.waitForSelector('[data-testid="task-center-view"]', { timeout: 25_000 })
     await page.screenshot({ path: shot('10-c1-l3-task-center.png'), fullPage: true })
     await page.getByTestId('task-center-create-task').click()
-    await expect(page.getByTestId('task-center-task-drawer')).toBeVisible()
+    await expect(page.getByTestId('task-center-task-dialog')).toBeVisible()
     await page.getByTestId('task-center-task-title').locator('input').fill(title)
     await page.getByTestId('task-center-task-description').locator('textarea').fill('Docker GUI E2E 任务链路')
     await page.getByTestId('task-center-task-assignee').click()

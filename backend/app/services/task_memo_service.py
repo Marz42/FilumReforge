@@ -50,11 +50,19 @@ class TaskMemoService:
       )
     )
 
+  @staticmethod
+  def _normalize_title(title: str | None) -> str | None:
+    if title is None:
+      return None
+    normalized = title.strip()
+    return normalized or None
+
   async def create_memo(
     self,
     *,
     actor: User,
     content: str,
+    title: str | None = None,
     related_task_id: UUID | None = None,
     is_pinned: bool = False,
   ) -> TaskMemo:
@@ -63,6 +71,7 @@ class TaskMemoService:
     memo = TaskMemo(
       owner_user_id=actor.id,
       related_task_id=related_task_id,
+      title=self._normalize_title(title),
       content=content.strip(),
       is_pinned=is_pinned,
     )
@@ -76,11 +85,14 @@ class TaskMemoService:
     actor: User,
     memo_id: UUID,
     content: str | None = None,
+    title=UNSET,  # noqa: ANN001
     related_task_id=UNSET,  # noqa: ANN001
     is_pinned: bool | None = None,
   ) -> TaskMemo:
     ensure_active_user(actor)
     memo = await self._get_memo_or_raise(actor=actor, memo_id=memo_id)
+    if title is not UNSET:
+      memo.title = self._normalize_title(title)
     if content is not None:
       memo.content = content.strip()
     if related_task_id is not UNSET:

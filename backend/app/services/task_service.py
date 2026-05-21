@@ -1755,6 +1755,26 @@ class TaskService:
     result = await self._session.scalars(statement)
     return list(result)
 
+  async def search_tasks(self, *, actor: User, query: str, limit: int = 30) -> list[Task]:
+    ensure_active_user(actor)
+    normalized = query.strip()
+    if not normalized:
+      return []
+
+    pattern = f"%{normalized}%"
+    statement = (
+      (await self._build_visible_task_statement(actor=actor))
+      .where(
+        or_(
+          Task.title.ilike(pattern),
+          Task.description.ilike(pattern),
+        )
+      )
+      .order_by(Task.updated_at.desc())
+      .limit(max(1, min(limit, 100)))
+    )
+    return list(await self._session.scalars(statement))
+
   async def get_task(self, *, actor: User, task_id: UUID) -> Task:
     ensure_active_user(actor)
 
@@ -1903,6 +1923,10 @@ class TaskService:
         relation_types.append("关注")
       if task.id in workflow_related_task_ids or task.id in graph_projection_map:
         relation_types.append("流程")
+      has_workflow_participation = task.id in workflow_related_task_ids or task.id in graph_projection_map
+      if self._task_center_v2_enabled() and not has_workflow_participation:
+        continue
+
       projection = graph_projection_map.get(task.id)
       if projection is not None:
         if projection.status == TaskStatus.DONE:
@@ -1910,15 +1934,15 @@ class TaskService:
         tracking_entries.append(
           self._build_graph_tracking_entry(
             task=task,
-            relation_types=relation_types or ["相关"],
+            relation_types=relation_types or ["流程"],
             projection=projection,
           )
         )
-      else:
+      elif task.status != TaskStatus.DONE:
         tracking_entries.append(
           self._build_tracking_entry(
             task=task,
-            relation_types=relation_types or ["相关"],
+            relation_types=relation_types or ["流程"],
             step_context_map=step_context_map,
           )
         )

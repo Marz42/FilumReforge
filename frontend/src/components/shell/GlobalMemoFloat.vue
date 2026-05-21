@@ -2,21 +2,28 @@
 import { onMounted } from 'vue'
 import { EditPen } from '@element-plus/icons-vue'
 
+import MemoCreateDialog from '@/components/shell/MemoCreateDialog.vue'
+import {
+  memoContentExcerpt,
+  memoDisplayTitle,
+  useTaskMemos,
+} from '@/composables/useTaskMemos'
 import { useGlobalMemoPanel } from '@/composables/useGlobalMemoPanel'
-import { useTaskMemos } from '@/composables/useTaskMemos'
 import { formatDateTime } from '@/utils/formatters'
 
-const { panelVisible, openPanel, closePanel, togglePanel } = useGlobalMemoPanel()
+const { panelVisible, openPanel, closePanel } = useGlobalMemoPanel()
 const {
   loading,
   submitting,
+  createDialogVisible,
   form,
   pinnedMemos,
   regularMemos,
   taskOptions,
-  resetForm,
   refreshMemos,
-  startEdit,
+  openCreateDialog,
+  openEditDialog,
+  closeCreateDialog,
   submitMemo,
   removeMemo,
 } = useTaskMemos()
@@ -53,42 +60,12 @@ defineExpose({
       >
         <template #header>
           <div class="global-memo-float__header">
-            <span>个人备忘</span>
-            <el-button text @click="closePanel">收起</el-button>
+            <el-button type="primary" link data-testid="global-memo-new" @click="openCreateDialog">
+              新建备忘
+            </el-button>
+            <el-button text data-testid="global-memo-collapse" @click="closePanel">收起</el-button>
           </div>
         </template>
-
-        <el-form label-position="top" class="global-memo-float__form">
-          <el-form-item label="内容">
-            <el-input
-              v-model="form.content"
-              type="textarea"
-              :rows="4"
-              placeholder="记录推进要点、跟进事项或协作提醒"
-            />
-          </el-form-item>
-          <el-form-item label="关联任务">
-            <el-select v-model="form.related_task_id" clearable placeholder="可选">
-              <el-option
-                v-for="task in taskOptions"
-                :key="task.id"
-                :label="task.label"
-                :value="task.id"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="置顶">
-            <el-switch v-model="form.is_pinned" />
-          </el-form-item>
-          <el-space wrap>
-            <el-button type="primary" :loading="submitting" @click="submitMemo">
-              {{ form.memo_id ? '保存备忘' : '创建备忘' }}
-            </el-button>
-            <el-button v-if="form.memo_id" text @click="resetForm">取消编辑</el-button>
-          </el-space>
-        </el-form>
-
-        <el-divider />
 
         <el-empty
           v-if="pinnedMemos.length === 0 && regularMemos.length === 0"
@@ -98,48 +75,75 @@ defineExpose({
         <div v-else class="global-memo-float__list">
           <template v-if="pinnedMemos.length > 0">
             <div class="global-memo-float__section-title">置顶备忘</div>
-            <div
+            <button
               v-for="memo in pinnedMemos"
               :key="memo.id"
+              type="button"
               class="global-memo-float__item"
+              @click="openEditDialog(memo)"
             >
               <div class="global-memo-float__item-actions">
                 <el-tag type="warning" size="small" effect="plain">置顶</el-tag>
                 <el-space>
-                  <el-button text size="small" @click="startEdit(memo)">编辑</el-button>
-                  <el-button text size="small" type="danger" @click="removeMemo(memo)">删除</el-button>
+                  <el-button text size="small" @click.stop="openEditDialog(memo)">编辑</el-button>
+                  <el-button text size="small" type="danger" @click.stop="removeMemo(memo)">删除</el-button>
                 </el-space>
               </div>
-              <p class="global-memo-float__content">{{ memo.content }}</p>
+              <div class="global-memo-float__item-meta">
+                <strong>{{ memoDisplayTitle(memo) }}</strong>
+              </div>
+              <p class="global-memo-float__content">{{ memoContentExcerpt(memo.content) }}</p>
               <div v-if="memo.related_task" class="global-memo-float__meta">
                 关联任务：{{ memo.related_task.title }}
               </div>
-            </div>
+            </button>
           </template>
 
           <template v-if="regularMemos.length > 0">
             <div class="global-memo-float__section-title">其他备忘</div>
-            <div
+            <button
               v-for="memo in regularMemos"
               :key="memo.id"
+              type="button"
               class="global-memo-float__item"
+              @click="openEditDialog(memo)"
             >
               <div class="global-memo-float__item-actions">
                 <span class="global-memo-float__meta">更新于 {{ formatDateTime(memo.updated_at) }}</span>
                 <el-space>
-                  <el-button text size="small" @click="startEdit(memo)">编辑</el-button>
-                  <el-button text size="small" type="danger" @click="removeMemo(memo)">删除</el-button>
+                  <el-button text size="small" @click.stop="openEditDialog(memo)">编辑</el-button>
+                  <el-button text size="small" type="danger" @click.stop="removeMemo(memo)">删除</el-button>
                 </el-space>
               </div>
-              <p class="global-memo-float__content">{{ memo.content }}</p>
+              <div class="global-memo-float__item-meta">
+                <strong>{{ memoDisplayTitle(memo) }}</strong>
+              </div>
+              <p class="global-memo-float__content">{{ memoContentExcerpt(memo.content) }}</p>
               <div v-if="memo.related_task" class="global-memo-float__meta">
                 关联任务：{{ memo.related_task.title }}
               </div>
-            </div>
+            </button>
           </template>
         </div>
       </el-card>
     </transition>
+
+    <MemoCreateDialog
+      v-model:visible="createDialogVisible"
+      :submitting="submitting"
+      :memo-id="form.memo_id"
+      :title="form.title"
+      :content="form.content"
+      :related-task-id="form.related_task_id"
+      :is-pinned="form.is_pinned"
+      :task-options="taskOptions"
+      @update:title="form.title = $event"
+      @update:content="form.content = $event"
+      @update:related-task-id="form.related_task_id = $event"
+      @update:is-pinned="form.is_pinned = $event"
+      @submit="submitMemo"
+      @cancel="closeCreateDialog"
+    />
   </div>
 </template>
 
@@ -171,10 +175,6 @@ defineExpose({
   gap: 12px;
 }
 
-.global-memo-float__form {
-  margin-bottom: 0;
-}
-
 .global-memo-float__list {
   display: flex;
   flex-direction: column;
@@ -187,10 +187,18 @@ defineExpose({
 }
 
 .global-memo-float__item {
+  display: block;
+  width: 100%;
   padding: 12px;
   border-radius: 10px;
   border: 1px solid var(--filum-border-strong);
   background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+  text-align: left;
+  cursor: pointer;
+}
+
+.global-memo-float__item:hover {
+  border-color: var(--el-color-primary-light-5);
 }
 
 .global-memo-float__item-actions {
@@ -200,10 +208,14 @@ defineExpose({
   gap: 8px;
 }
 
+.global-memo-float__item-meta {
+  margin-top: 6px;
+}
+
 .global-memo-float__content {
   margin: 8px 0 0;
   line-height: 1.6;
-  white-space: pre-wrap;
+  color: var(--filum-text-secondary);
 }
 
 .global-memo-float__meta {

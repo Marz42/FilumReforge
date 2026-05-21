@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, type UploadFile } from 'element-plus'
+import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import { uploadAttachment } from '@/api/attachments'
-import { createTask, createTaskComment } from '@/api/tasks'
+import { createTask, createTaskComment, searchTasks, type TaskSearchResult } from '@/api/tasks'
 import { getTaskCenterSnapshot } from '@/api/task-center'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import { useGlobalMemoPanel } from '@/composables/useGlobalMemoPanel'
+import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
+import TaskCenterFilterCards from '@/components/task-center/TaskCenterFilterCards.vue'
 import TasksView from '@/views/TasksView.vue'
 import type {
   TaskCenterHistoryItem,
@@ -71,7 +73,11 @@ const route = useRoute()
 const router = useRouter()
 const { openPanel: openGlobalMemoPanel } = useGlobalMemoPanel()
 const loading = ref(false)
-const taskDrawerVisible = ref(false)
+const taskDialogVisible = ref(false)
+const taskSearchQuery = ref('')
+const taskSearchLoading = ref(false)
+const taskSearchResults = ref<TaskSearchResult[]>([])
+let taskSearchTimer: ReturnType<typeof setTimeout> | undefined
 const publishSubmitting = ref(false)
 const publishAttachmentUploading = ref(false)
 const snapshot = ref<TaskCenterSnapshot | null>(null)
@@ -138,6 +144,16 @@ watch(
   },
 )
 
+const publishFormDirty = computed(
+  () => publishForm.title.trim().length > 0 || publishForm.description.trim().length > 0,
+)
+
+const filterCounts = computed(() => ({
+  inbox: snapshot.value?.task_inbox.length ?? 0,
+  tracking: snapshot.value?.task_tracking.length ?? 0,
+  history: snapshot.value?.task_history.length ?? 0,
+}))
+
 const masterListItems = computed(() => {
   if (activeFilter.value === 'inbox') {
     return snapshot.value?.task_inbox ?? []
@@ -147,6 +163,58 @@ const masterListItems = computed(() => {
   }
   return snapshot.value?.task_tracking ?? []
 })
+
+const displayListItems = computed(() => {
+  const query = taskSearchQuery.value.trim()
+  if (!query) {
+    return masterListItems.value
+  }
+  return taskSearchResults.value.map((item) => ({
+    task_id: item.id,
+    title: item.title,
+    priority: item.priority,
+    status: item.status,
+    due_date: null as string | null,
+    department_name: item.department_name,
+    current_stage_label: '—',
+    current_handler_label: null as string | null,
+    relation_types: [] as string[],
+    completed_at: null as string | null,
+    source_type: 'manual' as TaskSourceType,
+  }))
+})
+
+const isSearchMode = computed(() => taskSearchQuery.value.trim().length > 0)
+
+const masterListTaskIds = computed(() => new Set(displayListItems.value.map((item) => item.task_id)))
+
+const effectiveSelectedTaskId = computed(() => {
+  const id = selectedTaskId.value.trim()
+  if (!id) {
+    return ''
+  }
+  if (isSearchMode.value) {
+    return taskSearchResults.value.some((item) => item.id === id) ? id : ''
+  }
+  return masterListTaskIds.value.has(id) ? id : ''
+})
+
+function sanitizeSelectedQuery(): void {
+  const id = selectedTaskId.value.trim()
+  if (!id) {
+    return
+  }
+  const isValid = isSearchMode.value
+    ? taskSearchResults.value.some((item) => item.id === id)
+    : masterListTaskIds.value.has(id)
+  if (isValid) {
+    return
+  }
+  void router.replace({
+    name: 'task-center',
+    query: buildRouteQuery({ selected: '' }),
+  })
+}
 
 const masterPanelTestId = computed(() => {
   if (activeFilter.value === 'inbox') {
@@ -255,13 +323,70 @@ async function handlePublishDraftFileChange(uploadFile: UploadFile): Promise<voi
   }
 }
 
-function openTaskDrawer(): void {
+async function requestCloseTaskDialog(): Promise<boolean> {
+  if (!publishFormDirty.value) {
+    return true
+  }
+  try {
+    await ElMessageBox.confirm('有未保存的内容，是否关闭？', '关闭建立任务', {
+      type: 'warning',
+      confirmButtonText: '关闭',
+      cancelButtonText: '继续编辑',
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function handleTaskDialogBeforeClose(done: () => void): Promise<void> {
+  if (await requestCloseTaskDialog()) {
+    resetPublishForm()
+    done()
+  }
+}
+
+async function handleCancelTaskDialog(): Promise<void> {
+  if (!(await requestCloseTaskDialog())) {
+    return
+  }
+  taskDialogVisible.value = false
+  resetPublishForm()
+}
+
+function openTaskDialog(): void {
   if (!permissions.value.can_publish_task) {
     return
   }
   resetPublishForm()
-  taskDrawerVisible.value = true
+  taskDialogVisible.value = true
 }
+
+async function runTaskSearch(query: string): Promise<void> {
+  const trimmed = query.trim()
+  if (!trimmed) {
+    taskSearchResults.value = []
+    return
+  }
+  taskSearchLoading.value = true
+  try {
+    taskSearchResults.value = await searchTasks(trimmed)
+    sanitizeSelectedQuery()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    taskSearchLoading.value = false
+  }
+}
+
+watch(taskSearchQuery, (value) => {
+  if (taskSearchTimer) {
+    clearTimeout(taskSearchTimer)
+  }
+  taskSearchTimer = setTimeout(() => {
+    void runTaskSearch(value)
+  }, 300)
+})
 
 async function loadSnapshot(): Promise<void> {
   loading.value = true
@@ -270,6 +395,7 @@ async function loadSnapshot(): Promise<void> {
     if (!publishForm.department_id && publishDepartmentOptions.value.length > 0) {
       publishForm.department_id = publishDepartmentOptions.value[0]!.id
     }
+    sanitizeSelectedQuery()
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
   } finally {
@@ -328,7 +454,7 @@ async function handlePublishTask(): Promise<void> {
       attachment_ids: publishDraftAttachments.value.map((attachment) => attachment.id),
     })
     ElMessage.success('任务已发布')
-    taskDrawerVisible.value = false
+    taskDialogVisible.value = false
     resetPublishForm()
     await loadSnapshot()
     handleFilterChange('inbox')
@@ -474,7 +600,7 @@ onMounted(() => {
               type="primary"
               :disabled="!permissions.can_publish_task"
               data-testid="task-center-create-task"
-              @click="openTaskDrawer"
+              @click="openTaskDialog"
             >
               建立任务
             </el-button>
@@ -482,29 +608,20 @@ onMounted(() => {
         </div>
       </template>
 
-      <div class="task-center-view__filters" data-testid="task-center-filter-chips">
-        <el-check-tag
-          :checked="activeFilter === 'inbox'"
-          data-testid="task-filter-inbox"
-          @click="handleFilterChange('inbox')"
-        >
-          需要我处理的
-        </el-check-tag>
-        <el-check-tag
-          :checked="activeFilter === 'tracking'"
-          data-testid="task-filter-tracking"
-          @click="handleFilterChange('tracking')"
-        >
-          我参与的/跟踪
-        </el-check-tag>
-        <el-check-tag
-          :checked="activeFilter === 'history'"
-          data-testid="task-filter-history"
-          @click="handleFilterChange('history')"
-        >
-          已完成/历史
-        </el-check-tag>
+      <div class="task-center-view__search" data-testid="task-center-search">
+        <el-input
+          v-model="taskSearchQuery"
+          clearable
+          placeholder="搜索任务标题或说明"
+          data-testid="task-center-search-input"
+        />
       </div>
+
+      <TaskCenterFilterCards
+        :active-filter="activeFilter"
+        :counts="filterCounts"
+        @change="handleFilterChange"
+      />
     </el-card>
 
     <template v-if="isListLayout">
@@ -523,11 +640,15 @@ onMounted(() => {
             </div>
           </template>
 
-          <el-empty v-if="masterListItems.length === 0" description="暂无任务" />
+          <el-empty
+            v-if="displayListItems.length === 0"
+            :description="isSearchMode ? '未找到匹配任务' : '暂无任务'"
+          />
 
           <el-table
             v-else
-            :data="masterListItems"
+            v-loading="taskSearchLoading && isSearchMode"
+            :data="displayListItems"
             :row-key="rowKey"
             :row-class-name="masterRowClassName"
             stripe
@@ -535,7 +656,26 @@ onMounted(() => {
             data-testid="task-center-master-table"
             @row-click="(row: TaskCenterInboxItem | TaskCenterTrackingItem | TaskCenterHistoryItem) => handleMasterRowClick(row.task_id)"
           >
-            <template v-if="activeFilter === 'inbox'">
+            <template v-if="isSearchMode">
+              <el-table-column prop="title" label="任务标题" min-width="220" />
+              <el-table-column label="状态" width="120">
+                <template #default="{ row }: { row: TaskSearchResult }">
+                  <el-tag :type="STATUS_TAG_TYPES[row.status]" effect="plain">
+                    {{ resolveStatusLabel(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="优先级" width="120">
+                <template #default="{ row }: { row: TaskSearchResult }">
+                  <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
+                    {{ resolvePriorityLabel(row.priority) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="department_name" label="部门" min-width="160" />
+            </template>
+
+            <template v-else-if="activeFilter === 'inbox'">
               <el-table-column prop="title" label="任务标题" min-width="220" />
               <el-table-column label="优先级" width="120">
                 <template #default="{ row }: { row: TaskCenterInboxItem }">
@@ -632,7 +772,7 @@ onMounted(() => {
         <div class="task-center-view__detail">
           <TasksView
             :show-create-task-composer="false"
-            :initial-selected-task-id="selectedTaskId"
+            :initial-selected-task-id="effectiveSelectedTaskId"
             :delegate-user-options="publishUserOptions"
             detail-only
             hide-stats
@@ -644,20 +784,23 @@ onMounted(() => {
     <TasksView
       v-else
       :show-create-task-composer="false"
-      :initial-selected-task-id="selectedTaskId"
+      :initial-selected-task-id="effectiveSelectedTaskId"
       :delegate-user-options="publishUserOptions"
       hide-stats
       hide-view-toggle
       :external-view-mode="workspaceViewMode"
     />
 
-    <el-drawer
-      v-model="taskDrawerVisible"
+    <el-dialog
+      v-model="taskDialogVisible"
       title="建立任务"
-      size="460px"
+      width="720px"
+      align-center
+      append-to-body
       destroy-on-close
-      data-testid="task-center-task-drawer"
-      @closed="resetPublishForm"
+      :close-on-click-modal="false"
+      data-testid="task-center-task-dialog"
+      :before-close="handleTaskDialogBeforeClose"
     >
       <el-form label-position="top" class="task-center-view__form">
         <el-form-item label="任务标题">
@@ -759,22 +902,14 @@ onMounted(() => {
         </el-form-item>
         <el-form-item label="截止时间">
           <div data-testid="task-center-task-due-date" class="task-center-view__control-wrap">
-            <el-date-picker
-              v-model="publishForm.due_date"
-              type="datetime"
-              placeholder="可选"
-              class="task-center-view__date-picker"
-              teleported
-              :popper-options="{ strategy: 'fixed' }"
-              popper-class="task-center-view-select-popper"
-            />
+            <FilumDateTimePicker v-model="publishForm.due_date" class="task-center-view__date-picker" />
           </div>
         </el-form-item>
       </el-form>
 
       <template #footer>
-        <div class="task-center-view__drawer-footer">
-          <el-button @click="taskDrawerVisible = false">取消</el-button>
+        <div class="task-center-view__dialog-footer">
+          <el-button @click="handleCancelTaskDialog">取消</el-button>
           <el-button
             type="primary"
             :loading="publishSubmitting"
@@ -785,7 +920,7 @@ onMounted(() => {
           </el-button>
         </div>
       </template>
-    </el-drawer>
+    </el-dialog>
   </div>
 </template>
 
@@ -864,7 +999,11 @@ onMounted(() => {
   width: 100%;
 }
 
-.task-center-view__drawer-footer {
+.task-center-view__search {
+  margin-top: 16px;
+}
+
+.task-center-view__dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;

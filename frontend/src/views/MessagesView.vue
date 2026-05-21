@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { createMessageReceipt, getMessageCenterSnapshot } from '@/api/messages'
 import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
+import FilumDateTimeRangePicker from '@/components/common/FilumDateTimeRangePicker.vue'
 import type {
   Message,
   MessageCenterSnapshot,
@@ -110,10 +111,9 @@ function handleDeliveryStatusChange(value: NotificationDeliveryStatus | 'all'): 
   void loadData()
 }
 
-function handleCreatedRangeChange(value: [Date, Date] | null): void {
-  createdRange.value = value
+watch(createdRange, () => {
   void loadData()
-}
+})
 
 function resolveStateLabel(message: Message): string {
   if (message.receipt_state.is_acknowledged) {
@@ -283,15 +283,7 @@ onMounted(() => {
                     :value="item.value"
                   />
                 </el-select>
-                <el-date-picker
-                  :model-value="createdRange"
-                  type="datetimerange"
-                  range-separator="至"
-                  start-placeholder="开始时间"
-                  end-placeholder="结束时间"
-                  value-format=""
-                  @change="handleCreatedRangeChange"
-                />
+                <FilumDateTimeRangePicker v-model="createdRange" />
               </el-space>
             </div>
           </template>

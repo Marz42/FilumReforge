@@ -539,6 +539,7 @@ export interface TaskMemo {
   id: string
   owner_user_id: string
   related_task_id: string | null
+  title: string | null
   content: string
   is_pinned: boolean
   created_at: string

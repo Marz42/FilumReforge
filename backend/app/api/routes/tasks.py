@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -25,6 +25,7 @@ from app.schemas.tasks import (
   TaskGanttEntryRead,
   TaskLogRead,
   TaskRead,
+  TaskSearchResultRead,
   TaskStatsSummaryRead,
   TaskStatusUpdateRequest,
   TaskUpdateRequest,
@@ -130,6 +131,30 @@ async def list_tasks(
 ) -> list[TaskRead]:
   tasks = await task_service.list_tasks(actor=actor)
   return [TaskRead.model_validate(task) for task in tasks]
+
+
+@router.get("/search", response_model=list[TaskSearchResultRead])
+async def search_tasks(
+  q: Annotated[str, Query(min_length=1, max_length=200)],
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  limit: Annotated[int, Query(ge=1, le=100)] = 30,
+) -> list[TaskSearchResultRead]:
+  tasks = await task_service.search_tasks(actor=actor, query=q, limit=limit)
+  return [
+    TaskSearchResultRead(
+      id=task.id,
+      title=task.title,
+      description=task.description,
+      status=task.status,
+      priority=task.priority,
+      department_id=task.department_id,
+      department_name=task.department.name if task.department is not None else None,
+      assignee_id=task.assignee_id,
+      updated_at=task.updated_at,
+    )
+    for task in tasks
+  ]
 
 
 @router.get("/{task_id}", response_model=TaskRead)

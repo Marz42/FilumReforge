@@ -15,7 +15,7 @@ test('logs in with the real backend and creates a task through task center', asy
   await expect(page.getByTestId('task-center-view')).toBeVisible()
 
   await page.getByTestId('task-center-create-task').click()
-  await expect(page.getByTestId('task-center-task-drawer')).toBeVisible()
+  await expect(page.getByTestId('task-center-task-dialog')).toBeVisible()
 
   await page.locator('[data-testid="task-center-task-title"] input').fill(taskTitle)
   await page.locator('[data-testid="task-center-task-description"] textarea').fill('Playwright live scenario validates the real backend integration path.')

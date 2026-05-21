@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import type { OverviewTaskInboxEntry, ReportRecord, TaskPriority } from '@/types/api'
@@ -12,6 +12,7 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const activePane = ref<'todo' | 'report'>('todo')
 
 const inboxPreview = computed(() => props.inboxTasks.slice(0, 5))
 const reportPreview = computed(() => props.pendingReports.slice(0, 5))
@@ -68,66 +69,88 @@ function openReport(reportId: string): void {
     v-loading="loading"
   >
     <template #header>
-      <div class="overview-widget__heading">
-        <span>待办与汇报</span>
-        <small>点击条目跳转到任务中心或汇报中心处理</small>
+      <div class="overview-todo-widget__header">
+        <div class="overview-widget__heading">
+          <span>待办 / 汇报</span>
+          <small>点击条目跳转到任务中心或汇报中心处理</small>
+        </div>
+        <el-radio-group v-model="activePane" size="small" data-testid="overview-todo-pane-switch">
+          <el-radio-button value="todo">待办</el-radio-button>
+          <el-radio-button value="report">汇报</el-radio-button>
+        </el-radio-group>
       </div>
     </template>
 
-    <section class="overview-todo-widget__section">
-      <div class="overview-todo-widget__section-title">待办任务</div>
-      <el-empty v-if="inboxPreview.length === 0" description="当前没有待办任务" />
-      <div v-else class="overview-widget__list">
-        <button
+    <template v-if="activePane === 'todo'">
+      <el-empty
+        v-if="inboxPreview.length === 0"
+        class="overview-widget__empty"
+        description="当前没有待办任务"
+      />
+      <ul v-else class="overview-todo-list" data-testid="overview-todo-task-list">
+        <li
           v-for="item in inboxPreview"
           :key="item.task_id"
-          type="button"
-          class="overview-widget__item"
-          @click="openTask(item.task_id)"
+          class="overview-todo-list__row"
         >
-          <div class="overview-widget__item-meta">
-            <strong>{{ item.title }}</strong>
-            <el-tag :type="priorityTagType(item.priority)" effect="plain" size="small">
-              {{ priorityLabel(item.priority) }}
-            </el-tag>
-          </div>
-          <p class="overview-widget__item-content">
-            {{ item.current_stage_label }}
-            <span v-if="item.current_handler_label"> · {{ item.current_handler_label }}</span>
-          </p>
-          <span class="overview-widget__footnote">
-            {{ item.department_name ?? '未分配部门' }} · 到期：{{ formatDateTime(item.due_date) }}
-          </span>
-        </button>
-      </div>
-    </section>
+          <button type="button" class="overview-todo-list__button" @click="openTask(item.task_id)">
+            <div class="overview-todo-list__main">
+              <strong class="overview-todo-list__title">{{ item.title }}</strong>
+              <el-tag :type="priorityTagType(item.priority)" effect="plain" size="small">
+                {{ priorityLabel(item.priority) }}
+              </el-tag>
+            </div>
+            <p class="overview-todo-list__meta">
+              {{ item.current_stage_label }}
+              <span v-if="item.current_handler_label"> · {{ item.current_handler_label }}</span>
+            </p>
+            <span class="overview-todo-list__footnote">
+              {{ item.department_name ?? '未分配部门' }} · 到期：{{ formatDateTime(item.due_date) }}
+            </span>
+          </button>
+        </li>
+      </ul>
+    </template>
 
-    <section class="overview-todo-widget__section">
-      <div class="overview-todo-widget__section-title">待审汇报</div>
-      <el-empty v-if="reportPreview.length === 0" description="当前没有待审汇报" />
-      <div v-else class="overview-widget__list">
-        <button
+    <template v-else>
+      <el-empty
+        v-if="reportPreview.length === 0"
+        class="overview-widget__empty"
+        description="当前没有待审汇报"
+      />
+      <ul v-else class="overview-todo-list" data-testid="overview-report-list">
+        <li
           v-for="report in reportPreview"
           :key="report.id"
-          type="button"
-          class="overview-widget__item"
-          @click="openReport(report.id)"
+          class="overview-todo-list__row"
         >
-          <div class="overview-widget__item-meta">
-            <strong>{{ report.title }}</strong>
-            <el-tag effect="plain" size="small">{{ report.direction === 'upward' ? '向上' : '向下' }}</el-tag>
-          </div>
-          <p class="overview-widget__item-content">
-            {{ report.initiator_label }} → {{ report.target_label }}
-          </p>
-          <span class="overview-widget__footnote">更新：{{ formatDateTime(report.updated_at) }}</span>
-        </button>
-      </div>
-    </section>
+          <button type="button" class="overview-todo-list__button" @click="openReport(report.id)">
+            <div class="overview-todo-list__main">
+              <strong class="overview-todo-list__title">{{ report.title }}</strong>
+              <el-tag effect="plain" size="small">{{ report.direction === 'upward' ? '向上' : '向下' }}</el-tag>
+            </div>
+            <p class="overview-todo-list__meta">
+              {{ report.initiator_label }} → {{ report.target_label }}
+            </p>
+            <span class="overview-todo-list__footnote">
+              更新于 {{ formatDateTime(report.updated_at) }}
+            </span>
+          </button>
+        </li>
+      </ul>
+    </template>
   </el-card>
 </template>
 
 <style scoped>
+.overview-todo-widget__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .overview-widget__heading {
   display: flex;
   flex-direction: column;
@@ -139,64 +162,62 @@ function openReport(reportId: string): void {
   font-size: 12px;
 }
 
-.overview-todo-widget__section + .overview-todo-widget__section {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid var(--filum-border);
+.overview-widget__empty {
+  padding: 4px 0;
 }
 
-.overview-todo-widget__section-title {
-  margin-bottom: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--filum-text-secondary);
+.overview-todo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.overview-widget__list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.overview-todo-list__row {
+  border-bottom: 1px solid var(--filum-border-strong);
 }
 
-.overview-widget__item {
+.overview-todo-list__row:last-child {
+  border-bottom: none;
+}
+
+.overview-todo-list__button {
+  display: block;
   width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--filum-border-strong);
-  border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+  padding: 12px 4px;
+  border: none;
+  background: transparent;
   text-align: left;
   cursor: pointer;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: background-color 0.2s ease;
 }
 
-.overview-widget__item:hover {
-  border-color: var(--el-color-primary-light-5);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+.overview-todo-list__button:hover {
+  background: rgba(37, 99, 235, 0.04);
 }
 
-.overview-widget__item-meta {
+.overview-todo-list__main {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.overview-widget__item-meta strong {
+.overview-todo-list__title {
   color: var(--filum-text);
   font-size: 14px;
+  font-weight: 600;
 }
 
-.overview-widget__item-content {
-  margin: 8px 0 0;
+.overview-todo-list__meta {
+  margin: 6px 0 0;
   color: var(--filum-text-secondary);
+  font-size: 13px;
   line-height: 1.5;
 }
 
-.overview-widget__footnote {
+.overview-todo-list__footnote {
   display: inline-block;
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--filum-text-muted);
   font-size: 12px;
 }

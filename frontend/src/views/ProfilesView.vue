@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { listDepartments } from '@/api/departments'
+import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import {
   createDelegation,
   createPosition,
@@ -1145,10 +1146,10 @@ onMounted(() => {
                   </el-select>
                 </el-form-item>
                 <el-form-item label="开始时间">
-                  <el-date-picker v-model="delegationForm.starts_at" type="datetime" placeholder="选择时间" />
+                  <FilumDateTimePicker v-model="delegationForm.starts_at" />
                 </el-form-item>
                 <el-form-item label="结束时间">
-                  <el-date-picker v-model="delegationForm.ends_at" type="datetime" placeholder="选择时间" />
+                  <FilumDateTimePicker v-model="delegationForm.ends_at" />
                 </el-form-item>
               </div>
               <div class="page__actions">

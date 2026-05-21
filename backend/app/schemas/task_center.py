@@ -81,6 +81,7 @@ class TaskMemoRead(BaseModel):
   id: UUID
   owner_user_id: UUID
   related_task_id: UUID | None
+  title: str | None
   content: str
   is_pinned: bool
   created_at: datetime
@@ -89,12 +90,14 @@ class TaskMemoRead(BaseModel):
 
 
 class TaskMemoCreateRequest(BaseModel):
+  title: str | None = Field(default=None, max_length=200)
   content: str = Field(min_length=1, max_length=4000)
   related_task_id: UUID | None = None
   is_pinned: bool = False
 
 
 class TaskMemoUpdateRequest(BaseModel):
+  title: str | None = Field(default=None, max_length=200)
   content: str | None = Field(default=None, min_length=1, max_length=4000)
   related_task_id: UUID | None = None
   is_pinned: bool | None = None

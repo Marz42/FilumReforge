@@ -35,6 +35,7 @@ import type {
   UserInvitation,
   UserStatus,
 } from '@/types/api'
+import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import PeopleDetailDrawer from '@/components/people/PeopleDetailDrawer.vue'
 import type { PeopleAnchorId } from '@/components/people/PeopleAnchorNav.vue'
 import { getErrorMessage } from '@/utils/errors'
@@ -1652,10 +1653,10 @@ watch(
                               </el-select>
                             </el-form-item>
                             <el-form-item label="开始时间">
-                              <el-date-picker v-model="delegationForm.starts_at" type="datetime" placeholder="选择时间" />
+                              <FilumDateTimePicker v-model="delegationForm.starts_at" />
                             </el-form-item>
                             <el-form-item label="结束时间">
-                              <el-date-picker v-model="delegationForm.ends_at" type="datetime" placeholder="选择时间" />
+                              <FilumDateTimePicker v-model="delegationForm.ends_at" />
                             </el-form-item>
                             <div class="page__actions">
                               <el-button type="primary" :loading="delegationSubmitting" @click="handleCreateDelegation">
