@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import type { Department, PeopleManagementPerson, User } from '@/types/api'
+import type { Department, PeopleManagementPerson } from '@/types/api'
+
+interface SelectOption {
+  value: string
+  label: string
+}
 
 interface DepartmentFormState {
   name: string
@@ -17,7 +22,7 @@ interface Props {
   isCreating?: boolean
   createModeTitle?: string
   departments: Department[]
-  users: User[]
+  managerOptions: SelectOption[]
   subordinates: PeopleManagementPerson[]
   form: DepartmentFormState
   submitting?: boolean
@@ -29,6 +34,7 @@ const props = withDefaults(defineProps<Props>(), {
   createModeTitle: '新建部门',
   submitting: false,
   isEditingRootDepartment: false,
+  managerOptions: () => [],
   subordinates: () => [],
 })
 
@@ -39,8 +45,6 @@ const emit = defineEmits<{
 }>()
 
 const showForm = computed(() => props.isCreating || props.department !== null)
-
-const activeUsers = computed(() => props.users.filter((user) => user.status === 'active'))
 
 const parentOptions = computed(() =>
   props.departments.filter((department) => department.id !== props.department?.id),
@@ -121,12 +125,12 @@ function resolveDepartmentName(departmentId: string | null): string {
             </el-select>
           </el-form-item>
           <el-form-item label="负责人">
-            <el-select v-model="form.manager_id" clearable placeholder="可选">
+            <el-select v-model="form.manager_id" clearable placeholder="可选" data-testid="departments-form-manager">
               <el-option
-                v-for="user in activeUsers"
-                :key="user.id"
-                :label="user.email"
-                :value="user.id"
+                v-for="option in managerOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
               />
             </el-select>
           </el-form-item>

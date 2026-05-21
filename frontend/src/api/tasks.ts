@@ -21,6 +21,7 @@ export interface CreateTaskPayload {
   due_date?: string | null
   priority?: TaskPriority
   dependency_ids?: string[]
+  attachment_ids?: string[]
 }
 
 export interface CreateTaskCommentPayload {

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type UploadFile } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
+import { uploadAttachment } from '@/api/attachments'
 import { createTask, createTaskComment } from '@/api/tasks'
 import { getTaskCenterSnapshot } from '@/api/task-center'
+import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import { useGlobalMemoPanel } from '@/composables/useGlobalMemoPanel'
 import TasksView from '@/views/TasksView.vue'
 import type {
@@ -71,7 +73,15 @@ const { openPanel: openGlobalMemoPanel } = useGlobalMemoPanel()
 const loading = ref(false)
 const taskDrawerVisible = ref(false)
 const publishSubmitting = ref(false)
+const publishAttachmentUploading = ref(false)
 const snapshot = ref<TaskCenterSnapshot | null>(null)
+
+interface PublishDraftAttachment {
+  id: string
+  original_filename: string
+}
+
+const publishDraftAttachments = ref<PublishDraftAttachment[]>([])
 
 const publishForm = reactive({
   title: '',
@@ -97,6 +107,36 @@ const permissions = computed(() => {
 })
 const publishDepartmentOptions = computed(() => snapshot.value?.publish_department_options ?? [])
 const publishUserOptions = computed(() => snapshot.value?.publish_user_options ?? [])
+
+const filteredPublishUserOptions = computed(() => {
+  if (!publishForm.department_id) {
+    return publishUserOptions.value
+  }
+  return publishUserOptions.value.filter(
+    (user) => user.department_id === publishForm.department_id,
+  )
+})
+
+const assigneeSelectPlaceholder = computed(() => {
+  if (filteredPublishUserOptions.value.length === 0) {
+    return '该部门暂无可选执行人'
+  }
+  return '请选择执行人'
+})
+
+watch(
+  () => publishForm.department_id,
+  () => {
+    if (
+      publishForm.assignee_user_id &&
+      !filteredPublishUserOptions.value.some(
+        (user) => user.user_id === publishForm.assignee_user_id,
+      )
+    ) {
+      publishForm.assignee_user_id = ''
+    }
+  },
+)
 
 const masterListItems = computed(() => {
   if (activeFilter.value === 'inbox') {
@@ -181,6 +221,38 @@ function resetPublishForm(): void {
   publishForm.department_id = publishDepartmentOptions.value[0]?.id ?? ''
   publishForm.priority = 'medium'
   publishForm.due_date = null
+  publishDraftAttachments.value = []
+}
+
+function removePublishDraftAttachment(id: string): void {
+  publishDraftAttachments.value = publishDraftAttachments.value.filter(
+    (attachment) => attachment.id !== id,
+  )
+}
+
+async function handlePublishDraftFileChange(uploadFile: UploadFile): Promise<void> {
+  const raw = uploadFile.raw
+  if (!raw) {
+    return
+  }
+  const err = validateAttachmentFile(raw)
+  if (err) {
+    ElMessage.error(err)
+    return
+  }
+  publishAttachmentUploading.value = true
+  try {
+    const attachment = await uploadAttachment({ file: raw })
+    publishDraftAttachments.value.push({
+      id: attachment.id,
+      original_filename: attachment.original_filename,
+    })
+    ElMessage.success('附件已加入，将在建立任务时绑定')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    publishAttachmentUploading.value = false
+  }
 }
 
 function openTaskDrawer(): void {
@@ -253,6 +325,7 @@ async function handlePublishTask(): Promise<void> {
       department_id: publishForm.department_id || null,
       priority: publishForm.priority,
       due_date: publishForm.due_date ? publishForm.due_date.toISOString() : null,
+      attachment_ids: publishDraftAttachments.value.map((attachment) => attachment.id),
     })
     ElMessage.success('任务已发布')
     taskDrawerVisible.value = false
@@ -593,27 +666,15 @@ onMounted(() => {
           </div>
         </el-form-item>
         <el-form-item label="任务说明">
-          <div data-testid="task-center-task-description">
-            <el-input v-model="publishForm.description" type="textarea" :rows="4" />
-          </div>
-        </el-form-item>
-        <el-form-item label="执行人">
-          <div data-testid="task-center-task-assignee" class="task-center-view__control-wrap">
-            <el-select
-              v-model="publishForm.assignee_user_id"
-              class="task-center-view__full-select"
-              placeholder="请选择执行人"
-              teleported
-              :popper-options="{ strategy: 'fixed' }"
-              popper-class="task-center-view-select-popper"
-            >
-              <el-option
-                v-for="user in publishUserOptions"
-                :key="user.user_id"
-                :label="user.label"
-                :value="user.user_id"
-              />
-            </el-select>
+          <div data-testid="task-center-task-description" class="task-center-view__control-wrap">
+            <el-input
+              v-model="publishForm.description"
+              type="textarea"
+              :autosize="{ minRows: 4, maxRows: 10 }"
+              maxlength="4000"
+              show-word-limit
+              placeholder="补充背景、交付要求或参考信息（可选）"
+            />
           </div>
         </el-form-item>
         <el-form-item label="所属部门">
@@ -634,6 +695,50 @@ onMounted(() => {
                 :value="department.id"
               />
             </el-select>
+          </div>
+        </el-form-item>
+        <el-form-item label="执行人">
+          <div data-testid="task-center-task-assignee" class="task-center-view__control-wrap">
+            <el-select
+              v-model="publishForm.assignee_user_id"
+              class="task-center-view__full-select"
+              :placeholder="assigneeSelectPlaceholder"
+              :disabled="filteredPublishUserOptions.length === 0"
+              teleported
+              :popper-options="{ strategy: 'fixed' }"
+              popper-class="task-center-view-select-popper"
+            >
+              <el-option
+                v-for="user in filteredPublishUserOptions"
+                :key="user.user_id"
+                :label="user.label"
+                :value="user.user_id"
+              />
+            </el-select>
+          </div>
+        </el-form-item>
+        <el-form-item label="附件（可选）">
+          <div data-testid="task-center-task-attachments">
+            <el-upload
+              :auto-upload="false"
+              :show-file-list="false"
+              :accept="ATTACHMENT_ACCEPT"
+              :disabled="publishAttachmentUploading"
+              :on-change="handlePublishDraftFileChange"
+            >
+              <el-button :loading="publishAttachmentUploading">选择附件</el-button>
+            </el-upload>
+          </div>
+          <div v-if="publishDraftAttachments.length" class="task-center-view__draft-tags">
+            <el-tag
+              v-for="attachment in publishDraftAttachments"
+              :key="attachment.id"
+              closable
+              class="task-center-view__draft-tag"
+              @close="removePublishDraftAttachment(attachment.id)"
+            >
+              {{ attachment.original_filename }}
+            </el-tag>
           </div>
         </el-form-item>
         <el-form-item label="优先级">
@@ -737,7 +842,14 @@ onMounted(() => {
 }
 
 .task-center-view__form {
-  max-width: 720px;
+  width: 100%;
+}
+
+.task-center-view__draft-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .task-center-view__control-wrap {

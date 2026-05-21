@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import get_current_user, get_object_storage_service, get_task_service
 from app.core.database import get_db_session
@@ -33,6 +34,7 @@ from app.schemas.tasks import (
 )
 from app.services.object_storage_service import ObjectStorageService
 from app.services.task_service import CommentAttachmentInput, TaskActivityEntry, TaskService
+from app.services.user_display import user_display_label
 
 router = APIRouter(prefix="/tasks")
 
@@ -70,6 +72,13 @@ async def _list_comment_attachments(
   return result
 
 
+async def _resolve_user_label(session: AsyncSession, user_id: UUID) -> str:
+  user = await session.get(User, user_id, options=(selectinload(User.profile),))
+  if user is None:
+    return f"用户 {str(user_id)[:8]}"
+  return user_display_label(user)
+
+
 async def _build_task_comment_read(
   *,
   session: AsyncSession,
@@ -81,7 +90,10 @@ async def _build_task_comment_read(
     comment_id=comment.id,
     object_storage_service=object_storage_service,
   )
-  return TaskCommentRead.model_validate(comment).model_copy(update={"attachments": attachments})
+  author_label = await _resolve_user_label(session, comment.user_id)
+  return TaskCommentRead.model_validate(comment).model_copy(
+    update={"attachments": attachments, "author_label": author_label},
+  )
 
 
 async def _build_task_activity_read(
@@ -99,7 +111,10 @@ async def _build_task_activity_read(
     )
   log = None
   if activity_entry.log is not None:
-    log = TaskLogRead.model_validate(activity_entry.log)
+    operator_label = await _resolve_user_label(session, activity_entry.log.operator_id)
+    log = TaskLogRead.model_validate(activity_entry.log).model_copy(
+      update={"operator_label": operator_label},
+    )
   return TaskActivityEntryRead(
     entry_type=activity_entry.entry_type,
     created_at=activity_entry.created_at,
@@ -142,6 +157,7 @@ async def create_task(
     due_date=payload.due_date,
     priority=payload.priority,
     dependency_ids=payload.dependency_ids or None,
+    attachment_ids=payload.attachment_ids or None,
   )
   return TaskRead.model_validate(task)
 

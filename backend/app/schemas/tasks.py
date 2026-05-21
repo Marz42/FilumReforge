@@ -55,6 +55,7 @@ class TaskCreateRequest(BaseModel):
   due_date: datetime | None = None
   priority: TaskPriority = TaskPriority.MEDIUM
   dependency_ids: list[UUID] = Field(default_factory=list)
+  attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
 
 
 class TaskUpdateRequest(BaseModel):
@@ -96,6 +97,7 @@ class TaskCommentRead(BaseModel):
   id: UUID
   task_id: UUID
   user_id: UUID
+  author_label: str | None = None
   content: str
   content_format: CommentFormat
   is_internal: bool
@@ -110,6 +112,7 @@ class TaskLogRead(BaseModel):
   id: UUID
   task_id: UUID
   operator_id: UUID
+  operator_label: str | None = None
   action_type: TaskActionType
   from_status: TaskStatus | None
   to_status: TaskStatus | None
@@ -138,6 +141,7 @@ class TaskWorkloadEntryRead(BaseModel):
 
   assignee_id: UUID
   assignee_email: str
+  assignee_label: str
   department_id: UUID | None
   department_name: str | None
   total_tasks: int

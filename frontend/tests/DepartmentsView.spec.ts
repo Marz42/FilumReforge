@@ -187,6 +187,16 @@ describe('Departments view', () => {
 
     expect(wrapper.find('[data-testid="departments-form-submit"]').text()).toContain('保存部门')
 
+    const setupState = wrapper.vm.$.setupState as {
+      managerSelectOptions: Array<{ value: string; label: string }>
+    }
+    expect(setupState.managerSelectOptions.some((option) => option.label.includes('部门负责人'))).toBe(
+      true,
+    )
+    expect(
+      setupState.managerSelectOptions.find((option) => option.value === 'user-1')?.label,
+    ).toBe('部门负责人（manager@example.com）')
+
     await wrapper.find('[data-testid="departments-create-root"]').trigger('click')
     await flushPromises()
 

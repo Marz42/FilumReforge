@@ -63,13 +63,15 @@ class TaskTemplateService:
 
   def _instance_statement(self):
     return select(TaskTemplateInstance).options(
-      selectinload(TaskTemplateInstance.initiator),
+      selectinload(TaskTemplateInstance.initiator).selectinload(User.profile),
       selectinload(TaskTemplateInstance.department),
       selectinload(TaskTemplateInstance.template)
       .selectinload(TaskTemplate.steps)
       .selectinload(TaskTemplateStep.dependencies)
       .selectinload(TaskTemplateStepDependency.depends_on_step),
-      selectinload(TaskTemplateInstance.step_runs).selectinload(TaskTemplateStepRun.assignee),
+      selectinload(TaskTemplateInstance.step_runs)
+      .selectinload(TaskTemplateStepRun.assignee)
+      .selectinload(User.profile),
       selectinload(TaskTemplateInstance.step_runs).selectinload(TaskTemplateStepRun.task),
     )
 

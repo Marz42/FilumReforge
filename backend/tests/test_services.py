@@ -864,6 +864,56 @@ async def test_task_service_creates_task_and_enqueues_notification(db_session) -
 
 
 @pytest.mark.asyncio
+async def test_create_task_binds_orphan_attachments(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  employee = User(
+    email="employee@example.com",
+    password_hash="hashed",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  db_session.add(employee)
+  await db_session.commit()
+  await db_session.refresh(employee)
+
+  with TemporaryDirectory() as tmp_dir:
+    storage_service = ObjectStorageService(
+      LocalStorageAdapter(base_path=tmp_dir, bucket="filum-test")
+    )
+    attachment_service = AttachmentService(db_session, storage_service)
+    task_service = TaskService(db_session)
+
+    draft_attachment = await attachment_service.upload_attachment(
+      actor=admin,
+      filename="brief.pdf",
+      content_type="application/pdf",
+      content=b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF",
+    )
+    task = await task_service.create_task(
+      actor=admin,
+      title="带附件任务",
+      assignee_id=employee.id,
+      attachment_ids=[draft_attachment.id],
+    )
+    link = await db_session.scalar(
+      select(AttachmentLink).where(
+        AttachmentLink.attachment_id == draft_attachment.id,
+        AttachmentLink.target_type == AttachmentTargetType.TASK,
+        AttachmentLink.target_id == task.id,
+      )
+    )
+
+    assert link is not None
+
+
+@pytest.mark.asyncio
 async def test_phase3_single_node_workflow_creation_projects_task_and_graph_entities(db_session) -> None:
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,

@@ -28,6 +28,7 @@ from app.core.config import Settings
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import (
   Attachment,
+  AttachmentLink,
   Department,
   Profile,
   Task,
@@ -92,6 +93,7 @@ class TaskStatsSummary:
 class TaskWorkloadEntry:
   assignee_id: UUID
   assignee_email: str
+  assignee_label: str
   department_id: UUID | None
   department_name: str | None
   total_tasks: int
@@ -215,14 +217,15 @@ def _task_status_label(status: TaskStatus) -> str:
 HANDSHAKE_ASSIGNED = "assigned"
 HANDSHAKE_ACCEPTED = "accepted"
 HANDSHAKE_REJECTED = "rejected"
+_MAX_TASK_ATTACHMENTS = 10
 
 
 def _user_display_label(user: User | None) -> str | None:
   if user is None:
     return None
-  if user.profile and user.profile.real_name:
-    return user.profile.real_name
-  return user.email
+  from app.services.user_display import user_display_label
+
+  return user_display_label(user)
 
 
 class TaskService:
@@ -1021,6 +1024,7 @@ class TaskService:
     due_date: datetime | None = None,
     priority: TaskPriority = TaskPriority.MEDIUM,
     dependency_ids: list[UUID] | None = None,
+    attachment_ids: list[UUID] | None = None,
     source_type: TaskSourceType = TaskSourceType.MANUAL,
     extra_metadata: dict[str, object] | None = None,
     commit: bool = False,
@@ -1057,59 +1061,57 @@ class TaskService:
         source_type=source_type,
         extra_metadata=extra_metadata,
       )
-      if commit:
-        await self._session.commit()
-        await self._session.refresh(task)
-        await self._send_assignment_notification(task=task, assignee=assignee)
-      return task, assignee
+    else:
+      task = Task(
+        title=title,
+        description=description,
+        creator_id=actor.id,
+        assignee_id=assignee_id,
+        department_id=resolved_department_id,
+        due_date=due_date,
+        priority=priority,
+        source_type=source_type,
+        extra_metadata=extra_metadata or {},
+      )
+      self._session.add(task)
+      await self._session.flush()
 
-    task = Task(
-      title=title,
-      description=description,
-      creator_id=actor.id,
-      assignee_id=assignee_id,
-      department_id=resolved_department_id,
-      due_date=due_date,
-      priority=priority,
-      source_type=source_type,
-      extra_metadata=extra_metadata or {},
-    )
-    self._session.add(task)
-    await self._session.flush()
-
-    if dependency_ids:
-      dependency_task_ids = set(await self._session.scalars(select(Task.id).where(Task.id.in_(dependency_ids))))
-      if dependency_task_ids != set(dependency_ids):
-        raise NotFoundError("存在无效的前置任务。")
-      for dependency_id in dependency_ids:
-        self._session.add(
-          TaskDependency(
-            task_id=task.id,
-            depends_on_task_id=dependency_id,
+      if dependency_ids:
+        dependency_task_ids = set(await self._session.scalars(select(Task.id).where(Task.id.in_(dependency_ids))))
+        if dependency_task_ids != set(dependency_ids):
+          raise NotFoundError("存在无效的前置任务。")
+        for dependency_id in dependency_ids:
+          self._session.add(
+            TaskDependency(
+              task_id=task.id,
+              depends_on_task_id=dependency_id,
+            )
           )
-        )
 
-    await self._create_task_log(
-      task_id=task.id,
-      operator_id=actor.id,
-      action_type=TaskActionType.CREATED,
-      detail={
-        "assignee_id": str(assignee_id),
-        "priority": priority.value,
-        "source_type": source_type.value,
-        "dependency_ids": [str(dependency_id) for dependency_id in dependency_ids or []],
-        "template_instance_id": str(task.template_instance_id) if task.template_instance_id is not None else None,
-        "template_step_run_id": str(task.template_step_run_id) if task.template_step_run_id is not None else None,
-      },
-    )
-    await self._create_task_log(
-      task_id=task.id,
-      operator_id=actor.id,
-      action_type=TaskActionType.ASSIGNED,
-      detail={
-        "assignee_id": str(assignee_id),
-      },
-    )
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.CREATED,
+        detail={
+          "assignee_id": str(assignee_id),
+          "priority": priority.value,
+          "source_type": source_type.value,
+          "dependency_ids": [str(dependency_id) for dependency_id in dependency_ids or []],
+          "template_instance_id": str(task.template_instance_id) if task.template_instance_id is not None else None,
+          "template_step_run_id": str(task.template_step_run_id) if task.template_step_run_id is not None else None,
+        },
+      )
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.ASSIGNED,
+        detail={
+          "assignee_id": str(assignee_id),
+        },
+      )
+
+    if attachment_ids:
+      await self._bind_attachments_to_task(actor=actor, task_id=task.id, attachment_ids=attachment_ids)
 
     if commit:
       await self._session.commit()
@@ -1454,6 +1456,51 @@ class TaskService:
     instance, node_instance = await self._load_workflow_graph_projection(task=task)
     return instance is not None and node_instance is not None
 
+  async def _bind_attachments_to_task(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    attachment_ids: list[UUID],
+  ) -> None:
+    if not attachment_ids:
+      return
+    if len(attachment_ids) > _MAX_TASK_ATTACHMENTS:
+      raise ConflictError(f"任务附件最多 {_MAX_TASK_ATTACHMENTS} 个。")
+
+    unique: list[UUID] = []
+    seen: set[UUID] = set()
+    for raw in attachment_ids:
+      if raw in seen:
+        continue
+      seen.add(raw)
+      unique.append(raw)
+
+    for att_id in unique:
+      att = await self._session.scalar(
+        select(Attachment)
+        .options(selectinload(Attachment.links))
+        .where(Attachment.id == att_id)
+      )
+      if att is None:
+        raise ConflictError("附件不存在。")
+      if att.uploader_id != actor.id:
+        raise ConflictError("只能绑定本人上传的附件。")
+      if att.status != AttachmentStatus.UPLOADED:
+        raise ConflictError("附件不可用。")
+      if att.links:
+        raise ConflictError("附件已绑定其他业务对象，请先使用新上传的附件。")
+      self._session.add(
+        AttachmentLink(
+          attachment_id=att.id,
+          target_type=AttachmentTargetType.TASK,
+          target_id=task_id,
+          relation="primary",
+          created_by=actor.id,
+        )
+      )
+    await self._session.flush()
+
   async def _validate_task_attachment_ids(
     self,
     *,
@@ -1684,6 +1731,7 @@ class TaskService:
     due_date: datetime | None = None,
     priority: TaskPriority = TaskPriority.MEDIUM,
     dependency_ids: list[UUID] | None = None,
+    attachment_ids: list[UUID] | None = None,
   ) -> Task:
     task, _ = await self.create_task_record(
       actor=actor,
@@ -1694,6 +1742,7 @@ class TaskService:
       due_date=due_date,
       priority=priority,
       dependency_ids=dependency_ids,
+      attachment_ids=attachment_ids,
       source_type=TaskSourceType.MANUAL,
       commit=True,
     )
@@ -2738,6 +2787,7 @@ class TaskService:
         workload = TaskWorkloadEntry(
           assignee_id=assignee.id,
           assignee_email=assignee.email,
+          assignee_label=_user_display_label(assignee) or assignee.email,
           department_id=task.department_id,
           department_name=task.department.name if task.department is not None else None,
           total_tasks=0,
@@ -2757,7 +2807,7 @@ class TaskService:
 
     return sorted(
       workload_map.values(),
-      key=lambda row: (row.department_name or "", row.assignee_email),
+      key=lambda row: (row.department_name or "", row.assignee_label),
     )
 
   async def get_task_board(self, *, actor: User) -> list[TaskBoardColumn]:

@@ -412,8 +412,19 @@ function resolveDepartmentName(departmentId: string | null): string {
   return departmentNameMap.value.get(departmentId) ?? '—'
 }
 
-function resolveUserLabel(userId: string): string {
-  return userEmailMap.value.get(userId) ?? `用户 ${userId.slice(0, 8)}`
+const delegateUserLabelMap = computed(
+  () => new Map(props.delegateUserOptions.map((option) => [option.user_id, option.label])),
+)
+
+function resolveUserLabel(userId: string, preferredLabel?: string | null): string {
+  if (preferredLabel) {
+    return preferredLabel
+  }
+  return (
+    delegateUserLabelMap.value.get(userId) ??
+    userEmailMap.value.get(userId) ??
+    `用户 ${userId.slice(0, 8)}`
+  )
 }
 
 function resolveNodeEngineStateLabel(state: WorkflowNodeInstanceSummary['engine_state']): string {
@@ -1522,7 +1533,7 @@ watch(
                   <template v-if="entry.comment">
                     <div class="page__timeline-header">
                       <div>
-                        <strong>{{ resolveUserLabel(entry.comment.user_id) }}</strong>
+                        <strong>{{ resolveUserLabel(entry.comment.user_id, entry.comment.author_label) }}</strong>
                         <el-tag
                           v-if="entry.comment.is_internal"
                           type="warning"
@@ -1552,7 +1563,7 @@ watch(
 
                   <template v-else-if="entry.log">
                     <div class="page__timeline-header">
-                      <strong>{{ resolveUserLabel(entry.log.operator_id) }}</strong>
+                      <strong>{{ resolveUserLabel(entry.log.operator_id, entry.log.operator_label) }}</strong>
                       <el-tag effect="plain">日志</el-tag>
                     </div>
                     <p class="page__timeline-text">{{ renderLogSummary(entry) }}</p>
@@ -1573,7 +1584,7 @@ watch(
       </template>
 
       <el-table :data="workloadRows" stripe>
-        <el-table-column prop="assignee_email" label="执行人" min-width="220" />
+        <el-table-column prop="assignee_label" label="执行人" min-width="220" />
         <el-table-column prop="department_name" label="部门" min-width="160" />
         <el-table-column prop="total_tasks" label="总任务数" width="120" />
         <el-table-column prop="open_tasks" label="进行中/待处理" width="140" />

@@ -335,6 +335,7 @@ export interface TaskComment {
   id: string
   task_id: string
   user_id: string
+  author_label?: string | null
   content: string
   content_format: CommentFormat
   is_internal: boolean
@@ -347,6 +348,7 @@ export interface TaskLog {
   id: string
   task_id: string
   operator_id: string
+  operator_label?: string | null
   action_type: TaskActionType
   from_status: TaskStatus | null
   to_status: TaskStatus | null
@@ -373,6 +375,7 @@ export interface TaskStatsSummary {
 export interface TaskWorkloadRow {
   assignee_id: string
   assignee_email: string
+  assignee_label: string
   department_id: string | null
   department_name: string | null
   total_tasks: number
@@ -613,6 +616,7 @@ export interface TaskTemplateStepRun {
   template_step_id: string
   assignee_user_id: string
   assignee_email: string | null
+  assignee_label?: string | null
   iteration: number
   status: TaskTemplateStepRunStatus
   decision: TaskTemplateStepRunDecision | null
@@ -640,6 +644,7 @@ export interface TaskTemplateInstance {
   template_id: string
   initiator_user_id: string
   initiator_email: string | null
+  initiator_label?: string | null
   department_id: string | null
   department_name: string | null
   status: TaskTemplateInstanceStatus

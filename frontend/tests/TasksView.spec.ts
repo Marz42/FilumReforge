@@ -187,6 +187,7 @@ const mockWorkload: TaskWorkloadRow[] = [
   {
     assignee_id: 'user-2',
     assignee_email: 'employee@example.com',
+    assignee_label: '员工（employee@example.com）',
     department_id: 'dept-1',
     department_name: '研发部',
     total_tasks: 2,

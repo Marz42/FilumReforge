@@ -100,6 +100,7 @@ class TaskTemplateStepRunRead(BaseModel):
   template_step_id: UUID
   assignee_user_id: UUID
   assignee_email: str | None = None
+  assignee_label: str | None = None
   iteration: int
   status: str
   decision: str | None
@@ -129,6 +130,7 @@ class TaskTemplateInstanceRead(BaseModel):
   template_id: UUID
   initiator_user_id: UUID
   initiator_email: str | None = None
+  initiator_label: str | None = None
   department_id: UUID | None
   department_name: str | None = None
   status: str

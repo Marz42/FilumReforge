@@ -973,8 +973,8 @@ function formatStepSnapshotProgress(snapshot: TaskTemplateInstance['step_snapsho
 
 function formatTemplateInstanceOptionLabel(instance: TaskTemplateInstance): string {
   const labelParts = [formatDateTime(instance.created_at), formatTemplateInstanceStatus(instance.status)]
-  if (instance.initiator_email) {
-    labelParts.push(instance.initiator_email)
+  if (instance.initiator_label || instance.initiator_email) {
+    labelParts.push(instance.initiator_label ?? instance.initiator_email!)
   }
   return labelParts.join(' · ')
 }
@@ -1383,7 +1383,11 @@ onMounted(() => {
                     <el-progress :percentage="selectedTemplateInstance.progress_percent" :stroke-width="10" />
                   </div>
                   <p class="page__instance-meta">
-                    发起人 {{ selectedTemplateInstance.initiator_email || selectedTemplateInstance.initiator_user_id }}
+                    发起人 {{
+                      selectedTemplateInstance.initiator_label
+                        || selectedTemplateInstance.initiator_email
+                        || selectedTemplateInstance.initiator_user_id
+                    }}
                     · 部门 {{ selectedTemplateInstance.department_name || '—' }}
                     · 创建于 {{ formatDateTime(selectedTemplateInstance.created_at) }}
                   </p>
@@ -1423,7 +1427,9 @@ onMounted(() => {
                         <div v-if="snapshot.step_runs.length > 0" class="page__instance-run-list">
                           <div v-for="stepRun in snapshot.step_runs" :key="stepRun.id" class="page__instance-run">
                             <div>
-                              <strong>{{ stepRun.assignee_email || stepRun.assignee_user_id }}</strong>
+                              <strong>{{
+                                stepRun.assignee_label || stepRun.assignee_email || stepRun.assignee_user_id
+                              }}</strong>
                               <p>{{ stepRun.task?.title || '任务生成中' }}</p>
                             </div>
                             <div>

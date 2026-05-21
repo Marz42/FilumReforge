@@ -11,6 +11,7 @@ from app.api.dependencies import (
   get_task_template_service,
 )
 from app.models import TaskTemplate, TaskTemplateInstance, TaskTemplateStep, TaskTemplateStepRun, User
+from app.services.user_display import user_display_label
 from app.schemas.task_templates import (
   StepRunDecideRequest,
   TaskTemplateInstanceRead,
@@ -73,6 +74,7 @@ def _build_template_step_run_read(step_run: TaskTemplateStepRun) -> TaskTemplate
   return TaskTemplateStepRunRead.model_validate(step_run).model_copy(
     update={
       "assignee_email": step_run.assignee.email if step_run.assignee is not None else None,
+      "assignee_label": user_display_label(step_run.assignee),
       "task": TaskRead.model_validate(step_run.task) if step_run.task is not None else None,
     }
   )
@@ -144,6 +146,7 @@ def _build_template_instance_read(instance: TaskTemplateInstance) -> TaskTemplat
   return TaskTemplateInstanceRead.model_validate(instance).model_copy(
     update={
       "initiator_email": instance.initiator.email if instance.initiator is not None else None,
+      "initiator_label": user_display_label(instance.initiator),
       "department_name": instance.department.name if instance.department is not None else None,
       "total_step_count": total_step_count,
       "completed_step_count": completed_step_count,

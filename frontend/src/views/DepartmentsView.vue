@@ -198,6 +198,20 @@ const subordinatePeople = computed(() => {
   return people.value.filter((person) => person.department_id === selectedDepartmentId.value)
 })
 
+const peopleByUserId = computed(
+  () => new Map(people.value.map((person) => [person.user_id, person])),
+)
+
+const managerSelectOptions = computed(() =>
+  users.value
+    .filter((user) => user.status === 'active')
+    .map((user) => {
+      const person = peopleByUserId.value.get(user.id)
+      const label = person?.real_name ? `${person.real_name}（${user.email}）` : user.email
+      return { value: user.id, label }
+    }),
+)
+
 onMounted(() => {
   void loadData()
 })
@@ -231,7 +245,7 @@ onMounted(() => {
           :is-creating="isCreatingDepartment"
           :create-mode-title="createModeTitle"
           :departments="departments"
-          :users="users"
+          :manager-options="managerSelectOptions"
           :subordinates="subordinatePeople"
           :form="form"
           :submitting="submitting"
