@@ -18,7 +18,7 @@
 | [handbooks/deployment-runbook-ubuntu-2404.md](./handbooks/deployment-runbook-ubuntu-2404.md) | Ubuntu 24.04 LTS 生产部署全流程 |
 | [handbooks/manual-database-operations.md](./handbooks/manual-database-operations.md) | PostgreSQL 手工操作、迁移、整库重置 |
 | [handbooks/e2e-gui-verification-automation-runbook.md](./handbooks/e2e-gui-verification-automation-runbook.md) | Docker GUI + Playwright 自动化验证与报告 |
-| [handbooks/user-manual.md](./handbooks/user-manual.md) | **用户说明书** v1.1（与 IA Phase A–F 界面对齐的操作指南） |
+| [handbooks/user-manual.md](./handbooks/user-manual.md) | **用户说明书** v1.2（IA Phase A–F + 体验补丁） |
 
 ## [plans/](./plans/) — 实施计划（排期与阶段出口）
 
@@ -37,6 +37,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [history/reports/alignment-assessment-20260422.md](./history/reports/alignment-assessment-20260422.md) | 2026-04-22 文档与实现对齐评估快照 |
+| [history/reports/alignment-assessment-20260521.md](./history/reports/alignment-assessment-20260521.md) | 2026-05-21 Stage 2 Phase 6 收口、测试基线与 IA 后补丁对齐 |
 | [history/reports/phase11g-progress-report-20260506.md](./history/reports/phase11g-progress-report-20260506.md) | Phase 11-G 收口报告快照 |
 
 ## [history/proposals/](./history/proposals/) — 历史方案与提案（非现行排期）

@@ -7,7 +7,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 - **已完成**
   - 用户与会话：管理员初始化、JWT access token、HttpOnly refresh cookie 轮换 / logout 撤销、角色控制
   - 组织与 HR：部门树、一人一档、字段级权限、多岗位、虚线汇报、生命周期事件、代理授权
-  - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计；任务中心 **Quick Chips + Master-Detail**（待处理 / 跟踪 / 历史）、列表/看板/甘特视图、页头建立任务 Drawer、全局备忘浮窗、独立 **任务模板** 路由
+  - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计；任务中心 **Quick Chips + Master-Detail**（待处理 / 跟踪 / 历史）、列表/看板/甘特视图、页头 **建立任务 Dialog**、全局备忘（列表 + 编辑 Dialog，可选标题）、附件鉴权下载（`GET /attachments/{id}/content`）、独立 **任务模板** 路由
   - 工作流图引擎重构当前已到 **Phase 11-F**：单节点 dual-write、交付 / 验收 / 返工、接单 / 协商 / 转办、多节点推进、条件边 / Context / Notice、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first 读路径**（默认 `TASK_CENTER_V2_ENABLED=true`）、迁移 CLI 与 Playwright 基线等；详见 `memory-bank/progress.md`
   - 工作流 E 首批：模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚（`all` / `any`）、模板实例快照、结构化设计器首版与已有模板编辑
   - 总览与汇报：总览看板 / 公告 / 当前任务、逐级向上汇报 / 向下传达、历史归档
@@ -17,10 +17,9 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 - **仍待补齐**
   - 访客公开自助注册与审批式注册（**邀请制注册**已落地：管理员发邀请链接、受邀人设置密码激活；与「完全无注册能力」不同）
   - 生命周期事件的规则化默认联动与前端结构化配置入口（后端已支持事件上**显式绑定**模板 / 审批目标并由 **worker 异步触发**）
-  - **工作流 E 与图引擎（`WorkflowGraphTemplate`）的产品级统一**、模板 / 调度管理深化、全量回归与部署硬化（任务中心读侧已默认 graph-first，不等同于「条件路由 / Context 未做」）
-  - 工作流 E 的后续收口：模板 / 调度管理动作深化、全量回归、部署硬化与更强设计器校验
+  - **工作流 E 与图引擎（`WorkflowGraphTemplate`）的产品级统一**、模板 / 调度管理深化、更强设计器校验（任务中心读侧已默认 graph-first）
   - 通知适配器的真实外部集成深化与更完整的投递观测（当前 Email / WebSocket 为最小实现）
-  - 针对当前基线的进一步重构与测试强化
+  - **Stage 2 Phase 6** 已收口（在线 Ubuntu 主机演练 + 2026-05-21 测试基线）；**Ubuntu 最小回滚路径**仍待演练
 
 ## 主要能力
 
@@ -345,6 +344,8 @@ sudo journalctl -u filum-backend -u filum-worker -f
 
 ## 测试与验证
 
+**当前测试基线**（commit `36c6a77`，2026-05-21）：见 [`memory-bank/progress.md`](memory-bank/progress.md)「测试基线」— 后端 **153** pytest、前端 **106** vitest、Docker GUI 沿用 **18/18**（2026-05-20）。
+
 ### Backend
 
 ```sh
@@ -461,9 +462,9 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 下一步
 
-1. **Stage 2 Phase 6**：Linux / Ubuntu 上 `scripts/check-release.sh` 全绿与生产部署演练
+1. **Ubuntu 最小回滚路径演练**（补 Phase 6 遗留）
 2. 工作流 E 与图模板产品级统一、模板 / 调度管理深化
-3. **公开或审批式注册**（邀请制已可用）
-4. 通知适配器真实外部集成与投递观测
+3. 生命周期规则 UI 与默认映射
+4. **公开或审批式注册**（邀请制已可用）与通知适配器真实外发 / 投递观测
 
 进度与验测记录见 [`memory-bank/progress.md`](memory-bank/progress.md)。

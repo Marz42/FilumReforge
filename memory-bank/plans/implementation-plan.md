@@ -13,7 +13,7 @@
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: 当前主线已经从 Step 7 收口转入 **工作流 E 后续深化 / 回归 / 部署工程化 / 文档对齐**；工作流重构主线已完成 Phase 11-A 至 11-G，其中 11-G 已补齐前端可测性加固、Playwright mock/live 浏览器基线与前端回归收口。下一步主焦点回到 **部署工程化收口 / Linux 近似环境发布演练 / 更大范围真实业务 E2E 扩面**。本轮新实施周期统一记录在 `memory-bank/plans/improvements-stage2-implementation-plan.md`，而 Phase 11 的直接实施事实继续以 `memory-bank/plans/workflow-refactor-implementation-plan.md` 为准。
+**当前执行位置**: **Stage 2 周期（Phase 0–6）与 UI IA Phase A–F 已收口**（2026-05-21）；测试基线与在线 Ubuntu 主机演练见 `memory-bank/progress.md`。工作流重构 Phase 11-A–11-G 已完成。下一步主焦点见 `improvements-stage2-implementation-plan.md` **§11** 与 `progress.md`「当前规划焦点」：**回滚演练**、工作流 E 与图引擎统一、生命周期规则 UI、注册/通知深化。Phase 11 实施事实以 `workflow-refactor-implementation-plan.md` 为准。
 
 ## 2. 已确认约束
 
@@ -51,7 +51,7 @@
 - 生命周期事件的**规则化默认映射**与**前端结构化配置入口**（显式绑定 + worker 触发已落地）
 - 真实 Email / WebSocket 对外发送接入深化（当前仍为最小 / 占位适配器为主）
 - **工作流 E（`task_templates`）与图模板（`WorkflowGraphTemplate`）的产品级统一**：两套运行时并存属已知边界，不等同于“图条件 / Context / Notice 未实现”（上述已在图引擎侧落地）
-- 更系统的重构、集成测试、E2E 扩面、**Linux / Ubuntu 近似环境**下 `scripts/check-release.sh` 与上线演练结论固化
+- 更系统的重构、集成测试、E2E 扩面；**Ubuntu 最小回滚演练**；docker-gui / Playwright 基线定期刷新（Stage 2 Phase 6 主机演练与 2026-05-21 测试基线已记入 `progress.md`）
 
 独立迭代（不并入 Stage 2 串行表内阶段）的积压主题已汇总至 `memory-bank/plans/improvements-stage2-implementation-plan.md` **§11**。
 
@@ -220,7 +220,7 @@
 	  - `infra/nginx/nginx.compose.prod.conf`：Compose 内部 gateway Nginx 配置
 	  - `scripts/check-release.sh`：发布前全量验证脚本（pytest、compileall、type-check、build、lint、alembic check）
 	- 近期已完成核心回归：backend `pytest -q`、`python -m compileall app tests`，frontend `npm run test:unit -- --run`、`npm run type-check`
-	- 发布前一键校验与上线演练仍待执行；执行命令：`bash scripts/check-release.sh`
+	- Stage 2 Phase 6 已完成；发布前在 **Linux 原生路径** 执行 `bash scripts/check-release.sh`（见 `progress.md` 测试基线）
 2. 模板管理深化
 	- 继续补模板 / 调度更完整的管理动作与更强设计器校验，而不是停留在“可创建 / 可实例化”的首版能力
 3. 业务联动

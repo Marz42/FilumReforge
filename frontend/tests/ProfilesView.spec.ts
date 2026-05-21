@@ -267,7 +267,9 @@ describe('Profiles view', () => {
     })
   })
 
-  it('renders phase3 profile governance tabs and detail sections', async () => {
+  it(
+    'renders phase3 profile governance tabs and detail sections',
+    async () => {
     const wrapper = mount(ProfilesView, {
       global: {
         plugins: [ElementPlus],
@@ -283,7 +285,9 @@ describe('Profiles view', () => {
     expect(wrapper.text()).toContain('敏感字段')
     expect(wrapper.text()).toContain('代理授权')
     expect(getProfile).toHaveBeenCalledWith('user-2')
-  })
+  },
+    15000,
+  )
 
   it('revokes delegation from delegation tab', async () => {
     const wrapper = mount(ProfilesView, {

@@ -16,6 +16,8 @@ vi.mock('vue-router', async () => {
   }
 })
 
+import { ElRadioGroup } from 'element-plus'
+
 import OverviewTodoWidget from '@/components/overview/OverviewTodoWidget.vue'
 
 const inboxTask: OverviewTaskInboxEntry = {
@@ -70,16 +72,25 @@ describe('OverviewTodoWidget', () => {
     })
   }
 
-  it('renders inbox tasks and pending reports', () => {
+  async function switchToReportPane(wrapper: ReturnType<typeof mountWidget>) {
+    const radioGroup = wrapper.findComponent(ElRadioGroup)
+    await radioGroup.setValue('report')
+    await flushPromises()
+  }
+
+  it('renders inbox tasks and pending reports', async () => {
     const wrapper = mountWidget()
     expect(wrapper.text()).toContain('补齐总览首页')
+
+    await switchToReportPane(wrapper)
+
     expect(wrapper.text()).toContain('周报提交')
   })
 
   it('navigates to task center when a task row is clicked', async () => {
     const wrapper = mountWidget()
     const taskButton = wrapper
-      .findAll('button.overview-widget__item')
+      .findAll('button.overview-todo-list__button')
       .find((node) => node.text().includes('补齐总览首页'))
     expect(taskButton).toBeTruthy()
 
@@ -96,8 +107,10 @@ describe('OverviewTodoWidget', () => {
 
   it('navigates to reports when a report row is clicked', async () => {
     const wrapper = mountWidget()
+    await switchToReportPane(wrapper)
+
     const reportButton = wrapper
-      .findAll('button.overview-widget__item')
+      .findAll('button.overview-todo-list__button')
       .find((node) => node.text().includes('周报提交'))
     expect(reportButton).toBeTruthy()
 

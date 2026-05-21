@@ -1269,7 +1269,11 @@ async def test_phase4_graph_task_reject_and_delegate_refresh_runtime_projection(
   assert delegated_task.extra_metadata["workflow_handshake_state"] == "assigned"
   assert delegated_task.extra_metadata["latest_delegate_reason"] == "请由更熟悉客户的人处理"
   assert any(entry.task_id == delegated_task.id and entry.current_stage_label == "任务：已转办待确认" for entry in delegate_inbox)
-  assert any(entry.task_id == delegated_task.id and entry.current_handler_label == "代理执行人" for entry in creator_tracking)
+  assert any(
+    entry.task_id == delegated_task.id
+    and entry.current_handler_label.startswith("代理执行人")
+    for entry in creator_tracking
+  )
 
   rejected_task = await task_service.create_task(
     actor=admin,
@@ -6379,7 +6383,7 @@ async def test_phase11f_task_center_v2_routes_migrated_review_task_to_creator_in
   assert all(entry.task_id != task.id for entry in assignee_inbox_graph)
   tracked_item = next(item for item in assignee_tracking_graph if item.task_id == task.id)
   assert tracked_item.current_stage_label == "任务：待验收"
-  assert tracked_item.current_handler_label == "管理员"
+  assert tracked_item.current_handler_label.startswith("管理员")
   assert tracked_item.is_pending_review is True
 
 

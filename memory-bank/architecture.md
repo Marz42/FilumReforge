@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
-**版本**: v3.11.0  
-**状态**: Phase A–5 与重构 Step 1–7 已完成；工作流图引擎 Phase 3–11-G 与 Stage 2 Phase 1–5 已落地；**Stage 2 Phase 6**（Linux 发布演练 / `check-release.sh` 全量闸门）仍为进行中；**附件**已统一 MIME/大小策略并支持汇报 `attachment_links(report)`；图引擎写接口已 **`session.commit()`** 持久化，实例详情 API 避免 ORM 关系懒加载；**memory-bank** 已重组为 `handbooks/`、`plans/`、`history/`、`archive/outdated/`（见 `memory-bank/README.md`），且仓库内 `.github/*`、`infra/`、`verification-runs/` 等指向上述文档的链接已与新目录对齐；汇报中心「发起向上/向下」已收敛为页头 **「发起汇报」** 弹窗统一入口（`/reports`）  
+**版本**: v3.12.0  
+**状态**: Phase A–5 与重构 Step 1–7 已完成；工作流图引擎 Phase 3–11-G 与 **Stage 2 Phase 0–6**（含在线 Ubuntu 主机演练）已落地；**Ubuntu 最小回滚演练**仍为待办；**附件**已统一 MIME/大小策略并支持汇报 `attachment_links(report)`；图引擎写接口已 **`session.commit()`** 持久化，实例详情 API 避免 ORM 关系懒加载；**memory-bank** 已重组为 `handbooks/`、`plans/`、`history/`、`archive/outdated/`（见 `memory-bank/README.md`），且仓库内 `.github/*`、`infra/`、`verification-runs/` 等指向上述文档的链接已与新目录对齐；汇报中心「发起向上/向下」已收敛为页头 **「发起汇报」** 弹窗统一入口（`/reports`）  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -64,7 +64,7 @@
 - Stage 2 Phase 5 首轮实现：认证已补邀请制注册，管理员可创建未启用账号并生成邀请链接；登录页支持邀请预览与设置密码激活；人员工作台“新建账号”对话框支持“直接创建 / 邀请注册”双路径
 - Stage 2 Phase 6 补丁增强：人员工作台账号页已明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；管理员可删除未建档且未被业务数据引用的账号
 - Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
-- Inbox-first 任务中心：待处理 / 跟踪 / 备忘 / 模板四主标签，建立任务改为页头全局 Drawer，历史任务并入跟踪视图
+- Inbox-first 任务中心：主筛选 **待处理 / 跟踪 / 历史**；页头 **建立任务** 为居中 **Dialog**（含未保存关闭确认）；筛选摘要卡；`GET /api/v1/tasks/search`；`FilumDateTimePicker` / `FilumDateTimeRangePicker`；全局 **个人备忘** 为右下角浮窗（列表 + 新建/编辑 Dialog，可选 `title`）；任务模板在 `/task-templates`
 - 工作流重构 Phase 2：图引擎核心 schema 已落库，新增 `workflow_graph_templates`、`workflow_graph_template_nodes`、`workflow_graph_template_edges`、`workflow_graph_instances`、`workflow_node_instances`、`workflow_deliverables`、`workflow_outbox_events` 七张表，以及图模板状态、图实例状态、节点引擎态、节点业务投影态、outbox 事件状态枚举；Phase 3 起已接入手动任务的 graph dual-write；任务中心待办 / 跟踪 / 历史在默认 `TASK_CENTER_V2_ENABLED=true` 下为 graph-first with legacy fallback（见 Phase 11-F）；工作流 E（`task_templates` / `TaskTemplateService.instantiate_template`）仍为独立运行时，与 `WorkflowGraphTemplate` 多节点图并存，尚未合并为单一模板源
 - 工作流重构 Phase 3：后端已新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` 等 feature flag、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在手动创建任务且开关开启时走“graph instance + node instance + 兼容 Task 投影”双写路径；兼容 `Task` 行仍是列表与详情载体，`TaskCenterService` 仍委托 `TaskService.list_task_inbox()` 等三接口，但在 `TASK_CENTER_V2_ENABLED=true`（`backend/app/core/config.py` 默认）时上述列表优先使用 `_graph_task_projection_map` 解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，未命中图投影时回落既有 legacy 规则
 - 工作流重构单节点交付闭环首轮：基于上述 Phase 3 双写链路，`TaskService` / `tasks` API 已新增“提交交付物”“通过验收”“打回返工”动作，交付快照写入 `workflow_deliverables`，兼容 `Task` 投影通过 `extra_metadata` 暴露最近交付说明、最近提交时间、返工原因、返工次数与最近质量评分；`TaskCenterService` / `task-center` API / `TaskCenterView` 已同步投影待验收、最近提交时间、返工次数、质量评分等跟踪信号；同时禁止 graph 手动任务通过通用状态流转接口直接跳过交付 / 验收动作
@@ -92,11 +92,11 @@
 - 工作流 E 首批已经落地，且 Stage 2 Phase 2 已完成模板设计器拓扑校验、模板版本语义、调度最近执行结果、实例进度展示与 fan-out / join 重复激活约束收口；后续重点转向生命周期事件联动、实例历史深挖与全量回归 / 部署收口
 - 工作流重构已完成 Phase 3-11-G：含手动创建 dual-write、交付 / 验收 / 返工、握手 / 转办、多节点推进、Context 写回、条件边与 Notice、智能抄送候选、Wait-Any 撤权、深度打回、routing_rules 桥接、outbox、迁移 CLI、**任务中心列表 graph-first 读路径**（`TASK_CENTER_V2_ENABLED`）、Playwright 基线等。仍待产品化深化的方向：工作流 E 与图模板 / 调度的进一步统一、全量回归与部署演练；`TaskTemplateService` 仍未改为从 `WorkflowGraphTemplate` 一步实例化（两套入口并存属已知架构边界，而非“读侧未切换”）
 - 生命周期事件与任务模板 / 审批流的规则化默认联动、前端结构化配置入口仍未落地；当前已支持在事件写入时显式绑定目标并异步触发
-- 生产 compose、主机部署脚本与 Nginx 生产配置已落地；当前主要缺全量上线演练与发布稳定性验证
+- 生产 compose、主机部署脚本与 Nginx 生产配置已落地；**Stage 2 Phase 6** 已记录在线 Ubuntu 主机演练与 2026-05-21 测试基线；**最小回滚路径**仍待演练
 - HR 字段权限的可视化规则管理页仍偏基础
 - 消息外部渠道深化、失败重试与更完整投递观测
 - Email / WebSocket 渠道的外部真实接入仍是最小实现后的下一步
-- 更大范围的集成测试、端到端验证扩面，以及 Linux / Ubuntu 近似发布演练
+- 更大范围的集成测试、端到端验证扩面；docker-gui / Playwright 与发布 commit 的定期基线刷新
 
 ## 3. 模块边界与状态映射
 
@@ -405,7 +405,8 @@
 3. 通过 `ObjectStorageService` 写入对象存储，写入 `attachments` 元数据。
 4. 使用 `attachment_links` 绑定到任务、档案、评论、消息、**汇报（`report`）** 等业务对象。
 5. `GET /attachments`：对 `task` / `task_comment` / `report` 目标在通过对应读权限校验后，**不按 uploader 过滤**，便于参与人查看任务与汇报资料附件。
-6. 前端统一预检：`frontend/src/constants/attachments.ts`（`ATTACHMENT_ACCEPT`、`validateAttachmentFile`、`attachmentMimeIsInlineViewable`）；任务 / 知识库 / 汇报创建页在 `el-upload` 的 `before-upload` 与后端规则对齐；任务资料上传区使用 **`data-testid="tasks-attachment-upload"`** 包裹层（便于 E2E 与 Element Plus 内部 file input 解耦）。
+6. `GET /attachments/{attachment_id}/content`：鉴权后流式返回文件内容；`download_url` 指向该路径（`backend/app/api/attachment_content.py`）；前端通过 blob 下载，避免未鉴权直链。
+7. 前端统一预检：`frontend/src/constants/attachments.ts`（`ATTACHMENT_ACCEPT`、`validateAttachmentFile`、`attachmentMimeIsInlineViewable`）；任务 / 知识库 / 汇报创建页在 `el-upload` 的 `before-upload` 与后端规则对齐；任务资料上传区使用 **`data-testid="tasks-attachment-upload"`** 包裹层（便于 E2E 与 Element Plus 内部 file input 解耦）。
 
 ### 6.5 字段级权限解析链路（当前 / Phase 3）
 
@@ -1223,6 +1224,7 @@
 | `id` | `uuid` | PK | 备忘主键 |
 | `owner_user_id` | `uuid` | FK -> `users.id`, NOT NULL | 备忘所属用户 |
 | `related_task_id` | `uuid` | FK -> `tasks.id`, NULL | 关联任务 |
+| `title` | `varchar(200)` | NULL | 可选标题（迁移 `20260519_01`） |
 | `content` | `text` | NOT NULL | 备忘正文 |
 | `is_pinned` | `bool` | NOT NULL, DEFAULT `false` | 是否置顶 |
 | `created_at` | `timestamptz` | NOT NULL | 创建时间 |

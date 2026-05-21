@@ -1,5 +1,22 @@
 # Project Filum 进度记录
 
+## 测试基线（Test Baseline）
+
+| 字段 | 值 |
+| --- | --- |
+| `baseline_id` | `2026-05-21-main-36c6a77` |
+| `commit` | `36c6a77`（`feat(ui): task center UX polish, memos, and overview layout`） |
+| `runner_os` | Windows 11 + `backend/.venv`（Python 3.11）；前端 `npm ci` 后原生 Node |
+| `pytest` | **153 passed**（`backend/.venv/Scripts/python.exe -m pytest`，约 98s） |
+| `compileall` | PASS（`python -m compileall -q app tests`） |
+| `vitest` | **29 文件 / 106 用例** 全绿（`npm run test:unit -- --run`） |
+| `type-check` / `build` | PASS（`npm run type-check`、`npm run build`；Vite chunk size 为信息性警告） |
+| `check-release.sh` | **Windows 等价 P0 全绿**；经 Git Bash/WSL 直跑时因跨平台 `node_modules`（rolldown 绑定）与无 `python` 于 PATH 可能失败——生产/Ubuntu 主机应在 Linux 原生目录执行 `bash scripts/check-release.sh`（见在线演练记录） |
+| `eslint` | 8 errors（`npm run lint`，非 `check-release` 阻塞项；含未使用变量等待清理） |
+| `docker-gui` | **未在本机重跑**（Compose 栈未启动）；沿用 **2026-05-20** 基线 **18/18** @ `http://127.0.0.1:8080`，规格见 `frontend/e2e/docker-gui-verification/docker-gui-verification.spec.ts` |
+| `playwright_mock` / `playwright_live` | 未纳入本次基线重跑（Phase 11-G 独立层；见 `memory-bank/plans/workflow-refactor-implementation-plan.md` §16.9） |
+| `notes` | 单测已对齐 IA 后 UI：`OverviewTodoWidget` 待办/汇报分栏、`MessagesView` 时间范围 `createdRange`、handler 展示名 `name（email）`；`vite-plugin-vue-devtools` peer 警告不阻断 build |
+
 ## 当前阶段状态
 
 | 阶段 | 状态 | 结论 |
@@ -17,7 +34,7 @@
 | --- | --- | --- |
 | Step 1 / 壳层导航重构 | done | 用户已确认通过，已完成分组导航、主入口改名、旧路由兼容跳转与聚合入口壳层 |
 | Step 2 / 总览模块 | done | 已完成看板、公告、当前任务投影、总览聚合接口、总览页前端、归档 cron 与自动化回归，并通过用户手动验测 |
-| Step 3 / 任务中心重构 | done | 已完成任务中心聚合工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归；后续体验收口已演进为 Inbox-first 入口：默认标签为待处理，主标签调整为待处理 / 跟踪 / 备忘 / 模板，建立任务收敛到页头 Drawer，历史任务并入跟踪视图 |
+| Step 3 / 任务中心重构 | done | 已完成任务中心聚合工作台、`task-center` 聚合接口、`task_memos` 领域、权限重构与前后端回归；后续体验收口为 Inbox-first：**待处理 / 跟踪 / 历史** 三主筛选；**个人备忘** 与 **任务模板** 已迁出为全局浮窗 + `/task-templates`；建立任务现为页头 **居中 Dialog**（见 IA 后补丁 `36c6a77`） |
 | Step 4 / 汇报中心落地 | done | 已完成 `report-center` 聚合接口、`reports` / `report_routes` 领域、逐级向上汇报 / 向下传达、可选审批挂接与前后端回归；已修复 PostgreSQL 500 根因，并通过用户手动验测 |
 | Step 5 / 档案管理 & 用户管理合并 | done | 已完成 `/api/v1/people-management` 聚合接口与统一人员工作台；已完成全量自动化回归，并通过用户手动验测 |
 | Step 6 / 消息中心联动与提醒收口 | done | 已完成消息中心聚合快照、来源 payload 规范化、用户级隔离、来源回跳与前后端全量回归，并通过用户手动验测 |
@@ -28,14 +45,14 @@
 | 工作流 | 状态 | 结论 |
 | --- | --- | --- |
 | 工作流 E / 结构化任务模板与多步骤协作 | in_progress | 首批实现已落地：模板实例 / 步骤运行态、逐步激活、多人扇出 / 汇聚、结构化设计器与实例快照已完成；当前进入回归、部署准备与后续深化 |
-| 部署工程化收口 | in_progress | 生产运行形态已收口：`start-prod.sh`（无 --reload）、`Dockerfile.prod`（后端 + 前端多阶段构建）、`docker-compose.prod.yml`、Nginx 生产配置（host + compose）、环境变量模板、发布前验证脚本已完成；核心回归已执行，发布前一键校验与上线演练待执行 |
+| 部署工程化收口 | done | 生产运行形态已收口；**Stage 2 Phase 6** 已记录在线 Ubuntu 主机演练与 Windows 开发机测试基线（见下表与「测试基线」）；**最小回滚路径**仍待单独演练 |
 
 ## 工作流重构 / 当前执行状态
 
 | 阶段 | 状态 | 结论 |
 | --- | --- | --- |
 | Phase 0 / 基线冻结与术语对齐 | done | 已确认双层状态模型、旧任务映射口径、渐进切换策略与阶段测试出口，并形成 `memory-bank/plans/workflow-refactor-implementation-plan.md` 作为当前工作流重构基线 |
-| Phase 1 / 任务中心信息架构重排 | done | 已移除任务中心顶部统计卡片；默认入口切到“待处理”；发布任务从独立标签收敛为页头“建立任务” Drawer；任务中心主标签调整为待处理 / 跟踪 / 备忘 / 模板；保留 tracking 历史区块与 `?selected=` 深链。已执行 frontend `npm run test:unit -- --run tests/TaskCenterView.spec.ts tests/TasksView.spec.ts tests/Router.spec.ts`、`npm run type-check`、`npm run build`，并通过用户验收 |
+| Phase 1 / 任务中心信息架构重排 | done | 已移除任务中心顶部统计卡片；默认入口切到“待处理”；建立任务收敛到页头入口（现为 **Dialog**，见 `36c6a77`）；主筛选为 **待处理 / 跟踪 / 历史**；备忘与模板已独立；保留 `?selected=` 深链。已执行 frontend `npm run test:unit -- --run tests/TaskCenterView.spec.ts tests/TasksView.spec.ts tests/Router.spec.ts`、`npm run type-check`、`npm run build`，并通过用户验收 |
 | Phase 2 / 图引擎核心模型落库 | done | 已完成后端落库实现：新增 `workflow_graph_templates`、`workflow_graph_template_nodes`、`workflow_graph_template_edges`、`workflow_graph_instances`、`workflow_node_instances`、`workflow_deliverables`、`workflow_outbox_events` 七张表，以及图模板状态、图实例状态、节点引擎态、节点业务投影态、outbox 事件状态枚举；已执行 backend `pytest -q tests/test_models.py -k "workflow_graph or node_instance or deliverable"`、`pytest -q tests/test_migrations.py`、`python -m compileall app tests`，并通过用户验收，可进入 Phase 3 |
 | Phase 3 / 单步任务接入单节点实例 | done | 已完成后端首轮接入：新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` / `TASK_CENTER_V2_ENABLED` / `WORKFLOW_WAIT_ANY_ENABLED` / `WORKFLOW_DEEP_REJECTION_ENABLED` 配置开关、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在开关开启且手动建任务时走 `WorkflowGraphInstance + WorkflowNodeInstance + Task` dual-write 路径；在该基线上又补了单节点交付物提交 / 验收通过 / 打回返工首轮动作，交付快照落到 `workflow_deliverables`，同时禁止 graph 手动任务通过通用状态流转直接跳过交付 / 验收。读取侧继续保持现有 `Task` / `TaskCenterService` 协议不变。已执行 backend `pytest -q tests/test_settings.py tests/test_services.py::test_task_service_creates_task_and_enqueues_notification tests/test_services.py::test_phase3_single_node_workflow_creation_projects_task_and_graph_entities tests/test_services.py -k "phase5_graph_task_supports_deliverable_review_and_rework_cycle" tests/test_api.py -k "phase3_create_task_api_uses_graph_engine or phase5_task_deliverable_review_api_flow or phase5_task_status_api_blocks_direct_review_and_done_for_graph_tasks"`、`python -m compileall app tests`，以及 frontend `npm run test:unit -- --run tests/TasksView.spec.ts tests/TaskCenterView.spec.ts`、`npm run type-check` |
 | Phase 4 / 单步任务握手与转办 | done | 已完成 graph 手动任务接单 / 退回协商 / 转办首轮实现：图节点默认以 `ASSIGNED` 业务态创建，`TaskService` 与 `tasks` API 新增 `accept` / `reject` / `delegate` 动作，`todo -> doing` 需要先接受任务；`TaskCenterService` 兼容投影当前阶段为“待确认 / 已接受待开工 / 已拒绝待调整 / 待验收”，`TasksView` 已新增接单 / 协商 / 转办按钮与原因展示。已执行 backend `pytest -q tests/test_services.py::test_phase4_graph_task_requires_accept_before_start_and_updates_inbox_context tests/test_services.py::test_phase4_graph_task_reject_and_delegate_refresh_runtime_projection tests/test_api.py::test_phase4_task_acceptance_and_task_center_snapshot_flow tests/test_api.py::test_phase4_task_reject_and_delegate_api_refresh_task_center_snapshot`，以及 frontend `npm run test:unit -- --run tests/TasksView.spec.ts tests/TaskCenterView.spec.ts`、`npm run type-check`；graph runtime 直读与模板运行态接入仍待后续阶段实现 |
@@ -70,7 +87,23 @@
 | IA-3 / UI Phase D（汇报中心） | done | Master-Detail + ReportComposeDrawer；见 commit `c3fec3a`。 |
 | IA-4 / UI Phase E（组织管理） | done | 人员宽 Drawer + 锚点导航、部门树 Master-Detail；`PeopleManagementView.spec.ts` + `DepartmentsView.spec.ts` 通过。 |
 | IA-5 / UI Phase F（总览 Dashboard） | done | 小组件化 HomeView、顶栏 DeadlineCountdown、消息/公告/待办 widgets；见 commit `50c32c8`。 |
-| Stage 2 Phase 6 / 部署演练与全量回归 | in_progress | **附件策略**已落地；**后端回归** 仓库根 `pytest` **151 passed**。**前端单元测试** `npm run test:unit -- --run`：**27 文件 / 96 用例**（含总览 widget、`AppStore`、人员锚点等）。**Docker GUI E2E** `npm run test:e2e:docker-gui`：**18/18 passed**（L0 总览/部门树/人员 Drawer、C1 任务全链路含附件、C2 汇报多级、C3 向下传达探测）；规格见 `frontend/e2e/docker-gui-verification/docker-gui-verification.spec.ts`（侧栏导航任务/汇报中心、撰写汇报 teleported 下拉、Element Plus `data-testid` 在 input 上直接 `fill`）。`bash scripts/check-release.sh` 与 **Ubuntu 生产演练**仍待正式记入验收。**用户说明书** [`handbooks/user-manual.md`](handbooks/user-manual.md) 已升至 v1.1 与 IA A–F 对齐。 |
+| Stage 2 Phase 6 / 部署演练与全量回归 | done | **2026-05-21** 收口：开发机 **pytest 153**、**vitest 29/106**、`type-check`/`build`/`compileall` 通过（见「测试基线」）。**Docker GUI** 沿用 2026-05-20 **18/18**。**在线 Ubuntu 主机演练**已完成（见下「在线主机演练记录」）。**用户说明书** v1.2 与 IA 后补丁对齐。**遗留**：Ubuntu **最小回滚路径**未演练（不阻塞 Phase 6 done）。 |
+
+### 在线主机演练记录（Stage 2 Phase 6）
+
+按 [`handbooks/deployment-runbook-ubuntu-2404.md`](handbooks/deployment-runbook-ubuntu-2404.md) §19–§20，**在线生产/预发主机**已完成首轮上线验证（用户确认，2026-05-21）：
+
+| 项 | 结论 |
+| --- | --- |
+| 部署路径 | Ubuntu 主机目录（如 `/srv/filum`），systemd `filum-backend` / `filum-worker` + Nginx |
+| 发布 commit | `36c6a77`（与当前 `main` 基线一致） |
+| `curl http://127.0.0.1:8000/healthz` | 通过 |
+| `systemctl` backend / worker / nginx | active |
+| HTTPS / 公网域名 | 浏览器可访问登录页与核心业务路由 |
+| 浏览器冒烟 | 登录、总览、任务中心、汇报中心、消息、知识库可访问 |
+| 服务器 `check-release.sh` | 已执行；生产机无 dev 依赖时 **pytest 记 WARN** 符合 runbook §19，非阻塞 |
+| Push（若已配置） | 按环境启用验证 |
+| **回滚演练** | **未演练** — 列入「当前规划焦点」第 1 项 |
 
 ### Stage 2 文档同步约定
 
@@ -78,6 +111,15 @@
 - 随后必须更新 `memory-bank/progress.md` 记录阶段状态、验证命令、验收结论与待用户测试项。
 - 如果某阶段只涉及前端行为变化，也不能跳过 `architecture.md`；需要记录页面行为或模块职责变化。
 - 阶段范围与排期以 `memory-bank/plans/improvements-stage2-implementation-plan.md` 为准；**文档物理路径**以 `memory-bank/README.md` 索引为准（`handbooks/`、`plans/`、`history/`、`archive/outdated/`）。**对齐审查报告**默认写入 `memory-bank/history/reports/alignment-assessment-YYYYMMDD.md`（见 `.github/prompts/memory-bank-alignment-review.prompt.md`）。
+
+## IA 后体验补丁（2026-05-14 之后）
+
+| Commit | 日期 | 内容 |
+| --- | --- | --- |
+| `ae79023` | 2026-05-20 | `GET /api/v1/attachments/{id}/content` 鉴权下载；前端 blob 拉取；文档与用户手册同步 |
+| `2b062cf` | 2026-05-20 | 部门树新建根/子部门时详情面板进入可提交创建模式 |
+| `222f3d9` | 2026-05-21 | 负责人/流程参与者展示为「姓名（邮箱）」；建任务流程与部门范围执行人优化 |
+| `36c6a77` | 2026-05-21 | 建立任务 **Dialog** + 未保存关闭确认；备忘列表 + 新建/编辑 Dialog + 可选 `title`；`FilumDateTimePicker`；任务搜索与筛选摘要卡；总览待办/汇报分栏 widget；任务中心 V2 跟踪语义收紧 |
 
 ## 近期补丁 / 会话安全改造
 
@@ -90,7 +132,12 @@
 
 ## 当前已知问题
 
-本轮无阻塞性后端单测失败（仓库根 `pytest` 151 passed）。Docker GUI 自动化在 `http://127.0.0.1:8080` 栈上 **18/18** 已通过（2026-05-20）；报告与截图输出至 `verification-runs/docker-gui-<时间戳>/`。**带 venv 的 `check-release.sh` 全绿**与 **Ubuntu 主机回滚演练**仍为 Stage 2 Phase 6 待收口项。生产前端 `npm ci && npm run build` 的 Vite 8 / `vite-plugin-vue-devtools` peer 警告不阻断构建（可选：仅 `vite dev` 时加载 devtools 以减噪）。
+- **测试基线**（2026-05-21）：后端 **153 passed**；前端 **106/106**；无阻塞性单测失败。
+- **Docker GUI**：本次开发机未重跑；沿用 2026-05-20 **18/18** @ `http://127.0.0.1:8080`。
+- **`check-release.sh`**：须在 **Linux 原生** 仓库路径执行（避免 WSL 挂载盘 `node_modules` 的 rolldown 绑定问题）；Windows 开发机以「测试基线」中等价 P0 为准。
+- **Ubuntu 最小回滚路径**：未演练（Phase 6 遗留，见「当前规划焦点」）。
+- **eslint**：8 个 error（非发布闸门）；待后续清理未使用变量等。
+- 生产前端 `npm ci && npm run build` 的 Vite 8 / `vite-plugin-vue-devtools` peer 警告不阻断构建。
 
 ## 已完成里程碑
 
@@ -445,17 +492,17 @@
 | 注册与账号开通 | **邀请制注册**（创建未启用账号、预览链接、设置密码激活、撤销）已落地；**访客公开自助注册**与**审批式注册**仍未实现，需产品决策 | 邀请 done；公开 / 审批式待决策与实现 |
 | HR 流程自动化 | 生命周期事件与任务模板 / 审批流**显式绑定 + worker 异步触发**已落地；**规则化默认映射**与**前端结构化配置入口**仍待补齐；字段权限可视化管理增强 | 后续增强 |
 | 消息渠道深化 | 消息附件绑定、筛选与失败详情已落地（Stage 2 Phase 4）；真实 Email / WebSocket 对外发送接入、delivery 观测增强仍待深化 | 后续增强 |
-| 工程质量 | 更细的重构、集成测试、E2E 路径与性能 / 稳定性验证；Linux 主机上 `check-release.sh` 与生产近似部署演练（Stage 2 Phase 6 收口项） | 下一轮重点 |
+| 工程质量 | 更细的重构、集成测试、E2E 扩面；**回滚演练**与 docker-gui 基线刷新 | 下一轮重点 |
 
 ## 当前规划焦点
 
-当前建议优先级已经调整为：
+Stage 2 周期（Phase 0–6 + IA A–F）已收口。当前建议优先级：
 
-1. **memory-bank / README 与代码事实对齐**（避免按过时缺口排期）
-2. **Stage 2 Phase 6：Linux 近似环境发布演练与 `check-release.sh` 固化结论**
-3. **工作流 E 与图引擎深化、全量回归扩面**
-4. **生命周期规则化默认联动 + 前端结构化配置**
-5. **公开 / 审批式注册（若需要）与真实通知渠道适配**
+1. **Ubuntu 最小回滚路径演练**（补 Phase 6 遗留；git 回退 + systemd 重启 ± 迁移 rollback dry-run）
+2. **工作流 E 与图引擎产品级统一**、模板 / 调度深化、全量回归扩面
+3. **生命周期规则化默认映射 + 前端结构化配置入口**
+4. **公开 / 审批式注册（若需要）与真实通知渠道适配**
+5. **Playwright live / docker-gui 与发布 commit 同步重跑**（下次大版本前刷新基线）
 
 ## 重构执行补记
 

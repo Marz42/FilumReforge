@@ -18,7 +18,7 @@ import MessagesView from '@/views/MessagesView.vue'
 type MessagesViewSetupState = {
   handleChannelFilterChange: (value: 'all' | 'email' | 'web_push' | 'websocket') => void
   handleDeliveryStatusChange: (value: 'all' | 'pending' | 'sent' | 'failed' | 'retrying') => void
-  handleCreatedRangeChange: (value: [Date, Date] | null) => void
+  createdRange: [Date, Date] | null
 }
 
 async function createTestRouter() {
@@ -211,7 +211,7 @@ describe('Messages view', () => {
     await flushPromises()
     setupState.handleDeliveryStatusChange('failed')
     await flushPromises()
-    setupState.handleCreatedRangeChange([createdFrom, createdTo])
+    setupState.createdRange = [createdFrom, createdTo]
     await flushPromises()
 
     expect(getMessageCenterSnapshot).toHaveBeenLastCalledWith({
