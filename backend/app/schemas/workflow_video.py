@@ -249,6 +249,25 @@ class PreviewParticipantsResponse(BaseModel):
   snapshot: ParticipantsSnapshotEntry
 
 
+class WorkflowRunEventRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  instance_id: UUID
+  event_type: str
+  actor_user_id: UUID | None
+  payload: dict[str, Any] = Field(default_factory=dict)
+  created_at: datetime
+
+
+class WorkflowRunEventListResponse(BaseModel):
+  instance_id: UUID
+  items: list[WorkflowRunEventRead]
+  total: int
+  limit: int
+  offset: int
+
+
 class WorkflowRunContextSchema(BaseModel):
   """Validated subset of graph instance context for video v1."""
 
@@ -330,6 +349,8 @@ __all__ = [
   "RunKind",
   "WorkflowGraphTemplateNodeConfigSchema",
   "WorkflowRunContextSchema",
+  "WorkflowRunEventListResponse",
+  "WorkflowRunEventRead",
   "validate_aggregate_schema",
   "validate_capture_schema",
   "validate_launch_schema",

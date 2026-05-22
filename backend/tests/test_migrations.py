@@ -66,6 +66,7 @@ def test_alembic_upgrade_and_downgrade(tmp_path, monkeypatch) -> None:
     "workflow_node_instances",
     "workflow_deliverables",
     "workflow_outbox_events",
+    "workflow_run_events",
     "workflow_steps",
     "workflow_instances",
     "workflow_step_runs",

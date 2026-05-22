@@ -158,6 +158,23 @@ export interface WorkflowGraphInstanceSummary {
   completed_node_count?: number
 }
 
+export interface WorkflowRunEventItem {
+  id: string
+  instance_id: string
+  event_type: string
+  actor_user_id: string | null
+  payload: Record<string, unknown>
+  created_at: string
+}
+
+export interface WorkflowRunEventListResponse {
+  instance_id: string
+  items: WorkflowRunEventItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface VideoRunContext {
   run_kind?: VideoRunKind
   run_label?: string | null

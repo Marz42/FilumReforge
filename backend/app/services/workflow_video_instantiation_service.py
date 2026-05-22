@@ -42,6 +42,7 @@ from app.schemas.workflow_video import (
 from app.services.access_control import can_publish_org_tasks, ensure_active_user
 from app.services.participant_resolution_service import resolve_assignee_from_rule
 from app.services.task_service import TaskService
+from app.services.workflow_run_event_service import WorkflowRunEventService
 
 
 @dataclass(slots=True)
@@ -425,6 +426,18 @@ class WorkflowVideoInstantiationService:
       }
       activated_tasks.append(task)
 
+    await WorkflowRunEventService(self._session).append(
+      instance_id=instance.id,
+      event_type="run_instantiated",
+      actor_user_id=actor.id,
+      payload={
+        "template_id": str(template.id),
+        "template_code": template.code,
+        "run_kind": run_kind,
+        "root_task_id": str(root_task.id),
+        "activated_task_count": len(activated_tasks),
+      },
+    )
     await self._session.flush()
     return GraphTemplateRunResult(
       instance=instance,
@@ -660,6 +673,19 @@ class WorkflowVideoInstantiationService:
       }
       activated_tasks.append(task)
 
+    await WorkflowRunEventService(self._session).append(
+      instance_id=instance.id,
+      event_type="run_instantiated",
+      actor_user_id=actor.id,
+      payload={
+        "template_id": str(_template.id),
+        "template_code": _template.code,
+        "run_kind": "production",
+        "parent_instance_id": str(parent_instance.id),
+        "topic_id": str(topic.topic_id),
+        "root_task_id": str(root_task.id),
+      },
+    )
     await self._session.flush()
     return GraphTemplateRunResult(
       instance=instance,

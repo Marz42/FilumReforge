@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -216,6 +216,39 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     back_populates="instance",
     cascade="all, delete-orphan",
   )
+  run_events = relationship(
+    "WorkflowRunEvent",
+    back_populates="instance",
+    cascade="all, delete-orphan",
+    order_by="WorkflowRunEvent.created_at",
+  )
+
+
+class WorkflowRunEvent(UUIDPrimaryKeyMixin, Base):
+  __tablename__ = "workflow_run_events"
+  __table_args__ = (
+    Index("idx_wf_run_events_instance_created", "instance_id", "created_at"),
+    Index("idx_wf_run_events_instance_type", "instance_id", "event_type"),
+  )
+
+  instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_graph_instances.id", name="fk_wf_run_events_instance", ondelete="CASCADE"),
+    nullable=False,
+  )
+  event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+  actor_user_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("users.id", name="fk_wf_run_events_actor", ondelete="SET NULL"),
+    nullable=True,
+  )
+  payload: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  created_at: Mapped[datetime] = mapped_column(
+    DateTime(timezone=True),
+    default=lambda: datetime.now(UTC),
+    nullable=False,
+  )
+
+  instance = relationship("WorkflowGraphInstance", back_populates="run_events")
+  actor = relationship("User", foreign_keys=[actor_user_id])
 
 
 class WorkflowNodeInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):

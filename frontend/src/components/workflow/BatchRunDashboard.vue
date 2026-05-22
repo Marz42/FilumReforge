@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 
-import { listInstanceChildren } from '@/api/workflow-graph'
-import type { WorkflowGraphInstanceSummary } from '@/types/workflowVideo'
+import { listInstanceChildren, listInstanceEvents } from '@/api/workflow-graph'
+import type { WorkflowGraphInstanceSummary, WorkflowRunEventItem } from '@/types/workflowVideo'
 import type { WorkflowGraphInstanceDetail } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
+import { formatDateTime } from '@/utils/formatters'
 import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
@@ -17,6 +18,21 @@ const emit = defineEmits<{
 
 const loading = ref(false)
 const children = ref<WorkflowGraphInstanceSummary[]>([])
+const runEvents = ref<WorkflowRunEventItem[]>([])
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  run_instantiated: '运行已创建',
+  capture_submitted: '采集已提交',
+  aggregate_confirmed: '汇总已确认',
+  production_run_forked: '已 fork 制作子流',
+  capture_rejected: '采集已打回',
+  production_deep_reject: '制作节点打回',
+  node_completed: '节点已完成',
+}
+
+function resolveRunEventLabel(eventType: string): string {
+  return EVENT_TYPE_LABELS[eventType] ?? eventType
+}
 
 const forkStatus = computed(() => {
   const context = props.graphInstance?.context ?? {}
@@ -37,10 +53,16 @@ async function loadChildren(): Promise<void> {
   }
   loading.value = true
   try {
-    children.value = await listInstanceChildren(instanceId)
+    const [childRuns, eventsPage] = await Promise.all([
+      listInstanceChildren(instanceId),
+      listInstanceEvents(instanceId, { limit: 30 }),
+    ])
+    children.value = childRuns
+    runEvents.value = eventsPage.items
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
     children.value = []
+    runEvents.value = []
   } finally {
     loading.value = false
   }
@@ -120,6 +142,20 @@ watch(
       </el-table-column>
     </el-table>
 
+    <el-divider v-if="runEvents.length > 0">运行时间线</el-divider>
+    <el-timeline v-if="runEvents.length > 0" data-testid="batch-run-event-timeline">
+      <el-timeline-item
+        v-for="event in runEvents"
+        :key="event.id"
+        :timestamp="formatDateTime(event.created_at)"
+      >
+        {{ resolveRunEventLabel(event.event_type) }}
+        <span v-if="typeof event.payload.topic_id === 'string'" class="workflow-panel__event-meta">
+          选题 {{ event.payload.topic_id }}
+        </span>
+      </el-timeline-item>
+    </el-timeline>
+
     <div class="workflow-panel__actions">
       <el-button @click="loadChildren">刷新子流</el-button>
     </div>
@@ -143,5 +179,11 @@ watch(
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
+}
+
+.workflow-panel__event-meta {
+  margin-left: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 </style>

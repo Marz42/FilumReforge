@@ -28,6 +28,7 @@ from app.services.condition_evaluator import (
   is_else_condition,
 )
 from app.services.notification_service import NotificationService
+from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.models import (
   Task,
   User,
@@ -683,6 +684,19 @@ class WorkflowGraphService:
     node_instance.completed_at = now
     node_instance.node_instance_version += 1
     await self._session.flush()
+
+    context = graph_instance.context if isinstance(graph_instance.context, dict) else {}
+    if context.get("run_kind"):
+      await WorkflowRunEventService(self._session).append(
+        instance_id=graph_instance.id,
+        event_type="node_completed",
+        actor_user_id=actor_id,
+        payload={
+          "node_instance_id": str(node_instance.id),
+          "node_key": node_instance.node_key,
+          "instance_key": node_instance.instance_key,
+        },
+      )
 
     await self._activate_downstream(
       graph_instance=graph_instance,

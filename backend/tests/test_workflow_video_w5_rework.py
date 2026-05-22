@@ -13,7 +13,7 @@ from app.core.enums import (
   WorkflowNodeEngineState,
 )
 from app.core.exceptions import ConflictError
-from app.models import Task, WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode, WorkflowNodeInstance
+from app.models import Task, WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode, WorkflowNodeInstance, WorkflowRunEvent
 from app.schemas.workflow_video import ParticipantsSnapshotEntry, RejectedCaptureItem, TopicCaptureRow
 from app.services.task_service import TaskService
 from app.services.workflow_graph_service import WorkflowGraphService
@@ -90,10 +90,12 @@ async def test_w5_reject_topic_reopens_only_submitter(db_session) -> None:
   assert n2 is not None
   assert n2.engine_state == WorkflowNodeEngineState.PENDING
 
-  await db_session.refresh(seed["run"].instance)
-  events = (seed["run"].instance.context or {}).get("run_events")
-  assert isinstance(events, list)
-  assert any(event.get("event_type") == "capture_rejected" for event in events)
+  events = list(
+    await db_session.scalars(
+      select(WorkflowRunEvent).where(WorkflowRunEvent.instance_id == seed["run"].instance.id)
+    )
+  )
+  assert any(event.event_type == "capture_rejected" for event in events)
 
 
 @pytest.mark.asyncio

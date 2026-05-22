@@ -55,6 +55,7 @@ from app.services.workflow_video_instantiation_service import WorkflowVideoInsta
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_rework_service import WorkflowVideoReworkService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_engine_service import WorkflowEngineService
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -167,6 +168,12 @@ def get_attachment_service(
   object_storage_service: Annotated[ObjectStorageService, Depends(get_object_storage_service)],
 ) -> AttachmentService:
   return AttachmentService(session, object_storage_service)
+
+
+def get_workflow_run_event_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> WorkflowRunEventService:
+  return WorkflowRunEventService(session)
 
 
 def get_workflow_graph_service(

@@ -493,14 +493,16 @@ flowchart TB
 
 ---
 
-### W8 — Run EventLog
+### W8 — Run EventLog ✅
 
 | ID | 任务 | 说明 |
 |----|------|------|
-| W8-1 | 表 `workflow_run_events` | Alembic |
-| W8-2 | append：实例化、capture 提交、aggregate 确认、fork、打回、节点完成 | — |
-| W8-3 | `GET .../instances/{id}/events` | 分页 |
-| W8-4 | 批次/子 Run 看板时间线 | — |
+| W8-1 | 表 `workflow_run_events` | `20260523_01` 迁移 + `WorkflowRunEvent` 模型 |
+| W8-2 | append：实例化、capture 提交、aggregate 确认、fork、打回、节点完成 | `WorkflowRunEventService`（不再写 `context.run_events`） |
+| W8-3 | `GET .../instances/{id}/events` | `limit`/`offset` 分页 |
+| W8-4 | 批次/子 Run 看板时间线 | `BatchRunDashboard` + `TasksView` 事件时间线 |
+
+**测试**：`pytest -q tests/test_workflow_video_w8_events.py`；`npm run test:unit -- --run tests/workflowVideoW8Api.spec.ts`
 
 ---
 

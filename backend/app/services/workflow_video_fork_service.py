@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -20,6 +18,7 @@ from app.schemas.workflow_video import (
 )
 from app.services.access_control import ensure_active_user
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
 
 DEFAULT_CHILD_TEMPLATE_CODE = "video_production_per_topic_v1"
@@ -46,30 +45,6 @@ class WorkflowVideoForkService:
     self._session = session
     self._instantiation_service = instantiation_service or WorkflowVideoInstantiationService(session)
     self._orchestration_service = orchestration_service or WorkflowOrchestrationService(session)
-
-  @staticmethod
-  def _append_run_event(
-    *,
-    instance: WorkflowGraphInstance,
-    event_type: str,
-    actor_id: UUID,
-    payload: dict[str, Any],
-  ) -> None:
-    context = dict(instance.context or {})
-    events = context.get("run_events")
-    if not isinstance(events, list):
-      events = []
-    events.append(
-      {
-        "event_type": event_type,
-        "at": datetime.now(UTC).isoformat(),
-        "actor_user_id": str(actor_id),
-        **payload,
-      }
-    )
-    context["run_events"] = events
-    instance.context = validate_run_context(context).model_dump(mode="json")
-    instance.context_version += 1
 
   async def _load_batch_instance(self, *, batch_instance_id: UUID) -> WorkflowGraphInstance:
     instance = await self._session.get(WorkflowGraphInstance, batch_instance_id)
@@ -213,10 +188,10 @@ class WorkflowVideoForkService:
       forked_topics[str(topic.topic_id)] = str(child_instance.id)
       child_ids.append(child_instance.id)
 
-      self._append_run_event(
-        instance=batch_instance,
+      await WorkflowRunEventService(self._session).append(
+        instance_id=batch_instance.id,
         event_type="production_run_forked",
-        actor_id=actor.id,
+        actor_user_id=actor.id,
         payload={
           "topic_id": str(topic.topic_id),
           "child_instance_id": str(child_instance.id),

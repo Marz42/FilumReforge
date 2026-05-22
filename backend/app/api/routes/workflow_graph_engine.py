@@ -14,6 +14,7 @@ from app.api.dependencies import (
   get_workflow_video_instantiation_service,
   get_workflow_video_fork_service,
   get_workflow_video_rework_service,
+  get_workflow_run_event_service,
 )
 from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
@@ -34,6 +35,7 @@ from app.schemas.workflow_video import (
   PreviewParticipantsResponse,
   TopicCaptureSubmitRequest,
   TopicCaptureSubmitResponse,
+  WorkflowRunEventListResponse,
 )
 from app.schemas.workflow_graph import (
   WorkflowNodeDeepRejectRequest,
@@ -49,6 +51,7 @@ from app.schemas.workflow_graph import (
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
 
@@ -323,6 +326,26 @@ async def finalize_instance_topics(
     instance_id=instance_id,
     approved_topics=payload.approved_topics,
     rejected_topics=payload.rejected_topics,
+  )
+
+
+@router.get(
+  "/instances/{instance_id}/events",
+  response_model=WorkflowRunEventListResponse,
+  tags=["workflow-graph"],
+)
+async def list_graph_instance_events(
+  instance_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  event_service: Annotated[WorkflowRunEventService, Depends(get_workflow_run_event_service)],
+  limit: Annotated[int, Query(ge=1, le=100)] = 20,
+  offset: Annotated[int, Query(ge=0)] = 0,
+) -> WorkflowRunEventListResponse:
+  _ = actor
+  return await event_service.list_for_instance(
+    instance_id=instance_id,
+    limit=limit,
+    offset=offset,
   )
 
 

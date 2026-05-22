@@ -11,6 +11,7 @@ import type {
   PreviewParticipantsResponse,
   TopicCaptureSubmitResponse,
   WorkflowGraphInstanceSummary,
+  WorkflowRunEventListResponse,
 } from '@/types/workflowVideo'
 import { http } from './http'
 
@@ -78,6 +79,17 @@ export async function listGraphInstancesForTemplate(
     { params: { limit } },
   )
   return data.map(mapGraphInstanceSummary)
+}
+
+export async function listInstanceEvents(
+  instanceId: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<WorkflowRunEventListResponse> {
+  const { data } = await http.get<WorkflowRunEventListResponse>(
+    `/workflow-graph/instances/${instanceId}/events`,
+    { params },
+  )
+  return data
 }
 
 export async function getWorkflowGraphInstance(

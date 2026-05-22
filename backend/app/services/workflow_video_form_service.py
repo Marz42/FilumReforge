@@ -44,6 +44,7 @@ from app.services.access_control import ensure_active_user
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
+from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_rework_service import WorkflowVideoReworkService
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
@@ -241,6 +242,18 @@ class WorkflowVideoFormService:
       instance=instance,
       node_instance=node_instance,
     )
+    await WorkflowRunEventService(self._session).append(
+      instance_id=instance.id,
+      event_type="capture_submitted",
+      actor_user_id=actor.id,
+      payload={
+        "task_id": str(task.id),
+        "node_instance_id": str(node_instance.id),
+        "node_key": node_instance.node_key,
+        "instance_key": node_instance.instance_key,
+        "topic_count": len(normalized_topics),
+      },
+    )
     await self._session.commit()
     await self._session.refresh(task)
     await self._session.refresh(node_instance)
@@ -384,6 +397,16 @@ class WorkflowVideoFormService:
       actor=actor,
       instance=instance,
       aggregate_node_key=aggregate_key,
+    )
+    await WorkflowRunEventService(self._session).append(
+      instance_id=instance.id,
+      event_type="aggregate_confirmed",
+      actor_user_id=actor.id,
+      payload={
+        "approved_count": len(approved_topics),
+        "rejected_count": len(normalized_rejections),
+        "aggregate_node_key": aggregate_key,
+      },
     )
 
     fork_result = await self._fork_service.fork_production_runs(

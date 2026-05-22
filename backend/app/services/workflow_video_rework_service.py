@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -36,6 +35,7 @@ from app.schemas.workflow_video import (
 from app.services.access_control import ensure_active_user
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+from app.services.workflow_run_event_service import WorkflowRunEventService
 
 DEFAULT_PROPOSE_NODE_KEY = "N1_PROPOSE"
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
@@ -55,30 +55,6 @@ class WorkflowVideoReworkService:
       session,
       workflow_graph_service=self._workflow_graph_service,
     )
-
-  @staticmethod
-  def _append_run_event(
-    *,
-    instance: WorkflowGraphInstance,
-    event_type: str,
-    actor_id: UUID,
-    payload: dict[str, Any],
-  ) -> None:
-    context = dict(instance.context or {})
-    events = context.get("run_events")
-    if not isinstance(events, list):
-      events = []
-    events.append(
-      {
-        "event_type": event_type,
-        "at": datetime.now(UTC).isoformat(),
-        "actor_user_id": str(actor_id),
-        **payload,
-      }
-    )
-    context["run_events"] = events
-    instance.context = validate_run_context(context).model_dump(mode="json")
-    instance.context_version += 1
 
   async def _ensure_reject_actor(self, *, actor: User, instance: WorkflowGraphInstance) -> None:
     if actor.role in {UserRole.ADMIN, UserRole.HR}:
@@ -291,10 +267,10 @@ class WorkflowVideoReworkService:
           metadata["rejected_topic_id"] = str(topic_id)
         task.extra_metadata = metadata
 
-    self._append_run_event(
-      instance=instance,
+    await WorkflowRunEventService(self._session).append(
+      instance_id=instance.id,
       event_type="capture_rejected",
-      actor_id=actor.id,
+      actor_user_id=actor.id,
       payload={
         "node_instance_id": str(node_instance.id),
         "instance_key": node_instance.instance_key,
@@ -423,10 +399,10 @@ class WorkflowVideoReworkService:
           node_instances=[target_node],
         )
 
-    self._append_run_event(
-      instance=instance,
+    await WorkflowRunEventService(self._session).append(
+      instance_id=instance.id,
       event_type="production_deep_reject",
-      actor_id=actor.id,
+      actor_user_id=actor.id,
       payload={
         "from_node_instance_id": str(node_instance.id),
         "from_node_key": node_instance.node_key,

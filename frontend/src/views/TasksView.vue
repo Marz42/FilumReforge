@@ -25,13 +25,14 @@ import { acceptTaskAssignment,
   submitTaskDeliverable,
   updateTaskStatus,
 } from '@/api/tasks'
-import { getWorkflowGraphInstance } from '@/api/workflow-graph'
+import { getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
 import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import TemplateCapturePanel from '@/components/workflow/TemplateCapturePanel.vue'
 import { decideStepRun } from '@/api/task-templates'
 import { listUsers } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
+import type { WorkflowRunEventItem } from '@/types/workflowVideo'
 import type {
   Attachment,
   Department,
@@ -145,6 +146,7 @@ const taskAttachments = ref<Attachment[]>([])
 const taskActivity = ref<TaskActivityEntry[]>([])
 const taskWatchers = ref<TaskWatcher[]>([])
 const graphInstance = ref<WorkflowGraphInstanceDetail | null>(null)
+const workflowRunEvents = ref<WorkflowRunEventItem[]>([])
 const departments = ref<Department[]>([])
 const users = ref<User[]>([])
 const statsSummary = ref<TaskStatsSummary | null>(null)
@@ -446,10 +448,19 @@ const graphParentInstanceId = computed(() => {
   const parentId = graphInstance.value?.context?.parent_instance_id
   return typeof parentId === 'string' ? parentId : null
 })
-const workflowRunEvents = computed(() => {
-  const events = graphInstance.value?.context?.run_events
-  return Array.isArray(events) ? (events as Array<Record<string, unknown>>) : []
-})
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  run_instantiated: '运行已创建',
+  capture_submitted: '采集已提交',
+  aggregate_confirmed: '汇总已确认',
+  production_run_forked: '已 fork 制作子流',
+  capture_rejected: '采集已打回',
+  production_deep_reject: '制作节点打回',
+  node_completed: '节点已完成',
+}
+
+function resolveRunEventLabel(eventType: string): string {
+  return EVENT_TYPE_LABELS[eventType] ?? eventType
+}
 
 function normalizeTagType(value: '' | 'info' | 'warning' | 'success' | 'danger'): 'info' | 'warning' | 'success' | 'danger' | undefined {
   return value || undefined
@@ -627,12 +638,19 @@ async function loadSelectedTaskDetails(taskId: string): Promise<void> {
     : null
   if (instanceId) {
     try {
-      graphInstance.value = await getWorkflowGraphInstance(instanceId)
+      const [instance, eventsPage] = await Promise.all([
+        getWorkflowGraphInstance(instanceId),
+        listInstanceEvents(instanceId, { limit: 50 }),
+      ])
+      graphInstance.value = instance
+      workflowRunEvents.value = eventsPage.items
     } catch {
       graphInstance.value = null
+      workflowRunEvents.value = []
     }
   } else {
     graphInstance.value = null
+    workflowRunEvents.value = []
   }
 }
 
@@ -1458,12 +1476,14 @@ watch(
               <template #header><strong>运行事件</strong></template>
               <el-timeline>
                 <el-timeline-item
-                  v-for="(event, index) in workflowRunEvents"
-                  :key="`${event.type}-${index}`"
-                  :timestamp="typeof event.at === 'string' ? formatDateTime(event.at) : '—'"
+                  v-for="event in workflowRunEvents"
+                  :key="event.id"
+                  :timestamp="formatDateTime(event.created_at)"
                 >
-                  {{ typeof event.type === 'string' ? event.type : 'event' }}
-                  <span v-if="typeof event.reason === 'string'"> — {{ event.reason }}</span>
+                  {{ resolveRunEventLabel(event.event_type) }}
+                  <span v-if="typeof event.payload.reason === 'string'">
+                    — {{ event.payload.reason }}
+                  </span>
                 </el-timeline-item>
               </el-timeline>
             </el-card>
