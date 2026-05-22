@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import (
   WorkflowGraphInstanceStatus,
@@ -45,6 +45,25 @@ class WorkflowGraphTemplateSummaryRead(BaseModel):
   version: int
   run_kind: str | None = None
   config: dict[str, object] = {}
+
+
+class WorkflowGraphTemplateNodeSummaryRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  node_key: str
+  title: str
+  sort_order: int
+
+
+class WorkflowGraphTemplateDetailRead(WorkflowGraphTemplateSummaryRead):
+  nodes: list[WorkflowGraphTemplateNodeSummaryRead] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateUpdateRequest(BaseModel):
+  name: str | None = Field(default=None, min_length=1, max_length=120)
+  description: str | None = Field(default=None, max_length=2000)
+  config: dict[str, object] | None = None
 
 
 class WorkflowGraphInstanceRead(BaseModel):

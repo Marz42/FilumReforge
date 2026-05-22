@@ -1210,7 +1210,12 @@ onMounted(() => {
 <template>
   <div class="page" data-testid="task-templates-page">
     <el-tabs v-model="activeLibraryTab" class="page__library-tabs">
-      <el-tab-pane label="任务模板 (E)" name="legacy" />
+      <el-tab-pane name="legacy">
+        <template #label>
+          <span>任务模板</span>
+          <el-tag size="small" type="info" effect="plain" class="page__legacy-badge">E · Legacy</el-tag>
+        </template>
+      </el-tab-pane>
       <el-tab-pane name="graph">
         <template #label>
           <span>图模板</span>
@@ -1231,7 +1236,10 @@ onMounted(() => {
         <el-card shadow="never" v-loading="loading">
           <template #header>
             <div class="page__header">
-              <span>任务模板</span>
+              <div class="page__header-copy">
+                <span>任务模板（工作流 E）</span>
+                <p class="page__legacy-hint">逐步迁移至「图模板」Tab；新视频批次/制作请使用图模板实例化。</p>
+              </div>
               <el-button v-if="canManageTemplates" type="primary" @click="openCreateDialog">
                 新建模板
               </el-button>
@@ -2173,6 +2181,23 @@ onMounted(() => {
 
 .page__graph-badge {
   margin-left: 6px;
+}
+
+.page__legacy-badge {
+  margin-left: 6px;
+}
+
+.page__legacy-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-weight: normal;
+}
+
+.page__header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .page__rule-then-label {

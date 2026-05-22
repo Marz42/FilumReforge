@@ -87,6 +87,45 @@ class WorkflowGraphService:
     self._session.add(event)
     await self._session.flush()
 
+  async def enqueue_node_activated_notifications(
+    self,
+    *,
+    instance: WorkflowGraphInstance,
+    node_instances: list[WorkflowNodeInstance],
+  ) -> None:
+    """W9-1: queue async notifications when template graph nodes become active."""
+    context = instance.context if isinstance(instance.context, dict) else {}
+    if not context.get("run_kind"):
+      return
+
+    run_label = instance.run_label or str(instance.id)[:8]
+    for node_instance in node_instances:
+      if node_instance.engine_state != WorkflowNodeEngineState.ACTIVATED:
+        continue
+      assignee_id = node_instance.assignee_user_id
+      if assignee_id is None:
+        continue
+      assignee = await self._session.get(User, assignee_id)
+      if assignee is None or assignee.status != UserStatus.ACTIVE:
+        continue
+
+      await self._write_outbox_event(
+        instance_id=instance.id,
+        node_instance_id=node_instance.id,
+        event_type="workflow_node_activated",
+        payload={
+          "recipient_user_id": str(assignee.id),
+          "recipient_email": assignee.email,
+          "title": f"新任务：{node_instance.title}",
+          "body_text": (
+            f"运行「{run_label}」的节点「{node_instance.title}」已激活，请在任务中心处理。"
+          ),
+          "node_key": node_instance.node_key,
+          "node_instance_id": str(node_instance.id),
+          "workflow_graph_instance_id": str(instance.id),
+        },
+      )
+
   async def _sync_manual_task_projection_after_takeover(
     self,
     *,

@@ -142,6 +142,11 @@ class WorkflowOrchestrationService:
       if node_instance.business_state == WorkflowNodeBusinessState.ASSIGNED:
         node_instance.business_state = WorkflowNodeBusinessState.DOING
       created.append(task)
+    if created:
+      await self._workflow_graph_service.enqueue_node_activated_notifications(
+        instance=instance,
+        node_instances=node_instances,
+      )
     await self._session.flush()
     return created
 

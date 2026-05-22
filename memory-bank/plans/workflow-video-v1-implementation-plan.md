@@ -506,14 +506,16 @@ flowchart TB
 
 ---
 
-### W9 — 收口
+### W9 — 收口 ✅
 
 | ID | 任务 | 说明 |
 |----|------|------|
-| W9-1 | Outbox `workflow_node_activated` | 实例化/激活 |
-| W9-2 | 图模板 CRUD 最小 API 或种子+JSON 导入 | 维护 `launch/capture/aggregate` |
-| W9-3 | `WORKFLOW_*_ENABLED` 行为与配置清理 | — |
-| W9-4 | 工作流 E 模板页只读/legacy 标识 | — |
+| W9-1 | Outbox `workflow_node_activated` | 实例化 + `ensure_projection_tasks` 下游激活 |
+| W9-2 | 图模板 CRUD 最小 API | `GET/PATCH /workflow-graph/templates/{id}` |
+| W9-3 | `WORKFLOW_*_ENABLED` 行为与配置清理 | `workflow_feature_flags()` + `GET /feature-flags` |
+| W9-4 | 工作流 E 模板页 legacy 标识 | Tab「E · Legacy」+ 说明文案 |
+
+**测试**：`pytest -q tests/test_workflow_video_w9_closure.py`
 
 ---
 

@@ -23,7 +23,15 @@ docker compose exec api python -m app.scripts.seed_sample_data --password FilumT
 docker compose exec api python -m app.scripts.seed_workflow_video_templates
 ```
 
-## 2. 启用图模板引擎
+## 2. 功能开关（W9）
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workflow-graph/feature-flags
+```
+
+关键项：`workflow_graph_template_engine_enabled` 须为 `true` 才能实例化图模板。
+
+## 3. 启用图模板引擎
 
 在 API 环境变量中设置：
 
@@ -33,7 +41,7 @@ WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true
 
 重启 API 容器使配置生效。
 
-## 3. 冒烟检查（API）
+## 4. 冒烟检查（API）
 
 以具备 `can_publish_org_tasks` 的账号登录（如 `demo.video.copy.lead@example.com` 或部门负责人）。
 
@@ -42,7 +50,16 @@ WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true
 3. 文案账号提交 N1 采集 → N2 汇总 `finalize-topics` → 自动 fork 子 Run。
 4. `POST /workflow-graph/instances/{batch_id}/fork-production` — 幂等，重复调用不重复子 Run。
 
-## 4. 测试命令（开发机）
+## 5. 运行事件（W8）
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/workflow-graph/instances/{instance_id}/events?limit=20&offset=0"
+```
+
+任务详情与批次 ROOT 看板会展示同一时间线数据。
+
+## 6. 测试命令（开发机）
 
 ```bash
 cd backend
@@ -52,5 +69,5 @@ pytest -q tests/test_workflow_video_w6_template_seed.py
 全量视频回归（可选）：
 
 ```bash
-pytest -q tests/test_workflow_video_w0_policy.py tests/test_workflow_video_w1_participants.py tests/test_workflow_video_wf_form_engine.py tests/test_workflow_video_w3_instantiation.py tests/test_workflow_video_w4_orchestration.py tests/test_workflow_video_w5_rework.py tests/test_workflow_video_wfk_fork.py tests/test_workflow_video_w6_template_seed.py
+pytest -q tests/test_workflow_video_w0_policy.py tests/test_workflow_video_w1_participants.py tests/test_workflow_video_wf_form_engine.py tests/test_workflow_video_w3_instantiation.py tests/test_workflow_video_w4_orchestration.py tests/test_workflow_video_w5_rework.py tests/test_workflow_video_wfk_fork.py tests/test_workflow_video_w6_template_seed.py tests/test_workflow_video_w8_events.py
 ```

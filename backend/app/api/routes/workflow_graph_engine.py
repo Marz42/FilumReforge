@@ -14,8 +14,11 @@ from app.api.dependencies import (
   get_workflow_video_instantiation_service,
   get_workflow_video_fork_service,
   get_workflow_video_rework_service,
+  get_workflow_graph_template_admin_service,
   get_workflow_run_event_service,
+  get_settings,
 )
+from app.core.config import Settings
 from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
@@ -41,7 +44,9 @@ from app.schemas.workflow_graph import (
   WorkflowNodeDeepRejectRequest,
   WorkflowGraphInstanceDetailRead,
   WorkflowGraphInstanceRead,
+  WorkflowGraphTemplateDetailRead,
   WorkflowGraphTemplateSummaryRead,
+  WorkflowGraphTemplateUpdateRequest,
   WorkflowNodeCompleteRequest,
   WorkflowNodeInstanceRead,
   WorkflowNodeTakeoverRequest,
@@ -51,6 +56,7 @@ from app.schemas.workflow_graph import (
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_graph_template_admin_service import WorkflowGraphTemplateAdminService
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
@@ -107,6 +113,20 @@ def _user_display_name(user: User) -> str | None:
 
 
 @router.get(
+  "/feature-flags",
+  tags=["workflow-graph"],
+)
+async def get_workflow_feature_flags(
+  actor: Annotated[User, Depends(get_current_user)],
+  settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, bool]:
+  _ = actor
+  from app.core.workflow_video_policy import workflow_feature_flags
+
+  return workflow_feature_flags(settings)
+
+
+@router.get(
   "/templates",
   response_model=list[WorkflowGraphTemplateSummaryRead],
   tags=["workflow-graph"],
@@ -130,6 +150,34 @@ async def list_graph_templates(
     )
     for template in templates
   ]
+
+
+@router.get(
+  "/templates/{template_id}",
+  response_model=WorkflowGraphTemplateDetailRead,
+  tags=["workflow-graph"],
+)
+async def get_graph_template(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDetailRead:
+  _ = actor
+  return await admin_service.get_template_detail(template_id=template_id)
+
+
+@router.patch(
+  "/templates/{template_id}",
+  response_model=WorkflowGraphTemplateDetailRead,
+  tags=["workflow-graph"],
+)
+async def update_graph_template(
+  template_id: UUID,
+  payload: WorkflowGraphTemplateUpdateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDetailRead:
+  return await admin_service.update_template(actor=actor, template_id=template_id, payload=payload)
 
 
 @router.post(

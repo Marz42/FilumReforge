@@ -42,6 +42,7 @@ from app.schemas.workflow_video import (
 from app.services.access_control import can_publish_org_tasks, ensure_active_user
 from app.services.participant_resolution_service import resolve_assignee_from_rule
 from app.services.task_service import TaskService
+from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_run_event_service import WorkflowRunEventService
 
 
@@ -64,6 +65,7 @@ class WorkflowVideoInstantiationService:
     self._session = session
     self._task_service = task_service
     self._settings = settings or get_settings()
+    self._workflow_graph_service = WorkflowGraphService(session)
 
   def _require_engine_enabled(self) -> None:
     if not use_graph_template_instantiation(self._settings):
@@ -426,6 +428,11 @@ class WorkflowVideoInstantiationService:
       }
       activated_tasks.append(task)
 
+    activated_nodes = [ni for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.ACTIVATED]
+    await self._workflow_graph_service.enqueue_node_activated_notifications(
+      instance=instance,
+      node_instances=activated_nodes,
+    )
     await WorkflowRunEventService(self._session).append(
       instance_id=instance.id,
       event_type="run_instantiated",
@@ -673,6 +680,11 @@ class WorkflowVideoInstantiationService:
       }
       activated_tasks.append(task)
 
+    activated_nodes = [ni for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.ACTIVATED]
+    await self._workflow_graph_service.enqueue_node_activated_notifications(
+      instance=instance,
+      node_instances=activated_nodes,
+    )
     await WorkflowRunEventService(self._session).append(
       instance_id=instance.id,
       event_type="run_instantiated",
