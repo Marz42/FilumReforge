@@ -427,13 +427,18 @@ flowchart TB
 
 ### W5 — 定向返工
 
-| ID | 任务 | 说明 |
-|----|------|------|
-| W5-1 | 汇总表 reject → 定向 N1 `instance_key`（提交人）或 `topic_id` | 仅重开相关采集 |
-| W5-2 | 制作链 reject → N3/N5/N8 等 `acceptance_spec` | deep_reject |
-| W5-3 | 打回必填原因；EventLog | — |
+| ID | 任务 | 说明 | 状态 |
+|----|------|------|------|
+| W5-1 | 汇总表 reject → 定向 N1 `instance_key`（提交人）或 `topic_id` | 仅重开相关采集 | done |
+| W5-2 | 制作链 reject → N3/N5/N8 等 `acceptance_spec` | `POST .../tasks/{id}/reject-production` + deep_reject | done |
+| W5-3 | 打回必填原因；EventLog | `reason` 必填；`context.run_events[]`（W8 前最小日志） | done |
 
 **验收**：打回小张一题 → 仅小张 N1 待办重现。
+
+**W5 测试（必绿）**
+
+- `pytest -q tests/test_workflow_video_w5_rework.py tests/test_workflow_video_wf_form_engine.py`
+- `npm run test:unit -- --run tests/workflowVideoW5Api.spec.ts`
 
 ---
 

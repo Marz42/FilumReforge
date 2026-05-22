@@ -31,6 +31,7 @@ from app.models import (
 from app.schemas.workflow_video import (
   ApprovedTopic,
   CaptureSchema,
+  RejectedCaptureItem,
   FinalizeTopicsResponse,
   InstanceSubmissionsResponse,
   NodeSubmissionRead,
@@ -42,6 +43,7 @@ from app.schemas.workflow_video import (
 from app.services.access_control import ensure_active_user
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+from app.services.workflow_video_rework_service import WorkflowVideoReworkService
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
 
@@ -53,6 +55,7 @@ class WorkflowVideoFormService:
     *,
     workflow_graph_service: WorkflowGraphService | None = None,
     orchestration_service: WorkflowOrchestrationService | None = None,
+    rework_service: WorkflowVideoReworkService | None = None,
   ) -> None:
     self._session = session
     self._workflow_graph_service = workflow_graph_service or WorkflowGraphService(session)
@@ -61,6 +64,13 @@ class WorkflowVideoFormService:
       self._orchestration_service = WorkflowOrchestrationService(
         session,
         workflow_graph_service=self._workflow_graph_service,
+      )
+    self._rework_service = rework_service
+    if self._rework_service is None:
+      self._rework_service = WorkflowVideoReworkService(
+        session,
+        workflow_graph_service=self._workflow_graph_service,
+        orchestration_service=self._orchestration_service,
       )
 
   async def _load_task_projection(
@@ -313,7 +323,7 @@ class WorkflowVideoFormService:
     actor: User,
     instance_id: UUID,
     approved_topics: list[ApprovedTopic],
-    rejected_topics: list[dict[str, object]] | None = None,
+    rejected_topics: list[RejectedCaptureItem] | list[dict[str, object]] | None = None,
   ) -> FinalizeTopicsResponse:
     ensure_active_user(actor)
     instance = await self._session.get(WorkflowGraphInstance, instance_id)
@@ -321,9 +331,34 @@ class WorkflowVideoFormService:
       raise NotFoundError("图实例不存在。")
     await self._ensure_finalize_actor(actor=actor, instance=instance)
 
+    normalized_rejections: list[RejectedCaptureItem] = []
+    for entry in rejected_topics or []:
+      if isinstance(entry, RejectedCaptureItem):
+        normalized_rejections.append(entry)
+      elif isinstance(entry, dict):
+        normalized_rejections.append(RejectedCaptureItem.model_validate(entry))
+
+    if normalized_rejections:
+      await self._rework_service.apply_capture_rejections(
+        actor=actor,
+        instance_id=instance_id,
+        rejections=normalized_rejections,
+      )
+
+    if not approved_topics:
+      await self._session.commit()
+      await self._session.refresh(instance)
+      return FinalizeTopicsResponse(
+        instance_id=instance_id,
+        approved_count=0,
+        fork_status="pending",
+        fork_deferred=True,
+        message="已打回采集，待相关编辑补交。",
+      )
+
     context = dict(instance.context or {})
     context["approved_topics"] = [topic.model_dump(mode="json") for topic in approved_topics]
-    context["rejected_topics"] = list(rejected_topics or [])
+    context["rejected_topics"] = [item.model_dump(mode="json") for item in normalized_rejections]
     context["fork_status"] = "pending"
     instance.context = validate_run_context(context).model_dump(mode="json")
     instance.context_version += 1

@@ -12,6 +12,7 @@ from app.api.dependencies import (
   get_workflow_graph_service,
   get_workflow_video_form_service,
   get_workflow_video_instantiation_service,
+  get_workflow_video_rework_service,
 )
 from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
@@ -21,6 +22,10 @@ from app.schemas.workflow_video import (
   CreateGraphTemplateRunResponse,
   FinalizeTopicsRequest,
   FinalizeTopicsResponse,
+  RejectCapturesRequest,
+  RejectCapturesResponse,
+  RejectProductionStepRequest,
+  RejectProductionStepResponse,
   InstanceSubmissionsResponse,
   ParticipantUserPreview,
   PreviewParticipantsRequest,
@@ -214,6 +219,44 @@ async def list_instance_submissions(
   return await form_service.list_instance_submissions(
     instance_id=instance_id,
     node_key=node_key,
+  )
+
+
+@router.post(
+  "/instances/{instance_id}/reject-captures",
+  response_model=RejectCapturesResponse,
+  tags=["workflow-graph"],
+)
+async def reject_instance_captures(
+  instance_id: UUID,
+  payload: RejectCapturesRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  rework_service: WorkflowVideoReworkService = Depends(get_workflow_video_rework_service),
+) -> RejectCapturesResponse:
+  return await rework_service.apply_capture_rejections(
+    actor=actor,
+    instance_id=instance_id,
+    rejections=payload.rejections,
+    source_node_key=payload.source_node_key,
+  )
+
+
+@router.post(
+  "/tasks/{task_id}/reject-production",
+  response_model=RejectProductionStepResponse,
+  tags=["workflow-graph"],
+)
+async def reject_production_task_step(
+  task_id: UUID,
+  payload: RejectProductionStepRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  rework_service: WorkflowVideoReworkService = Depends(get_workflow_video_rework_service),
+) -> RejectProductionStepResponse:
+  return await rework_service.reject_production_step(
+    actor=actor,
+    task_id=task_id,
+    reason=payload.reason,
+    target_node_key=payload.target_node_key,
   )
 
 

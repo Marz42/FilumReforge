@@ -37,6 +37,7 @@
 | WF 表单引擎（后端） | done | `WorkflowVideoFormService`、submit-capture / submissions / finalize-topics API；fork 留 WFK；测试 5+1+2 |
 | W3 图实例化 v2 | done | `WorkflowVideoInstantiationService`、`POST .../templates/{id}/runs`、multi_instance、ROOT Task、`schema_snapshot`；测试 4+1+1 |
 | W4 编排钩子 | done | `WorkflowOrchestrationService`、multi_instance all-of、采集后激活 N2 + 负责人 Task；测试 3+回归 |
+| W5 定向返工 | done | `WorkflowVideoReworkService`、reject-captures、production deep_reject、`run_events`；测试 3+1+8 |
 
 ### W1 测试命令
 
@@ -72,7 +73,14 @@
 | 层 | 命令 | 结果 |
 | --- | --- | --- |
 | 后端 W4 | `pytest -q tests/test_workflow_video_w4_orchestration.py tests/test_workflow_video_wf_form_engine.py tests/test_services.py::test_phase6_sequential_flow_activation` | **9 passed** |
-| W5 定向返工 | pending | — |
+
+### W5 测试命令
+
+| 层 | 命令 | 结果 |
+| --- | --- | --- |
+| 后端 W5 | `pytest -q tests/test_workflow_video_w5_rework.py tests/test_workflow_video_wf_form_engine.py` | **8 passed** |
+| 前端 W5 | `npm run test:unit -- --run tests/workflowVideoW5Api.spec.ts` | **1 passed** |
+| WFK 按题 fork | pending | — |
 
 ## 当前阶段状态
 

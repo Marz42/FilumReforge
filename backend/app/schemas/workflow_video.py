@@ -53,6 +53,15 @@ class AggregateAssigneeColumnSchema(BaseModel):
   type: Literal["user"] = "user"
 
 
+class AcceptanceRejectToSchema(BaseModel):
+  node_key: str = Field(min_length=1, max_length=64)
+  instance_key_from: Literal["topic_id", "assignee"] | None = None
+
+
+class AcceptanceSpecSchema(BaseModel):
+  reject_to: AcceptanceRejectToSchema | None = None
+
+
 class AggregateOnConfirmSchema(BaseModel):
   action: AggregateOnConfirmAction
   child_template_code: str | None = Field(default=None, max_length=64)
@@ -139,9 +148,52 @@ class InstanceSubmissionsResponse(BaseModel):
   submissions: list[NodeSubmissionRead]
 
 
+class RejectedCaptureItem(BaseModel):
+  reason: str = Field(min_length=1, max_length=2000)
+  topic_id: UUID | None = None
+  instance_key: str | None = Field(default=None, max_length=64)
+
+  @model_validator(mode="after")
+  def _validate_target(self) -> RejectedCaptureItem:
+    has_topic = self.topic_id is not None
+    has_instance = bool(self.instance_key and str(self.instance_key).strip())
+    if has_topic == has_instance:
+      raise ValueError("必须且只能指定 topic_id 或 instance_key 之一。")
+    return self
+
+
+class RejectCapturesRequest(BaseModel):
+  rejections: list[RejectedCaptureItem] = Field(min_length=1)
+  source_node_key: str = Field(default="N1_PROPOSE", min_length=1, max_length=64)
+
+
+class RejectCapturesResponse(BaseModel):
+  instance_id: UUID
+  reopened_count: int
+  reopened_instance_keys: list[str]
+
+
+class RejectProductionStepRequest(BaseModel):
+  reason: str = Field(min_length=1, max_length=2000)
+  target_node_key: str | None = Field(default=None, max_length=64)
+
+
+class RejectProductionStepResponse(BaseModel):
+  instance_id: UUID
+  target_node_key: str
+  target_node_instance_id: UUID
+  iteration: int
+
+
 class FinalizeTopicsRequest(BaseModel):
-  approved_topics: list[ApprovedTopic] = Field(min_length=1)
-  rejected_topics: list[dict[str, object]] = Field(default_factory=list)
+  approved_topics: list[ApprovedTopic] = Field(default_factory=list)
+  rejected_topics: list[RejectedCaptureItem] = Field(default_factory=list)
+
+  @model_validator(mode="after")
+  def _validate_finalize_payload(self) -> FinalizeTopicsRequest:
+    if not self.approved_topics and not self.rejected_topics:
+      raise ValueError("approved_topics 与 rejected_topics 不能同时为空。")
+    return self
 
 
 class FinalizeTopicsResponse(BaseModel):
@@ -220,6 +272,7 @@ class WorkflowGraphTemplateNodeConfigSchema(BaseModel):
   launch_schema: LaunchSchema | None = None
   capture_schema: CaptureSchema | None = None
   aggregate_schema: AggregateSchema | None = None
+  acceptance_spec: AcceptanceSpecSchema | None = None
   handshake_required: bool = False
   completion_policy: str | None = None
 

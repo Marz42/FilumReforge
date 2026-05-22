@@ -2,6 +2,8 @@ import type { WorkflowGraphInstanceDetail } from '@/types/api'
 import type {
   CreateGraphTemplateRunRequest,
   CreateGraphTemplateRunResponse,
+  RejectCapturesRequest,
+  RejectCapturesResponse,
   FinalizeTopicsResponse,
   InstanceSubmissionsResponse,
   PreviewParticipantsResponse,
@@ -60,6 +62,17 @@ export async function finalizeInstanceTopics(
   const { data } = await http.post<FinalizeTopicsResponse>(
     `/workflow-graph/instances/${instanceId}/finalize-topics`,
     { approved_topics: approvedTopics, rejected_topics: rejectedTopics },
+  )
+  return data
+}
+
+export async function rejectInstanceCaptures(
+  instanceId: string,
+  payload: RejectCapturesRequest,
+): Promise<RejectCapturesResponse> {
+  const { data } = await http.post<RejectCapturesResponse>(
+    `/workflow-graph/instances/${instanceId}/reject-captures`,
+    payload,
   )
   return data
 }

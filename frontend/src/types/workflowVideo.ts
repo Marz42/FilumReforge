@@ -54,6 +54,23 @@ export interface FinalizeTopicsResponse {
   message?: string | null
 }
 
+export interface RejectedCaptureItem {
+  reason: string
+  topic_id?: string
+  instance_key?: string
+}
+
+export interface RejectCapturesRequest {
+  rejections: RejectedCaptureItem[]
+  source_node_key?: string
+}
+
+export interface RejectCapturesResponse {
+  instance_id: string
+  reopened_count: number
+  reopened_instance_keys: string[]
+}
+
 export interface CreateGraphTemplateRunRequest {
   inputs?: Record<string, unknown>
   participants_snapshot: Record<
