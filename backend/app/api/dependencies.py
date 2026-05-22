@@ -49,6 +49,7 @@ from app.services.task_template_service import TaskTemplateService
 from app.services.tool_registry_service import ToolRegistryService
 from app.services.user_service import UserService
 from app.services.participant_resolution_service import ParticipantResolutionService
+from app.services.workflow_video_form_service import WorkflowVideoFormService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_engine_service import WorkflowEngineService
 
@@ -175,6 +176,13 @@ def get_participant_resolution_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ParticipantResolutionService:
   return ParticipantResolutionService(session)
+
+
+def get_workflow_video_form_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+) -> WorkflowVideoFormService:
+  return WorkflowVideoFormService(session, workflow_graph_service=workflow_graph_service)
 
 
 def get_task_service(

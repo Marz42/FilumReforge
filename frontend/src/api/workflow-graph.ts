@@ -1,5 +1,10 @@
 import type { WorkflowGraphInstanceDetail } from '@/types/api'
-import type { PreviewParticipantsResponse } from '@/types/workflowVideo'
+import type {
+  FinalizeTopicsResponse,
+  InstanceSubmissionsResponse,
+  PreviewParticipantsResponse,
+  TopicCaptureSubmitResponse,
+} from '@/types/workflowVideo'
 import { http } from './http'
 
 export interface PreviewParticipantsPayload {
@@ -13,6 +18,46 @@ export async function getWorkflowGraphInstance(
 ): Promise<WorkflowGraphInstanceDetail> {
   const { data } = await http.get<WorkflowGraphInstanceDetail>(
     `/workflow-graph/instances/${instanceId}`,
+  )
+  return data
+}
+
+export async function submitTaskTopicCapture(
+  taskId: string,
+  topics: Array<{ topic_id?: string; title: string; content?: string | null; reason?: string | null }>,
+): Promise<TopicCaptureSubmitResponse> {
+  const { data } = await http.post<TopicCaptureSubmitResponse>(
+    `/workflow-graph/tasks/${taskId}/submit-capture`,
+    { topics },
+  )
+  return data
+}
+
+export async function listInstanceSubmissions(
+  instanceId: string,
+  nodeKey: string,
+): Promise<InstanceSubmissionsResponse> {
+  const { data } = await http.get<InstanceSubmissionsResponse>(
+    `/workflow-graph/instances/${instanceId}/submissions`,
+    { params: { node_key: nodeKey } },
+  )
+  return data
+}
+
+export async function finalizeInstanceTopics(
+  instanceId: string,
+  approvedTopics: Array<{
+    topic_id: string
+    title: string
+    script_author_id: string
+    content?: string | null
+    reason?: string | null
+  }>,
+  rejectedTopics: Array<Record<string, unknown>> = [],
+): Promise<FinalizeTopicsResponse> {
+  const { data } = await http.post<FinalizeTopicsResponse>(
+    `/workflow-graph/instances/${instanceId}/finalize-topics`,
+    { approved_topics: approvedTopics, rejected_topics: rejectedTopics },
   )
   return data
 }

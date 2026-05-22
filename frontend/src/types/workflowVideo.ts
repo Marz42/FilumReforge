@@ -21,6 +21,39 @@ export interface ParticipantUserPreview {
   display_name?: string | null
 }
 
+export interface TopicCaptureSubmitResponse {
+  task_id: string
+  node_instance_id: string
+  topic_count: number
+  topics: Array<{
+    topic_id?: string
+    title: string
+    content?: string | null
+    reason?: string | null
+  }>
+}
+
+export interface InstanceSubmissionsResponse {
+  instance_id: string
+  node_key: string
+  submissions: Array<{
+    node_instance_id: string
+    node_key: string
+    instance_key: string
+    assignee_user_id: string | null
+    assignee_email?: string | null
+    topics: TopicCaptureSubmitResponse['topics']
+  }>
+}
+
+export interface FinalizeTopicsResponse {
+  instance_id: string
+  approved_count: number
+  fork_status: string
+  fork_deferred: boolean
+  message?: string | null
+}
+
 export interface PreviewParticipantsResponse {
   policy_ref: string
   mode: 'all' | 'subset'

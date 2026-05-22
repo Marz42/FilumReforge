@@ -1,0 +1,340 @@
+"""Video workflow v1 form engine: capture submit, submissions, finalize (WF)."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID, uuid4
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.enums import (
+  TaskStatus,
+  UserRole,
+  WorkflowNodeBusinessState,
+  WorkflowNodeEngineState,
+)
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.models import (
+  Task,
+  User,
+  WorkflowDeliverable,
+  WorkflowGraphInstance,
+  WorkflowGraphTemplateNode,
+  WorkflowNodeInstance,
+)
+from app.schemas.workflow_video import (
+  ApprovedTopic,
+  CaptureSchema,
+  FinalizeTopicsResponse,
+  InstanceSubmissionsResponse,
+  NodeSubmissionRead,
+  TopicCaptureRow,
+  TopicCaptureSubmitResponse,
+  validate_capture_schema,
+  validate_run_context,
+)
+from app.services.access_control import ensure_active_user
+from app.services.workflow_graph_service import WorkflowGraphService
+
+DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
+
+
+class WorkflowVideoFormService:
+  def __init__(
+    self,
+    session: AsyncSession,
+    *,
+    workflow_graph_service: WorkflowGraphService | None = None,
+  ) -> None:
+    self._session = session
+    self._workflow_graph_service = workflow_graph_service or WorkflowGraphService(session)
+
+  async def _load_task_projection(
+    self,
+    *,
+    task_id: UUID,
+  ) -> tuple[Task, WorkflowGraphInstance, WorkflowNodeInstance]:
+    task = await self._session.scalar(
+      select(Task)
+      .options(selectinload(Task.assignee).selectinload(User.profile))
+      .where(Task.id == task_id)
+    )
+    if task is None:
+      raise NotFoundError("任务不存在。")
+
+    metadata = dict(task.extra_metadata or {})
+    instance_id = metadata.get("workflow_graph_instance_id")
+    node_id = metadata.get("workflow_node_instance_id")
+    if instance_id is None or node_id is None:
+      raise ConflictError("当前任务未关联图引擎节点，无法提交采集表。")
+
+    instance = await self._session.get(WorkflowGraphInstance, UUID(str(instance_id)))
+    node_instance = await self._session.scalar(
+      select(WorkflowNodeInstance)
+      .options(selectinload(WorkflowNodeInstance.assignee).selectinload(User.profile))
+      .options(selectinload(WorkflowNodeInstance.template_node))
+      .where(WorkflowNodeInstance.id == UUID(str(node_id)))
+    )
+    if instance is None or node_instance is None:
+      raise NotFoundError("图实例或节点不存在。")
+    return task, instance, node_instance
+
+  @staticmethod
+  def _resolve_capture_schema(node_instance: WorkflowNodeInstance) -> CaptureSchema:
+    config_sources: list[dict[str, Any]] = []
+    if isinstance(node_instance.config, dict):
+      config_sources.append(node_instance.config)
+    template_node = node_instance.template_node
+    if template_node is not None and isinstance(template_node.config, dict):
+      config_sources.append(template_node.config)
+
+    for config in config_sources:
+      raw_schema = config.get("capture_schema")
+      if isinstance(raw_schema, dict):
+        return validate_capture_schema(raw_schema)
+
+    raise ConflictError("当前节点未配置 capture_schema。")
+
+  @staticmethod
+  def _normalize_topics(
+    *,
+    schema: CaptureSchema,
+    raw_topics: list[TopicCaptureRow],
+  ) -> list[TopicCaptureRow]:
+    if len(raw_topics) < schema.min_rows:
+      raise ConflictError(f"至少需要提交 {schema.min_rows} 条记录。")
+    if len(raw_topics) > schema.max_rows:
+      raise ConflictError(f"最多允许提交 {schema.max_rows} 条记录。")
+
+    required_keys = {column.key for column in schema.columns if column.required}
+    normalized: list[TopicCaptureRow] = []
+    for row in raw_topics:
+      topic_id = row.topic_id or uuid4()
+      payload = row.model_dump()
+      payload["topic_id"] = topic_id
+      for key in required_keys:
+        value = payload.get(key)
+        if value is None or (isinstance(value, str) and not value.strip()):
+          raise ConflictError(f"字段 {key} 为必填项。")
+      normalized.append(TopicCaptureRow.model_validate(payload))
+    return normalized
+
+  @staticmethod
+  def _deliverable_signature(*, task_id: UUID, topics: list[TopicCaptureRow]) -> str:
+    digest = hashlib.sha256(
+      json.dumps(
+        [topic.model_dump(mode="json") for topic in topics],
+        sort_keys=True,
+        ensure_ascii=False,
+      ).encode("utf-8")
+    ).hexdigest()
+    return f"capture:{task_id}:{digest[:32]}"
+
+  async def _upsert_capture_deliverable(
+    self,
+    *,
+    node_instance: WorkflowNodeInstance,
+    actor: User,
+    topics: list[TopicCaptureRow],
+    task_id: UUID,
+  ) -> WorkflowDeliverable:
+    now = datetime.now(UTC)
+    payload_body = {
+      "kind": "topic_capture",
+      "topics": [topic.model_dump(mode="json") for topic in topics],
+    }
+    summary = f"提交 {len(topics)} 条选题"
+    deliverable = await self._session.scalar(
+      select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id)
+    )
+    if deliverable is None:
+      deliverable = WorkflowDeliverable(
+        node_instance_id=node_instance.id,
+        submitted_by_user_id=actor.id,
+        submitted_at=now,
+        summary=summary,
+        payload=payload_body,
+        signature=self._deliverable_signature(task_id=task_id, topics=topics),
+      )
+      self._session.add(deliverable)
+    else:
+      deliverable.submitted_by_user_id = actor.id
+      deliverable.submitted_at = now
+      deliverable.summary = summary
+      deliverable.payload = payload_body
+      deliverable.signature = self._deliverable_signature(task_id=task_id, topics=topics)
+    await self._session.flush()
+    return deliverable
+
+  async def _apply_capture_submitted(
+    self,
+    *,
+    task: Task,
+    node_instance: WorkflowNodeInstance,
+  ) -> None:
+    now = datetime.now(UTC)
+    node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
+    node_instance.business_state = WorkflowNodeBusinessState.PENDING_REVIEW
+    node_instance.completed_at = now
+    task.status = TaskStatus.REVIEW
+    task.updated_at = now
+    metadata = dict(task.extra_metadata or {})
+    metadata["latest_capture_state"] = "submitted"
+    metadata["latest_capture_submitted_at"] = now.isoformat()
+    task.extra_metadata = metadata
+
+  async def submit_capture(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    topics: list[TopicCaptureRow],
+  ) -> TopicCaptureSubmitResponse:
+    ensure_active_user(actor)
+    task, _instance, node_instance = await self._load_task_projection(task_id=task_id)
+    if actor.role not in {UserRole.ADMIN, UserRole.HR} and actor.id != task.assignee_id:
+      raise AuthorizationError("当前账号不能提交该采集表。")
+    if node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
+      raise ConflictError("该节点采集已提交。")
+
+    schema = self._resolve_capture_schema(node_instance)
+    normalized_topics = self._normalize_topics(schema=schema, raw_topics=topics)
+    await self._upsert_capture_deliverable(
+      node_instance=node_instance,
+      actor=actor,
+      topics=normalized_topics,
+      task_id=task_id,
+    )
+    await self._apply_capture_submitted(task=task, node_instance=node_instance)
+    await self._session.commit()
+    await self._session.refresh(task)
+    await self._session.refresh(node_instance)
+
+    return TopicCaptureSubmitResponse(
+      task_id=task.id,
+      node_instance_id=node_instance.id,
+      topic_count=len(normalized_topics),
+      topics=normalized_topics,
+    )
+
+  async def list_instance_submissions(
+    self,
+    *,
+    instance_id: UUID,
+    node_key: str,
+  ) -> InstanceSubmissionsResponse:
+    node_instances = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance)
+        .options(selectinload(WorkflowNodeInstance.assignee).selectinload(User.profile))
+        .where(
+          WorkflowNodeInstance.instance_id == instance_id,
+          WorkflowNodeInstance.node_key == node_key,
+        )
+        .order_by(WorkflowNodeInstance.created_at.asc())
+      )
+    )
+    if not node_instances:
+      raise NotFoundError("未找到匹配的节点实例。")
+
+    submissions: list[NodeSubmissionRead] = []
+    for node_instance in node_instances:
+      deliverable = await self._session.scalar(
+        select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id)
+      )
+      topics: list[TopicCaptureRow] = []
+      if deliverable is not None and isinstance(deliverable.payload, dict):
+        raw_topics = deliverable.payload.get("topics")
+        if isinstance(raw_topics, list):
+          for item in raw_topics:
+            if isinstance(item, dict):
+              topics.append(TopicCaptureRow.model_validate(item))
+
+      assignee = node_instance.assignee
+      submissions.append(
+        NodeSubmissionRead(
+          node_instance_id=node_instance.id,
+          node_key=node_instance.node_key,
+          instance_key=node_instance.instance_key,
+          assignee_user_id=node_instance.assignee_user_id,
+          assignee_email=assignee.email if assignee is not None else None,
+          assignee_display_name=(
+            assignee.profile.real_name
+            if assignee is not None and assignee.profile is not None
+            else None
+          ),
+          submitted_at=deliverable.submitted_at if deliverable is not None else None,
+          topics=topics,
+        )
+      )
+
+    return InstanceSubmissionsResponse(
+      instance_id=instance_id,
+      node_key=node_key,
+      submissions=submissions,
+    )
+
+  async def _ensure_finalize_actor(
+    self,
+    *,
+    actor: User,
+    instance: WorkflowGraphInstance,
+  ) -> None:
+    if actor.role in {UserRole.ADMIN, UserRole.HR}:
+      return
+    if actor.id == instance.initiator_user_id:
+      return
+    raise AuthorizationError("当前账号不能确认选题清单。")
+
+  async def finalize_topics(
+    self,
+    *,
+    actor: User,
+    instance_id: UUID,
+    approved_topics: list[ApprovedTopic],
+    rejected_topics: list[dict[str, object]] | None = None,
+  ) -> FinalizeTopicsResponse:
+    ensure_active_user(actor)
+    instance = await self._session.get(WorkflowGraphInstance, instance_id)
+    if instance is None:
+      raise NotFoundError("图实例不存在。")
+    await self._ensure_finalize_actor(actor=actor, instance=instance)
+
+    context = dict(instance.context or {})
+    context["approved_topics"] = [topic.model_dump(mode="json") for topic in approved_topics]
+    context["rejected_topics"] = list(rejected_topics or [])
+    context["fork_status"] = "pending"
+    instance.context = validate_run_context(context).model_dump(mode="json")
+    instance.context_version += 1
+    await self._session.flush()
+
+    aggregate_key = str(context.get("aggregate_node_key") or DEFAULT_AGGREGATE_NODE_KEY)
+    aggregate_nodes = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance).where(
+          WorkflowNodeInstance.instance_id == instance_id,
+          WorkflowNodeInstance.node_key == aggregate_key,
+        )
+      )
+    )
+    now = datetime.now(UTC)
+    for node in aggregate_nodes:
+      if node.engine_state != WorkflowNodeEngineState.COMPLETED:
+        node.engine_state = WorkflowNodeEngineState.COMPLETED
+        node.business_state = WorkflowNodeBusinessState.DONE
+        node.completed_at = now
+
+    await self._session.commit()
+
+    return FinalizeTopicsResponse(
+      instance_id=instance_id,
+      approved_count=len(approved_topics),
+      fork_status="pending",
+      fork_deferred=True,
+      message="选题清单已写入；按题 fork 子 Run 将在 WFK 阶段启用。",
+    )

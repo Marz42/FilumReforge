@@ -10,14 +10,20 @@ from app.api.dependencies import (
   get_organization_relation_service,
   get_participant_resolution_service,
   get_workflow_graph_service,
+  get_workflow_video_form_service,
 )
 from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
 from app.schemas.workflow_video import (
+  FinalizeTopicsRequest,
+  FinalizeTopicsResponse,
+  InstanceSubmissionsResponse,
   ParticipantUserPreview,
   PreviewParticipantsRequest,
   PreviewParticipantsResponse,
+  TopicCaptureSubmitRequest,
+  TopicCaptureSubmitResponse,
 )
 from app.schemas.workflow_graph import (
   WorkflowNodeDeepRejectRequest,
@@ -32,6 +38,7 @@ from app.schemas.workflow_graph import (
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_video_form_service import WorkflowVideoFormService
 
 router = APIRouter(prefix="/workflow-graph")
 
@@ -145,6 +152,61 @@ async def list_graph_instances_for_template(
     )
     results.append(_workflow_graph_instance_read(instance, node_instances))
   return results
+
+
+@router.post(
+  "/tasks/{task_id}/submit-capture",
+  response_model=TopicCaptureSubmitResponse,
+  tags=["workflow-graph"],
+)
+async def submit_task_capture(
+  task_id: UUID,
+  payload: TopicCaptureSubmitRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  form_service: Annotated[WorkflowVideoFormService, Depends(get_workflow_video_form_service)],
+) -> TopicCaptureSubmitResponse:
+  return await form_service.submit_capture(
+    actor=actor,
+    task_id=task_id,
+    topics=payload.topics,
+  )
+
+
+@router.get(
+  "/instances/{instance_id}/submissions",
+  response_model=InstanceSubmissionsResponse,
+  tags=["workflow-graph"],
+)
+async def list_instance_submissions(
+  instance_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  form_service: Annotated[WorkflowVideoFormService, Depends(get_workflow_video_form_service)],
+  node_key: Annotated[str, Query(min_length=1, max_length=64)],
+) -> InstanceSubmissionsResponse:
+  _ = actor
+  return await form_service.list_instance_submissions(
+    instance_id=instance_id,
+    node_key=node_key,
+  )
+
+
+@router.post(
+  "/instances/{instance_id}/finalize-topics",
+  response_model=FinalizeTopicsResponse,
+  tags=["workflow-graph"],
+)
+async def finalize_instance_topics(
+  instance_id: UUID,
+  payload: FinalizeTopicsRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  form_service: Annotated[WorkflowVideoFormService, Depends(get_workflow_video_form_service)],
+) -> FinalizeTopicsResponse:
+  return await form_service.finalize_topics(
+    actor=actor,
+    instance_id=instance_id,
+    approved_topics=payload.approved_topics,
+    rejected_topics=payload.rejected_topics,
+  )
 
 
 @router.get(

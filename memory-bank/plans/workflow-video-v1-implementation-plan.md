@@ -369,15 +369,20 @@ flowchart TB
 
 ### WF — 表单引擎（后端）
 
-| ID | 任务 | 说明 |
-|----|------|------|
-| WF-1 | `submit_capture(task_id, payload)` | 校验 `capture_schema`；写 deliverable JSON |
-| WF-2 | `GET .../instances/{id}/submissions?node_key=N1_PROPOSE` | 汇总 API 数据源 |
-| WF-3 | `finalize_aggregate(run_id, approved_topics[], rejected[])` | 写 context；触发 WFK |
-| WF-4 | 题级 `topic_id` 生成（客户端或服务端 UUID） | 打回/fork 幂等 |
-| WF-5 | 与 `completion_policy=on_capture_submitted / on_aggregate_confirmed` 挂钩 | W4 调用 |
+| ID | 任务 | 说明 | 状态 |
+|----|------|------|------|
+| WF-1 | `submit_capture(task_id, payload)` | 校验 `capture_schema`；写 deliverable JSON | done |
+| WF-2 | `GET .../instances/{id}/submissions?node_key=N1_PROPOSE` | 汇总 API 数据源 | done |
+| WF-3 | `finalize_aggregate(run_id, approved_topics[], rejected[])` | 写 context；**fork 留 WFK**（`fork_deferred: true`） | done |
+| WF-4 | 题级 `topic_id` 生成（客户端或服务端 UUID） | 打回/fork 幂等 | done |
+| WF-5 | 与 `completion_policy=on_capture_submitted / on_aggregate_confirmed` 挂钩 | 最小实现于 `WorkflowVideoFormService`；完整编排 W4 | partial |
 
 **验收**：API 层可提交多行选题、拉齐汇总 JSON、finalize 写出 `approved_topics`。
+
+**WF 测试（必绿）**
+
+- `pytest -q tests/test_workflow_video_wf_form_engine.py tests/test_api.py::test_wf_submit_capture_and_finalize_topics_api`
+- `npm run test:unit -- --run tests/workflowVideoWfApi.spec.ts`
 
 ---
 

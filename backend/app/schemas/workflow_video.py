@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -101,6 +102,54 @@ class ApprovedTopic(BaseModel):
   source_node_instance_id: UUID | None = None
   script_author_id: UUID
   due_at: str | None = None
+
+
+class TopicCaptureRow(BaseModel):
+  topic_id: UUID | None = None
+  title: str = Field(min_length=1, max_length=255)
+  content: str | None = None
+  reason: str | None = None
+
+
+class TopicCaptureSubmitRequest(BaseModel):
+  topics: list[TopicCaptureRow] = Field(default_factory=list)
+
+
+class TopicCaptureSubmitResponse(BaseModel):
+  task_id: UUID
+  node_instance_id: UUID
+  topic_count: int
+  topics: list[TopicCaptureRow]
+
+
+class NodeSubmissionRead(BaseModel):
+  node_instance_id: UUID
+  node_key: str
+  instance_key: str
+  assignee_user_id: UUID | None
+  assignee_email: str | None = None
+  assignee_display_name: str | None = None
+  submitted_at: datetime | None = None
+  topics: list[TopicCaptureRow] = Field(default_factory=list)
+
+
+class InstanceSubmissionsResponse(BaseModel):
+  instance_id: UUID
+  node_key: str
+  submissions: list[NodeSubmissionRead]
+
+
+class FinalizeTopicsRequest(BaseModel):
+  approved_topics: list[ApprovedTopic] = Field(min_length=1)
+  rejected_topics: list[dict[str, object]] = Field(default_factory=list)
+
+
+class FinalizeTopicsResponse(BaseModel):
+  instance_id: UUID
+  approved_count: int
+  fork_status: str
+  fork_deferred: bool = True
+  message: str | None = None
 
 
 class PreviewParticipantsRequest(BaseModel):

@@ -4430,3 +4430,60 @@ async def test_w2_preview_participants_api(api_client) -> None:
   assert body["mode"] == "subset"
   assert set(body["user_ids"]) == {str(editor_a_id), str(editor_b_id)}
   assert len(body["users"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_wf_submit_capture_and_finalize_topics_api(api_client) -> None:
+  from test_workflow_video_wf_form_engine import _seed_capture_flow
+
+  client, queue_publisher = api_client
+  async with queue_publisher._session_factory() as session:
+    seed = await _seed_capture_flow(session)
+    await session.commit()
+    task_id = seed["task"].id
+    instance_id = seed["instance"].id
+    editor_id = seed["editor"].id
+
+  login_response = await client.post(
+    "/api/v1/auth/login",
+    json={"email": "wf-editor@example.com", "password": "StrongPassword123!"},
+  )
+  assert login_response.status_code == 200
+  editor_headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+  capture_response = await client.post(
+    f"/api/v1/workflow-graph/tasks/{task_id}/submit-capture",
+    headers=editor_headers,
+    json={"topics": [{"title": "API选题", "content": "via api"}]},
+  )
+  assert capture_response.status_code == 200, capture_response.text
+  topic_id = capture_response.json()["topics"][0]["topic_id"]
+
+  submissions_response = await client.get(
+    f"/api/v1/workflow-graph/instances/{instance_id}/submissions",
+    params={"node_key": "N1_PROPOSE"},
+    headers=editor_headers,
+  )
+  assert submissions_response.status_code == 200
+  assert len(submissions_response.json()["submissions"][0]["topics"]) == 1
+
+  manager_login = await client.post(
+    "/api/v1/auth/login",
+    json={"email": "wf-manager@example.com", "password": "StrongPassword123!"},
+  )
+  manager_headers = {"Authorization": f"Bearer {manager_login.json()['access_token']}"}
+  finalize_response = await client.post(
+    f"/api/v1/workflow-graph/instances/{instance_id}/finalize-topics",
+    headers=manager_headers,
+    json={
+      "approved_topics": [
+        {
+          "topic_id": topic_id,
+          "title": "API选题",
+          "script_author_id": str(editor_id),
+        }
+      ]
+    },
+  )
+  assert finalize_response.status_code == 200, finalize_response.text
+  assert finalize_response.json()["fork_status"] == "pending"
