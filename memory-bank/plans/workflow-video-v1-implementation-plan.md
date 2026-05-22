@@ -333,15 +333,21 @@ flowchart TB
 
 ### W1 — 模型与契约
 
-| ID | 任务 | 说明 |
-|----|------|------|
-| W1-1 | `workflow_node_instances.instance_key` | `singleton` / `userId` / `topicId` |
-| W1-2 | `workflow_graph_instances`：`run_label`；可选 `parent_instance_id` 列 | 批次/子关联 |
-| W1-3 | Pydantic：`LaunchSchema`、`CaptureSchema`、`AggregateSchema`、`ApprovedTopic` | `app/schemas/workflow_graph.py` |
-| W1-4 | `WorkflowGraphTemplateNodeConfig` 合并 form + kind | 校验互斥 |
-| W1-5 | Run 创建时写入 `schema_snapshot` | 版本固化 |
-| W1-6 | 前端 TS 类型同步 | `api.ts` |
-| W1-7 | 单测：非法 schema、空 subset、aggregate 无 source 422 | pytest |
+| ID | 任务 | 说明 | 状态 |
+|----|------|------|------|
+| W1-1 | `workflow_node_instances.instance_key` | `singleton` / `userId` / `topicId` | done |
+| W1-2 | `workflow_graph_instances`：`run_label`；`parent_instance_id` 列 | 批次/子关联 | done |
+| W1-3 | Pydantic：`LaunchSchema`、`CaptureSchema`、`AggregateSchema`、`ApprovedTopic` | `app/schemas/workflow_video.py` | done |
+| W1-4 | `WorkflowGraphTemplateNodeConfig` 合并 form + kind | 校验互斥 | done |
+| W1-5 | Run 创建时写入 `schema_snapshot` | 版本固化 | pending（W3 实例化） |
+| W1-6 | 前端 TS 类型同步 | `api.ts` + `types/workflowVideo.ts` | done |
+| W1-7 | 单测：非法 schema、空 subset、aggregate 无 source | `test_workflow_video_w1_contracts.py` | done |
+
+**W1 测试（必绿）**
+
+- `pytest -q tests/test_workflow_video_w1_contracts.py`
+- `alembic upgrade head`（含 `20260522_01`）后 `pytest -q tests/test_models.py -k workflow_graph`
+- `npm run test:unit -- --run tests/workflowVideoW1Contracts.spec.ts`
 
 ---
 

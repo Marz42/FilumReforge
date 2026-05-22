@@ -20,6 +20,7 @@ class WorkflowNodeInstanceRead(BaseModel):
   instance_id: UUID
   template_node_id: UUID | None
   node_key: str
+  instance_key: str = "singleton"
   title: str
   node_type: WorkflowGraphNodeType
   engine_state: WorkflowNodeEngineState
@@ -42,6 +43,8 @@ class WorkflowGraphInstanceRead(BaseModel):
   source_type: str | None
   status: WorkflowGraphInstanceStatus
   current_node_key: str | None
+  run_label: str | None = None
+  parent_instance_id: UUID | None = None
   context: dict[str, object]
   context_version: int
   max_iterations: int

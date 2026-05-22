@@ -164,6 +164,7 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     Index("idx_wf_graph_instances_status", "status"),
     Index("idx_wf_graph_instances_template", "template_id", "status"),
     Index("idx_wf_graph_instances_source", "source_type", "source_id"),
+    Index("idx_wf_graph_instances_parent", "parent_instance_id"),
   )
 
   template_id: Mapped[UUID | None] = mapped_column(
@@ -186,6 +187,11 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     nullable=False,
   )
   current_node_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+  run_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+  parent_instance_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("workflow_graph_instances.id", name="fk_wf_graph_instances_parent"),
+    nullable=True,
+  )
   context: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   context_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
   max_iterations: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
@@ -195,6 +201,11 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   template = relationship("WorkflowGraphTemplate", back_populates="instances")
   initiator = relationship("User", foreign_keys=[initiator_user_id])
   department = relationship("Department", foreign_keys=[department_id])
+  parent_instance = relationship(
+    "WorkflowGraphInstance",
+    remote_side="WorkflowGraphInstance.id",
+    foreign_keys=[parent_instance_id],
+  )
   node_instances = relationship(
     "WorkflowNodeInstance",
     back_populates="instance",
@@ -213,7 +224,7 @@ class WorkflowNodeInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     UniqueConstraint(
       "instance_id",
       "node_key",
-      "assignee_user_id",
+      "instance_key",
       "iteration",
       name="uq_wf_node_instances_iter",
     ),
@@ -232,6 +243,7 @@ class WorkflowNodeInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     nullable=True,
   )
   node_key: Mapped[str] = mapped_column(String(64), nullable=False)
+  instance_key: Mapped[str] = mapped_column(String(64), default="singleton", nullable=False)
   title: Mapped[str] = mapped_column(String(255), nullable=False)
   node_type: Mapped[WorkflowGraphNodeType] = mapped_column(
     build_value_enum(enum_cls=WorkflowGraphNodeType, name="workflow_graph_node_type"),

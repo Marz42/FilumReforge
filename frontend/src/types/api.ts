@@ -991,6 +991,7 @@ export type WorkflowNodeBusinessState =
 export interface WorkflowNodeInstanceSummary {
   id: string
   instance_id: string
+  instance_key?: string
   template_node_id: string | null
   node_key: string
   title: string
@@ -1013,6 +1014,8 @@ export interface WorkflowGraphInstanceDetail {
   source_type: string | null
   status: WorkflowGraphInstanceStatus
   current_node_key: string | null
+  run_label?: string | null
+  parent_instance_id?: string | null
   context: Record<string, unknown>
   context_version: number
   max_iterations: number
