@@ -1,14 +1,16 @@
-import type { WorkflowGraphInstanceDetail } from '@/types/api'
+import type { WorkflowGraphInstanceDetail, WorkflowNodeInstanceSummary } from '@/types/api'
 import type {
   CreateGraphTemplateRunRequest,
   CreateGraphTemplateRunResponse,
   ForkProductionRunsResponse,
+  GraphTemplateSummary,
   RejectCapturesRequest,
   RejectCapturesResponse,
   FinalizeTopicsResponse,
   InstanceSubmissionsResponse,
   PreviewParticipantsResponse,
   TopicCaptureSubmitResponse,
+  WorkflowGraphInstanceSummary,
 } from '@/types/workflowVideo'
 import { http } from './http'
 
@@ -16,6 +18,66 @@ export interface PreviewParticipantsPayload {
   mode?: 'all' | 'subset'
   user_ids?: string[]
   department_id?: string | null
+}
+
+type GraphInstanceListItem = {
+  id: string
+  template_id: string | null
+  status: string
+  current_node_key?: string | null
+  run_label?: string | null
+  parent_instance_id?: string | null
+  context: Record<string, unknown>
+  node_instances: WorkflowNodeInstanceSummary[]
+}
+
+function mapGraphInstanceSummary(item: GraphInstanceListItem): WorkflowGraphInstanceSummary {
+  const total = item.node_instances.length
+  const completed = item.node_instances.filter((node) => node.engine_state === 'completed').length
+  return {
+    id: item.id,
+    template_id: item.template_id,
+    status: item.status,
+    current_node_key: item.current_node_key,
+    run_label: item.run_label,
+    parent_instance_id: item.parent_instance_id,
+    context: item.context,
+    progress_percent: total ? Math.round((completed / total) * 100) : 0,
+    total_node_count: total,
+    completed_node_count: completed,
+  }
+}
+
+export async function listGraphTemplates(): Promise<GraphTemplateSummary[]> {
+  const { data } = await http.get<
+    Array<Omit<GraphTemplateSummary, 'config'> & { config?: Record<string, unknown> }>
+  >('/workflow-graph/templates')
+  return data.map((item) => ({
+    ...item,
+    config: item.config ?? {},
+  }))
+}
+
+export async function listInstanceChildren(
+  instanceId: string,
+  limit = 50,
+): Promise<WorkflowGraphInstanceSummary[]> {
+  const { data } = await http.get<GraphInstanceListItem[]>(
+    `/workflow-graph/instances/${instanceId}/children`,
+    { params: { limit } },
+  )
+  return data.map(mapGraphInstanceSummary)
+}
+
+export async function listGraphInstancesForTemplate(
+  templateId: string,
+  limit = 10,
+): Promise<WorkflowGraphInstanceSummary[]> {
+  const { data } = await http.get<GraphInstanceListItem[]>(
+    `/workflow-graph/templates/${templateId}/instances`,
+    { params: { limit } },
+  )
+  return data.map(mapGraphInstanceSummary)
 }
 
 export async function getWorkflowGraphInstance(

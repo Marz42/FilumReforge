@@ -15,6 +15,7 @@ from app.core.enums import (
   UserStatus,
   WorkflowGraphInstanceStatus,
   WorkflowGraphNodeType,
+  WorkflowGraphTemplateStatus,
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
   WorkflowOutboxEventStatus,
@@ -1071,6 +1072,32 @@ class WorkflowGraphService:
     if instance is None:
       raise NotFoundError("工作流图实例不存在。")
     return instance
+
+  async def list_active_templates(self) -> list[WorkflowGraphTemplate]:
+    return list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplate)
+        .where(WorkflowGraphTemplate.status == WorkflowGraphTemplateStatus.ACTIVE)
+        .order_by(WorkflowGraphTemplate.code.asc())
+      )
+    )
+
+  async def list_child_instances(
+    self,
+    *,
+    parent_instance_id: UUID,
+    limit: int = 50,
+  ) -> list[WorkflowGraphInstance]:
+    await self.get_instance(instance_id=parent_instance_id)
+    normalized_limit = max(1, min(limit, 100))
+    return list(
+      await self._session.scalars(
+        select(WorkflowGraphInstance)
+        .where(WorkflowGraphInstance.parent_instance_id == parent_instance_id)
+        .order_by(WorkflowGraphInstance.created_at.asc())
+        .limit(normalized_limit)
+      )
+    )
 
   async def list_instances_for_template(
     self,

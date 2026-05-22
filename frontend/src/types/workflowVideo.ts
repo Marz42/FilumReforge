@@ -109,6 +109,55 @@ export interface PreviewParticipantsResponse {
   }
 }
 
+export interface LaunchSchemaField {
+  key: string
+  label: string
+  type: 'text' | 'textarea' | 'datetime' | 'user' | string
+  required?: boolean
+}
+
+export interface LaunchSchema {
+  fields: LaunchSchemaField[]
+}
+
+export interface CaptureSchemaColumn {
+  key: string
+  label: string
+  type: 'text' | 'textarea' | string
+  required?: boolean
+}
+
+export interface CaptureSchema {
+  mode: 'row_table'
+  min_rows?: number
+  max_rows?: number
+  columns: CaptureSchemaColumn[]
+}
+
+export interface GraphTemplateSummary {
+  id: string
+  code: string
+  name: string
+  description?: string | null
+  status: string
+  version: number
+  run_kind?: string | null
+  config?: Record<string, unknown>
+}
+
+export interface WorkflowGraphInstanceSummary {
+  id: string
+  template_id: string | null
+  status: string
+  current_node_key?: string | null
+  run_label?: string | null
+  parent_instance_id?: string | null
+  context: Record<string, unknown>
+  progress_percent?: number
+  total_node_count?: number
+  completed_node_count?: number
+}
+
 export interface VideoRunContext {
   run_kind?: VideoRunKind
   run_label?: string | null

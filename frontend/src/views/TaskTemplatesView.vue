@@ -17,6 +17,7 @@ import {
   updateTaskTemplate,
 } from '@/api/task-templates'
 import { listUsers } from '@/api/users'
+import GraphTemplatesPanel from '@/components/workflow/GraphTemplatesPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 import type {
   Department,
@@ -95,6 +96,7 @@ const props = withDefaults(defineProps<Props>(), {
   departmentOptions: undefined,
 })
 
+const activeLibraryTab = ref<'legacy' | 'graph'>('legacy')
 const loading = ref(false)
 const instancesLoading = ref(false)
 const createDialogVisible = ref(false)
@@ -1206,8 +1208,25 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page">
-    <el-row :gutter="20">
+  <div class="page" data-testid="task-templates-page">
+    <el-tabs v-model="activeLibraryTab" class="page__library-tabs">
+      <el-tab-pane label="任务模板 (E)" name="legacy" />
+      <el-tab-pane name="graph">
+        <template #label>
+          <span>图模板</span>
+          <el-tag size="small" type="primary" effect="plain" class="page__graph-badge">v1</el-tag>
+        </template>
+      </el-tab-pane>
+    </el-tabs>
+
+    <GraphTemplatesPanel
+      v-if="activeLibraryTab === 'graph'"
+      :users="users"
+      :can-publish="canPublishTask"
+      data-testid="task-templates-graph-tab"
+    />
+
+    <el-row v-else :gutter="20">
       <el-col :xs="24" :xl="13">
         <el-card shadow="never" v-loading="loading">
           <template #header>
@@ -2146,6 +2165,14 @@ onMounted(() => {
 .page__rule-else-tag {
   min-width: 80px;
   text-align: center;
+}
+
+.page__library-tabs {
+  margin-bottom: 16px;
+}
+
+.page__graph-badge {
+  margin-left: 6px;
 }
 
 .page__rule-then-label {

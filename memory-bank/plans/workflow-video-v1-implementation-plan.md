@@ -475,19 +475,21 @@ flowchart TB
 
 ---
 
-### W7 — 前端（模板引擎 + 追踪）
+### W7 — 前端（模板引擎 + 追踪）✅
 
 | ID | 任务 | 说明 |
 |----|------|------|
-| W7-1 | `workflow-graph.ts`：createRun、previewParticipants、submissions、finalize、listChildren | API |
-| W7-2 | **通用** `TemplateInstantiateDialog`：`launch_schema` 动态表单 | 挂在图模板列表/任务中心发布入口；**无单独选题会按钮** |
-| W7-3 | `TemplateCapturePanel`：按 `capture_schema` 渲染行表格 | `TasksView` / 任务中心详情按 `node_key` 挂载 |
+| W7-1 | `workflow-graph.ts`：listTemplates、listChildren + 既有 create/preview/submissions/finalize | `GET /templates`、`GET /instances/{id}/children` |
+| W7-2 | **通用** `TemplateInstantiateDialog`：`launch_schema` 动态表单 | `GraphTemplatesPanel` / 任务模板页「图模板」Tab |
+| W7-3 | `TemplateCapturePanel`：按 `capture_schema` 渲染行表格 | `TasksView` N1 挂载 |
 | W7-4 | `TemplateAggregatePanel`：汇总+选人+确认派发 | N2 负责人 Task |
-| W7-5 | `BatchRunDashboard`：子 Run 矩阵、进度、跳转 | 链 `ROOT` / 批次 instance |
-| W7-6 | `TasksView` 增强：返工原因、链批次/子 Run | 已有节点追踪复用 |
-| W7-7 | 图模板列表 Tab（或扩展现有模板页） | 与 E 模板区分 badge |
+| W7-5 | `BatchRunDashboard`：子 Run 矩阵、进度、跳转 | 批次 ROOT Task |
+| W7-6 | `TasksView` 增强：run_events、批次/制作 Run 标签 | 复用节点追踪面板 |
+| W7-7 | 图模板列表 Tab | `TaskTemplatesView` 与 E 模板分 Tab + badge |
 
-**验收**：不调用 API，完成选题会采集→汇总派发→至少 1 条子流脚本提交；第二条模板可复用 `capture_schema` 做 smoke。
+**测试**：`npm run test:unit -- --run tests/workflowVideoW7Api.spec.ts`；`npm run type-check`
+
+**验收（手工）**：图模板 Tab 实例化 → N1 采集 → N2 汇总派发 → 批次看板打开子流。
 
 ---
 

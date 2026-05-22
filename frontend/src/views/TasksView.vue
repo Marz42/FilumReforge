@@ -26,6 +26,9 @@ import { acceptTaskAssignment,
   updateTaskStatus,
 } from '@/api/tasks'
 import { getWorkflowGraphInstance } from '@/api/workflow-graph'
+import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
+import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
+import TemplateCapturePanel from '@/components/workflow/TemplateCapturePanel.vue'
 import { decideStepRun } from '@/api/task-templates'
 import { listUsers } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
@@ -400,6 +403,52 @@ const workflowNodeIteration = computed(() => {
 const workflowDeepRejectionReason = computed(() => {
   const value = selectedTaskMetadata.value.workflow_deep_rejection_reason
   return typeof value === 'string' && value.trim() ? value : null
+})
+const isGraphTemplateTask = computed(() => {
+  const task = selectedTask.value
+  if (!task || task.source_type !== 'template') {
+    return false
+  }
+  return typeof selectedTaskMetadata.value.workflow_graph_instance_id === 'string'
+})
+const graphTemplateNodeKey = computed(() => {
+  const value = selectedTaskMetadata.value.template_node_key
+  return typeof value === 'string' ? value : ''
+})
+const graphRunKind = computed(() => {
+  const value = selectedTaskMetadata.value.run_kind
+  return typeof value === 'string' ? value : ''
+})
+const isGraphRootBatchTask = computed(
+  () =>
+    isGraphTemplateTask.value
+    && selectedTaskMetadata.value.workflow_graph_root_task === true
+    && graphRunKind.value === 'batch',
+)
+const showVideoCapturePanel = computed(
+  () =>
+    isGraphTemplateTask.value
+    && graphTemplateNodeKey.value === 'N1_PROPOSE'
+    && selectedTask.value?.assignee_id === authStore.user?.id
+    && selectedTask.value?.status !== 'done',
+)
+const showVideoAggregatePanel = computed(
+  () =>
+    isGraphTemplateTask.value
+    && graphTemplateNodeKey.value === 'N2_AGGREGATE'
+    && selectedTask.value?.assignee_id === authStore.user?.id,
+)
+const showBatchRunDashboard = computed(() => isGraphRootBatchTask.value && graphInstance.value !== null)
+const graphParentInstanceId = computed(() => {
+  if (graphInstance.value?.parent_instance_id) {
+    return graphInstance.value.parent_instance_id
+  }
+  const parentId = graphInstance.value?.context?.parent_instance_id
+  return typeof parentId === 'string' ? parentId : null
+})
+const workflowRunEvents = computed(() => {
+  const events = graphInstance.value?.context?.run_events
+  return Array.isArray(events) ? (events as Array<Record<string, unknown>>) : []
 })
 
 function normalizeTagType(value: '' | 'info' | 'warning' | 'success' | 'danger'): 'info' | 'warning' | 'success' | 'danger' | undefined {
@@ -1373,7 +1422,51 @@ watch(
               <el-descriptions-item label="最近返工原因">
                 {{ latestReworkReason }}
               </el-descriptions-item>
+              <el-descriptions-item v-if="graphParentInstanceId" label="所属批次">
+                实例 {{ graphParentInstanceId.slice(0, 8) }}…
+              </el-descriptions-item>
+              <el-descriptions-item v-if="graphRunKind" label="运行类型">
+                {{ graphRunKind === 'batch' ? '批次 Run' : graphRunKind === 'production' ? '制作 Run' : graphRunKind }}
+              </el-descriptions-item>
             </el-descriptions>
+
+            <BatchRunDashboard
+              v-if="showBatchRunDashboard"
+              :graph-instance="graphInstance"
+              @open-task="(taskId) => { selectedTaskId = taskId; void loadSelectedTaskDetails(taskId) }"
+            />
+            <TemplateCapturePanel
+              v-if="showVideoCapturePanel && selectedTask"
+              :task="selectedTask"
+              :graph-instance="graphInstance"
+              @submitted="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
+            />
+            <TemplateAggregatePanel
+              v-if="showVideoAggregatePanel && selectedTask"
+              :task="selectedTask"
+              :graph-instance="graphInstance"
+              :users="users"
+              @finalized="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
+            />
+
+            <el-card
+              v-if="workflowRunEvents.length > 0"
+              shadow="never"
+              class="page__run-events"
+              data-testid="workflow-run-events"
+            >
+              <template #header><strong>运行事件</strong></template>
+              <el-timeline>
+                <el-timeline-item
+                  v-for="(event, index) in workflowRunEvents"
+                  :key="`${event.type}-${index}`"
+                  :timestamp="typeof event.at === 'string' ? formatDateTime(event.at) : '—'"
+                >
+                  {{ typeof event.type === 'string' ? event.type : 'event' }}
+                  <span v-if="typeof event.reason === 'string'"> — {{ event.reason }}</span>
+                </el-timeline-item>
+              </el-timeline>
+            </el-card>
 
             <el-divider>交付与验收</el-divider>
 

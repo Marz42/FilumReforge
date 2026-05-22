@@ -39,6 +39,7 @@ from app.schemas.workflow_graph import (
   WorkflowNodeDeepRejectRequest,
   WorkflowGraphInstanceDetailRead,
   WorkflowGraphInstanceRead,
+  WorkflowGraphTemplateSummaryRead,
   WorkflowNodeCompleteRequest,
   WorkflowNodeInstanceRead,
   WorkflowNodeTakeoverRequest,
@@ -100,6 +101,32 @@ def _user_display_name(user: User) -> str | None:
   if profile is not None and profile.real_name:
     return profile.real_name
   return None
+
+
+@router.get(
+  "/templates",
+  response_model=list[WorkflowGraphTemplateSummaryRead],
+  tags=["workflow-graph"],
+)
+async def list_graph_templates(
+  actor: Annotated[User, Depends(get_current_user)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+) -> list[WorkflowGraphTemplateSummaryRead]:
+  _ = actor
+  templates = await workflow_graph_service.list_active_templates()
+  return [
+    WorkflowGraphTemplateSummaryRead(
+      id=template.id,
+      code=template.code,
+      name=template.name,
+      description=template.description,
+      status=template.status,
+      version=template.version,
+      run_kind=str((template.config or {}).get("run_kind") or "") or None,
+      config=dict(template.config or {}),
+    )
+    for template in templates
+  ]
 
 
 @router.post(
@@ -297,6 +324,29 @@ async def finalize_instance_topics(
     approved_topics=payload.approved_topics,
     rejected_topics=payload.rejected_topics,
   )
+
+
+@router.get(
+  "/instances/{instance_id}/children",
+  response_model=list[WorkflowGraphInstanceRead],
+  tags=["workflow-graph"],
+)
+async def list_graph_instance_children(
+  instance_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+  limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> list[WorkflowGraphInstanceRead]:
+  _ = actor
+  children = await workflow_graph_service.list_child_instances(
+    parent_instance_id=instance_id,
+    limit=limit,
+  )
+  results: list[WorkflowGraphInstanceRead] = []
+  for child in children:
+    node_instances = await workflow_graph_service.list_node_instances_for_graph(instance_id=child.id)
+    results.append(_workflow_graph_instance_read(child, node_instances))
+  return results
 
 
 @router.get(

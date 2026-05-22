@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from app.core.enums import (
   WorkflowGraphInstanceStatus,
   WorkflowGraphNodeType,
+  WorkflowGraphTemplateStatus,
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
 )
@@ -31,6 +32,19 @@ class WorkflowNodeInstanceRead(BaseModel):
   completed_at: datetime | None
   terminated_at: datetime | None
   created_at: datetime
+
+
+class WorkflowGraphTemplateSummaryRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  code: str
+  name: str
+  description: str | None = None
+  status: WorkflowGraphTemplateStatus
+  version: int
+  run_kind: str | None = None
+  config: dict[str, object] = {}
 
 
 class WorkflowGraphInstanceRead(BaseModel):

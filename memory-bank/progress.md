@@ -40,6 +40,7 @@
 | W5 定向返工 | done | `WorkflowVideoReworkService`、reject-captures、production deep_reject、`run_events`；测试 3+1+8 |
 | WFK 按题 fork | done | `WorkflowVideoForkService`、`instantiate_production_child_run`、finalize 自动 fork；测试 3+2+1 |
 | W6 双模板种子 | done | `WorkflowVideoTemplateSeedService`、sample 三部门 + demo 账号、`seed_workflow_video_templates`、Runbook；测试 1 |
+| W7 表单引擎前端 | done | 图模板 Tab、`TemplateInstantiateDialog`、Capture/Aggregate、批次看板、`TasksView` 挂载；测试 2 |
 
 ### W1 测试命令
 
@@ -94,6 +95,13 @@
 | 层 | 命令 | 结果 |
 | --- | --- | --- |
 | 后端 W6 | `pytest -q tests/test_workflow_video_w6_template_seed.py` | **1 passed** |
+
+### W7 测试命令
+
+| 层 | 命令 | 结果 |
+| --- | --- | --- |
+| 前端 W7 | `npm run test:unit -- --run tests/workflowVideoW7Api.spec.ts` | **2 passed** |
+| 类型 | `npm run type-check` | PASS |
 
 ## 当前阶段状态
 
