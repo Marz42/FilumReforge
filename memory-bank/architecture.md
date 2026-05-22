@@ -97,6 +97,7 @@
 - 消息外部渠道深化、失败重试与更完整投递观测
 - Email / WebSocket 渠道的外部真实接入仍是最小实现后的下一步
 - 更大范围的集成测试、端到端验证扩面；docker-gui / Playwright 与发布 commit 的定期基线刷新
+- **视频工作流 v1（进行中）**：排期见 `memory-bank/plans/workflow-video-v1-implementation-plan.md` v2.0。产品口径为 **一次选题会（批次 Run）→ 选题清单 `approved_topics[]` → 按题 fork 子 Run（`video_production_per_topic_v1`）**；**无**独立「发起选题会」入口（选题会为图模板之一）。模板引擎增量：**`launch_schema` / `capture_schema` / `aggregate_schema`**（统一实例化 Dialog + 任务内表格采集 + 汇总派发）。运行时仍以 `workflow_graph_*` + `Task` 为主；`task_templates` 实例化在 W10 前保持 **legacy**。开关：`workflow_graph_template_engine_enabled` 默认 `false`，仅 gate 新图模板 run 路径（ADR：`memory-bank/plans/workflow-video-v1-w0-adr.md`）；策略入口 `backend/app/core/workflow_video_policy.py`。
 
 ## 3. 模块边界与状态映射
 
@@ -206,6 +207,8 @@
 | `memory-bank/plans/implementation-plan.md` | 未来开发顺序、阶段范围与测试出口 |
 | `memory-bank/plans/improvements-stage2-implementation-plan.md` | Stage 2 阶段计划与验收出口 |
 | `memory-bank/plans/workflow-refactor-implementation-plan.md` | 工作流图引擎重构 Phase 0–11 实施基线 |
+| `memory-bank/plans/workflow-video-v1-implementation-plan.md` | 视频工作流 v1（批次选题会 + 表单引擎 + 按题 fork）实施清单 v2 |
+| `memory-bank/plans/workflow-video-v1-w0-adr.md` | 视频 v1 W0：图模板引擎开关与 legacy E 路径 ADR |
 | `memory-bank/progress.md` | 已完成事项与验证记录 |
 | `memory-bank/tech-stack.md` | 技术选型与已落地 / 规划状态 |
 | `memory-bank/handbooks/manual-database-operations.md` | PostgreSQL 手工连接、增删改查注意、Alembic、整库重置与初始化 |

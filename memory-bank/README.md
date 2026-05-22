@@ -27,6 +27,8 @@
 | [plans/implementation-plan.md](./plans/implementation-plan.md) | 从当前代码出发的下一轮工作流与主线说明 |
 | [plans/improvements-stage2-implementation-plan.md](./plans/improvements-stage2-implementation-plan.md) | Stage 2 周期阶段计划 |
 | [plans/workflow-refactor-implementation-plan.md](./plans/workflow-refactor-implementation-plan.md) | 工作流图引擎重构 Phase 0–11 实施与验收基线 |
+| [plans/workflow-video-v1-implementation-plan.md](./plans/workflow-video-v1-implementation-plan.md) | 视频工作流 v1（批次选题会、模板表单引擎、按题 fork） |
+| [plans/workflow-video-v1-w0-adr.md](./plans/workflow-video-v1-w0-adr.md) | 视频 v1 W0 feature 开关与运行时 ADR |
 | [plans/ui-information-architecture-plan.md](./plans/ui-information-architecture-plan.md) | UI 信息架构里程碑总览（IA-0…IA-4） |
 | [plans/ui-refactor-spec-v2.md](./plans/ui-refactor-spec-v2.md) | **UI 重构实施规格 v2**（Phase A–F 逐步验收，依据 user-manual 审阅批注） |
 

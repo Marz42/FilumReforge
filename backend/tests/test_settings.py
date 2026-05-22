@@ -78,12 +78,14 @@ def test_settings_parse_workflow_feature_flags() -> None:
   settings = Settings(
     jwt_secret_key="test-jwt-secret-key-for-suite-123456",
     workflow_graph_engine_enabled=True,
+    workflow_graph_template_engine_enabled=False,
     task_center_v2_enabled=True,
     workflow_wait_any_enabled=True,
     workflow_deep_rejection_enabled=True,
   )
 
   assert settings.workflow_graph_engine_enabled is True
+  assert settings.workflow_graph_template_engine_enabled is False
   assert settings.task_center_v2_enabled is True
   assert settings.workflow_wait_any_enabled is True
   assert settings.workflow_deep_rejection_enabled is True

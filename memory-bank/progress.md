@@ -17,6 +17,26 @@
 | `playwright_mock` / `playwright_live` | 未纳入本次基线重跑（Phase 11-G 独立层；见 `memory-bank/plans/workflow-refactor-implementation-plan.md` §16.9） |
 | `notes` | 单测已对齐 IA 后 UI：`OverviewTodoWidget` 待办/汇报分栏、`MessagesView` 时间范围 `createdRange`、handler 展示名 `name（email）`；`vite-plugin-vue-devtools` peer 警告不阻断 build |
 
+## 视频工作流 v1（workflow-video-v1）
+
+排期主文档：`memory-bank/plans/workflow-video-v1-implementation-plan.md`（v2.0）。W0 ADR：`memory-bank/plans/workflow-video-v1-w0-adr.md`。
+
+### W0 测试命令（阶段出口，每阶段必跑）
+
+| 层 | 命令 | W0 结果 |
+| --- | --- | --- |
+| 后端 W0 | `pytest -q tests/test_workflow_video_w0_baseline.py tests/test_settings.py::test_settings_parse_workflow_feature_flags` | **10 passed** |
+| 前端 W0 | `npm run test:unit -- --run tests/workflowVideoW0Baseline.spec.ts` | **2 passed** |
+| 编译 | `python -m compileall -q app tests`（backend） | PASS |
+
+| W 阶段 | 状态 | 结论 |
+| --- | --- | --- |
+| W0 基线冻结 | done | v2 计划、architecture 摘要、W0 ADR、`workflow_video_policy`、前后端 W0 基线测试（10+2） |
+| W1 模型与契约 | pending | — |
+| WF 表单引擎后端 | pending | — |
+| W2 参与者 | pending | — |
+| W3 图实例化 v2 | pending | — |
+
 ## 当前阶段状态
 
 | 阶段 | 状态 | 结论 |
