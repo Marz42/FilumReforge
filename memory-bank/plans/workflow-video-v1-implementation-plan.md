@@ -461,15 +461,17 @@ flowchart TB
 
 ---
 
-### W6 — 双模板种子
+### W6 — 双模板种子 ✅
 
 | ID | 任务 | 说明 |
 |----|------|------|
-| W6-1 | `topic_meeting_batch_v1`：N1/N2 + schema + 边 | seed 脚本 |
-| W6-2 | `video_production_per_topic_v1`：N3–N12 + schema | 同上 |
-| W6-3 | `participant_policy` 绑定文案/配音/后期部门 | sample_data |
-| W6-4 | 权限与 `can_publish_org_tasks` 对齐 | — |
-| W6-5 | Runbook：Docker 复现 | 文档 |
+| W6-1 | `topic_meeting_batch_v1`：N1/N2 + schema + 边 | `WorkflowVideoTemplateSeedService` + `seed_sample_data` |
+| W6-2 | `video_production_per_topic_v1`：N3–N12 + schema | 同上；12 条边（含 3 条打回边） |
+| W6-3 | `participant_policy` 绑定文案/配音/后期部门 | `video-copywriting` / `video-voice` / `video-post` |
+| W6-4 | 权限与 `can_publish_org_tasks` 对齐 | 三部门 `publish_org_task` + 负责人可发布 |
+| W6-5 | Runbook：Docker 复现 | [workflow-video-v1-docker-runbook.md](../handbooks/workflow-video-v1-docker-runbook.md) |
+
+**测试**：`pytest -q tests/test_workflow_video_w6_template_seed.py`
 
 ---
 

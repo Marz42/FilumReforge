@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.enums import PositionAssignmentType, ReportingLineType, UserRole, UserStatus
+from app.core.enums import DepartmentCapability, PositionAssignmentType, ReportingLineType, UserRole, UserStatus
 from app.core.exceptions import ConflictError
 from app.models import Department, Position, Profile, ProfilePosition, ReportingLine, User
 from app.services.auth_service import AuthService
@@ -16,6 +16,7 @@ from app.services.organization_relation_service import OrganizationRelationServi
 from app.services.profile_field_policy_service import ProfileFieldPolicyService
 from app.services.profile_service import ProfileService
 from app.services.user_service import UserService
+from app.services.workflow_video_template_seed_service import WorkflowVideoTemplateSeedService
 
 ROOT_PARENT = "__root__"
 
@@ -27,6 +28,7 @@ class SampleDepartmentSpec:
   parent_code: str | None
   sort_order: int
   manager_email: str | None = None
+  capabilities: tuple[DepartmentCapability, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +113,7 @@ class SampleDataService:
     positions = await self._upsert_positions(actor=admin, specs=position_specs)
     await self._upsert_position_assignments(actor=admin, users=users, departments=departments, positions=positions, specs=user_specs)
     await self._upsert_reporting_lines(actor=admin, users=users, departments=departments, specs=user_specs)
+    await WorkflowVideoTemplateSeedService(self._session).seed_templates(actor=admin, departments=departments)
 
     accounts = tuple(
       SeededAccount(
@@ -170,6 +173,30 @@ class SampleDataService:
         sort_order=40,
         manager_email="demo.finance@example.com",
       ),
+      SampleDepartmentSpec(
+        code="video-copywriting",
+        name="视频文案部",
+        parent_code=ROOT_PARENT,
+        sort_order=50,
+        manager_email="demo.video.copy.lead@example.com",
+        capabilities=(DepartmentCapability.PUBLISH_ORG_TASK,),
+      ),
+      SampleDepartmentSpec(
+        code="video-voice",
+        name="视频配音部",
+        parent_code=ROOT_PARENT,
+        sort_order=51,
+        manager_email="demo.video.vo.lead@example.com",
+        capabilities=(DepartmentCapability.PUBLISH_ORG_TASK,),
+      ),
+      SampleDepartmentSpec(
+        code="video-post",
+        name="视频后期部",
+        parent_code=ROOT_PARENT,
+        sort_order=52,
+        manager_email="demo.video.post.lead@example.com",
+        capabilities=(DepartmentCapability.PUBLISH_ORG_TASK,),
+      ),
     )
 
   @staticmethod
@@ -182,6 +209,9 @@ class SampleDataService:
       SamplePositionSpec(code="software-engineer", name="后端工程师", level="P5"),
       SamplePositionSpec(code="customer-success-manager", name="客户成功经理", level="M2"),
       SamplePositionSpec(code="finance-manager", name="财务行政经理", level="M2"),
+      SamplePositionSpec(code="video-copywriter", name="视频文案", level="P4"),
+      SamplePositionSpec(code="voice-artist", name="配音师", level="P4"),
+      SamplePositionSpec(code="video-editor", name="视频剪辑师", level="P4"),
     )
 
   @staticmethod
@@ -310,6 +340,115 @@ class SampleDataService:
         manager_email="demo.success@example.com",
         custom_fields={"skills": ["历史数据"], "location": "深圳"},
       ),
+      SampleUserSpec(
+        email="demo.video.copy.lead@example.com",
+        real_name="韩策",
+        employee_no="DEMO-010",
+        role=UserRole.EMPLOYEE,
+        status=UserStatus.ACTIVE,
+        department_code="video-copywriting",
+        job_title="文案负责人",
+        position_code="video-copywriter",
+        phone="13800000010",
+        hire_date=date(2024, 7, 1),
+        custom_fields={"skills": ["选题", "脚本审核"], "location": "上海"},
+      ),
+      SampleUserSpec(
+        email="demo.video.copy.a@example.com",
+        real_name="陆言",
+        employee_no="DEMO-011",
+        role=UserRole.EMPLOYEE,
+        status=UserStatus.ACTIVE,
+        department_code="video-copywriting",
+        job_title="视频文案",
+        position_code="video-copywriter",
+        phone="13800000011",
+        hire_date=date(2024, 8, 12),
+        manager_email="demo.video.copy.lead@example.com",
+        custom_fields={"skills": ["脚本撰写"], "location": "上海"},
+      ),
+      SampleUserSpec(
+        email="demo.video.copy.b@example.com",
+        real_name="宋遥",
+        employee_no="DEMO-012",
+        role=UserRole.EMPLOYEE,
+        status=UserStatus.ACTIVE,
+        department_code="video-copywriting",
+        job_title="视频文案",
+        position_code="video-copywriter",
+        phone="13800000012",
+        hire_date=date(2024, 9, 3),
+        manager_email="demo.video.copy.lead@example.com",
+        custom_fields={"skills": ["脚本撰写"], "location": "杭州"},
+      ),
+      SampleUserSpec(
+        email="demo.video.copy.c@example.com",
+        real_name="程野",
+        employee_no="DEMO-013",
+        role=UserRole.EMPLOYEE,
+        status=UserStatus.ACTIVE,
+        department_code="video-copywriting",
+        job_title="视频文案",
+        position_code="video-copywriter",
+        phone="13800000013",
+        hire_date=date(2024, 10, 18),
+        manager_email="demo.video.copy.lead@example.com",
+        custom_fields={"skills": ["脚本撰写"], "location": "杭州"},
+      ),
+      SampleUserSpec(
+        email="demo.video.vo.lead@example.com",
+        real_name="苏念",
+        employee_no="DEMO-014",
+        role=UserRole.EMPLOYEE,
+        status=UserStatus.ACTIVE,
+        department_code="video-voice",
+        job_title="配音负责人",
+        position_code="voice-artist",
+        phone="13800000014",
+        hire_date=date(2024, 6, 20),
+        custom_fields={"skills": ["配音审核"], "location": "北京"},
+      ),
+      SampleUserSpec(
+        email="demo.video.vo.a@example.com",
+        real_name="白屿",
+        employee_no="DEMO-015",
+        role=UserRole.EMPLOYEE,
+        status=UserStatus.ACTIVE,
+        department_code="video-voice",
+        job_title="配音师",
+        position_code="voice-artist",
+        phone="13800000015",
+        hire_date=date(2024, 11, 5),
+        manager_email="demo.video.vo.lead@example.com",
+        custom_fields={"skills": ["配音制作"], "location": "北京"},
+      ),
+      SampleUserSpec(
+        email="demo.video.post.lead@example.com",
+        real_name="季衡",
+        employee_no="DEMO-016",
+        role=UserRole.EMPLOYEE,
+        status=UserStatus.ACTIVE,
+        department_code="video-post",
+        job_title="后期负责人",
+        position_code="video-editor",
+        phone="13800000016",
+        hire_date=date(2024, 5, 8),
+        custom_fields={"skills": ["剪辑统筹", "发布排期"], "location": "深圳"},
+      ),
+      SampleUserSpec(
+        email="demo.video.editor@example.com",
+        real_name="叶舟",
+        employee_no="DEMO-017",
+        role=UserRole.EMPLOYEE,
+        status=UserStatus.ACTIVE,
+        department_code="video-post",
+        job_title="视频剪辑师",
+        position_code="video-editor",
+        phone="13800000017",
+        hire_date=date(2024, 12, 2),
+        manager_email="demo.video.post.lead@example.com",
+        custom_fields={"skills": ["剪辑", "成片上传"], "location": "深圳"},
+      ),
     )
 
   async def _ensure_admin(
@@ -367,6 +506,7 @@ class SampleDataService:
           code=spec.code,
           parent_id=parent_id,
           sort_order=spec.sort_order,
+          capabilities=list(spec.capabilities),
         )
       else:
         department = await self._department_service.update_department(
@@ -377,6 +517,7 @@ class SampleDataService:
           parent_id=parent_id,
           sort_order=spec.sort_order,
           is_active=True,
+          capabilities=list(spec.capabilities) if spec.capabilities else None,
         )
       departments[spec.code] = department
     return departments
