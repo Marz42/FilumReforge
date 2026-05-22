@@ -43,6 +43,7 @@ from app.schemas.workflow_video import (
 from app.services.access_control import ensure_active_user
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_rework_service import WorkflowVideoReworkService
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
@@ -56,6 +57,7 @@ class WorkflowVideoFormService:
     workflow_graph_service: WorkflowGraphService | None = None,
     orchestration_service: WorkflowOrchestrationService | None = None,
     rework_service: WorkflowVideoReworkService | None = None,
+    fork_service: WorkflowVideoForkService | None = None,
   ) -> None:
     self._session = session
     self._workflow_graph_service = workflow_graph_service or WorkflowGraphService(session)
@@ -72,6 +74,9 @@ class WorkflowVideoFormService:
         workflow_graph_service=self._workflow_graph_service,
         orchestration_service=self._orchestration_service,
       )
+    self._fork_service = fork_service
+    if self._fork_service is None:
+      self._fork_service = WorkflowVideoForkService(session)
 
   async def _load_task_projection(
     self,
@@ -380,13 +385,18 @@ class WorkflowVideoFormService:
       instance=instance,
       aggregate_node_key=aggregate_key,
     )
-    await self._session.commit()
-    await self._session.refresh(instance)
+
+    fork_result = await self._fork_service.fork_production_runs(
+      actor=actor,
+      batch_instance_id=instance_id,
+      approved_topics=approved_topics,
+    )
 
     return FinalizeTopicsResponse(
       instance_id=instance_id,
       approved_count=len(approved_topics),
-      fork_status="pending",
-      fork_deferred=True,
-      message="选题清单已写入；按题 fork 子 Run 将在 WFK 阶段启用。",
+      fork_status=fork_result.fork_status,
+      fork_deferred=False,
+      child_instance_ids=fork_result.child_instance_ids,
+      message=f"已派发 {fork_result.forked_count} 条制作子 Run（跳过 {fork_result.skipped_count} 条重复）。",
     )

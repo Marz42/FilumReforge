@@ -32,6 +32,7 @@ from app.models import (
   WorkflowNodeInstance,
 )
 from app.schemas.workflow_video import (
+  ApprovedTopic,
   CreateGraphTemplateRunResponse,
   ParticipantsSnapshotEntry,
   validate_launch_schema,
@@ -472,6 +473,8 @@ class WorkflowVideoInstantiationService:
     department_id: UUID | None,
     run_label: str,
     run_kind: str,
+    parent_task_id: UUID | None = None,
+    extra_metadata: dict[str, object] | None = None,
   ) -> Task:
     title = f"{template.name} / {run_label}"
     metadata: dict[str, object] = {
@@ -481,6 +484,8 @@ class WorkflowVideoInstantiationService:
       "template_code": template.code,
       "run_kind": run_kind,
     }
+    if extra_metadata:
+      metadata.update(extra_metadata)
 
     if self._task_service is not None:
       task, _assignee = await self._task_service.create_task_record(
@@ -494,6 +499,8 @@ class WorkflowVideoInstantiationService:
         skip_assignee_permission=True,
         skip_publish_permission=True,
       )
+      if parent_task_id is not None:
+        task.parent_task_id = parent_task_id
       return task
 
     task = Task(
@@ -501,6 +508,7 @@ class WorkflowVideoInstantiationService:
       creator_id=actor.id,
       assignee_id=assignee_id,
       department_id=department_id,
+      parent_task_id=parent_task_id,
       status=TaskStatus.DOING,
       priority=TaskPriority.MEDIUM,
       source_type=TaskSourceType.TEMPLATE,
@@ -509,6 +517,156 @@ class WorkflowVideoInstantiationService:
     self._session.add(task)
     await self._session.flush()
     return task
+
+  async def instantiate_production_child_run(
+    self,
+    *,
+    actor: User,
+    template: WorkflowGraphTemplate,
+    parent_instance: WorkflowGraphInstance,
+    topic: ApprovedTopic,
+    parent_task_id: UUID | None = None,
+  ) -> GraphTemplateRunResult:
+    """Instantiate a per-topic production child Run linked to a batch parent (WFK)."""
+    self._require_engine_enabled()
+    ensure_active_user(actor)
+
+    _template, nodes, edges = await self._load_template_graph(template_id=template.id)
+    schema_snapshot = self._build_schema_snapshot(template=_template, nodes=nodes)
+
+    context: dict[str, Any] = {
+      "run_kind": "production",
+      "run_label": topic.title,
+      "parent_instance_id": str(parent_instance.id),
+      "topic_id": str(topic.topic_id),
+      "topic_title": topic.title,
+      "script_author_id": str(topic.script_author_id),
+      "inputs": {},
+      "participants_snapshot": {},
+      "schema_snapshot": schema_snapshot,
+      "template_version": _template.version,
+      "fork_status": None,
+      "approved_topics": [],
+      "forked_child_instance_ids": [],
+    }
+    if topic.content:
+      context["topic_content"] = topic.content
+    validate_run_context(context)
+
+    in_degree: dict[UUID, int] = {node.id: 0 for node in nodes}
+    for edge in edges:
+      if edge.to_node_id in in_degree:
+        in_degree[edge.to_node_id] += 1
+
+    now = datetime.now(UTC)
+    instance = WorkflowGraphInstance(
+      template_id=_template.id,
+      initiator_user_id=actor.id,
+      department_id=parent_instance.department_id,
+      parent_instance_id=parent_instance.id,
+      source_type="template",
+      status=WorkflowGraphInstanceStatus.ACTIVE,
+      run_label=topic.title,
+      context=context,
+      context_version=1,
+      max_iterations=5,
+    )
+    self._session.add(instance)
+    await self._session.flush()
+
+    node_instances: list[WorkflowNodeInstance] = []
+    activated_node_keys: list[str] = []
+
+    for node in nodes:
+      raw_config = node.config if isinstance(node.config, dict) else {}
+      node_config = validate_node_config(raw_config).model_dump(mode="json")
+      is_start = in_degree[node.id] == 0
+      engine_state = WorkflowNodeEngineState.ACTIVATED if is_start else WorkflowNodeEngineState.PENDING
+      business_state = (
+        WorkflowNodeBusinessState.DOING if is_start else WorkflowNodeBusinessState.ASSIGNED
+      )
+
+      assignee_id = await self._resolve_node_assignee(
+        actor=actor,
+        template=_template,
+        node=node,
+        node_config=node_config,
+        context=context,
+        department_id=parent_instance.department_id,
+      )
+      if node.node_key == "N3_SCRIPT_WRITE":
+        assignee_id = topic.script_author_id
+
+      ni = WorkflowNodeInstance(
+        instance_id=instance.id,
+        template_node_id=node.id,
+        node_key=node.node_key,
+        instance_key="singleton",
+        title=node.title,
+        node_type=node.node_type,
+        engine_state=engine_state,
+        business_state=business_state,
+        assignee_user_id=assignee_id,
+        iteration=1,
+        node_instance_version=1,
+        config=node_config,
+        activated_at=now if is_start else None,
+      )
+      self._session.add(ni)
+      node_instances.append(ni)
+      if is_start:
+        activated_node_keys.append(node.node_key)
+
+    instance.current_node_key = activated_node_keys[0] if activated_node_keys else None
+    await self._session.flush()
+
+    root_task = await self._create_root_task(
+      actor=actor,
+      template=_template,
+      instance=instance,
+      assignee_id=topic.script_author_id,
+      department_id=parent_instance.department_id,
+      run_label=topic.title,
+      run_kind="production",
+      parent_task_id=parent_task_id,
+      extra_metadata={
+        "topic_id": str(topic.topic_id),
+        "parent_instance_id": str(parent_instance.id),
+      },
+    )
+
+    instance.source_id = root_task.id
+    instance.context = {
+      **dict(instance.context or {}),
+      "root_task_id": str(root_task.id),
+    }
+    instance.context_version = 2
+    validate_run_context(instance.context)
+
+    activated_tasks: list[Task] = []
+    for node_instance in node_instances:
+      if node_instance.engine_state != WorkflowNodeEngineState.ACTIVATED:
+        continue
+      task = await self._create_projection_task(
+        actor=actor,
+        template=_template,
+        instance=instance,
+        node_instance=node_instance,
+        department_id=parent_instance.department_id,
+      )
+      node_instance.config = {
+        **dict(node_instance.config or {}),
+        "task_id": str(task.id),
+      }
+      activated_tasks.append(task)
+
+    await self._session.flush()
+    return GraphTemplateRunResult(
+      instance=instance,
+      root_task=root_task,
+      node_instances=node_instances,
+      activated_tasks=activated_tasks,
+    )
 
   def to_response(self, result: GraphTemplateRunResult) -> CreateGraphTemplateRunResponse:
     run_kind = str((result.instance.context or {}).get("run_kind") or "batch")

@@ -71,6 +71,14 @@ export interface RejectCapturesResponse {
   reopened_instance_keys: string[]
 }
 
+export interface ForkProductionRunsResponse {
+  batch_instance_id: string
+  forked_count: number
+  skipped_count: number
+  child_instance_ids: string[]
+  fork_status: string
+}
+
 export interface CreateGraphTemplateRunRequest {
   inputs?: Record<string, unknown>
   participants_snapshot: Record<

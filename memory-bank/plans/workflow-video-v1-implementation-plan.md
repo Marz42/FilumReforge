@@ -444,15 +444,20 @@ flowchart TB
 
 ### WFK — 按题 fork 子 Run
 
-| ID | 任务 | 说明 |
-|----|------|------|
-| WFK-1 | `fork_production_runs(batch_instance_id, approved_topics[])` | 每题一次 |
-| WFK-2 | 幂等：`(parent_instance_id, topic_id)` 唯一 | 重复确认不重复 fork |
-| WFK-3 | 子 Run `instantiate` 注入 `topic_*`、`script_author_id` | 制作模板 N3 起激活 |
-| WFK-4 | 批次 context：`forked_child_instance_ids`、`fork_status` | 看板用 |
-| WFK-5 | 子 ROOT `parent_task_id` 可选链批次 ROOT | 任务树 |
+| ID | 任务 | 说明 | 状态 |
+|----|------|------|------|
+| WFK-1 | `fork_production_runs(batch_instance_id, approved_topics[])` | 每题一次 | done |
+| WFK-2 | 幂等：`(parent_instance_id, topic_id)` 唯一 | 重复确认不重复 fork | done |
+| WFK-3 | 子 Run `instantiate` 注入 `topic_*`、`script_author_id` | `instantiate_production_child_run` | done |
+| WFK-4 | 批次 context：`forked_child_instance_ids`、`fork_status` | 看板用 | done |
+| WFK-5 | 子 ROOT `parent_task_id` 可选链批次 ROOT | 任务树 | done |
 
 **验收**：派发 5 题 → 5 子 Run；小陈 2 题 → 2 条「写脚本」待办。
+
+**WFK 测试（必绿）**
+
+- `pytest -q tests/test_workflow_video_wfk_fork.py tests/test_workflow_video_wf_form_engine.py::test_wf_finalize_topics_writes_context_and_completes_aggregate tests/test_api.py::test_wf_submit_capture_and_finalize_topics_api`
+- `npm run test:unit -- --run tests/workflowVideoWfkApi.spec.ts`
 
 ---
 

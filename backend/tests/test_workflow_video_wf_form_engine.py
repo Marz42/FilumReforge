@@ -240,9 +240,47 @@ async def test_wf_list_instance_submissions_returns_all_rows(db_session) -> None
 
 
 @pytest.mark.asyncio
+async def _seed_production_template_for_wf(db_session, *, admin_id):
+  from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateNode
+  from app.core.enums import WorkflowGraphTemplateStatus
+
+  template = WorkflowGraphTemplate(
+    code="video_production_per_topic_v1",
+    base_code="video_production_per_topic_v1",
+    version=1,
+    name="单题制作",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    config={"run_kind": "production"},
+    created_by=admin_id,
+  )
+  db_session.add(template)
+  await db_session.flush()
+  db_session.add(
+    WorkflowGraphTemplateNode(
+      template_id=template.id,
+      node_key="N3_SCRIPT_WRITE",
+      title="写脚本",
+      sort_order=1,
+      assignee_rule={"type": "context_var", "var": "script_author_id"},
+    )
+  )
+  await db_session.flush()
+
+
+@pytest.mark.asyncio
 async def test_wf_finalize_topics_writes_context_and_completes_aggregate(db_session) -> None:
+  from app.core.config import Settings
+  from app.services.workflow_video_fork_service import WorkflowVideoForkService
+  from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
+
   seed = await _seed_capture_flow(db_session)
-  service = WorkflowVideoFormService(db_session)
+  await _seed_production_template_for_wf(db_session, admin_id=seed["admin"].id)
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET, workflow_graph_template_engine_enabled=True)
+  fork = WorkflowVideoForkService(
+    db_session,
+    instantiation_service=WorkflowVideoInstantiationService(db_session, settings=settings),
+  )
+  service = WorkflowVideoFormService(db_session, fork_service=fork)
   submit = await service.submit_capture(
     actor=seed["editor"],
     task_id=seed["task"].id,
@@ -263,12 +301,13 @@ async def test_wf_finalize_topics_writes_context_and_completes_aggregate(db_sess
     ],
   )
   assert result.approved_count == 1
-  assert result.fork_status == "pending"
-  assert result.fork_deferred is True
+  assert result.fork_status == "completed"
+  assert result.fork_deferred is False
+  assert len(result.child_instance_ids) == 1
 
   await db_session.refresh(seed["instance"])
   await db_session.refresh(seed["aggregate_node"])
   context = seed["instance"].context
   assert len(context.get("approved_topics", [])) == 1
-  assert context.get("fork_status") == "pending"
+  assert context.get("fork_status") == "completed"
   assert seed["aggregate_node"].engine_state == WorkflowNodeEngineState.COMPLETED

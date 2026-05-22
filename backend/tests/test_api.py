@@ -4475,12 +4475,22 @@ async def test_w3_create_graph_template_run_api(api_client) -> None:
 
 
 @pytest.mark.asyncio
-async def test_wf_submit_capture_and_finalize_topics_api(api_client) -> None:
-  from test_workflow_video_wf_form_engine import _seed_capture_flow
+async def test_wf_submit_capture_and_finalize_topics_api(api_client, monkeypatch: pytest.MonkeyPatch) -> None:
+  from app.core.config import get_settings
+  from test_workflow_video_wf_form_engine import _seed_capture_flow, _seed_production_template_for_wf
+
+  monkeypatch.setenv("WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED", "true")
+  get_settings.cache_clear()
 
   client, queue_publisher = api_client
+  enabled_settings = queue_publisher._settings.model_copy(
+    update={"workflow_graph_template_engine_enabled": True},
+  )
+  client._transport.app.dependency_overrides[get_settings] = lambda: enabled_settings  # type: ignore[attr-defined]
+
   async with queue_publisher._session_factory() as session:
     seed = await _seed_capture_flow(session)
+    await _seed_production_template_for_wf(session, admin_id=seed["admin"].id)
     await session.commit()
     task_id = seed["task"].id
     instance_id = seed["instance"].id
@@ -4528,4 +4538,8 @@ async def test_wf_submit_capture_and_finalize_topics_api(api_client) -> None:
     },
   )
   assert finalize_response.status_code == 200, finalize_response.text
-  assert finalize_response.json()["fork_status"] == "pending"
+  body = finalize_response.json()
+  assert body["fork_status"] == "completed"
+  assert body["fork_deferred"] is False
+  assert body["approved_count"] == 1
+  assert len(body.get("child_instance_ids") or []) == 1

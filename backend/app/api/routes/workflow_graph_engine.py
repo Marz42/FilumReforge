@@ -12,6 +12,7 @@ from app.api.dependencies import (
   get_workflow_graph_service,
   get_workflow_video_form_service,
   get_workflow_video_instantiation_service,
+  get_workflow_video_fork_service,
   get_workflow_video_rework_service,
 )
 from app.core.exceptions import NotFoundError
@@ -25,6 +26,7 @@ from app.schemas.workflow_video import (
   RejectCapturesRequest,
   RejectCapturesResponse,
   RejectProductionStepRequest,
+  ForkProductionRunsResponse,
   RejectProductionStepResponse,
   InstanceSubmissionsResponse,
   ParticipantUserPreview,
@@ -46,6 +48,7 @@ from app.schemas.workflow_graph import (
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
 
 router = APIRouter(prefix="/workflow-graph")
@@ -220,6 +223,23 @@ async def list_instance_submissions(
     instance_id=instance_id,
     node_key=node_key,
   )
+
+
+@router.post(
+  "/instances/{instance_id}/fork-production",
+  response_model=ForkProductionRunsResponse,
+  tags=["workflow-graph"],
+)
+async def fork_production_runs(
+  instance_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  fork_service: WorkflowVideoForkService = Depends(get_workflow_video_fork_service),
+) -> ForkProductionRunsResponse:
+  result = await fork_service.fork_production_runs(
+    actor=actor,
+    batch_instance_id=instance_id,
+  )
+  return fork_service.to_response(result)
 
 
 @router.post(

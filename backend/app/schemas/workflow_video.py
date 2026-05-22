@@ -196,11 +196,20 @@ class FinalizeTopicsRequest(BaseModel):
     return self
 
 
+class ForkProductionRunsResponse(BaseModel):
+  batch_instance_id: UUID
+  forked_count: int
+  skipped_count: int
+  child_instance_ids: list[UUID]
+  fork_status: str
+
+
 class FinalizeTopicsResponse(BaseModel):
   instance_id: UUID
   approved_count: int
   fork_status: str
-  fork_deferred: bool = True
+  fork_deferred: bool = False
+  child_instance_ids: list[UUID] = Field(default_factory=list)
   message: str | None = None
 
 

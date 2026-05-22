@@ -201,11 +201,6 @@ class WorkflowOrchestrationService:
       metadata["aggregate_confirmed_at"] = now.isoformat()
       aggregate_task.extra_metadata = metadata
 
-    context = dict(instance.context or {})
-    if context.get("fork_status") == "pending":
-      context["fork_deferred"] = True
-      instance.context = context
-
     if instance.status == WorkflowGraphInstanceStatus.ACTIVE:
       downstream_pending = await self._session.scalar(
         select(WorkflowNodeInstance.id)
