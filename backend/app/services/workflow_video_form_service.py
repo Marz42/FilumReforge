@@ -24,6 +24,7 @@ from app.models import (
   User,
   WorkflowDeliverable,
   WorkflowGraphInstance,
+  WorkflowGraphTemplate,
   WorkflowGraphTemplateNode,
   WorkflowNodeInstance,
 )
@@ -40,6 +41,7 @@ from app.schemas.workflow_video import (
 )
 from app.services.access_control import ensure_active_user
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_orchestration_service import WorkflowOrchestrationService
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
 
@@ -50,9 +52,16 @@ class WorkflowVideoFormService:
     session: AsyncSession,
     *,
     workflow_graph_service: WorkflowGraphService | None = None,
+    orchestration_service: WorkflowOrchestrationService | None = None,
   ) -> None:
     self._session = session
     self._workflow_graph_service = workflow_graph_service or WorkflowGraphService(session)
+    self._orchestration_service = orchestration_service
+    if self._orchestration_service is None:
+      self._orchestration_service = WorkflowOrchestrationService(
+        session,
+        workflow_graph_service=self._workflow_graph_service,
+      )
 
   async def _load_task_projection(
     self,
@@ -196,7 +205,7 @@ class WorkflowVideoFormService:
     topics: list[TopicCaptureRow],
   ) -> TopicCaptureSubmitResponse:
     ensure_active_user(actor)
-    task, _instance, node_instance = await self._load_task_projection(task_id=task_id)
+    task, instance, node_instance = await self._load_task_projection(task_id=task_id)
     if actor.role not in {UserRole.ADMIN, UserRole.HR} and actor.id != task.assignee_id:
       raise AuthorizationError("当前账号不能提交该采集表。")
     if node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
@@ -211,9 +220,16 @@ class WorkflowVideoFormService:
       task_id=task_id,
     )
     await self._apply_capture_submitted(task=task, node_instance=node_instance)
+    await self._orchestration_service.after_capture_submitted(
+      actor=actor,
+      task=task,
+      instance=instance,
+      node_instance=node_instance,
+    )
     await self._session.commit()
     await self._session.refresh(task)
     await self._session.refresh(node_instance)
+    await self._session.refresh(instance)
 
     return TopicCaptureSubmitResponse(
       task_id=task.id,
@@ -313,23 +329,24 @@ class WorkflowVideoFormService:
     instance.context_version += 1
     await self._session.flush()
 
-    aggregate_key = str(context.get("aggregate_node_key") or DEFAULT_AGGREGATE_NODE_KEY)
-    aggregate_nodes = list(
-      await self._session.scalars(
-        select(WorkflowNodeInstance).where(
-          WorkflowNodeInstance.instance_id == instance_id,
-          WorkflowNodeInstance.node_key == aggregate_key,
-        )
-      )
+    template_config: dict[str, object] = {}
+    if instance.template_id is not None:
+      template = await self._session.get(WorkflowGraphTemplate, instance.template_id)
+      if template is not None and isinstance(template.config, dict):
+        template_config = template.config
+    aggregate_key = str(
+      template_config.get("aggregate_node_key")
+      or (instance.context or {}).get("aggregate_node_key")
+      or DEFAULT_AGGREGATE_NODE_KEY
     )
-    now = datetime.now(UTC)
-    for node in aggregate_nodes:
-      if node.engine_state != WorkflowNodeEngineState.COMPLETED:
-        node.engine_state = WorkflowNodeEngineState.COMPLETED
-        node.business_state = WorkflowNodeBusinessState.DONE
-        node.completed_at = now
 
+    await self._orchestration_service.after_aggregate_confirmed(
+      actor=actor,
+      instance=instance,
+      aggregate_node_key=aggregate_key,
+    )
     await self._session.commit()
+    await self._session.refresh(instance)
 
     return FinalizeTopicsResponse(
       instance_id=instance_id,

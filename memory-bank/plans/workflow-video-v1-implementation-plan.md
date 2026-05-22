@@ -409,15 +409,19 @@ flowchart TB
 
 ### W4 — 编排钩子
 
-| ID | 任务 | 说明 |
-|----|------|------|
-| W4-1 | `WorkflowOrchestrationService` | capture 提交 → 节点可完成 |
-| W4-2 | aggregate 确认 → 完成 N2；调用 WFK | 事务边界 |
-| W4-3 | `on_task_accepted` / deliverable / review | 制作模板各 policy |
-| W4-4 | all-of：同 node_key 全部 instance 满足后才激活 N2 | — |
-| W4-5 | 接入 `TaskService` 与模板图任务执行路径 | 含 `source_type=template` 图投影任务 |
+| ID | 任务 | 说明 | 状态 |
+|----|------|------|------|
+| W4-1 | `WorkflowOrchestrationService` | capture 提交 → 节点可完成 | done |
+| W4-2 | aggregate 确认 → 完成 N2；调用 WFK | 事务边界；**fork 仍留 WFK** | done |
+| W4-3 | `on_task_accepted` / deliverable / review | 模板图 `handshake_required` 接受路径 | partial |
+| W4-4 | all-of：同 node_key 全部 instance 满足后才激活 N2 | `_upstream_join_satisfied` | done |
+| W4-5 | 接入 `TaskService` 与模板图任务执行路径 | 激活节点自动 `create_task_record` | done |
 
 **验收**：第三人提交采集后 N2 出现在负责人 inbox。
+
+**W4 测试（必绿）**
+
+- `pytest -q tests/test_workflow_video_w4_orchestration.py tests/test_workflow_video_wf_form_engine.py tests/test_services.py::test_phase6_sequential_flow_activation`
 
 ---
 

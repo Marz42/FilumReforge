@@ -2280,6 +2280,29 @@ class TaskService:
     task_id: UUID,
   ) -> Task:
     task = await self.get_task(actor=actor, task_id=task_id)
+    from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+
+    if WorkflowOrchestrationService.is_template_graph_projection(task):
+      orchestration = WorkflowOrchestrationService(
+        self._session,
+        workflow_graph_service=self._workflow_graph_service,
+        task_service=self,
+      )
+      await orchestration.on_task_accepted(actor=actor, task=task)
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.ASSIGNED,
+        detail={
+          "action": HANDSHAKE_ACCEPTED,
+          "status": task.status.value,
+          "source": "template_graph",
+        },
+      )
+      await self._session.commit()
+      await self._session.refresh(task)
+      return task
+
     if not self._uses_graph_handshake_cycle(task=task):
       raise ConflictError("当前任务不使用图引擎握手流程。")
     await self._ensure_task_handshake_actor(actor=actor, task=task)

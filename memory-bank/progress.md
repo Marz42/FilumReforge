@@ -36,6 +36,7 @@
 | W2 参与者绑定 | done | `ParticipantResolutionService`、`preview-participants` API、规则 `context_var`/`department_pool`；测试 8+1+1 |
 | WF 表单引擎（后端） | done | `WorkflowVideoFormService`、submit-capture / submissions / finalize-topics API；fork 留 WFK；测试 5+1+2 |
 | W3 图实例化 v2 | done | `WorkflowVideoInstantiationService`、`POST .../templates/{id}/runs`、multi_instance、ROOT Task、`schema_snapshot`；测试 4+1+1 |
+| W4 编排钩子 | done | `WorkflowOrchestrationService`、multi_instance all-of、采集后激活 N2 + 负责人 Task；测试 3+回归 |
 
 ### W1 测试命令
 
@@ -65,7 +66,13 @@
 | --- | --- | --- |
 | 后端 W3 | `pytest -q tests/test_workflow_video_w3_instantiation.py tests/test_api.py::test_w3_create_graph_template_run_api` | **5 passed** |
 | 前端 W3 | `npm run test:unit -- --run tests/workflowVideoW3Api.spec.ts` | **1 passed** |
-| W4 编排钩子 | pending | — |
+
+### W4 测试命令
+
+| 层 | 命令 | 结果 |
+| --- | --- | --- |
+| 后端 W4 | `pytest -q tests/test_workflow_video_w4_orchestration.py tests/test_workflow_video_wf_form_engine.py tests/test_services.py::test_phase6_sequential_flow_activation` | **9 passed** |
+| W5 定向返工 | pending | — |
 
 ## 当前阶段状态
 

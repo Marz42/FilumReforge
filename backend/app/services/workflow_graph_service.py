@@ -765,31 +765,15 @@ class WorkflowGraphService:
       )
       upstream_template_node_ids = {edge.from_node_id for edge in incoming_edges}
 
-      completed_upstream_ids = set(
-        await self._session.scalars(
-          select(WorkflowNodeInstance.template_node_id)
-          .where(
-            WorkflowNodeInstance.instance_id == instance_id,
-            WorkflowNodeInstance.template_node_id.in_(upstream_template_node_ids),
-            WorkflowNodeInstance.engine_state == WorkflowNodeEngineState.COMPLETED,
-          )
-        )
+      can_activate = await self._upstream_join_satisfied(
+        instance_id=instance_id,
+        downstream_template_node=downstream_template_node,
+        incoming_edges=incoming_edges,
       )
-
-      join_mode = (downstream_template_node.join_mode or "all").strip().lower()
-      can_activate = False
-      if join_mode == "all":
-        can_activate = upstream_template_node_ids == completed_upstream_ids
-      elif join_mode == "any":
-        # Wait-Any: 任一上游先完成即满足激活条件。
-        can_activate = bool(completed_upstream_ids.intersection(upstream_template_node_ids))
-      else:
-        raise ConflictError(
-          f"下游节点 '{downstream_template_node.node_key}' 使用了不支持的 join_mode：{downstream_template_node.join_mode}。"
-        )
-
       if not can_activate:
         continue
+
+      join_mode = (downstream_template_node.join_mode or "all").strip().lower()
 
       # 激活下游节点
       downstream_ni.engine_state = WorkflowNodeEngineState.ACTIVATED
@@ -817,6 +801,106 @@ class WorkflowGraphService:
       now=now,
     )
     await self._maybe_complete_instance(graph_instance=graph_instance, now=now)
+
+  async def _upstream_join_satisfied(
+    self,
+    *,
+    instance_id: UUID,
+    downstream_template_node: WorkflowGraphTemplateNode,
+    incoming_edges: list[WorkflowGraphTemplateEdge],
+  ) -> bool:
+    """Evaluate join gates; multi_instance upstream requires every peer instance completed (W4)."""
+    upstream_template_node_ids = {edge.from_node_id for edge in incoming_edges}
+    if not upstream_template_node_ids:
+      return True
+
+    join_mode = (downstream_template_node.join_mode or "all").strip().lower()
+    if join_mode not in {"all", "any"}:
+      raise ConflictError(
+        f"下游节点 '{downstream_template_node.node_key}' 使用了不支持的 join_mode：{downstream_template_node.join_mode}。"
+      )
+
+    branch_results: list[bool] = []
+    for upstream_tpl_id in upstream_template_node_ids:
+      upstream_instances = list(
+        await self._session.scalars(
+          select(WorkflowNodeInstance).where(
+            WorkflowNodeInstance.instance_id == instance_id,
+            WorkflowNodeInstance.template_node_id == upstream_tpl_id,
+          )
+        )
+      )
+      if not upstream_instances:
+        branch_results.append(False)
+        continue
+
+      upstream_tpl_node = await self._session.get(WorkflowGraphTemplateNode, upstream_tpl_id)
+      upstream_kind = "single"
+      if upstream_tpl_node is not None and isinstance(upstream_tpl_node.config, dict):
+        upstream_kind = str(upstream_tpl_node.config.get("kind") or "single")
+
+      completed_count = sum(
+        1
+        for node_instance in upstream_instances
+        if node_instance.engine_state == WorkflowNodeEngineState.COMPLETED
+      )
+      if upstream_kind == "multi_instance":
+        branch_results.append(completed_count == len(upstream_instances) and completed_count > 0)
+      else:
+        branch_results.append(completed_count > 0)
+
+    if join_mode == "all":
+      return all(branch_results)
+    return any(branch_results)
+
+  async def progress_from_completed_node(
+    self,
+    *,
+    node_instance_id: UUID,
+  ) -> list[WorkflowNodeInstance]:
+    """Advance downstream nodes when the current node is already marked COMPLETED."""
+    node_instance: WorkflowNodeInstance | None = await self._session.scalar(
+      select(WorkflowNodeInstance)
+      .where(WorkflowNodeInstance.id == node_instance_id)
+      .with_for_update()
+    )
+    if node_instance is None:
+      raise NotFoundError("节点实例不存在。")
+
+    graph_instance = await self._lock_graph_instance(instance_id=node_instance.instance_id)
+    if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
+      return []
+    if node_instance.engine_state != WorkflowNodeEngineState.COMPLETED:
+      raise ConflictError("节点尚未完成，无法推进下游。")
+
+    pending_ids = set(
+      await self._session.scalars(
+        select(WorkflowNodeInstance.id).where(
+          WorkflowNodeInstance.instance_id == node_instance.instance_id,
+          WorkflowNodeInstance.engine_state == WorkflowNodeEngineState.PENDING,
+        )
+      )
+    )
+
+    now = datetime.now(UTC)
+    await self._activate_downstream(
+      graph_instance=graph_instance,
+      completed_node_instance=node_instance,
+      now=now,
+    )
+    await self._session.flush()
+
+    if not pending_ids:
+      return []
+
+    return list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance).where(
+          WorkflowNodeInstance.id.in_(pending_ids),
+          WorkflowNodeInstance.engine_state == WorkflowNodeEngineState.ACTIVATED,
+        )
+      )
+    )
 
   async def _terminate_wait_any_peer_nodes(
     self,
