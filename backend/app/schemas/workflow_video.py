@@ -152,6 +152,22 @@ class FinalizeTopicsResponse(BaseModel):
   message: str | None = None
 
 
+class CreateGraphTemplateRunRequest(BaseModel):
+  inputs: dict[str, Any] = Field(default_factory=dict)
+  participants_snapshot: dict[str, ParticipantsSnapshotEntry] = Field(min_length=1)
+  department_id: UUID | None = None
+  run_label: str | None = Field(default=None, max_length=255)
+
+
+class CreateGraphTemplateRunResponse(BaseModel):
+  instance_id: UUID
+  root_task_id: UUID
+  run_kind: str
+  activated_task_count: int
+  node_instance_count: int
+  current_node_key: str | None = None
+
+
 class PreviewParticipantsRequest(BaseModel):
   mode: Literal["all", "subset"] = "all"
   user_ids: list[UUID] = Field(default_factory=list)
@@ -241,6 +257,8 @@ __all__ = [
   "AggregateSchema",
   "ApprovedTopic",
   "CaptureSchema",
+  "CreateGraphTemplateRunRequest",
+  "CreateGraphTemplateRunResponse",
   "LaunchSchema",
   "ParticipantPolicyDefinition",
   "ParticipantUserPreview",

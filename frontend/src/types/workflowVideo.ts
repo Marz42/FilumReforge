@@ -54,6 +54,25 @@ export interface FinalizeTopicsResponse {
   message?: string | null
 }
 
+export interface CreateGraphTemplateRunRequest {
+  inputs?: Record<string, unknown>
+  participants_snapshot: Record<
+    string,
+    { mode: 'all' | 'subset'; user_ids: string[] }
+  >
+  department_id?: string | null
+  run_label?: string | null
+}
+
+export interface CreateGraphTemplateRunResponse {
+  instance_id: string
+  root_task_id: string
+  run_kind: string
+  activated_task_count: number
+  node_instance_count: number
+  current_node_key?: string | null
+}
+
 export interface PreviewParticipantsResponse {
   policy_ref: string
   mode: 'all' | 'subset'

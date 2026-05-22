@@ -4433,6 +4433,48 @@ async def test_w2_preview_participants_api(api_client) -> None:
 
 
 @pytest.mark.asyncio
+async def test_w3_create_graph_template_run_api(api_client) -> None:
+  from app.api.dependencies import get_settings
+  from test_workflow_video_w3_instantiation import _seed_topic_meeting_batch_template
+
+  client, queue_publisher = api_client
+  enabled_settings = queue_publisher._settings.model_copy(
+    update={"workflow_graph_template_engine_enabled": True},
+  )
+  client._transport.app.dependency_overrides[get_settings] = lambda: enabled_settings  # type: ignore[attr-defined]
+  async with queue_publisher._session_factory() as session:
+    seed = await _seed_topic_meeting_batch_template(session)
+    await session.commit()
+    template_id = seed["template"].id
+    manager_id = seed["manager"].id
+    editor_ids = [str(editor.id) for editor in seed["editors"]]
+
+  login_response = await client.post(
+    "/api/v1/auth/login",
+    json={"email": "w3-admin@example.com", "password": "StrongPassword123!"},
+  )
+  assert login_response.status_code == 200, login_response.text
+  headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+
+  response = await client.post(
+    f"/api/v1/workflow-graph/templates/{template_id}/runs",
+    headers=headers,
+    json={
+      "inputs": {"theme": "API 选题会", "manager_user_id": str(manager_id)},
+      "participants_snapshot": {
+        "copywriters": {"mode": "subset", "user_ids": editor_ids},
+      },
+    },
+  )
+  assert response.status_code == 200, response.text
+  body = response.json()
+  assert body["run_kind"] == "batch"
+  assert body["activated_task_count"] == 3
+  assert body["node_instance_count"] == 4
+  assert body["current_node_key"] == "N1_PROPOSE"
+
+
+@pytest.mark.asyncio
 async def test_wf_submit_capture_and_finalize_topics_api(api_client) -> None:
   from test_workflow_video_wf_form_engine import _seed_capture_flow
 

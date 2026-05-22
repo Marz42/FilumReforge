@@ -50,6 +50,7 @@ from app.services.tool_registry_service import ToolRegistryService
 from app.services.user_service import UserService
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
+from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_engine_service import WorkflowEngineService
 
@@ -199,6 +200,14 @@ def get_task_service(
     settings=settings,
     workflow_graph_service=workflow_graph_service,
   )
+
+
+def get_workflow_video_instantiation_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  settings: Annotated[Settings, Depends(get_settings)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> WorkflowVideoInstantiationService:
+  return WorkflowVideoInstantiationService(session, task_service=task_service, settings=settings)
 
 
 def get_task_memo_service(

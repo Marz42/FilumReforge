@@ -339,7 +339,7 @@ flowchart TB
 | W1-2 | `workflow_graph_instances`：`run_label`；`parent_instance_id` 列 | 批次/子关联 | done |
 | W1-3 | Pydantic：`LaunchSchema`、`CaptureSchema`、`AggregateSchema`、`ApprovedTopic` | `app/schemas/workflow_video.py` | done |
 | W1-4 | `WorkflowGraphTemplateNodeConfig` 合并 form + kind | 校验互斥 | done |
-| W1-5 | Run 创建时写入 `schema_snapshot` | 版本固化 | pending（W3 实例化） |
+| W1-5 | Run 创建时写入 `schema_snapshot` | 版本固化 | done（W3） |
 | W1-6 | 前端 TS 类型同步 | `api.ts` + `types/workflowVideo.ts` | done |
 | W1-7 | 单测：非法 schema、空 subset、aggregate 无 source | `test_workflow_video_w1_contracts.py` | done |
 
@@ -388,16 +388,22 @@ flowchart TB
 
 ### W3 — 图实例化 v2
 
-| ID | 任务 | 说明 |
-|----|------|------|
-| W3-1 | `instantiate_graph_template(template_code, launch_payload, participants_snapshot)` | 写 context + schema_snapshot |
-| W3-2 | multi_instance 按 snapshot 展开 N1 | 每人 1 NodeInstance + Task |
-| W3-3 | single 节点 1 实例 | N2 等 |
-| W3-4 | 创建批次 ROOT Task | 看板入口 |
-| W3-5 | `POST /workflow-graph/templates/{id}/runs` | 统一实例化（**非**独立选题会路由） |
-| W3-6 | 模板 `run_kind` 元数据 | 区分 batch / production |
+| ID | 任务 | 说明 | 状态 |
+|----|------|------|------|
+| W3-1 | `instantiate_graph_template(template_code, launch_payload, participants_snapshot)` | 写 context + schema_snapshot | done |
+| W3-2 | multi_instance 按 snapshot 展开 N1 | 每人 1 NodeInstance + Task | done |
+| W3-3 | single 节点 1 实例 | N2 等 | done |
+| W3-4 | 创建批次 ROOT Task | 看板入口 | done |
+| W3-5 | `POST /workflow-graph/templates/{id}/runs` | 统一实例化（**非**独立选题会路由） | done |
+| W3-6 | 模板 `run_kind` 元数据 | 区分 batch / production | done |
 
 **验收**：实例化选题会模板 → 3 人 3 条 N1 待办；N2 未激活。
+
+**W3 测试（必绿）**
+
+- `pytest -q tests/test_workflow_video_w3_instantiation.py tests/test_api.py::test_w3_create_graph_template_run_api`
+- `npm run test:unit -- --run tests/workflowVideoW3Api.spec.ts`
+- 启用开关：`WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`（默认 `false`）
 
 ---
 

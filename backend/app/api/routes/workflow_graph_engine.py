@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import (
   get_current_user,
@@ -11,11 +11,14 @@ from app.api.dependencies import (
   get_participant_resolution_service,
   get_workflow_graph_service,
   get_workflow_video_form_service,
+  get_workflow_video_instantiation_service,
 )
 from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
 from app.schemas.workflow_video import (
+  CreateGraphTemplateRunRequest,
+  CreateGraphTemplateRunResponse,
   FinalizeTopicsRequest,
   FinalizeTopicsResponse,
   InstanceSubmissionsResponse,
@@ -89,6 +92,30 @@ def _user_display_name(user: User) -> str | None:
   if profile is not None and profile.real_name:
     return profile.real_name
   return None
+
+
+@router.post(
+  "/templates/{template_id}/runs",
+  response_model=CreateGraphTemplateRunResponse,
+  tags=["workflow-graph"],
+)
+async def create_graph_template_run(
+  template_id: UUID,
+  payload: CreateGraphTemplateRunRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  instantiation_service: WorkflowVideoInstantiationService = Depends(
+    get_workflow_video_instantiation_service
+  ),
+) -> CreateGraphTemplateRunResponse:
+  result = await instantiation_service.instantiate_graph_template(
+    actor=actor,
+    template_id=template_id,
+    inputs=payload.inputs,
+    participants_snapshot=payload.participants_snapshot,
+    department_id=payload.department_id,
+    run_label=payload.run_label,
+  )
+  return instantiation_service.to_response(result)
 
 
 @router.post(
