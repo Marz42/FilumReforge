@@ -4398,3 +4398,35 @@ async def test_phase11f_task_center_api_uses_graph_first_for_migrated_review_tas
     item["task_id"] != task_id
     for item in employee_snapshot.json()["task_inbox"]
   )
+
+
+@pytest.mark.asyncio
+async def test_w2_preview_participants_api(api_client) -> None:
+  from test_workflow_video_w2_participant_resolution import _bootstrap_copywriting_team
+
+  client, queue_publisher = api_client
+  async with queue_publisher._session_factory() as session:
+    _admin, _manager, editor_a, editor_b, template = await _bootstrap_copywriting_team(session)
+    await session.commit()
+    template_id = template.id
+    editor_a_id = editor_a.id
+    editor_b_id = editor_b.id
+
+  login_response = await client.post(
+    "/api/v1/auth/login",
+    json={"email": "w2-admin@example.com", "password": "StrongPassword123!"},
+  )
+  assert login_response.status_code == 200, login_response.text
+  headers = {"Authorization": f"Bearer {login_response.json()['access_token']}"}
+  response = await client.post(
+    f"/api/v1/workflow-graph/templates/{template_id}/preview-participants",
+    params={"policy": "copywriters"},
+    headers=headers,
+    json={"mode": "subset", "user_ids": [str(editor_a_id), str(editor_b_id)]},
+  )
+  assert response.status_code == 200, response.text
+  body = response.json()
+  assert body["policy_ref"] == "copywriters"
+  assert body["mode"] == "subset"
+  assert set(body["user_ids"]) == {str(editor_a_id), str(editor_b_id)}
+  assert len(body["users"]) == 2

@@ -33,6 +33,7 @@
 | --- | --- | --- |
 | W0 基线冻结 | done | v2 计划、architecture 摘要、W0 ADR、`workflow_video_policy`、前后端 W0 基线测试（10+2）；commit `dea816c` |
 | W1 模型与契约 | done | 迁移 `20260522_01`、`workflow_video` schemas、图模型字段、W1 测试 9+1；W1-5 留 W3 |
+| W2 参与者绑定 | done | `ParticipantResolutionService`、`preview-participants` API、规则 `context_var`/`department_pool`；测试 8+1+1 |
 
 ### W1 测试命令
 
@@ -41,6 +42,13 @@
 | 后端 W1 | `pytest -q tests/test_workflow_video_w1_contracts.py` | **9 passed** |
 | 前端 W1 | `npm run test:unit -- --run tests/workflowVideoW1Contracts.spec.ts` | **1 passed** |
 | 类型 | `npm run type-check` | PASS |
+
+### W2 测试命令
+
+| 层 | 命令 | 结果 |
+| --- | --- | --- |
+| 后端 W2 | `pytest -q tests/test_workflow_video_w2_participant_resolution.py tests/test_api.py::test_w2_preview_participants_api` | **9 passed** |
+| 前端 W2 | `npm run test:unit -- --run tests/workflowVideoW2Api.spec.ts` | **1 passed** |
 | WF 表单引擎后端 | pending | — |
 | W2 参与者 | pending | — |
 | W3 图实例化 v2 | pending | — |

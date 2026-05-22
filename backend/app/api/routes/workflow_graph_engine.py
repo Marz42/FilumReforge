@@ -8,10 +8,17 @@ from fastapi import APIRouter, Depends, Query, status
 from app.api.dependencies import (
   get_current_user,
   get_organization_relation_service,
+  get_participant_resolution_service,
   get_workflow_graph_service,
 )
+from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
+from app.schemas.workflow_video import (
+  ParticipantUserPreview,
+  PreviewParticipantsRequest,
+  PreviewParticipantsResponse,
+)
 from app.schemas.workflow_graph import (
   WorkflowNodeDeepRejectRequest,
   WorkflowGraphInstanceDetailRead,
@@ -23,6 +30,7 @@ from app.schemas.workflow_graph import (
   WorkflowSmartNoticeCandidatesResponse,
 )
 from app.services.organization_relation_service import OrganizationRelationService
+from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
 
 router = APIRouter(prefix="/workflow-graph")
@@ -66,6 +74,52 @@ def _build_instance_detail(
     active_node_count=active,
     pending_node_count=pending,
     progress_percent=progress,
+  )
+
+
+def _user_display_name(user: User) -> str | None:
+  profile = user.profile
+  if profile is not None and profile.real_name:
+    return profile.real_name
+  return None
+
+
+@router.post(
+  "/templates/{template_id}/preview-participants",
+  response_model=PreviewParticipantsResponse,
+  tags=["workflow-graph"],
+)
+async def preview_template_participants(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  participant_service: Annotated[ParticipantResolutionService, Depends(get_participant_resolution_service)],
+  policy: Annotated[str, Query(min_length=1, max_length=64)],
+  payload: PreviewParticipantsRequest | None = None,
+) -> PreviewParticipantsResponse:
+  template = await participant_service.get_template_or_raise(template_id)
+
+  body = payload or PreviewParticipantsRequest()
+  snapshot, users = await participant_service.preview_for_template(
+    actor=actor,
+    template=template,
+    policy_ref=policy,
+    department_id=body.department_id,
+    mode=body.mode,
+    selected_user_ids=body.user_ids or None,
+  )
+  return PreviewParticipantsResponse(
+    policy_ref=policy,
+    mode=snapshot.mode,
+    user_ids=snapshot.user_ids,
+    users=[
+      ParticipantUserPreview(
+        id=user.id,
+        email=user.email,
+        display_name=_user_display_name(user),
+      )
+      for user in users
+    ],
+    snapshot=snapshot,
   )
 
 

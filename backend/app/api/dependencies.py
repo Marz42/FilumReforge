@@ -48,6 +48,7 @@ from app.services.task_service import TaskService
 from app.services.task_template_service import TaskTemplateService
 from app.services.tool_registry_service import ToolRegistryService
 from app.services.user_service import UserService
+from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_engine_service import WorkflowEngineService
 
@@ -168,6 +169,12 @@ def get_workflow_graph_service(
   notification_service: Annotated[NotificationService, Depends(get_notification_service)],
 ) -> WorkflowGraphService:
   return WorkflowGraphService(session, notification_service=notification_service)
+
+
+def get_participant_resolution_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ParticipantResolutionService:
+  return ParticipantResolutionService(session)
 
 
 def get_task_service(

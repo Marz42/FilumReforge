@@ -353,12 +353,17 @@ flowchart TB
 
 ### W2 — 参与者绑定
 
-| ID | 任务 | 说明 |
-|----|------|------|
-| W2-1 | `ParticipantResolutionService` | department_members + all/subset |
-| W2-2 | `workflow_rule_resolver` 扩展 `context_var`、`department_pool` | `script_author_id` 等 |
-| W2-3 | `POST .../templates/{id}/preview-participants` | 实例化 Dialog 用 |
-| W2-4 | 单测：snapshot 不受事后人事变动影响 | — |
+| ID | 任务 | 说明 | 状态 |
+|----|------|------|------|
+| W2-1 | `ParticipantResolutionService` | department_members + all/subset | done |
+| W2-2 | `workflow_rule_resolver` 扩展 `context_var`、`department_pool` | `script_author_id` 等 | done |
+| W2-3 | `POST .../templates/{id}/preview-participants` | 实例化 Dialog 用 | done |
+| W2-4 | 单测：snapshot 不受事后人事变动影响 | `build_snapshot_entry` + 对比 resolve | done |
+
+**W2 测试（必绿）**
+
+- `pytest -q tests/test_workflow_video_w2_participant_resolution.py tests/test_api.py::test_w2_preview_participants_api`
+- `npm run test:unit -- --run tests/workflowVideoW2Api.spec.ts`
 
 ---
 

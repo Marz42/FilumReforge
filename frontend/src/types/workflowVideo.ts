@@ -15,6 +15,23 @@ export interface VideoApprovedTopic {
   due_at?: string | null
 }
 
+export interface ParticipantUserPreview {
+  id: string
+  email: string
+  display_name?: string | null
+}
+
+export interface PreviewParticipantsResponse {
+  policy_ref: string
+  mode: 'all' | 'subset'
+  user_ids: string[]
+  users: ParticipantUserPreview[]
+  snapshot: {
+    mode: 'all' | 'subset'
+    user_ids: string[]
+  }
+}
+
 export interface VideoRunContext {
   run_kind?: VideoRunKind
   run_label?: string | null

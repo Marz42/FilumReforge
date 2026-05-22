@@ -97,7 +97,7 @@
 - 消息外部渠道深化、失败重试与更完整投递观测
 - Email / WebSocket 渠道的外部真实接入仍是最小实现后的下一步
 - 更大范围的集成测试、端到端验证扩面；docker-gui / Playwright 与发布 commit 的定期基线刷新
-- **视频工作流 v1（进行中）**：排期见 `memory-bank/plans/workflow-video-v1-implementation-plan.md` v2.0。产品口径为 **一次选题会（批次 Run）→ 选题清单 `approved_topics[]` → 按题 fork 子 Run（`video_production_per_topic_v1`）**；**无**独立「发起选题会」入口（选题会为图模板之一）。模板引擎增量：**`launch_schema` / `capture_schema` / `aggregate_schema`**（Pydantic：`backend/app/schemas/workflow_video.py`）。**W1 已落库**：`workflow_node_instances.instance_key`；`workflow_graph_instances.run_label` / `parent_instance_id`（迁移 `20260522_01`）。运行时仍以 `workflow_graph_*` + `Task` 为主；`task_templates` 实例化在 W10 前保持 **legacy**。开关：`workflow_graph_template_engine_enabled` 默认 `false`（ADR：`workflow-video-v1-w0-adr.md`）；`backend/app/core/workflow_video_policy.py`。
+- **视频工作流 v1（进行中）**：排期见 `memory-bank/plans/workflow-video-v1-implementation-plan.md` v2.0。产品口径为 **一次选题会（批次 Run）→ 选题清单 `approved_topics[]` → 按题 fork 子 Run（`video_production_per_topic_v1`）**；**无**独立「发起选题会」入口（选题会为图模板之一）。模板引擎增量：**`launch_schema` / `capture_schema` / `aggregate_schema`**（Pydantic：`backend/app/schemas/workflow_video.py`）。**W1 已落库**：`workflow_node_instances.instance_key`；`workflow_graph_instances.run_label` / `parent_instance_id`（迁移 `20260522_01`）。**W2 已落地**：`ParticipantResolutionService`（`participant_policies` + all/subset）、`POST /api/v1/workflow-graph/templates/{id}/preview-participants`；`workflow_rule_resolver` 扩展 `context_var` / `department_pool`。运行时仍以 `workflow_graph_*` + `Task` 为主；`task_templates` 实例化在 W10 前保持 **legacy**。开关：`workflow_graph_template_engine_enabled` 默认 `false`（ADR：`workflow-video-v1-w0-adr.md`）；`backend/app/core/workflow_video_policy.py`。
 
 ## 3. 模块边界与状态映射
 
@@ -250,7 +250,8 @@
 | `backend/app/services/condition_evaluator.py` | 共享条件求值模块（Phase 11-A 新增）：`is_else_condition` / `evaluate_condition` / `evaluate_routing_rules`，被图引擎（出边路由）与旧模板系统（routing_rules 桥接）共同引用 |
 | `backend/app/api/attachment_serializers.py` | 附件读模型序列化：`serialize_attachment_read`（含 `download_url`），供 `attachments` / `report_center` 路由复用 |
 | `backend/app/api/routes/workflow_graph_engine.py` | 工作流重构 Phase 6-7 图实例读写入口：模板实例列表、实例详情、节点完成 / 深度打回 / 接管快照；**详情响应**用显式列字段 + 已查询的 `node_instances` 组装 Pydantic，避免 `model_validate(ORM)` 触发 `node_instances` 异步懒加载 |
-| `backend/app/services/workflow_rule_resolver.py` | 模板与审批流共用的 assignee rule 解析器 |
+| `backend/app/services/workflow_rule_resolver.py` | 模板与审批流共用的 assignee rule 解析器（含 `context_var`、`department_pool`） |
+| `backend/app/services/participant_resolution_service.py` | 视频 v1 参与者策略解析与 preview 快照构建 |
 | `backend/app/services/task_template_service.py` | 模板 CRUD、步骤替换与模板实例化 |
 | `backend/app/services/task_center_service.py` | 任务中心聚合服务；当前通过 `TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 聚合 graph-first with legacy fallback 结果，输出模板摘要、发布范围、待办、跟踪、历史与备忘 |
 | `backend/app/services/legacy_task_graph_migration_service.py` | Phase 11-E 旧任务迁移服务：负责 dry-run、批次迁移、graph 锚点写回、交付物快照补建与 rollback |

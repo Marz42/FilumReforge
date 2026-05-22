@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -64,6 +65,8 @@ async def resolve_user_targets_from_rule(
   assignee_rule: dict[str, object] | None,
   department_id: UUID | None = None,
   allow_multiple: bool = False,
+  context: dict[str, Any] | None = None,
+  department_pools: dict[str, UUID] | None = None,
 ) -> list[User]:
   if not assignee_rule:
     return [actor]
@@ -109,6 +112,48 @@ async def resolve_user_targets_from_rule(
     if not member_user_ids:
       raise ConflictError("目标部门没有成员。")
     return await _load_users(session, user_ids=member_user_ids)
+  elif rule_type == "context_var":
+    if context is None:
+      raise ConflictError("context_var 规则需要运行上下文。")
+    var_name = str(assignee_rule.get("var") or "").strip()
+    if not var_name:
+      raise ConflictError("context_var 规则必须指定 var。")
+    raw_value = context.get(var_name)
+    if raw_value is None:
+      raise ConflictError(f"运行上下文中缺少变量：{var_name}")
+    user_ids = [parse_uuid_value(raw_value, field_name=var_name)]
+  elif rule_type == "department_pool":
+    pool_key = str(assignee_rule.get("pool_key") or "").strip()
+    inline_department_id = assignee_rule.get("department_id")
+    resolved_department_id: UUID | None
+    if inline_department_id is not None:
+      resolved_department_id = parse_uuid_value(inline_department_id, field_name="department_id")
+    elif pool_key and department_pools and pool_key in department_pools:
+      resolved_department_id = department_pools[pool_key]
+    else:
+      raise ConflictError("department_pool 规则需要 department_id 或已注册的 pool_key。")
+    assignee_role = str(assignee_rule.get("assignee_role") or "manager")
+    if assignee_role == "manager":
+      return await resolve_user_targets_from_rule(
+        session,
+        actor=actor,
+        assignee_rule={"type": "department_manager", "department_id": str(resolved_department_id)},
+        department_id=resolved_department_id,
+        allow_multiple=False,
+        context=context,
+        department_pools=department_pools,
+      )
+    if assignee_role == "members":
+      return await resolve_user_targets_from_rule(
+        session,
+        actor=actor,
+        assignee_rule={"type": "department_members", "department_id": str(resolved_department_id)},
+        department_id=resolved_department_id,
+        allow_multiple=allow_multiple,
+        context=context,
+        department_pools=department_pools,
+      )
+    raise ConflictError(f"暂不支持的 department_pool assignee_role：{assignee_role}")
   else:
     raise ConflictError(f"暂不支持的步骤负责人规则：{rule_type}")
 

@@ -76,6 +76,11 @@ class AggregateSchema(BaseModel):
     return self
 
 
+class ParticipantPolicyDefinition(BaseModel):
+  type: Literal["department_members"] = "department_members"
+  department_id: UUID | None = None
+
+
 class ParticipantsSnapshotEntry(BaseModel):
   mode: Literal["all", "subset"]
   user_ids: list[UUID] = Field(default_factory=list)
@@ -96,6 +101,26 @@ class ApprovedTopic(BaseModel):
   source_node_instance_id: UUID | None = None
   script_author_id: UUID
   due_at: str | None = None
+
+
+class PreviewParticipantsRequest(BaseModel):
+  mode: Literal["all", "subset"] = "all"
+  user_ids: list[UUID] = Field(default_factory=list)
+  department_id: UUID | None = None
+
+
+class ParticipantUserPreview(BaseModel):
+  id: UUID
+  email: str
+  display_name: str | None = None
+
+
+class PreviewParticipantsResponse(BaseModel):
+  policy_ref: str
+  mode: Literal["all", "subset"]
+  user_ids: list[UUID]
+  users: list[ParticipantUserPreview]
+  snapshot: ParticipantsSnapshotEntry
 
 
 class WorkflowRunContextSchema(BaseModel):
@@ -168,7 +193,11 @@ __all__ = [
   "ApprovedTopic",
   "CaptureSchema",
   "LaunchSchema",
+  "ParticipantPolicyDefinition",
+  "ParticipantUserPreview",
   "ParticipantsSnapshotEntry",
+  "PreviewParticipantsRequest",
+  "PreviewParticipantsResponse",
   "RunKind",
   "WorkflowGraphTemplateNodeConfigSchema",
   "WorkflowRunContextSchema",
