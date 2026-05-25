@@ -43,6 +43,7 @@
 | W7 表单引擎前端 | done | 图模板 Tab、`TemplateInstantiateDialog`、Capture/Aggregate、批次看板、`TasksView` 挂载；测试 2 |
 | W8 Run EventLog | done | `workflow_run_events` 表、`WorkflowRunEventService`、events API、看板时间线；测试 2+1 |
 | W9 收口 | done | outbox 节点激活通知、图模板 GET/PATCH、feature-flags、E legacy Tab；测试 3 |
+| W10 硬化与回归 | done | Playwright mock E2E（`workflow-video-v1.spec.ts`）、`test_workflow_video_w10_regression.py`、`workflowVideoW10Regression.spec.ts`、`test:e2e:workflow-video`；文档与全量视频 pytest 基线 |
 
 ### W1 测试命令
 
@@ -117,6 +118,16 @@
 | 层 | 命令 | 结果 |
 | --- | --- | --- |
 | 后端 W9 | `pytest -q tests/test_workflow_video_w9_closure.py` | **3 passed** |
+
+### W10 测试命令
+
+| 层 | 命令 | 结果 |
+| --- | --- | --- |
+| 后端 W10 回归 | `pytest -q tests/test_workflow_video_w10_regression.py` | **3 passed** |
+| 前端 W10 | `npm run test:unit -- --run tests/workflowVideoW10Regression.spec.ts` | **1 passed** |
+| E2E W10 | `npm run test:e2e:workflow-video` | **2 passed**（mock API，`e2e/workflow-video-mock.ts`） |
+| 全量视频 pytest | 见 Runbook §6（含 `w10_regression`） | **53 passed**（2026-05-19） |
+| 类型 | `npm run type-check` | PASS |
 
 ## 当前阶段状态
 

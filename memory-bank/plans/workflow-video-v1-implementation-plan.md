@@ -519,14 +519,14 @@ flowchart TB
 
 ---
 
-### W10 — 硬化与回归
+### W10 — 硬化与回归 ✅
 
-| ID | 任务 | 说明 |
-|----|------|------|
-| W10-1 | Playwright：选题会模板实例化 → 3×表格提交 → 汇总派发 → 子流脚本 | mock + 可选 live |
-| W10-2 | 打回单题、一人两题 fork 两子 Run | 回归 |
-| W10-3 | `architecture.md` / `progress.md` / 测试基线 | — |
-| W10-4 | 全量 pytest + vitest + type-check | — |
+| ID | 任务 | 说明 | 状态 |
+|----|------|------|------|
+| W10-1 | Playwright：选题会模板实例化 → 3×表格提交 → 汇总派发 → 子流脚本 | mock + 可选 live | done |
+| W10-2 | 打回单题、一人两题 fork 两子 Run | 回归（E2E 两题 fork；打回见 `w10_regression` + W5） | done |
+| W10-3 | `architecture.md` / `progress.md` / 测试基线 | Runbook §7 | done |
+| W10-4 | 全量 pytest + vitest + type-check | 含 `test_workflow_video_w10_regression.py` | done |
 
 ---
 

@@ -12,6 +12,7 @@
     "test:e2e:live": "playwright test -c playwright.live.config.ts",
     "test:e2e:live:headed": "playwright test -c playwright.live.config.ts --headed",
     "test:e2e:docker-gui": "playwright test -c playwright.docker-gui.config.ts",
+    "test:e2e:workflow-video": "playwright test e2e/workflow-video-v1.spec.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:unit": "vitest",
     "build-only": "vite build",
