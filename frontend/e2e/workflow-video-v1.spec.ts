@@ -10,6 +10,7 @@ test.describe('workflow video v1 (W10)', () => {
     videoMockState.finalized = false
     videoMockState.forked = false
     videoMockState.sessionActive = false
+    videoMockState.rejectedTopicIds.clear()
     videoMockState.childInstanceIds = []
     videoMockState.childRootTaskIds = []
     await installWorkflowVideoMockApi(page)

@@ -10,6 +10,23 @@ const adminUser = {
   updated_at: '2025-01-01T00:00:00Z',
 }
 
+const copyLeadUser = {
+  id: 'user-copy-lead',
+  email: 'demo.video.copy.lead@example.com',
+  role: 'employee',
+  status: 'active',
+  last_login_at: '2025-01-01T00:00:00Z',
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+}
+
+export const VIDEO_DEMO_ACCOUNTS = {
+  copyLead: copyLeadUser.email,
+  copyA: 'demo.video.copy.a@example.com',
+  copyB: 'demo.video.copy.b@example.com',
+  copyC: 'demo.video.copy.c@example.com',
+} as const
+
 const editorUsers = [
   {
     id: 'user-editor-a',
@@ -40,6 +57,16 @@ const editorUsers = [
   },
 ]
 
+const allDemoUsers = [copyLeadUser, ...editorUsers, adminUser]
+
+function resolveUserByEmail(email: string) {
+  return allDemoUsers.find((user) => user.email === email) ?? copyLeadUser
+}
+
+function resolveUserById(userId: string) {
+  return allDemoUsers.find((user) => user.id === userId) ?? copyLeadUser
+}
+
 const batchTemplateId = 'tpl-batch-1'
 const productionTemplateId = 'tpl-production-1'
 const batchInstanceId = 'batch-inst-1'
@@ -57,6 +84,29 @@ export const videoMockState = {
   forked: false,
   /** When false, `/auth/refresh` returns 401 so the login form is shown (guestOnly redirect). */
   sessionActive: false,
+  rejectedTopicIds: new Set<string>(),
+  currentUserId: copyLeadUser.id,
+  runLabel: 'E2E多账号批次',
+  productionTasks: [] as Array<{
+    scriptTaskId: string
+    reviewTaskId: string
+    authorId: string
+    deliverableDone: boolean
+    reviewDone: boolean
+  }>,
+}
+
+export function resetVideoMockForMultiAccount(runLabel: string): void {
+  videoMockState.captureSubmitted.clear()
+  videoMockState.rejectedTopicIds.clear()
+  videoMockState.finalized = false
+  videoMockState.forked = false
+  videoMockState.childInstanceIds = []
+  videoMockState.childRootTaskIds = []
+  videoMockState.productionTasks = []
+  videoMockState.runLabel = runLabel
+  videoMockState.sessionActive = false
+  videoMockState.currentUserId = copyLeadUser.id
 }
 
 function buildCaptureTask(editorId: string, taskId: string) {
@@ -67,7 +117,7 @@ function buildCaptureTask(editorId: string, taskId: string) {
     description: null,
     creator_id: adminUser.id,
     // E2E 以管理员登录，采集面板仅对当前 assignee 可见
-    assignee_id: adminUser.id,
+    assignee_id: editor.id,
     department_id: 'dept-video-copy',
     status: videoMockState.captureSubmitted.has(taskId) ? 'review' : 'doing',
     priority: 'medium',
@@ -99,6 +149,7 @@ const captureTasks = [
 type VideoMockTask = ReturnType<typeof buildRootTask>
 
 function toTaskCenterInboxItem(task: VideoMockTask) {
+  const handler = resolveUserById(task.assignee_id)
   return {
     task_id: task.id,
     title: task.title,
@@ -107,7 +158,7 @@ function toTaskCenterInboxItem(task: VideoMockTask) {
     due_date: task.due_date,
     department_name: '视频文案部',
     current_stage_label: '待处理',
-    current_handler_label: adminUser.email,
+    current_handler_label: handler.email,
   }
 }
 
@@ -125,9 +176,63 @@ function toTaskCenterTrackingItem(task: VideoMockTask, currentStageLabel: string
   }
 }
 
+function buildProductionScriptTask(scriptTaskId: string, authorId: string, topicLabel: string) {
+  const author = resolveUserById(authorId)
+  return {
+    id: scriptTaskId,
+    title: `单题制作 / 撰写脚本 ${topicLabel}`,
+    description: null,
+    creator_id: copyLeadUser.id,
+    assignee_id: author.id,
+    department_id: 'dept-video-copy',
+    status: 'doing',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T11:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: 'child-inst-1',
+      workflow_node_instance_id: `ni-script-${scriptTaskId}`,
+      template_node_key: 'N3_SCRIPT_WRITE',
+      run_kind: 'production',
+    },
+    created_at: '2025-05-01T11:00:00Z',
+    updated_at: '2025-05-01T11:00:00Z',
+  }
+}
+
+function buildProductionReviewTask(reviewTaskId: string, topicLabel: string) {
+  return {
+    id: reviewTaskId,
+    title: `单题制作 / 脚本审核 ${topicLabel}`,
+    description: null,
+    creator_id: copyLeadUser.id,
+    assignee_id: copyLeadUser.id,
+    department_id: 'dept-video-copy',
+    status: 'doing',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T12:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: 'child-inst-1',
+      workflow_node_instance_id: `ni-review-${reviewTaskId}`,
+      template_node_key: 'N4_SCRIPT_REVIEW',
+      run_kind: 'production',
+    },
+    created_at: '2025-05-01T12:00:00Z',
+    updated_at: '2025-05-01T12:00:00Z',
+  }
+}
+
 function buildTaskCenterSnapshot() {
   const root = buildRootTask()
   const aggregate = buildAggregateTask()
+  const currentUserId = videoMockState.currentUserId
   const tracking = [
     toTaskCenterTrackingItem(root, '批次运行'),
     toTaskCenterTrackingItem(aggregate, '汇总派发'),
@@ -147,8 +252,33 @@ function buildTaskCenterSnapshot() {
       ),
     )
   }
+
+  const inboxTasks: VideoMockTask[] = captureTasks.filter(
+    (task) => !videoMockState.captureSubmitted.has(task.id) && task.assignee_id === currentUserId,
+  )
+  for (const production of videoMockState.productionTasks) {
+    if (!production.deliverableDone && production.authorId === currentUserId) {
+      inboxTasks.push(
+        buildProductionScriptTask(
+          production.scriptTaskId,
+          production.authorId,
+          production.scriptTaskId,
+        ),
+      )
+    }
+    if (!production.reviewDone && copyLeadUser.id === currentUserId) {
+      inboxTasks.push(buildProductionReviewTask(production.reviewTaskId, production.reviewTaskId))
+    }
+  }
+
+  const currentUser = resolveUserById(videoMockState.currentUserId)
+  const canPublishOrgTask =
+    currentUser.id === copyLeadUser.id || currentUser.role === 'admin' || currentUser.role === 'hr'
   return {
-    permissions: { can_manage_templates: true, can_publish_task: true },
+    permissions: {
+      can_manage_templates: currentUser.role === 'admin' || currentUser.role === 'hr',
+      can_publish_task: canPublishOrgTask,
+    },
     template_summaries: [],
     publish_department_options: [{ id: 'dept-video-copy', label: '视频文案部' }],
     publish_user_options: editorUsers.map((user) => ({
@@ -159,9 +289,7 @@ function buildTaskCenterSnapshot() {
       department_name: '视频文案部',
       label: user.email,
     })),
-    task_inbox: captureTasks
-      .filter((task) => !videoMockState.captureSubmitted.has(task.id))
-      .map(toTaskCenterInboxItem),
+    task_inbox: inboxTasks.map(toTaskCenterInboxItem),
     task_tracking: tracking,
     task_history: [],
     task_memos: [],
@@ -173,8 +301,8 @@ function buildAggregateTask() {
     id: n2TaskId,
     title: '选题会（批次） / 汇总派发',
     description: null,
-    creator_id: adminUser.id,
-    assignee_id: adminUser.id,
+    creator_id: copyLeadUser.id,
+    assignee_id: copyLeadUser.id,
     department_id: 'dept-video-copy',
     status: 'doing',
     priority: 'medium',
@@ -199,10 +327,10 @@ function buildAggregateTask() {
 function buildRootTask() {
   return {
     id: rootTaskId,
-    title: '选题会（批次） / 第 10 周选题会',
+    title: `选题会（批次） / ${videoMockState.runLabel}`,
     description: null,
-    creator_id: adminUser.id,
-    assignee_id: adminUser.id,
+    creator_id: copyLeadUser.id,
+    assignee_id: copyLeadUser.id,
     department_id: 'dept-video-copy',
     status: 'doing',
     priority: 'medium',
@@ -232,12 +360,12 @@ function buildBatchGraphInstance() {
     source_type: 'template',
     status: 'active',
     current_node_key: videoMockState.finalized ? 'N2_AGGREGATE' : 'N1_PROPOSE',
-    run_label: '第 10 周选题会',
+    run_label: videoMockState.runLabel,
     parent_instance_id: null,
     context: {
       run_kind: 'batch',
-      run_label: '第 10 周选题会',
-      inputs: { theme: 'W10 E2E', manager_user_id: adminUser.id },
+      run_label: videoMockState.runLabel,
+      inputs: { theme: 'W10 E2E', manager_user_id: copyLeadUser.id },
       root_task_id: rootTaskId,
       fork_status: videoMockState.forked ? 'completed' : 'pending',
       forked_child_instance_ids: videoMockState.childInstanceIds,
@@ -396,8 +524,11 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     }
 
     if (request.method() === 'POST' && apiPath === '/auth/login') {
+      const body = request.postDataJSON() as { email?: string }
+      const user = resolveUserByEmail(body.email ?? copyLeadUser.email)
       videoMockState.sessionActive = true
-      await fulfillJson(route, { access_token: 'token', token_type: 'bearer', user: adminUser })
+      videoMockState.currentUserId = user.id
+      await fulfillJson(route, { access_token: 'token', token_type: 'bearer', user })
       return
     }
 
@@ -406,7 +537,8 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
         await fulfillJson(route, { detail: 'Not authenticated' }, 401)
         return
       }
-      await fulfillJson(route, { access_token: 'token', token_type: 'bearer', user: adminUser })
+      const user = resolveUserById(videoMockState.currentUserId)
+      await fulfillJson(route, { access_token: 'token', token_type: 'bearer', user })
       return
     }
 
@@ -415,7 +547,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
         await fulfillJson(route, { detail: 'Not authenticated' }, 401)
         return
       }
-      await fulfillJson(route, adminUser)
+      await fulfillJson(route, resolveUserById(videoMockState.currentUserId))
       return
     }
 
@@ -450,6 +582,15 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
             },
             participant_policies: { copywriters: { type: 'department_members' } },
           },
+        },
+        {
+          id: productionTemplateId,
+          code: 'video_production_per_topic_v1',
+          name: '单题视频制作',
+          status: 'active',
+          version: 1,
+          run_kind: 'production',
+          config: { run_kind: 'production', participant_policies: {} },
         },
       ])
       return
@@ -487,7 +628,17 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
+    if (request.method() === 'POST' && apiPath === '/auth/logout') {
+      videoMockState.sessionActive = false
+      await fulfillJson(route, {})
+      return
+    }
+
     if (request.method() === 'POST' && apiPath === `/workflow-graph/templates/${batchTemplateId}/runs`) {
+      const body = (request.postDataJSON() ?? {}) as { run_label?: string; inputs?: { theme?: string } }
+      if (body.run_label) {
+        videoMockState.runLabel = body.run_label
+      }
       await fulfillJson(route, {
         instance_id: batchInstanceId,
         root_task_id: rootTaskId,
@@ -528,17 +679,41 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
+    if (request.method() === 'POST' && apiPath === `/workflow-graph/instances/${batchInstanceId}/reject-captures`) {
+      const body = request.postDataJSON() as { topic_ids?: string[]; reason?: string }
+      for (const topicId of body.topic_ids ?? []) {
+        videoMockState.rejectedTopicIds.add(topicId)
+      }
+      await fulfillJson(route, {
+        instance_id: batchInstanceId,
+        rejected_count: body.topic_ids?.length ?? 0,
+        reason: body.reason ?? 'UAT mock reject',
+      })
+      return
+    }
+
     if (request.method() === 'POST' && apiPath === `/workflow-graph/instances/${batchInstanceId}/finalize-topics`) {
       videoMockState.finalized = true
       videoMockState.forked = true
       const body = request.postDataJSON() as { approved_topics: Array<{ topic_id: string; title: string }> }
       videoMockState.childInstanceIds = []
       videoMockState.childRootTaskIds = []
+      videoMockState.productionTasks = []
       for (const [index, topic] of body.approved_topics.entries()) {
         const childId = `child-inst-${index + 1}`
         const childTaskId = `task-child-${index + 1}`
+        const scriptTaskId = `task-n3-${index + 1}`
+        const reviewTaskId = `task-n4-${index + 1}`
+        const authorId = editorUsers[index]?.id ?? editorUsers[0].id
         videoMockState.childInstanceIds.push(childId)
         videoMockState.childRootTaskIds.push(childTaskId)
+        videoMockState.productionTasks.push({
+          scriptTaskId,
+          reviewTaskId,
+          authorId,
+          deliverableDone: false,
+          reviewDone: false,
+        })
       }
       await fulfillJson(route, {
         instance_id: batchInstanceId,
@@ -559,19 +734,59 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     }
 
     if (request.method() === 'GET' && apiPath === `/workflow-graph/instances/${batchInstanceId}/events`) {
+      const items: Array<Record<string, unknown>> = [
+        {
+          id: 'evt-1',
+          instance_id: batchInstanceId,
+          event_type: 'run_instantiated',
+          actor_user_id: adminUser.id,
+          payload: {},
+          created_at: '2025-05-01T08:00:00Z',
+        },
+      ]
+      let seq = 2
+      for (const taskId of videoMockState.captureSubmitted) {
+        items.push({
+          id: `evt-${seq++}`,
+          instance_id: batchInstanceId,
+          event_type: 'capture_submitted',
+          actor_user_id: adminUser.id,
+          payload: { task_id: taskId },
+          created_at: '2025-05-01T09:00:00Z',
+        })
+      }
+      if (videoMockState.rejectedTopicIds.size > 0) {
+        items.push({
+          id: `evt-${seq++}`,
+          instance_id: batchInstanceId,
+          event_type: 'capture_rejected',
+          actor_user_id: adminUser.id,
+          payload: { topic_ids: [...videoMockState.rejectedTopicIds] },
+          created_at: '2025-05-01T09:30:00Z',
+        })
+      }
+      if (videoMockState.finalized) {
+        items.push({
+          id: `evt-${seq++}`,
+          instance_id: batchInstanceId,
+          event_type: 'aggregate_confirmed',
+          actor_user_id: adminUser.id,
+          payload: {},
+          created_at: '2025-05-01T10:00:00Z',
+        })
+        items.push({
+          id: `evt-${seq++}`,
+          instance_id: batchInstanceId,
+          event_type: 'production_run_forked',
+          actor_user_id: adminUser.id,
+          payload: { child_count: videoMockState.childInstanceIds.length },
+          created_at: '2025-05-01T11:00:00Z',
+        })
+      }
       await fulfillJson(route, {
         instance_id: batchInstanceId,
-        items: [
-          {
-            id: 'evt-1',
-            instance_id: batchInstanceId,
-            event_type: 'run_instantiated',
-            actor_user_id: adminUser.id,
-            payload: {},
-            created_at: '2025-05-01T08:00:00Z',
-          },
-        ],
-        total: 1,
+        items,
+        total: items.length,
         limit: 20,
         offset: 0,
       })
@@ -678,8 +893,18 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
+    if (request.method() === 'GET' && apiPath === '/task-templates') {
+      await fulfillJson(route, [])
+      return
+    }
+
+    if (request.method() === 'GET' && apiPath === '/task-templates/schedules/list') {
+      await fulfillJson(route, [])
+      return
+    }
+
     if (request.method() === 'GET' && apiPath === '/users') {
-      await fulfillJson(route, [adminUser, ...editorUsers])
+      await fulfillJson(route, [copyLeadUser, ...editorUsers, adminUser])
       return
     }
 
@@ -720,10 +945,43 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
+    if (request.method() === 'POST' && /^\/tasks\/[^/]+\/deliverable$/.test(apiPath)) {
+      const taskId = apiPath.split('/').filter(Boolean)[1] ?? ''
+      const production = videoMockState.productionTasks.find((item) => item.scriptTaskId === taskId)
+      if (production) {
+        production.deliverableDone = true
+      }
+      await fulfillJson(route, { id: taskId, status: 'review' })
+      return
+    }
+
+    if (
+      request.method() === 'POST'
+      && (/^\/tasks\/[^/]+\/review$/.test(apiPath) || /^\/tasks\/[^/]+\/deliverable\/review$/.test(apiPath))
+    ) {
+      const taskId = apiPath.split('/').filter(Boolean)[1] ?? ''
+      const production = videoMockState.productionTasks.find((item) => item.reviewTaskId === taskId)
+      if (production) {
+        production.reviewDone = true
+      }
+      await fulfillJson(route, { id: taskId, status: 'done' })
+      return
+    }
+
     if (request.method() === 'GET' && /^\/tasks\/[^/]+$/.test(apiPath)) {
       const segments = apiPath.split('/').filter(Boolean)
       const taskId = segments[1]
       let task = [buildRootTask(), buildAggregateTask(), ...captureTasks].find((item) => item.id === taskId)
+      const production = videoMockState.productionTasks.find(
+        (item) => item.scriptTaskId === taskId || item.reviewTaskId === taskId,
+      )
+      if (!task && production) {
+        if (production.scriptTaskId === taskId) {
+          task = buildProductionScriptTask(production.scriptTaskId, production.authorId, `题${production.scriptTaskId}`)
+        } else {
+          task = buildProductionReviewTask(production.reviewTaskId, `题${production.reviewTaskId}`)
+        }
+      }
       if (!task && taskId?.startsWith('task-child-')) {
         const index = videoMockState.childRootTaskIds.indexOf(taskId)
         task = {
@@ -760,11 +1018,15 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
   })
 }
 
-export async function loginAsAdmin(page: Page): Promise<void> {
+export async function loginAs(page: Page, email: string, password = 'secret-password'): Promise<void> {
   await page.goto('/login?redirect=/task-templates')
   await expect(page.getByTestId('login-form')).toBeVisible({ timeout: 60_000 })
-  await page.getByTestId('login-email').locator('input').fill(adminUser.email)
-  await page.getByTestId('login-password').locator('input').fill('secret-password')
+  await page.getByTestId('login-email').locator('input').fill(email)
+  await page.getByTestId('login-password').locator('input').fill(password)
   await page.getByTestId('login-submit').click()
-  await page.waitForURL(/\/(overview|task-templates)/, { timeout: 60_000 })
+  await page.waitForURL(/\/(overview|task-templates|task-center)/, { timeout: 60_000 })
+}
+
+export async function loginAsAdmin(page: Page): Promise<void> {
+  await loginAs(page, adminUser.email)
 }

@@ -1,4 +1,10 @@
 services:
+  backend:
+    environment:
+      WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED: "true"
+  worker:
+    environment:
+      WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED: "true"
   frontend:
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}

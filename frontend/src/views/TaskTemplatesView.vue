@@ -16,6 +16,7 @@ import {
   updateTaskSchedule,
   updateTaskTemplate,
 } from '@/api/task-templates'
+import { getTaskCenterSnapshot } from '@/api/task-center'
 import { listUsers } from '@/api/users'
 import GraphTemplatesPanel from '@/components/workflow/GraphTemplatesPanel.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -97,6 +98,9 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const activeLibraryTab = ref<'legacy' | 'graph'>('legacy')
+const taskCenterPermissions = ref<{ can_manage_templates: boolean; can_publish_task: boolean } | null>(
+  null,
+)
 const loading = ref(false)
 const instancesLoading = ref(false)
 const createDialogVisible = ref(false)
@@ -205,8 +209,18 @@ const templateStructureLocked = computed(
 )
 const isEditingSchedule = computed(() => scheduleFormMode.value === 'edit')
 const scheduleSubmitLabel = computed(() => (isEditingSchedule.value ? '更新调度' : '创建调度'))
-const canManageTemplates = computed(() => props.canManageTemplates ?? authStore.isManagementRole)
-const canPublishTask = computed(() => props.canPublishTask ?? authStore.isManagementRole)
+const canManageTemplates = computed(
+  () =>
+    props.canManageTemplates
+    ?? taskCenterPermissions.value?.can_manage_templates
+    ?? authStore.isManagementRole,
+)
+const canPublishTask = computed(
+  () =>
+    props.canPublishTask
+    ?? taskCenterPermissions.value?.can_publish_task
+    ?? authStore.isManagementRole,
+)
 const instantiateDepartmentOptions = computed(() => {
   if (props.departmentOptions && props.departmentOptions.length > 0) {
     return props.departmentOptions
@@ -1038,7 +1052,7 @@ async function loadData(): Promise<void> {
       listTaskTemplates(),
       canManageTemplates.value ? listTaskSchedules() : Promise.resolve([] as TaskSchedule[]),
       listDepartments(),
-      canManageTemplates.value ? listUsers().catch(() => [] as User[]) : Promise.resolve([] as User[]),
+      listUsers().catch(() => [] as User[]),
     ])
     templates.value = templateList
     schedules.value = scheduleList
@@ -1202,8 +1216,20 @@ async function handleSaveSchedule(): Promise<void> {
   }
 }
 
+async function loadTaskCenterPermissions(): Promise<void> {
+  try {
+    const snapshot = await getTaskCenterSnapshot()
+    taskCenterPermissions.value = snapshot.permissions
+  } catch {
+    taskCenterPermissions.value = null
+  }
+}
+
 onMounted(() => {
-  void loadData()
+  void (async () => {
+    await loadTaskCenterPermissions()
+    await loadData()
+  })()
 })
 </script>
 

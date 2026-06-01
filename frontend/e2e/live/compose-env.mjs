@@ -132,6 +132,14 @@ export async function startLiveStack() {
     '--password',
     liveConfig.password,
   )
+  await runCompose(
+    'exec',
+    '-T',
+    'backend',
+    'python',
+    '-m',
+    'app.scripts.seed_workflow_video_templates',
+  )
   await runCompose('up', '--build', '-d', 'frontend', 'nginx', 'worker')
   await waitForURL(`${liveConfig.baseURL}/login`, 'frontend login page')
 }

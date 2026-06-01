@@ -53,6 +53,20 @@ const userOptions = computed(() =>
     .map((user) => ({ value: user.id, label: user.email })),
 )
 
+const scriptAuthorOptions = computed(() => {
+  const options = new Map(userOptions.value.map((option) => [option.value, option]))
+  for (const row of matrixRows.value) {
+    if (!row.script_author_id || options.has(row.script_author_id)) {
+      continue
+    }
+    options.set(row.script_author_id, {
+      value: row.script_author_id,
+      label: row.submitter_label.includes('@') ? row.submitter_label : row.submitter_label,
+    })
+  }
+  return [...options.values()]
+})
+
 async function loadSubmissions(): Promise<void> {
   const instanceId = props.graphInstance?.id
   if (!instanceId) {
@@ -163,7 +177,7 @@ onMounted(() => {
             :disabled="!row.approved"
           >
             <el-option
-              v-for="option in userOptions"
+              v-for="option in scriptAuthorOptions"
               :key="option.value"
               :label="option.label"
               :value="option.value"

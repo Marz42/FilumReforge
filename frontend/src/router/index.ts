@@ -115,9 +115,6 @@ const router = createRouter({
           path: 'task-templates',
           name: 'task-templates',
           component: TaskTemplatesView,
-          meta: {
-            roles: ['admin', 'hr'] satisfies UserRole[],
-          },
         },
         {
           path: 'reports',

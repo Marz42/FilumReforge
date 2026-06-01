@@ -41,6 +41,7 @@ from app.schemas.workflow_video import (
 )
 from app.services.access_control import can_publish_org_tasks, ensure_active_user
 from app.services.participant_resolution_service import resolve_assignee_from_rule
+from app.services.workflow_rule_resolver import resolve_actor_department_id
 from app.services.task_service import TaskService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_run_event_service import WorkflowRunEventService
@@ -277,6 +278,24 @@ class WorkflowVideoInstantiationService:
     run_kind = str(template_config.get("run_kind") or "batch")
     schema_snapshot = self._build_schema_snapshot(template=template, nodes=nodes)
 
+    if department_id is None:
+      department_id = await resolve_actor_department_id(
+        self._session,
+        actor_id=actor.id,
+        requested_department_id=None,
+      )
+      if department_id is None:
+        policies = template_config.get("participant_policies")
+        if isinstance(policies, dict):
+          copywriters = policies.get("copywriters")
+          if isinstance(copywriters, dict):
+            raw_department_id = copywriters.get("department_id")
+            if raw_department_id:
+              try:
+                department_id = UUID(str(raw_department_id))
+              except ValueError:
+                department_id = None
+
     resolved_run_label = run_label or normalized_inputs.get("theme") or template.name
     context: dict[str, Any] = {
       "run_kind": run_kind,
@@ -446,6 +465,7 @@ class WorkflowVideoInstantiationService:
       },
     )
     await self._session.flush()
+    await self._session.commit()
     return GraphTemplateRunResult(
       instance=instance,
       root_task=root_task,
@@ -606,16 +626,19 @@ class WorkflowVideoInstantiationService:
         WorkflowNodeBusinessState.DOING if is_start else WorkflowNodeBusinessState.ASSIGNED
       )
 
-      assignee_id = await self._resolve_node_assignee(
-        actor=actor,
-        template=_template,
-        node=node,
-        node_config=node_config,
-        context=context,
-        department_id=parent_instance.department_id,
-      )
-      if node.node_key == "N3_SCRIPT_WRITE":
-        assignee_id = topic.script_author_id
+      if is_start:
+        assignee_id = await self._resolve_node_assignee(
+          actor=actor,
+          template=_template,
+          node=node,
+          node_config=node_config,
+          context=context,
+          department_id=parent_instance.department_id,
+        )
+        if node.node_key == "N3_SCRIPT_WRITE":
+          assignee_id = topic.script_author_id
+      else:
+        assignee_id = None
 
       ni = WorkflowNodeInstance(
         instance_id=instance.id,
@@ -699,6 +722,7 @@ class WorkflowVideoInstantiationService:
       },
     )
     await self._session.flush()
+    await self._session.commit()
     return GraphTemplateRunResult(
       instance=instance,
       root_task=root_task,

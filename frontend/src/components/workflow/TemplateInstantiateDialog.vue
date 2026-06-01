@@ -34,6 +34,7 @@ const departmentId = ref('')
 const participantMode = ref<'all' | 'subset'>('subset')
 const selectedParticipantIds = ref<string[]>([])
 const previewUsers = ref<Array<{ id: string; email: string; display_name?: string | null }>>([])
+const candidateUsers = ref<Array<{ id: string; email: string; display_name?: string | null }>>([])
 
 const visible = computed({
   get: () => props.modelValue,
@@ -53,12 +54,24 @@ const userOptions = computed(() =>
     })),
 )
 
+const participantUserOptions = computed(() => {
+  const fromCandidates = candidateUsers.value.map((user) => ({
+    value: user.id,
+    label: user.email,
+  }))
+  if (fromCandidates.length > 0) {
+    return fromCandidates
+  }
+  return userOptions.value
+})
+
 function resetForm(): void {
   runLabel.value = ''
   departmentId.value = props.defaultDepartmentId ?? ''
   participantMode.value = 'subset'
   selectedParticipantIds.value = []
   previewUsers.value = []
+  candidateUsers.value = []
   for (const key of Object.keys(launchValues)) {
     delete launchValues[key]
   }
@@ -67,8 +80,29 @@ function resetForm(): void {
   }
 }
 
+async function loadCandidateUsers(): Promise<void> {
+  if (!props.template) {
+    return
+  }
+  try {
+    const response = await previewWorkflowParticipants(props.template.id, policyRef.value, {
+      mode: 'all',
+      user_ids: [],
+      department_id: departmentId.value || null,
+    })
+    candidateUsers.value = response.users
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+    candidateUsers.value = []
+  }
+}
+
 async function loadParticipantPreview(): Promise<void> {
   if (!props.template) {
+    return
+  }
+  if (participantMode.value === 'subset' && selectedParticipantIds.value.length === 0) {
+    previewUsers.value = []
     return
   }
   previewLoading.value = true
@@ -137,7 +171,7 @@ watch(
   (open) => {
     if (open) {
       resetForm()
-      void loadParticipantPreview()
+      void loadCandidateUsers().then(() => loadParticipantPreview())
     }
   },
 )
@@ -216,7 +250,7 @@ watch(participantMode, () => {
             @change="loadParticipantPreview"
           >
             <el-option
-              v-for="option in userOptions"
+              v-for="option in participantUserOptions"
               :key="option.value"
               :label="option.label"
               :value="option.value"

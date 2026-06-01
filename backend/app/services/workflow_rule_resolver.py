@@ -143,16 +143,21 @@ async def resolve_user_targets_from_rule(
         context=context,
         department_pools=department_pools,
       )
-    if assignee_role == "members":
-      return await resolve_user_targets_from_rule(
+    if assignee_role in {"member", "members"}:
+      members = await resolve_user_targets_from_rule(
         session,
         actor=actor,
         assignee_rule={"type": "department_members", "department_id": str(resolved_department_id)},
         department_id=resolved_department_id,
-        allow_multiple=allow_multiple,
+        allow_multiple=True,
         context=context,
         department_pools=department_pools,
       )
+      if assignee_role == "member":
+        if not members:
+          raise ConflictError("目标部门没有成员。")
+        return [members[0]]
+      return members
     raise ConflictError(f"暂不支持的 department_pool assignee_role：{assignee_role}")
   else:
     raise ConflictError(f"暂不支持的步骤负责人规则：{rule_type}")
