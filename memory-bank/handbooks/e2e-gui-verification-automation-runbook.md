@@ -62,3 +62,5 @@ npx playwright test -c playwright.docker-gui.config.ts
 | C/D/E | 部分导航截图 | 任务指派、汇报、消息回跳、Push、邀请 |
 
 将本文件与 **`infra/docker/E2E-GUI-VERIFICATION.md`** 一并保留，便于 CI 或本地在 **Agent 模式** 下落地脚本与首次运行。
+
+**视频工作流多账号 E2E**（选题会批次 → fork → 脚本/审核，非全站 GUI 套件）见 [workflow-video-v1-multi-account-e2e-guide.md](./workflow-video-v1-multi-account-e2e-guide.md)。

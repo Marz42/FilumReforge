@@ -72,7 +72,11 @@ pytest -q tests/test_workflow_video_w6_template_seed.py
 pytest -q tests/test_workflow_video_w0_baseline.py tests/test_workflow_video_w1_contracts.py tests/test_workflow_video_w2_participant_resolution.py tests/test_workflow_video_wf_form_engine.py tests/test_workflow_video_w3_instantiation.py tests/test_workflow_video_w4_orchestration.py tests/test_workflow_video_w5_rework.py tests/test_workflow_video_wfk_fork.py tests/test_workflow_video_w6_template_seed.py tests/test_workflow_video_w8_events.py tests/test_workflow_video_w9_closure.py tests/test_workflow_video_w10_regression.py
 ```
 
-## 7. 前端 E2E（W10，mock API）
+## 7. 前端 E2E（W10 / W0–W10 UAT，mock API）
+
+**全阶段协同 UAT（截图 + `report.md`）**：见 [workflow-video-v1-collaborative-uat-guide.md](./workflow-video-v1-collaborative-uat-guide.md)，命令 `npm run test:e2e:workflow-video-uat`。
+
+**W10 冒烟（两条用例）**：
 
 开发机需已安装 Playwright 浏览器：`npx playwright install chromium`。
 
@@ -83,3 +87,19 @@ npm run test:e2e:workflow-video
 ```
 
 用例覆盖：图模板 Tab 实例化 → 三次采集 → 汇总 finalize → 批次看板 3 子 Run + 子流「制作 Run」详情；仅 2 次采集并汇总时看板 2 行。
+
+## 8. Playwright Live 多账号 E2E（A–F）
+
+与 §1–§7 的 **8080 开发栈** 不同，Live E2E 使用独立 Compose 项目 **`filum-playwright-live`**，HTTP 端口 **38080**，密码 **`FilumPlaywright123!`**（见 `frontend/e2e/live/compose-env.mjs`）。
+
+```bash
+cd frontend
+npx playwright install chromium
+npm run test:e2e:workflow-video-live
+```
+
+- `globalSetup` 重建栈、`seed_sample_data`、`seed_workflow_video_templates`；`globalTeardown` 销毁栈。
+- 7 用例（copy lead + copy.a/b/c，阶段 A–F）；产物 `verification-runs/workflow-video-live-*/`。
+- 无 Docker 时先跑 Mock：`npm run test:e2e:workflow-video-multi-account-mock`。
+
+完整步骤、手工对齐与故障排查见 [workflow-video-v1-multi-account-e2e-guide.md](./workflow-video-v1-multi-account-e2e-guide.md)。

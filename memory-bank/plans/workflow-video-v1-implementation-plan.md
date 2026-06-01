@@ -527,6 +527,7 @@ flowchart TB
 | W10-2 | 打回单题、一人两题 fork 两子 Run | 回归（E2E 两题 fork；打回见 `w10_regression` + W5） | done |
 | W10-3 | `architecture.md` / `progress.md` / 测试基线 | Runbook §7 | done |
 | W10-4 | 全量 pytest + vitest + type-check | 含 `test_workflow_video_w10_regression.py` | done |
+| W10-5 | 多账号 Live/Mock E2E（A–F） | `workflow-video-multi-account-live.spec.ts` + mock spec；指南 [`workflow-video-v1-multi-account-e2e-guide.md`](../handbooks/workflow-video-v1-multi-account-e2e-guide.md) | done |
 
 ---
 

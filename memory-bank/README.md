@@ -20,6 +20,8 @@
 | [handbooks/e2e-gui-verification-automation-runbook.md](./handbooks/e2e-gui-verification-automation-runbook.md) | Docker GUI + Playwright 自动化验证与报告 |
 | [handbooks/user-manual.md](./handbooks/user-manual.md) | **用户说明书** v1.2（IA Phase A–F + 体验补丁） |
 | [handbooks/workflow-video-v1-docker-runbook.md](./handbooks/workflow-video-v1-docker-runbook.md) | 视频工作流 v1 双模板种子与 Docker 冒烟复现 |
+| [handbooks/workflow-video-v1-collaborative-uat-guide.md](./handbooks/workflow-video-v1-collaborative-uat-guide.md) | 视频工作流 v1 W0–W10 协同测试指南 + Playwright UAT 截图报告 |
+| [handbooks/workflow-video-v1-multi-account-e2e-guide.md](./handbooks/workflow-video-v1-multi-account-e2e-guide.md) | 视频制作全流程 **A–F 多账号** Live/Mock E2E 指南、故障排查与 `report.md` 约定 |
 
 ## [plans/](./plans/) — 实施计划（排期与阶段出口）
 

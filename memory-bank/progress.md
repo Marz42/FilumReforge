@@ -126,8 +126,13 @@
 | 后端 W10 回归 | `pytest -q tests/test_workflow_video_w10_regression.py` | **3 passed** |
 | 前端 W10 | `npm run test:unit -- --run tests/workflowVideoW10Regression.spec.ts` | **1 passed** |
 | E2E W10 | `npm run test:e2e:workflow-video` | **2 passed**（mock API，`e2e/workflow-video-mock.ts`） |
+| 协同 UAT W0–W10 | `npm run test:e2e:workflow-video-uat` | **7 passed** + `verification-runs/workflow-video-uat-*/report.md` 与截图 |
+| 多账号 E2E Mock A–F | `npm run test:e2e:workflow-video-multi-account-mock` | **7 passed**（2026-05-19；4 账号 mock，无 Docker） |
+| 多账号 E2E Live A–F | `npm run test:e2e:workflow-video-live` | **7 passed**（2026-05-19；Playwright Live 栈 `:38080` + 种子） |
 | 全量视频 pytest | 见 Runbook §6（含 `w10_regression`） | **53 passed**（2026-05-19） |
 | 类型 | `npm run type-check` | PASS |
+
+**多账号 E2E 收口（2026-05-19）**：指南 [`handbooks/workflow-video-v1-multi-account-e2e-guide.md`](handbooks/workflow-video-v1-multi-account-e2e-guide.md)。实现侧：`WorkflowVideoInstantiationService` 实例化/生产 fork `commit`；`TemplateInstantiateDialog` 参与人来自 `preview-participants`；`TemplateAggregatePanel` 合并 script_author 选项；`workflow_rule_resolver` 支持 `department_pool.assignee_role: member`；生产 fork 仅 start 节点解析 assignee。Playwright 导航：finalize 后批次 ROOT 在 **历史** Tab；E/F 按 **选题标题** 打开制作 Run 根任务并点击列表行。
 
 ## 当前阶段状态
 
