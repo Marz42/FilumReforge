@@ -26,8 +26,18 @@ vi.mock('@/api/users', () => ({
   listUsers: vi.fn(),
 }))
 
+vi.mock('@/api/task-center', () => ({
+  getTaskCenterSnapshot: vi.fn(),
+}))
+
+vi.mock('@/api/workflow-graph', () => ({
+  listGraphTemplates: vi.fn(),
+}))
+
 import { listDepartments } from '@/api/departments'
+import { getTaskCenterSnapshot } from '@/api/task-center'
 import { listUsers } from '@/api/users'
+import { listGraphTemplates } from '@/api/workflow-graph'
 import {
   createTaskTemplate,
   createTaskSchedule,
@@ -206,6 +216,33 @@ const mockTask: Task = {
   updated_at: '2025-01-01T00:00:00Z',
 }
 
+const mockTaskCenterSnapshot = {
+  permissions: {
+    can_manage_templates: true,
+    can_publish_task: true,
+    can_create_task: true,
+    can_view_all_tasks: true,
+    can_manage_users: true,
+  },
+  template_summaries: [],
+  publish_department_options: [],
+  publish_user_options: [],
+  task_inbox: [],
+  task_tracking: [],
+  task_history: [],
+  task_memos: [],
+}
+
+async function mountTaskTemplatesView() {
+  const wrapper = mount(TaskTemplatesView, {
+    global: {
+      plugins: [ElementPlus],
+    },
+  })
+  await flushPromises()
+  return wrapper
+}
+
 const mockTemplateInstance: TaskTemplateInstance = {
   id: 'instance-1',
   template_id: 'template-1',
@@ -278,6 +315,8 @@ describe('TaskTemplates view', () => {
     vi.mocked(listTaskTemplateInstances).mockResolvedValue([])
     vi.mocked(listDepartments).mockResolvedValue([mockDepartment])
     vi.mocked(listUsers).mockResolvedValue([mockUser])
+    vi.mocked(getTaskCenterSnapshot).mockResolvedValue(mockTaskCenterSnapshot)
+    vi.mocked(listGraphTemplates).mockResolvedValue([])
     vi.mocked(createTaskTemplate).mockResolvedValue(mockTemplate)
     vi.mocked(instantiateTaskTemplate).mockResolvedValue({
       template: mockTemplate,
@@ -292,13 +331,7 @@ describe('TaskTemplates view', () => {
   })
 
   it('renders template details and instantiates a template', async () => {
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     expect(wrapper.text()).toContain('入职模板')
     expect(wrapper.text()).toContain('V1')
@@ -337,13 +370,7 @@ describe('TaskTemplates view', () => {
       .mockResolvedValueOnce([updatedTemplate])
     vi.mocked(updateTaskTemplate).mockResolvedValue(updatedTemplate)
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const editButton = wrapper
       .findAll('button')
@@ -418,13 +445,7 @@ describe('TaskTemplates view', () => {
       .mockResolvedValueOnce([updatedSchedule])
     vi.mocked(updateTaskSchedule).mockResolvedValue(updatedSchedule)
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const editScheduleButton = wrapper
       .findAll('button')
@@ -477,13 +498,7 @@ describe('TaskTemplates view', () => {
       .mockResolvedValueOnce([inactiveTemplate])
     vi.mocked(updateTaskTemplate).mockResolvedValue(inactiveTemplate)
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const toggleButton = wrapper
       .findAll('button')
@@ -509,13 +524,7 @@ describe('TaskTemplates view', () => {
       },
     ])
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const editButton = wrapper
       .findAll('button')
@@ -554,13 +563,7 @@ describe('TaskTemplates view', () => {
     vi.mocked(listTaskTemplateInstances).mockResolvedValue([mockTemplateInstance])
     vi.mocked(createTaskTemplate).mockResolvedValue(createdVersion)
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const createVersionButton = wrapper
       .findAll('button')
@@ -589,13 +592,7 @@ describe('TaskTemplates view', () => {
       .mockResolvedValueOnce([mockTemplate])
       .mockResolvedValueOnce([])
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const deleteButton = wrapper
       .findAll('button')
@@ -611,13 +608,7 @@ describe('TaskTemplates view', () => {
   it('rejects cyclic step dependencies before submitting the template', async () => {
     const messageErrorSpy = vi.spyOn(ElMessage, 'error').mockImplementation(() => '')
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
     const setupState = configureCreateForm(wrapper, 'cycle-template', '循环模板', [
       buildStepState({ step_key: 'draft', title: '撰写方案', depends_on_step_keys: ['review'] }),
       buildStepState({
@@ -638,13 +629,7 @@ describe('TaskTemplates view', () => {
   it('rejects isolated steps before submitting the template', async () => {
     const messageErrorSpy = vi.spyOn(ElMessage, 'error').mockImplementation(() => '')
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
     const setupState = configureCreateForm(wrapper, 'island-template', '孤岛模板', [
       buildStepState({ step_key: 'draft', title: '撰写方案' }),
       buildStepState({
@@ -666,13 +651,7 @@ describe('TaskTemplates view', () => {
   it('rejects single-task steps that use multi-assignee rules', async () => {
     const messageErrorSpy = vi.spyOn(ElMessage, 'error').mockImplementation(() => '')
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
     const setupState = configureCreateForm(wrapper, 'single-invalid-template', '非法分配模板', [
       buildStepState({
         step_key: 'collect',
@@ -738,13 +717,7 @@ describe('TaskTemplates view', () => {
     vi.mocked(listTaskTemplates).mockResolvedValue([waitAnyTemplate])
     vi.mocked(listTaskTemplateInstances).mockResolvedValue([waitAnyInstance])
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     expect(wrapper.text()).toContain('任一完成推进')
     expect(wrapper.text()).toContain('已因或签命中被系统撤权')
@@ -773,26 +746,14 @@ describe('TaskTemplates view', () => {
 
     vi.mocked(listTaskTemplateInstances).mockResolvedValue([replayedInstance])
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     expect(wrapper.text()).toContain('曾被系统打回重放')
     expect(wrapper.text()).toContain('累计 2 次')
   })
 
   it('adds IF routing rule and ELSE fallback, and saves template', async () => {
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const editButton = wrapper
       .findAll('button')
@@ -843,13 +804,7 @@ describe('TaskTemplates view', () => {
   })
 
   it('throws an error when routing rules lack ELSE fallback', async () => {
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const editButton = wrapper
       .findAll('button')
@@ -891,13 +846,7 @@ describe('TaskTemplates view', () => {
   it('shows confirm dialog when any step has join_mode=any', async () => {
     vi.mocked(ElMessageBox.confirm).mockResolvedValue('confirm' as never)
 
-    const wrapper = mount(TaskTemplatesView, {
-      global: {
-        plugins: [ElementPlus],
-      },
-    })
-
-    await flushPromises()
+    const wrapper = await mountTaskTemplatesView()
 
     const editButton = wrapper
       .findAll('button')

@@ -266,5 +266,7 @@ class WorkflowOrchestrationService:
 
   @staticmethod
   def is_template_graph_projection(task: Task) -> bool:
+    if task.source_type != TaskSourceType.TEMPLATE:
+      return False
     metadata = task.extra_metadata if isinstance(task.extra_metadata, dict) else {}
     return bool(metadata.get("workflow_graph_instance_id") and metadata.get("workflow_node_instance_id"))

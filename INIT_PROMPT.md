@@ -13,8 +13,8 @@
 你好，这是一个已有项目（Project Filum）。请按以下步骤操作：
 
 1. 读取 `AGENT_RULES.md`，按知识温度体系加载 memory-bank：
-   - 🔥 HOT：design-document、architecture、progress、tech-stack、plans/implementation-plan、根 README
-   - 🌡️ WARM：与任务相关的 plans/、handbooks/user-manual、子项目 README
+   - 🔥 HOT：project-brief、architecture、data-contracts、conventions、active-task、progress
+   - 🌡️ WARM：与任务相关的 roadmap、domains/、plans/、handbooks/、子项目 README
 2. 执行 `git log --oneline -n 20` 确认最近主线。
 3. 审查文档与代码一致性，简要说明：
    - 哪些信息可能过时
@@ -63,7 +63,7 @@
 你好，请对 memory-bank 与实际代码做一次对齐审查。
 
 1. 严格遵循 `.github/prompts/memory-bank-alignment-review.prompt.md`。
-2. 必读：architecture、design-document、progress、implementation-plan、部署 runbook、各 README。
+2. 必读：project-brief、architecture、data-contracts、progress、roadmap、部署 runbook、各 README。
 3. 用迁移、模型、服务、路由、测试验证事实。
 4. 输出报告到 `memory-bank/history/reports/alignment-assessment-YYYYMMDD.md`。
 5. 区分「已对齐」「文档漂移」「实现未落地」，附证据路径。
