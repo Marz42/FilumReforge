@@ -8,7 +8,7 @@
 ## 1. 组织与账号种子
 
 ```bash
-docker compose exec api python -m app.scripts.seed_sample_data --password FilumTest123!
+docker compose exec backend python -m app.scripts.seed_sample_data --password FilumTest123!
 ```
 
 将创建：
@@ -20,7 +20,7 @@ docker compose exec api python -m app.scripts.seed_sample_data --password FilumT
 仅重跑图模板（组织已存在时；`launch_schema` / `seed_version` 变更后也必须重跑以刷新实例化表单）：
 
 ```bash
-docker compose exec api python -m app.scripts.seed_workflow_video_templates
+docker compose exec backend python -m app.scripts.seed_workflow_video_templates
 ```
 
 ## 2. 功能开关（W9）

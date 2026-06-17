@@ -2,6 +2,22 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 - 测试基线刷新与 Playwright mock E2E 修补
+
+**完成事项**:
+- [x] `progress.md` 测试基线更新至 commit `45954eb`
+- [x] 后端 **213 pytest** 全绿；Alembic 往返改跑 ephemeral PostgreSQL（`POSTGRES_TEST_ADMIN_DSN`）
+- [x] 前端 **39 文件 / 119 vitest** 全绿（含 `TaskTemplatesView` 15 项）
+- [x] Playwright mock：`fixtures.ts` 补 `GET /tasks/{id}` 与 graph events；`workflow-video-v1.spec.ts` 按「选题会（批次）」行点实例化
+
+**遗留问题**:
+- [ ] Ubuntu 最小回滚演练（暂缓至上线前）
+- [ ] `docker-gui` E2E 基线未重跑（需 Compose 栈）
+- [ ] `playwright_live` 未纳入本次基线
+
+**下一步建议**:
+- 执行 Ubuntu 最小回滚路径演练（见 `deployment-runbook-ubuntu-2404.md` §21.8）
+
 ### 2026-06-17 23:30 - Memory-Bank Phase 4 引用修复与对齐审查
 
 **完成事项**:
@@ -59,18 +75,19 @@
 
 | 字段 | 值 |
 | --- | --- |
-| `baseline_id` | `2026-05-21-main-36c6a77` |
-| `commit` | `36c6a77`（`feat(ui): task center UX polish, memos, and overview layout`） |
+| `baseline_id` | `2026-06-18-main-45954eb` |
+| `commit` | `45954eb`（`test(backend): align sample seed assertions and run migrations on PostgreSQL`） |
 | `runner_os` | Windows 11 + `backend/.venv`（Python 3.11）；前端 `npm ci` 后原生 Node |
-| `pytest` | **153 passed**（`backend/.venv/Scripts/python.exe -m pytest`，约 98s） |
+| `pytest` | **213 passed**（`backend/.venv/Scripts/python.exe -m pytest`，约 130s；`test_alembic_upgrade_and_downgrade` 需本机 PostgreSQL，`POSTGRES_TEST_ADMIN_DSN` 默认 `postgresql://filum:filum@127.0.0.1:5432/postgres`） |
 | `compileall` | PASS（`python -m compileall -q app tests`） |
-| `vitest` | **29 文件 / 106 用例** 全绿（`npm run test:unit -- --run`） |
+| `vitest` | **39 文件 / 119 用例** 全绿（`npm run test:unit -- --run`，约 22s） |
 | `type-check` / `build` | PASS（`npm run type-check`、`npm run build`；Vite chunk size 为信息性警告） |
-| `check-release.sh` | **Windows 等价 P0 全绿**；经 Git Bash/WSL 直跑时因跨平台 `node_modules`（rolldown 绑定）与无 `python` 于 PATH 可能失败——生产/Ubuntu 主机应在 Linux 原生目录执行 `bash scripts/check-release.sh`（见在线演练记录） |
-| `eslint` | 8 errors（`npm run lint`，非 `check-release` 阻塞项；含未使用变量等待清理） |
-| `docker-gui` | **未在本机重跑**（Compose 栈未启动）；沿用 **2026-05-20** 基线 **18/18** @ `http://127.0.0.1:8080`，规格见 `frontend/e2e/docker-gui-verification/docker-gui-verification.spec.ts` |
-| `playwright_mock` / `playwright_live` | 未纳入本次基线重跑（Phase 11-G 独立层；见 `memory-bank/plans/workflow-refactor-implementation-plan.md` §16.9） |
-| `notes` | 单测已对齐 IA 后 UI：`OverviewTodoWidget` 待办/汇报分栏、`MessagesView` 时间范围 `createdRange`、handler 展示名 `name（email）`；`vite-plugin-vue-devtools` peer 警告不阻断 build |
+| `playwright_mock` | **5/5** @ `e2e/login.spec.ts` + `e2e/task-center.spec.ts` + `e2e/workflow-video-v1.spec.ts`（`npm run test:e2e -- e2e/login.spec.ts e2e/task-center.spec.ts e2e/workflow-video-v1.spec.ts`） |
+| `check-release.sh` | **Windows 等价 P0 全绿**（2026-05-21 记录）；生产/Ubuntu 主机应在 Linux 原生目录执行 `bash scripts/check-release.sh` |
+| `eslint` | 8 errors（`npm run lint`，非阻塞；待清理） |
+| `docker-gui` | **未在本机重跑**（Compose 栈未启动）；沿用 **2026-05-20** 基线 **18/18** @ `http://127.0.0.1:8080` |
+| `playwright_live` | 未纳入本次基线重跑 |
+| `notes` | 图任务握手 accept 修复（`c1ff391`）；Paradigma memory-bank Phase 0–4（`9962df2`）；mock E2E 需 `npx playwright install chromium` |
 
 ## 视频工作流 v1（workflow-video-v1）
 
@@ -665,17 +682,18 @@
 | 注册与账号开通 | **邀请制注册**（创建未启用账号、预览链接、设置密码激活、撤销）已落地；**访客公开自助注册**与**审批式注册**仍未实现，需产品决策 | 邀请 done；公开 / 审批式待决策与实现 |
 | HR 流程自动化 | 生命周期事件与任务模板 / 审批流**显式绑定 + worker 异步触发**已落地；**规则化默认映射**与**前端结构化配置入口**仍待补齐；字段权限可视化管理增强 | 后续增强 |
 | 消息渠道深化 | 消息附件绑定、筛选与失败详情已落地（Stage 2 Phase 4）；真实 Email / WebSocket 对外发送接入、delivery 观测增强仍待深化 | 后续增强 |
-| 工程质量 | 更细的重构、集成测试、E2E 扩面；**回滚演练**与 docker-gui 基线刷新 | 下一轮重点 |
+| 工程质量 | 更细的重构、集成测试、E2E 扩面；docker-gui / live 基线刷新；回滚演练暂缓 | 下一轮重点 |
 
 ## 当前规划焦点
 
-Stage 2 周期（Phase 0–6 + IA A–F）已收口。当前建议优先级：
+Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。当前建议优先级：
 
-1. **Ubuntu 最小回滚路径演练**（补 Phase 6 遗留；git 回退 + systemd 重启 ± 迁移 rollback dry-run）
-2. **工作流 E 与图引擎产品级统一**、模板 / 调度深化、全量回归扩面
+1. **本地 Docker 图模板实测**（视频工作流 v1；`infra/docker/.env` + 种子账号，见 `workflow-video-v1-docker-runbook.md`）
+2. **工作流 E 与图引擎产品级统一**、模板 / 调度深化
 3. **生命周期规则化默认映射 + 前端结构化配置入口**
 4. **公开 / 审批式注册（若需要）与真实通知渠道适配**
-5. **Playwright live / docker-gui 与发布 commit 同步重跑**（下次大版本前刷新基线）
+5. **Playwright live / docker-gui 与发布 commit 同步重跑**
+6. **Ubuntu 最小回滚路径演练** — 暂缓，上线前再补
 
 ## 重构执行补记
 

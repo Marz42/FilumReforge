@@ -26,7 +26,7 @@
 | 工作流 E 首批 | done | 模板实例运行态、扇出/汇聚、设计器 |
 | Stage 2 Phase 0–6 | done | 模板治理、生命周期联动、邀请注册、消息深化 |
 | 视频工作流 v1 W0–W10 | done | 选题会、表单引擎、按题 fork、E2E 硬化 |
-| Memory-Bank Phase 0–2 | done | 协议层 + HOT 六件套 |
+| Memory-Bank Phase 0–4 | done | 协议层 + HOT/WARM/COLD + 对齐审查 |
 
 ---
 
@@ -34,13 +34,12 @@
 
 | 优先级 | 主题 | 目标 | 计划入口 |
 |--------|------|------|----------|
-| P0 | Ubuntu 最小回滚演练 | git 回退 + systemd ± 迁移 rollback dry-run | `progress.md`「当前规划焦点」 |
 | P1 | 工作流 E 与图引擎统一 | 产品级单一模板源评估与深化 | `plans/implementation-plan.md` |
-| P1 | Memory-Bank Phase 3–4 | WARM/COLD 层、引用修复、对齐审查 | `plans/paradigma-memory-bank-refactor-plan.md` |
 | P2 | 生命周期规则化 | 默认映射 + 前端结构化配置 | `plans/improvements-stage2-implementation-plan.md` §11 |
 | P2 | 通知渠道深化 | 真实 Email/WebSocket、投递观测 | 同上 |
 | P3 | 注册方式扩展 | 公开/审批式注册（产品决策后） | `project-brief.md` |
 | P3 | E2E 基线刷新 | Playwright live、docker-gui 与发布 commit 同步 | `handbooks/e2e-gui-verification-automation-runbook.md` |
+| 暂缓 | Ubuntu 最小回滚演练 | git 回退 + systemd ± 迁移 rollback dry-run | `deployment-runbook-ubuntu-2404.md` §21.8 |
 
 ---
 
@@ -58,11 +57,11 @@
 ## 并行工作线
 
 ```
-主线（工程质量）───── Stage 2 收尾 / 回滚演练 / 回归扩面
+主线（工程质量）───── 图模板 Docker 实测 / E2E live 基线 / 回归扩面
         │
-        ├─ 工作流 E ─── 模板/调度深化
-        ├─ 图引擎 ───── 与 E 统一、视频 v1 运维
-        └─ memory-bank ─ Paradigma Phase 3–4
+        ├─ 工作流 E ─── 模板/调度深化、与图引擎统一
+        ├─ 图引擎 ───── 视频 v1 运维与新产品模板
+        └─ memory-bank ─ Paradigma 维护（Phase 5）
 ```
 
 细计划不合并进本表；见 `plans/implementation-plan.md`、`workflow-refactor-implementation-plan.md`、`workflow-video-v1-implementation-plan.md`。

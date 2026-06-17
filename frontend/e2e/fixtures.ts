@@ -271,6 +271,16 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
       return
     }
 
+    if (request.method() === 'GET' && /^\/tasks\/[^/]+$/.test(apiPath)) {
+      const taskId = apiPath.slice('/tasks/'.length)
+      if (taskId === selectedTask.id) {
+        await fulfillJson(route, selectedTask)
+      } else {
+        await fulfillJson(route, { detail: 'Task not found' }, 404)
+      }
+      return
+    }
+
     if (request.method() === 'GET' && apiPath === '/tasks/views/board') {
       await fulfillJson(route, [
         { status: 'todo', tasks: [] },
@@ -376,6 +386,11 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
           download_url: 'https://example.com/mock.pdf',
         },
       ])
+      return
+    }
+
+    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+\/events/.test(apiPath)) {
+      await fulfillJson(route, { items: [], total: 0, limit: 50, offset: 0 })
       return
     }
 

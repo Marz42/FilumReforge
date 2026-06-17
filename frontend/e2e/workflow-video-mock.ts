@@ -1031,7 +1031,11 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
 
 export async function loginAs(page: Page, email: string, password = 'secret-password'): Promise<void> {
   await page.goto('/login?redirect=/task-templates')
-  await expect(page.getByTestId('login-form')).toBeVisible({ timeout: 60_000 })
+  const loginForm = page.getByTestId('login-form')
+  if (!(await loginForm.isVisible({ timeout: 3_000 }).catch(() => false))) {
+    await page.getByText('退出登录', { exact: true }).first().click({ timeout: 15_000 })
+    await expect(loginForm).toBeVisible({ timeout: 30_000 })
+  }
   await page.getByTestId('login-email').locator('input').fill(email)
   await page.getByTestId('login-password').locator('input').fill(password)
   await page.getByTestId('login-submit').click()

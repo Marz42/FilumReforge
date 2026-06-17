@@ -53,11 +53,12 @@
 | 项 | 状态 | 说明 |
 |----|------|------|
 | docker-gui 18/18 | 沿用 2026-05-20 基线 | 本机未重跑时需 Compose 栈 |
-| Playwright live/mock | 未纳入每次基线 | Phase 11-G / W10 独立层 |
+| Playwright mock（task-center + W10） | **5/5** @ `45954eb` 后 | `npm run test:e2e -- e2e/task-center.spec.ts e2e/workflow-video-v1.spec.ts` |
+| Playwright live | 未纳入每次基线 | 多账号见 `workflow-video-v1-multi-account-e2e-guide.md` |
 | eslint | 8 errors | 非 release 阻塞，待清理未使用变量 |
-| Ubuntu 最小回滚 | **未演练** | P0 遗留 |
+| Ubuntu 最小回滚 | **暂缓** | 原 P0，用户决定上线前再练 |
 
-**基线 ID**: `2026-05-21-main-36c6a77`（见 `progress.md`）
+**基线 ID**: `2026-06-18-main-45954eb`（见 `progress.md`「测试基线」）
 
 ---
 
@@ -65,7 +66,7 @@
 
 - `FRONTEND_APP_URL` 生产必填（邀请链接避免 localhost）
 - README 若写「缺 production compose」与 `docker-compose.prod.yml` 冲突 → **文档漂移**，以实际文件为准
-- 在线 Ubuntu 演练已记录（Stage 2 Phase 6）；**回滚路径**仍待补
+- 在线 Ubuntu 演练已记录（Stage 2 Phase 6）；**最小回滚路径**暂缓至上线前
 
 ---
 
