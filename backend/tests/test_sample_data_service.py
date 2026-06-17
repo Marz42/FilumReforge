@@ -12,10 +12,20 @@ from app.services.user_service import UserService
 from tests.test_services import TEST_JWT_SECRET
 
 
+def _expected_reporting_line_count() -> int:
+  user_specs = SampleDataService._build_user_specs()
+  solid = sum(1 for spec in user_specs if spec.manager_email is not None)
+  dotted = sum(1 for spec in user_specs if spec.dotted_manager_email is not None)
+  return solid + dotted
+
+
 @pytest.mark.asyncio
 async def test_sample_data_service_seeds_idempotent_workspace(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
   service = SampleDataService(db_session, settings)
+  user_specs = SampleDataService._build_user_specs()
+  department_specs = SampleDataService._build_department_specs()
+  position_specs = SampleDataService._build_position_specs()
 
   first_result = await service.seed_manual_test_workspace(default_password="FilumTest123!")
   second_result = await service.seed_manual_test_workspace(default_password="FilumTest123!")
@@ -30,13 +40,13 @@ async def test_sample_data_service_seeds_idempotent_workspace(db_session) -> Non
   assert first_result.admin_bootstrapped is True
   assert second_result.admin_bootstrapped is False
   assert first_result.admin_email == "admin@example.com"
-  assert len(first_result.accounts) == 9
-  assert len(users) == 10
-  assert len(departments) == 6
-  assert len(profiles) == 10
-  assert len(positions) == 7
-  assert len(assignments) == 9
-  assert len(reporting_lines) == 6
+  assert len(first_result.accounts) == len(user_specs)
+  assert len(users) == len(user_specs) + 1
+  assert len(departments) == len(department_specs) + 1
+  assert len(profiles) == len(user_specs) + 1
+  assert len(positions) == len(position_specs)
+  assert len(assignments) == len(user_specs)
+  assert len(reporting_lines) == _expected_reporting_line_count()
   assert {department.code for department in departments} >= {
     "root",
     "people-ops",
@@ -44,6 +54,9 @@ async def test_sample_data_service_seeds_idempotent_workspace(db_session) -> Non
     "platform-team",
     "customer-success",
     "finance-admin",
+    "video-copywriting",
+    "video-voice",
+    "video-post",
   }
 
   former_user = next(user for user in users if user.email == "demo.former@example.com")

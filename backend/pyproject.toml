@@ -41,6 +41,9 @@ dev = [
 addopts = "-q"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+  "postgres: requires a reachable PostgreSQL instance (see POSTGRES_TEST_ADMIN_DSN)",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
