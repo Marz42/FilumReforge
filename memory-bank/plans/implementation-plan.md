@@ -69,9 +69,8 @@
 
 ### 4.2 文档同步原则
 
-- 开始一个新阶段前，先更新 `memory-bank/architecture.md` 中对应的 schema 预案
-- 当前后续增强周期统一按 `memory-bank/plans/improvements-stage2-implementation-plan.md` 推进
-- 从 Stage 2 开始，每个阶段完成后都必须先更新 `memory-bank/architecture.md` 记录实现事实，再更新 `memory-bank/progress.md` 记录状态与验证结论
+- 开始一个新阶段前，先更新 `memory-bank/data-contracts.md`（schema 预案）与 `memory-bank/architecture.md`（模块/流程事实）
+- 从 Stage 2 开始，每个阶段完成后都必须先更新 `data-contracts.md`（若有 schema 变化）与 `architecture.md`，再更新 `memory-bank/progress.md`
 - 若阶段边界发生变化，先更新本文件，再开始编码
 
 ### 4.3 验收闸门

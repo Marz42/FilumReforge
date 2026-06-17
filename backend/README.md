@@ -15,9 +15,9 @@
 ## 当前已知边界
 
 - 生命周期事件的规则化默认联动与前端配置入口仍未落地；当前已支持显式绑定目标后的异步触发
-- 工作流 E 仍在继续收口：模板 / 调度管理动作、更多设计器校验与全量回归仍需继续完善
-- workflow graph 读取侧仍未切到 graph runtime；条件路由、Workflow Context、Notice Node 与智能抄送仍待后续阶段
-- 生产部署产物已落地：`Dockerfile.prod`、`scripts/start-prod.sh`、`infra/docker/docker-compose.prod.yml` 与 Nginx 生产配置可直接使用；当前主要待做发布前一键校验与上线演练
+- 工作流 E 与图引擎（`WorkflowGraphTemplate`）产品级统一仍在 backlog
+- 视频工作流 v1 已落地（W0–W10）；`workflow_graph_template_engine_enabled` 默认 `false`，启用图模板实例化须显式开开关
+- 生产部署产物已落地；Ubuntu **最小回滚路径**仍待演练（见 `memory-bank/roadmap.md`）
 
 ## 初始化
 
@@ -67,4 +67,4 @@ python -m compileall app tests
 python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 ```
 
-更多系统级说明请以仓库根目录 `README.md` 和 `memory-bank/architecture.md` 为准。
+更多系统级说明见 [`README.md`](../README.md)、[`memory-bank/project-brief.md`](../memory-bank/project-brief.md)、[`memory-bank/architecture.md`](../memory-bank/architecture.md)、[`memory-bank/data-contracts.md`](../memory-bank/data-contracts.md)。

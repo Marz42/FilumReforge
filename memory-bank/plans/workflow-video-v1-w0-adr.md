@@ -1,5 +1,7 @@
 # ADR：视频工作流 v1 运行时与 Feature 开关（W0）
 
+> **【已迁入】** 权威 ADR 条目见 [`../decisions.md`](../decisions.md) **ADR-006**。下文保留 W0 原文供对照。
+
 **状态**：已接受（W0）  
 **关联**：[workflow-video-v1-implementation-plan.md](./workflow-video-v1-implementation-plan.md) v2.0
 

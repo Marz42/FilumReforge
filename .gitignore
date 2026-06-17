@@ -25,3 +25,6 @@ frontend/.env
 
 infra/docker/.env
 verification-runs/
+
+# Local reference clone (Paradigma memory-bank template); not part of Filum repo
+/paradigma/

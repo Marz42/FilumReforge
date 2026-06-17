@@ -1,0 +1,20 @@
+---
+description: Memory-Bank 工作流协议 — Project Filum
+alwaysApply: true
+---
+
+# Memory-Bank Protocol — Project Filum
+
+> 同步自 `AGENT_RULES.md`
+
+## 🔥 HOT
+`project-brief` · `architecture` · `data-contracts` · `conventions` · `active-task` · `progress`
+
+## 🌡️ WARM
+`roadmap` · `changelog` · `domains/*` · `plans/*` · `design-document` · `tech-stack` · 子项目 README
+
+## 🧊 COLD
+`decisions` · `known-issues` · `glossary` · `handbooks/` · `history/` · `archive/`
+
+## Update
+会话结束追加 `progress.md`；schema→`data-contracts`；架构→`architecture`；版本→`VERSION`+`changelog`

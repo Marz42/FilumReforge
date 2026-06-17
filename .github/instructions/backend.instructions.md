@@ -9,9 +9,9 @@ applyTo:
 
 # Filum Backend
 
-- 先读 [memory-bank/architecture.md](../../memory-bank/architecture.md) 和 [memory-bank/design-document.md](../../memory-bank/design-document.md)；涉及阶段状态或工作流 E 当前边界时，再读 [memory-bank/progress.md](../../memory-bank/progress.md) 与 [memory-bank/plans/implementation-plan.md](../../memory-bank/plans/implementation-plan.md)。
+- 先读 [`memory-bank/project-brief.md`](../../memory-bank/project-brief.md)、[`architecture.md`](../../memory-bank/architecture.md)、[`data-contracts.md`](../../memory-bank/data-contracts.md)；涉及阶段状态或工作流边界时，再读 [`progress.md`](../../memory-bank/progress.md)、[`active-task.md`](../../memory-bank/active-task.md) 与 [`plans/implementation-plan.md`](../../memory-bank/plans/implementation-plan.md)。
 - 后端真实行为优先看 [backend/app/services](../../backend/app/services)；路由层保持薄，只做参数校验、权限入口和响应组装，不把业务编排堆进 `api/routes`。
-- 数据库相关修改必须同时核对 [backend/app/models](../../backend/app/models) 和 [backend/alembic/versions](../../backend/alembic/versions)；文档与代码冲突时，以模型、迁移、测试和可运行命令为准。
+- 数据库相关修改必须同时核对 `backend/app/models`、`backend/alembic/versions` 与 [`memory-bank/data-contracts.md`](../../memory-bank/data-contracts.md)。
 - 通知统一走 `NotificationService.send(message_obj)`；不要在业务服务里直连 Email、WebSocket 或 Web Push adapter。
 - 任务状态流转必须保持 `Todo -> Doing -> Review -> Done`；工作沟通、说明和附件进入 `task_comments`，不要引入独立工作聊天链路。
 - 档案扩展字段进入 `profiles.custom_fields`；高敏字段和档案可见性必须同时考虑角色、组织关系、字段级策略和代理授权。

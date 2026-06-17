@@ -18,7 +18,7 @@
 - **不新建第三套运行时**：以 `workflow_graph_*` + `Task` 为主；`task_templates` 只读/导入/兼容，新发起走 graph。
 - **编排与执行分离**：引擎负责实例化、激活、门禁、通知、定向返工、按题 fork；**禁止**自动审批通过。
 - **Schema 版本固化**：Run 创建时快照 `template_version` + 各节点 form schema，进行中实例不受模板后续改版影响。
-- 每个阶段完成后更新 `memory-bank/architecture.md`、`memory-bank/progress.md`；阶段结束跑约定测试命令。
+- 每个阶段完成后更新 `architecture.md`、`data-contracts.md`（若有 schema）、`progress.md`；阶段结束跑约定测试命令。
 
 **非目标（v1 不做）**
 

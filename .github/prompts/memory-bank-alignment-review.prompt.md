@@ -29,9 +29,11 @@ git log --oneline -n 20
 
 先阅读以下文件：
 
+- `memory-bank/project-brief.md`
 - `memory-bank/architecture.md`
-- `memory-bank/design-document.md`
+- `memory-bank/data-contracts.md`
 - `memory-bank/progress.md`
+- `memory-bank/roadmap.md`
 - `memory-bank/plans/implementation-plan.md`
 - `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md`
 - `README.md`

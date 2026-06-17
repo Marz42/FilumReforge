@@ -8,7 +8,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
   - 用户与会话：管理员初始化、JWT access token、HttpOnly refresh cookie 轮换 / logout 撤销、角色控制
   - 组织与 HR：部门树、一人一档、字段级权限、多岗位、虚线汇报、生命周期事件、代理授权
   - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计；任务中心 **Quick Chips + Master-Detail**（待处理 / 跟踪 / 历史）、列表/看板/甘特视图、页头 **建立任务 Dialog**、全局备忘（列表 + 编辑 Dialog，可选标题）、附件鉴权下载（`GET /attachments/{id}/content`）、独立 **任务模板** 路由
-  - 工作流图引擎重构当前已到 **Phase 11-F**：单节点 dual-write、交付 / 验收 / 返工、接单 / 协商 / 转办、多节点推进、条件边 / Context / Notice、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first 读路径**（默认 `TASK_CENTER_V2_ENABLED=true`）、迁移 CLI 与 Playwright 基线等；详见 `memory-bank/progress.md`
+  - 工作流图引擎重构已到 **Phase 11-G**（含 Playwright mock/live 基线）；任务中心默认 **graph-first** 读路径（`task_center_v2_enabled=true`）；详见 `memory-bank/progress.md` 与 `domains/workflow-graph-engine.md`
   - 工作流 E 首批：模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚（`all` / `any`）、模板实例快照、结构化设计器首版与已有模板编辑
   - 总览与汇报：总览看板 / 公告 / 当前任务、逐级向上汇报 / 向下传达、历史归档
   - 消息与通知：通知总线、delivery 记录、消息中心、回执、浏览器推送订阅与 Web Push 链路，以及 Step 6 的来源回跳 / 用户级隔离
@@ -45,7 +45,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 - 审批流定义、实例、会签 / 或签 / 驳回 / 打回 / 代理审批
 - 列表 / 看板 / 甘特图
 
-工作流 E 首批已落地：模板实例按依赖逐步激活、fan-out / join、结构化设计器与实例快照。图引擎已至 **Phase 11-F**：多节点运行时、条件边、Wait-Any、深度打回、outbox、**任务中心默认 graph-first 读路径**（`TASK_CENTER_V2_ENABLED=true`）。任务中心界面仍以兼容 `Task` 投影展示详情，与图运行时 dual-write 并存。
+工作流 E 首批已落地。图引擎 **Phase 11-G** 已完成；任务中心默认 graph-first（`task_center_v2_enabled=true`）。视频工作流 v1（W0–W10）已硬化，见 `memory-bank/domains/workflow-video-v1.md`。
 
 ### 消息、Push 与 AI
 
@@ -82,16 +82,27 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 
 ## 文档入口
 
-- [`memory-bank/README.md`](memory-bank/README.md)：**文档索引**（手册、计划、历史与归档路径）
-- `memory-bank/design-document.md`：产品目标、业务边界、未来增强方向
-- `memory-bank/architecture.md`：当前工程基线、关键模块、运行时结构、完整 schema
-- `memory-bank/plans/implementation-plan.md`：从当前代码状态出发的下一步实施路线
-- `memory-bank/progress.md`：已完成事项与验测补记
-- `memory-bank/tech-stack.md`：技术选型与落地状态
-- `memory-bank/handbooks/user-manual.md`：**用户说明书**（当前界面操作指南，v1.1）
-- `memory-bank/handbooks/manual-database-operations.md`：PostgreSQL 手工操作、迁移、整库重置与系统初始化
-- `memory-bank/handbooks/e2e-gui-verification-automation-runbook.md`：Docker + Playwright GUI 自动化验证
-- `infra/docker/E2E-GUI-VERIFICATION.md`：基于 Docker Compose 的端到端（GUI）分层验证清单
+Agent 协作见 [`AGENT_RULES.md`](AGENT_RULES.md)、[`VERSION`](VERSION)。memory-bank 索引与温度分层见 [`memory-bank/README.md`](memory-bank/README.md)。
+
+| 文件 | 用途 |
+| --- | --- |
+| [`project-brief.md`](memory-bank/project-brief.md) | 产品愿景、边界、技术栈摘要（🔥） |
+| [`architecture.md`](memory-bank/architecture.md) | 工程蓝图、运行时、核心流程（🔥） |
+| [`data-contracts.md`](memory-bank/data-contracts.md) | schema、枚举、API 索引（🔥） |
+| [`conventions.md`](memory-bank/conventions.md) | 编码与协作规范（🔥） |
+| [`active-task.md`](memory-bank/active-task.md) | 当前聚焦任务（🔥） |
+| [`progress.md`](memory-bank/progress.md) | 会话摘要、阶段验收、测试基线（🔥） |
+| [`roadmap.md`](memory-bank/roadmap.md) | 宏观里程碑（🌡️） |
+| [`plans/`](memory-bank/plans/) | 细粒度实施计划（🌡️） |
+| [`domains/`](memory-bank/domains/) | 子系统领域文档（🌡️） |
+| [`handbooks/`](memory-bank/handbooks/) | 运维与用户手册（🧊） |
+
+完整产品设计/技术选型叙述：[`design-document.md`](memory-bank/design-document.md)、[`tech-stack.md`](memory-bank/tech-stack.md)（摘要已迁入 project-brief）。
+
+- [`handbooks/user-manual.md`](memory-bank/handbooks/user-manual.md)：用户说明书 v1.2
+- [`handbooks/manual-database-operations.md`](memory-bank/handbooks/manual-database-operations.md)：PostgreSQL 手工操作
+- [`handbooks/e2e-gui-verification-automation-runbook.md`](memory-bank/handbooks/e2e-gui-verification-automation-runbook.md)：Docker + Playwright GUI 验证
+- [`infra/docker/E2E-GUI-VERIFICATION.md`](infra/docker/E2E-GUI-VERIFICATION.md)：端到端 GUI 分层验证清单
 
 ## 快速开始
 

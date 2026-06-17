@@ -1,5 +1,60 @@
 # Project Filum 进度记录
 
+## 会话摘要（Paradigma 对齐）
+
+### 2026-06-17 23:30 - Memory-Bank Phase 4 引用修复与对齐审查
+
+**完成事项**:
+- [x] 根/README、backend/README、frontend/README、docs-alignment 指向 Paradigma 文档分工
+- [x] plans/handbooks/archive 内 schema 维护指向 `data-contracts.md`
+- [x] `history/reports/alignment-assessment-20260617.md`
+- [x] `VERSION` → `0.87.1`；`changelog.md`；Paradigma Phase 0–4 全部完成
+
+**遗留问题**:
+- [ ] `progress.md` 测试基线仍停在 `36c6a77`，建议下次发布前刷新
+- [ ] Ubuntu 最小回滚演练（产品 P0）
+
+**下一步建议**:
+- 从 `roadmap.md` P0 选取产品主线任务，更新 `active-task.md`
+
+### 2026-06-17 23:21 - Memory-Bank Phase 3 WARM/COLD 层
+
+**完成事项**:
+- [x] `roadmap.md`、`changelog.md`
+- [x] `decisions.md`（含 ADR-001–007）、`known-issues.md`、`glossary.md`
+- [x] `domains/` 六篇：hr-org、task-center、workflow-graph-engine、workflow-video-v1、messaging、knowledge-ai
+- [x] `workflow-video-v1-w0-adr.md` → decisions 指针；README/AGENT_RULES/Cursor Rule 更新
+- [x] `active-task.md` 切换为 Phase 4 入口
+
+**下一步建议**:
+- Phase 4：全仓库引用 spot-check + 对齐审查报告
+
+### 2026-06-17 23:19 - Memory-Bank Phase 2 HOT 层拆分
+
+**完成事项**:
+- [x] 新建 `project-brief.md`、`conventions.md`、`data-contracts.md`、`active-task.md`
+- [x] `architecture.md` 瘦身（§8–§13 迁至 data-contracts；~1656 → ~559 行）
+- [x] `README.md` 温度体系索引；`design-document` / `tech-stack` 【已迁移】横幅
+- [x] `AGENT_RULES`、Cursor Rule、copilot-instructions、backend/frontend instructions 指向新 HOT 路径
+
+**踩坑记录**:
+- PowerShell here-string 拆分 architecture 时损坏 Markdown 反引号，已用 Python 修复 data-contracts 文首
+
+**遗留问题**:
+- [ ] Phase 3：`roadmap`、`domains/`、`decisions`、`known-issues`、`glossary`、`changelog`
+- [ ] HOT 六文件合计仍 >2000 行（主因 `data-contracts` 1143 行）；Phase 3 可按域拆表或链到 ORM
+
+**下一步建议**:
+- 执行 Phase 3 WARM/COLD 层
+
+### 2026-06-17 23:12 - Memory-Bank Phase 1 协议层落地
+
+**完成事项**:
+- [x] `VERSION` = `0.87.0`；`AGENT_RULES.md`、`INIT_PROMPT.md`、`.cursor/rules/memory-bank-protocol.mdc`
+- [x] `.gitignore` 排除 `/paradigma/`；copilot-instructions 精简为指针
+
+---
+
 ## 测试基线（Test Baseline）
 
 | 字段 | 值 |
@@ -226,8 +281,7 @@
 
 ### Stage 2 文档同步约定
 
-- 每个 Stage 2 阶段完成后，必须先更新 `memory-bank/architecture.md` 记录实现事实、受影响模块职责与结构变化。
-- 随后必须更新 `memory-bank/progress.md` 记录阶段状态、验证命令、验收结论与待用户测试项。
+- 每个 Stage 2 阶段完成后：schema → `data-contracts.md`；模块/流程 → `architecture.md`；验测 → `progress.md`。
 - 如果某阶段只涉及前端行为变化，也不能跳过 `architecture.md`；需要记录页面行为或模块职责变化。
 - 阶段范围与排期以 `memory-bank/plans/improvements-stage2-implementation-plan.md` 为准；**文档物理路径**以 `memory-bank/README.md` 索引为准（`handbooks/`、`plans/`、`history/`、`archive/outdated/`）。**对齐审查报告**默认写入 `memory-bank/history/reports/alignment-assessment-YYYYMMDD.md`（见 `.github/prompts/memory-bank-alignment-review.prompt.md`）。
 

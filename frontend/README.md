@@ -70,4 +70,4 @@ npm run lint
 - `src/components/`：壳层、命令栏、Push 订阅卡片等
 - `tests/`：前端单元测试
 
-更多模块边界与当前状态，请以仓库根目录 `README.md` 和 `memory-bank/design-document.md` 为准。
+更多模块边界与当前状态见 [`README.md`](../README.md)、[`memory-bank/project-brief.md`](../memory-bank/project-brief.md)、[`memory-bank/domains/task-center.md`](../memory-bank/domains/task-center.md)。

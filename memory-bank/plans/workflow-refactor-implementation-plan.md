@@ -60,8 +60,9 @@
 
 每个阶段完成后，必须同步三类文档：
 
-1. `memory-bank/architecture.md`：记录真实 schema、模块职责和行为事实。
-2. `memory-bank/progress.md`：记录阶段状态、验证命令和用户验收结论。
+1. `memory-bank/data-contracts.md`：schema、枚举变更。
+2. `memory-bank/architecture.md`：模块职责与行为事实。
+3. `memory-bank/progress.md`：阶段状态、验证命令和用户验收结论。
 3. 本文件：只在阶段边界变化或顺序调整时更新，不做流水账。
 
 ## 4. 路线总览

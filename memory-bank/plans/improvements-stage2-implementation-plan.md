@@ -336,7 +336,8 @@
 
 从 Stage 2 开始，每个阶段结束都必须完成两项文档动作：
 
-- 更新 `memory-bank/architecture.md`，记录当前实现事实、受影响模块职责与结构变化
+- schema 变化 → 更新 `memory-bank/data-contracts.md`
+- 模块/流程 → 更新 `memory-bank/architecture.md`
 - 更新 `memory-bank/progress.md`，记录阶段状态、验证命令与验收结论
 
 ## 11. Stage 2 之后的独立产品积压（迭代拆分建议）

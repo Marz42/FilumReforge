@@ -8,4 +8,4 @@
 - 已被 `memory-bank/progress.md` 与 `memory-bank/plans/` 替代的改进清单或草稿；
 - 仅作历史排错、对比或考古保留。
 
-阅读或引用前请先看各文件文首的 **【已归档 / 勿作现行依据】** 提示块。现行事实以仓库根下 `memory-bank/architecture.md`、`memory-bank/progress.md`、`memory-bank/design-document.md` 为准。
+阅读或引用前请先看各文件文首的 **【已归档 / 勿作现行依据】** 提示块。现行事实以 `project-brief.md`、`architecture.md`、`data-contracts.md`、`progress.md` 为准。

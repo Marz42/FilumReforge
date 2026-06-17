@@ -1,5 +1,7 @@
 # Project Filum 技术栈与落地状态
 
+> **【已迁移】** Paradigma Phase 2 起，技术栈摘要权威来源为 [`project-brief.md`](./project-brief.md) §技术栈。本文件保留完整选型叙述与架构图。
+
 **版本**: v2.1.0  
 **核心原则**: 模块化单体 / 类型安全 / 演进式交付 / AI 友好
 

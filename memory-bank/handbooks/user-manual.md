@@ -737,7 +737,7 @@ Project Filum 面向约 50–100 人规模组织，在统一工作台内完成**
 
 ### 12.4 文档维护约定
 
-- **事实来源**: 前端路由 [`frontend/src/router/index.ts`](../../frontend/src/router/index.ts) 与各 [`frontend/src/views/`](../../frontend/src/views/)、`components/` 页面；权限与业务边界以 [`memory-bank/architecture.md`](../architecture.md)、[`design-document.md`](../design-document.md) 为准。
+- **事实来源**: 前端路由与 views；权限与业务边界以 [`project-brief.md`](../project-brief.md)、[`architecture.md`](../architecture.md)、[`domains/task-center.md`](../domains/task-center.md) 为准。
 - **修订时机**: UI 行为变更时同步更新对应章节；自动化验收截图见 `verification-runs/docker-gui-*/screenshots/`（由 `npm run test:e2e:docker-gui` 生成）。
 - **自动化对照**: 权限与关键路径见 [`infra/docker/E2E-GUI-VERIFICATION.md`](../../infra/docker/E2E-GUI-VERIFICATION.md)；Playwright 规格见 `frontend/e2e/docker-gui-verification/`。
 - **不负责**: API 明细、部署、数据库运维（见 `handbooks/deployment-runbook-ubuntu-2404.md` 等）。
