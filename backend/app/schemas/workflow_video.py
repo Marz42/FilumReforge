@@ -16,7 +16,7 @@ AggregateOnConfirmAction = Literal["finalize_topics_and_fork", "advance_only"]
 class LaunchFieldSchema(BaseModel):
   key: str = Field(min_length=1, max_length=64)
   label: str = Field(min_length=1, max_length=120)
-  type: Literal["text", "textarea", "datetime", "user_multi", "department"] = "text"
+  type: Literal["text", "textarea", "datetime", "user", "user_multi", "department"] = "text"
   required: bool = False
   policy_ref: str | None = Field(default=None, max_length=64)
 

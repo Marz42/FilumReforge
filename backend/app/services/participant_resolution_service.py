@@ -9,10 +9,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.enums import UserStatus
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models import User, WorkflowGraphTemplate
+from app.models import Profile, User, WorkflowGraphTemplate
 from app.schemas.workflow_video import ParticipantPolicyDefinition, ParticipantsSnapshotEntry
-from app.services.access_control import ensure_active_user
+from app.services.access_control import (
+  ensure_active_user,
+  expand_department_ids,
+  get_actor_department_id,
+  get_effective_managed_department_ids,
+)
 from app.services.workflow_rule_resolver import (
   _load_users,
   parse_uuid_value,
@@ -135,6 +141,30 @@ class ParticipantResolutionService:
       mode=normalized_mode,
       user_ids=[user.id for user in users],
     )
+
+  async def list_managed_department_member_options(self, *, actor: User) -> list[User]:
+    """Active users in managed departments and the actor's own department subtree (launch manager picker)."""
+    ensure_active_user(actor)
+    department_ids = set(await get_effective_managed_department_ids(self._session, actor.id))
+    actor_department_id = await get_actor_department_id(self._session, actor.id)
+    if actor_department_id is not None:
+      department_ids |= await expand_department_ids(self._session, {actor_department_id})
+    if not department_ids:
+      return []
+
+    users = list(
+      await self._session.scalars(
+        select(User)
+        .join(Profile, Profile.user_id == User.id)
+        .options(selectinload(User.profile))
+        .where(
+          User.status == UserStatus.ACTIVE,
+          Profile.department_id.in_(department_ids),
+        )
+        .order_by(Profile.real_name.asc().nulls_last(), User.email.asc())
+      )
+    )
+    return users
 
   async def preview_for_template(
     self,

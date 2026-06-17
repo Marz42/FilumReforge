@@ -17,7 +17,7 @@ docker compose exec api python -m app.scripts.seed_sample_data --password FilumT
 - Demo 账号：`demo.video.copy.lead@example.com`、`demo.video.copy.a/b/c@example.com`、`demo.video.vo.lead@example.com`、`demo.video.vo.a@example.com`、`demo.video.post.lead@example.com`、`demo.video.editor@example.com`
 - 图模板：`topic_meeting_batch_v1`、`video_production_per_topic_v1`（N1–N2 / N3–N12 + 打回边）
 
-仅重跑图模板（组织已存在时）：
+仅重跑图模板（组织已存在时；`launch_schema` / `seed_version` 变更后也必须重跑以刷新实例化表单）：
 
 ```bash
 docker compose exec api python -m app.scripts.seed_workflow_video_templates
@@ -33,11 +33,13 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workflow-gra
 
 ## 3. 启用图模板引擎
 
-在 API 环境变量中设置：
+在 API 环境变量中设置（`.env` 或 Compose）：
 
 ```text
 WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true
 ```
+
+[`infra/docker/docker-compose.yml`](../../infra/docker/docker-compose.yml) 已透传该变量（默认 `${WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED:-false}`）；本地开发栈请在 `infra/docker/.env` 设为 `true` 并重启 API 容器。
 
 重启 API 容器使配置生效。
 
@@ -46,7 +48,7 @@ WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true
 以具备 `can_publish_org_tasks` 的账号登录（如 `demo.video.copy.lead@example.com` 或部门负责人）。
 
 1. `GET /workflow-graph/templates` — 应看到 `topic_meeting_batch_v1`、`video_production_per_topic_v1` 且 `status=active`。
-2. `POST /workflow-graph/templates/{batch_id}/runs` — body 含 `theme`、`manager_user_id`（客户成功负责人 `demo.success@example.com` 亦可）、`participants_snapshot.copywriters`。
+2. `POST /workflow-graph/templates/{batch_id}/runs` — body 含 `theme`、`manager_user_id`（**UUID**，来自实例化 Dialog 负责人下拉或 `GET .../managed-department-member-options`）、`participants_snapshot.copywriters`。
 3. 文案账号提交 N1 采集 → N2 汇总 `finalize-topics` → 自动 fork 子 Run。
 4. `POST /workflow-graph/instances/{batch_id}/fork-production` — 幂等，重复调用不重复子 Run。
 

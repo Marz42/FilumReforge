@@ -252,3 +252,39 @@ async def test_w2_preview_for_template_returns_snapshot(db_session) -> None:
   assert snapshot.mode == "subset"
   assert set(snapshot.user_ids) == {editor_a.id, editor_b.id}
   assert len(users) == 2
+
+
+@pytest.mark.asyncio
+async def test_w2_list_managed_department_member_options_for_dept_manager(db_session) -> None:
+  _admin, manager, editor_a, editor_b, _template = await _bootstrap_copywriting_team(db_session)
+  service = ParticipantResolutionService(db_session)
+  options = await service.list_managed_department_member_options(actor=manager)
+  option_ids = {user.id for user in options}
+  assert option_ids == {manager.id, editor_a.id, editor_b.id}
+
+
+@pytest.mark.asyncio
+async def test_w2_list_managed_department_member_options_empty_without_department_scope(
+  db_session,
+) -> None:
+  admin, _manager, _editor_a, _editor_b, _template = await _bootstrap_copywriting_team(db_session)
+  user_service = UserService(db_session)
+  lonely = await user_service.create_user(
+    actor=admin,
+    email="w2-no-dept@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  service = ParticipantResolutionService(db_session)
+  assert await service.list_managed_department_member_options(actor=lonely) == []
+
+
+@pytest.mark.asyncio
+async def test_w2_list_managed_department_member_options_includes_actor_department_members(
+  db_session,
+) -> None:
+  _admin, _manager, editor_a, editor_b, _template = await _bootstrap_copywriting_team(db_session)
+  service = ParticipantResolutionService(db_session)
+  options = await service.list_managed_department_member_options(actor=editor_a)
+  option_ids = {user.id for user in options}
+  assert option_ids == {editor_a.id, editor_b.id, _manager.id}

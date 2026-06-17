@@ -4,11 +4,15 @@ import { ElMessage } from 'element-plus'
 
 import {
   createGraphTemplateRun,
+  listManagedDepartmentMemberOptions,
   previewWorkflowParticipants,
 } from '@/api/workflow-graph'
-import type { GraphTemplateSummary } from '@/types/workflowVideo'
+import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
+import { useAuthStore } from '@/stores/auth'
+import type { GraphTemplateSummary, ParticipantUserPreview } from '@/types/workflowVideo'
 import type { User } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
+import { formatUserOptionLabel } from '@/utils/userDisplay'
 import {
   resolveLaunchSchema,
   resolveParticipantPolicyRefs,
@@ -26,15 +30,19 @@ const emit = defineEmits<{
   created: [payload: { instanceId: string; rootTaskId: string }]
 }>()
 
+const authStore = useAuthStore()
 const submitting = ref(false)
 const previewLoading = ref(false)
+const managerLoading = ref(false)
 const launchValues = reactive<Record<string, string>>({})
+const launchDateTimes = reactive<Record<string, Date | null>>({})
 const runLabel = ref('')
 const departmentId = ref('')
 const participantMode = ref<'all' | 'subset'>('subset')
 const selectedParticipantIds = ref<string[]>([])
-const previewUsers = ref<Array<{ id: string; email: string; display_name?: string | null }>>([])
-const candidateUsers = ref<Array<{ id: string; email: string; display_name?: string | null }>>([])
+const previewUsers = ref<ParticipantUserPreview[]>([])
+const candidateUsers = ref<ParticipantUserPreview[]>([])
+const managerCandidates = ref<ParticipantUserPreview[]>([])
 
 const visible = computed({
   get: () => props.modelValue,
@@ -43,27 +51,48 @@ const visible = computed({
 
 const launchSchema = computed(() => resolveLaunchSchema(props.template?.config as Record<string, unknown> | undefined))
 const policyRef = computed(() => resolveParticipantPolicyRefs(props.template?.config as Record<string, unknown> | undefined)[0] ?? 'copywriters')
-const templateConfig = computed(() => (props.template?.config ?? {}) as Record<string, unknown>)
 
 const userOptions = computed(() =>
   props.users
     .filter((user) => user.status === 'active')
     .map((user) => ({
       value: user.id,
-      label: user.email,
+      label: formatUserOptionLabel({ email: user.email }),
     })),
 )
+
+/** 负责人与「指定成员」同源：管理所负责部门 + 所属部门成员，并与参与人预览合并去重 */
+const managerUserOptions = computed(() => {
+  const byId = new Map<string, { value: string; label: string }>()
+  for (const user of [...managerCandidates.value, ...candidateUsers.value]) {
+    byId.set(user.id, { value: user.id, label: formatUserOptionLabel(user) })
+  }
+  return [...byId.values()]
+})
 
 const participantUserOptions = computed(() => {
   const fromCandidates = candidateUsers.value.map((user) => ({
     value: user.id,
-    label: user.email,
+    label: formatUserOptionLabel(user),
   }))
   if (fromCandidates.length > 0) {
     return fromCandidates
   }
   return userOptions.value
 })
+
+const previewUserSummary = computed(() =>
+  previewUsers.value.map((user) => formatUserOptionLabel(user)).join('，'),
+)
+
+function isManagerUserField(key: string): boolean {
+  return key === 'manager_user_id'
+}
+
+function setLaunchDateTime(key: string, value: Date | null): void {
+  launchDateTimes[key] = value
+  launchValues[key] = value ? value.toISOString() : ''
+}
 
 function resetForm(): void {
   runLabel.value = ''
@@ -72,12 +101,52 @@ function resetForm(): void {
   selectedParticipantIds.value = []
   previewUsers.value = []
   candidateUsers.value = []
+  managerCandidates.value = []
   for (const key of Object.keys(launchValues)) {
     delete launchValues[key]
   }
+  for (const key of Object.keys(launchDateTimes)) {
+    delete launchDateTimes[key]
+  }
   for (const field of launchSchema.value?.fields ?? []) {
     launchValues[field.key] = ''
+    if (field.type === 'datetime') {
+      launchDateTimes[field.key] = null
+    }
   }
+}
+
+function applyDefaultManager(): void {
+  const options = managerUserOptions.value
+  const current = launchValues.manager_user_id?.trim()
+  if (current && options.some((option) => option.value === current)) {
+    return
+  }
+  const currentId = authStore.user?.id
+  if (currentId && options.some((option) => option.value === currentId)) {
+    launchValues.manager_user_id = currentId
+    return
+  }
+  launchValues.manager_user_id = ''
+}
+
+async function loadManagerOptions(): Promise<void> {
+  managerLoading.value = true
+  try {
+    managerCandidates.value = await listManagedDepartmentMemberOptions()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+    managerCandidates.value = []
+  } finally {
+    managerLoading.value = false
+  }
+}
+
+async function loadDialogOptions(): Promise<void> {
+  await loadCandidateUsers()
+  await loadManagerOptions()
+  applyDefaultManager()
+  await loadParticipantPreview()
 }
 
 async function loadCandidateUsers(): Promise<void> {
@@ -171,7 +240,7 @@ watch(
   (open) => {
     if (open) {
       resetForm()
-      void loadCandidateUsers().then(() => loadParticipantPreview())
+      void loadDialogOptions()
     }
   },
 )
@@ -210,7 +279,30 @@ watch(participantMode, () => {
           :required="field.required"
         >
           <el-select
-            v-if="field.type === 'user'"
+            v-if="field.type === 'user' && isManagerUserField(field.key)"
+            v-model="launchValues[field.key]"
+            filterable
+            clearable
+            :loading="managerLoading && managerUserOptions.length === 0"
+            :placeholder="
+              managerLoading && managerUserOptions.length === 0
+                ? '正在加载负责人…'
+                : managerUserOptions.length
+                  ? '选择负责人'
+                  : '暂无可选负责人'
+            "
+            :disabled="managerUserOptions.length === 0"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="option in managerUserOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+          <el-select
+            v-else-if="field.type === 'user'"
             v-model="launchValues[field.key]"
             filterable
             clearable
@@ -224,6 +316,12 @@ watch(participantMode, () => {
               :value="option.value"
             />
           </el-select>
+          <FilumDateTimePicker
+            v-else-if="field.type === 'datetime'"
+            :model-value="launchDateTimes[field.key] ?? null"
+            :placeholder="field.label"
+            @update:model-value="setLaunchDateTime(field.key, $event)"
+          />
           <el-input
             v-else-if="field.type === 'textarea'"
             v-model="launchValues[field.key]"
@@ -258,7 +356,7 @@ watch(participantMode, () => {
           </el-select>
         </el-form-item>
         <p v-if="previewUsers.length" class="workflow-dialog__preview">
-          将展开 {{ previewUsers.length }} 个采集任务
+          将展开 {{ previewUsers.length }} 个采集任务<span v-if="previewUserSummary">：{{ previewUserSummary }}</span>
         </p>
       </el-form>
     </template>

@@ -7,7 +7,7 @@ from uuid import UUID
 
 TOPIC_MEETING_BATCH_CODE = "topic_meeting_batch_v1"
 VIDEO_PRODUCTION_CODE = "video_production_per_topic_v1"
-SEED_VERSION = 1
+SEED_VERSION = 2
 
 CAPTURE_SCHEMA_TOPIC: dict[str, Any] = {
   "mode": "row_table",
@@ -38,7 +38,7 @@ AGGREGATE_SCHEMA_TOPIC: dict[str, Any] = {
 LAUNCH_SCHEMA_TOPIC: dict[str, Any] = {
   "fields": [
     {"key": "theme", "label": "征集主题", "type": "text", "required": True},
-    {"key": "manager_user_id", "label": "负责人", "type": "text", "required": True},
+    {"key": "manager_user_id", "label": "负责人", "type": "user", "required": True},
     {"key": "due_at", "label": "截止", "type": "datetime"},
   ]
 }

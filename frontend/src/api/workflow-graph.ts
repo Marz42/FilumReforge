@@ -8,6 +8,7 @@ import type {
   RejectCapturesResponse,
   FinalizeTopicsResponse,
   InstanceSubmissionsResponse,
+  ParticipantUserPreview,
   PreviewParticipantsResponse,
   TopicCaptureSubmitResponse,
   WorkflowGraphInstanceSummary,
@@ -168,6 +169,13 @@ export async function createGraphTemplateRun(
   const { data } = await http.post<CreateGraphTemplateRunResponse>(
     `/workflow-graph/templates/${templateId}/runs`,
     payload,
+  )
+  return data
+}
+
+export async function listManagedDepartmentMemberOptions(): Promise<ParticipantUserPreview[]> {
+  const { data } = await http.get<ParticipantUserPreview[]>(
+    '/workflow-graph/managed-department-member-options',
   )
   return data
 }

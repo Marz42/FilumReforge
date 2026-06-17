@@ -160,9 +160,14 @@ test.describe('Workflow Video multi-account mock', () => {
 
     await dialog.locator('.el-form-item').filter({ hasText: '征集主题' }).locator('input').fill(THEME)
     await dialog.getByPlaceholder('例如：第 12 周选题会').fill(RUN_LABEL)
-    const managerField = dialog.locator('.el-form-item').filter({ hasText: '负责人' })
-    await managerField.locator('.el-select').click()
-    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click()
+    const managerSelect = dialog.locator('.el-form-item').filter({ hasText: '负责人' }).locator('.el-select')
+    await managerSelect.click()
+    await page
+      .locator('.el-select-dropdown:visible .el-select-dropdown__item')
+      .filter({ hasText: 'demo.video.copy.lead@example.com' })
+      .first()
+      .click()
+    await page.keyboard.press('Escape').catch(() => {})
     await dialog.getByText('部门全员').click()
     await expect(dialog.getByText(/将展开 \d+ 个采集任务/)).toBeVisible({ timeout: 15_000 })
 

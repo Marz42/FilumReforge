@@ -127,6 +127,26 @@ async def get_workflow_feature_flags(
 
 
 @router.get(
+  "/managed-department-member-options",
+  response_model=list[ParticipantUserPreview],
+  tags=["workflow-graph"],
+)
+async def list_managed_department_member_options(
+  actor: Annotated[User, Depends(get_current_user)],
+  participant_service: Annotated[ParticipantResolutionService, Depends(get_participant_resolution_service)],
+) -> list[ParticipantUserPreview]:
+  users = await participant_service.list_managed_department_member_options(actor=actor)
+  return [
+    ParticipantUserPreview(
+      id=user.id,
+      email=user.email,
+      display_name=_user_display_name(user),
+    )
+    for user in users
+  ]
+
+
+@router.get(
   "/templates",
   response_model=list[WorkflowGraphTemplateSummaryRead],
   tags=["workflow-graph"],

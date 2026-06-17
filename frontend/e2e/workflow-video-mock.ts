@@ -551,6 +551,16 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
+    if (request.method() === 'GET' && apiPath === '/workflow-graph/managed-department-member-options') {
+      await fulfillJson(route, [
+        { id: copyLeadUser.id, email: copyLeadUser.email, display_name: '韩策' },
+        { id: editorUsers[0].id, email: editorUsers[0].email, display_name: '陆言' },
+        { id: editorUsers[1].id, email: editorUsers[1].email, display_name: '宋遥' },
+        { id: editorUsers[2].id, email: editorUsers[2].email, display_name: '程野' },
+      ])
+      return
+    }
+
     if (request.method() === 'GET' && apiPath === '/workflow-graph/feature-flags') {
       await fulfillJson(route, {
         workflow_graph_engine_enabled: true,
@@ -578,6 +588,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
               fields: [
                 { key: 'theme', label: '征集主题', type: 'text', required: true },
                 { key: 'manager_user_id', label: '负责人', type: 'user', required: true },
+                { key: 'due_at', label: '截止', type: 'datetime' },
               ],
             },
             participant_policies: { copywriters: { type: 'department_members' } },

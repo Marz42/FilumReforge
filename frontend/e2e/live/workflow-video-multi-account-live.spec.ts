@@ -390,7 +390,7 @@ test.describe('Workflow Video multi-account live', () => {
   })
 
   test('Phase A: copy lead instantiates batch run', async ({ page }) => {
-    const { userId: leadUserId, accessToken: leadToken } = await login(page, ACCOUNTS.copyLead)
+    const { accessToken: leadToken } = await login(page, ACCOUNTS.copyLead)
     await page.goto('/task-templates')
     await expect(page.getByTestId('task-templates-page')).toBeVisible({ timeout: 30_000 })
     await page.getByRole('tab', { name: /图模板/ }).click()
@@ -406,7 +406,8 @@ test.describe('Workflow Video multi-account live', () => {
     expect(candidatePreviewResp.ok(), `preview-participants failed: ${candidatePreviewResp.status()}`).toBeTruthy()
     await dialog.locator('.el-form-item').filter({ hasText: '征集主题' }).locator('input').fill(THEME)
     await dialog.getByPlaceholder('例如：第 12 周选题会').fill(RUN_LABEL)
-    await dialog.locator('.el-form-item').filter({ hasText: '负责人' }).locator('input').fill(leadUserId)
+    const managerSelect = dialog.locator('.el-form-item').filter({ hasText: '负责人' }).locator('.el-select')
+    await pickElSelectOption(page, managerSelect, ACCOUNTS.copyLead)
     await dialog.getByText('指定成员', { exact: true }).click()
     await selectParticipantEmails(page, dialog, [ACCOUNTS.copyA, ACCOUNTS.copyB, ACCOUNTS.copyC])
     await expect(dialog.getByText(/将展开 3 个采集任务/)).toBeVisible({ timeout: 60_000 })

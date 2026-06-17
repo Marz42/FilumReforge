@@ -134,6 +134,8 @@
 
 **多账号 E2E 收口（2026-05-19）**：指南 [`handbooks/workflow-video-v1-multi-account-e2e-guide.md`](handbooks/workflow-video-v1-multi-account-e2e-guide.md)。实现侧：`WorkflowVideoInstantiationService` 实例化/生产 fork `commit`；`TemplateInstantiateDialog` 参与人来自 `preview-participants`；`TemplateAggregatePanel` 合并 script_author 选项；`workflow_rule_resolver` 支持 `department_pool.assignee_role: member`；生产 fork 仅 start 节点解析 assignee。Playwright 导航：finalize 后批次 ROOT 在 **历史** Tab；E/F 按 **选题标题** 打开制作 Run 根任务并点击列表行。
 
+**选题会实例化 Dialog 修复（2026-05-19）**：种子 `SEED_VERSION=2`，`manager_user_id` 改为 `type: user`；`LaunchFieldSchema` 补 `user` 类型；新增 `GET .../managed-department-member-options`（负责部门 + 所属部门子树在职成员）；`TemplateInstantiateDialog` 负责人下拉与「指定成员」同源、显示「姓名（邮箱）」、`due_at` 用 `FilumDateTimePicker`；Compose 透传 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`。已有 Docker 库须重跑 `seed_workflow_video_templates`。测试：W1/W2/W3 pytest + `test:e2e:workflow-video-multi-account-mock` **7/7**。
+
 ## 当前阶段状态
 
 | 阶段 | 状态 | 结论 |

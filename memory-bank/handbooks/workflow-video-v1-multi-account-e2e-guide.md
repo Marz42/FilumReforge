@@ -91,7 +91,7 @@ npm run test:e2e:workflow-video-live
 
 1. `docker compose down -v` → 起 postgres/redis/backend（`--build`）
 2. `seed_sample_data --password FilumPlaywright123!`
-3. `seed_workflow_video_templates`
+3. `seed_workflow_video_templates`（模板 `seed_version` 升级后需对已有库 **重跑** 该命令以刷新 `launch_schema`）
 4. 起 frontend/nginx/worker；等待 `/login` 可访问
 
 Compose 已设置 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`。配置见 [`frontend/e2e/live/compose-env.mjs`](../../frontend/e2e/live/compose-env.mjs)。
@@ -144,11 +144,11 @@ npx playwright test -c playwright.workflow-video-live.config.ts
 
 1. 登录 → **任务模板** → **图模板** Tab。
 2. 「选题会（批次）」→ **实例化**。
-3. 填写：征集主题（含本次 Run 标记）、运行标题、负责人（本人 UUID 或经理）。
+3. 填写：征集主题（含本次 Run 标记）、运行标题、**负责人**（下拉，所负责部门在职成员，显示「姓名（邮箱）」；默认选中当前登录用户）、**截止**（日期时间选择器，可选）。
 4. 参与人：自动化选 **指定成员** `copy.a` / `copy.b` / `copy.c`（**勿选部门全员**——全员含 lead 本人，若 lead 未完成 N1 采集则 N2 不会激活）。
 5. 确认提示「将展开 3 个采集任务」→ **创建运行**。
 
-> 参与人下拉数据来自 `POST .../preview-participants`，非 `GET /users`（copy lead 无 listUsers 权限时全员下拉会为空）。
+> 负责人选项来自 `GET .../managed-department-member-options`；文案参与人来自 `POST .../preview-participants`（非 `GET /users`）。
 
 ### 阶段 B — 三名文案：提交选题
 
@@ -245,7 +245,9 @@ npx playwright show-report verification-runs/workflow-video-live-<时间戳>/pla
 
 | 现象 | 原因 / 处理 |
 | --- | --- |
-| 图模板 Tab 无实例化 / 403 | `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true` |
+| 图模板 Tab 无实例化 / 403 | `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`（Compose 已透传；`.env` 设为 `true` 并重启 API） |
+| 负责人下拉显示 UUID / 为空 | 须 `seed_version≥2` 且重跑 `seed_workflow_video_templates`；负责人来自 `managed-department-member-options`，与参与人预览合并 |
+| `LaunchSchema` 校验 `type=user` 失败 | 后端 `LaunchFieldSchema` 须含 `user`；升级 API 镜像后重跑种子 |
 | 参与人下拉为空 | 应用 `preview-participants` 填充选项；勿依赖 `listUsers` |
 | 实例化后 copy 成员 inbox=0 | 图实例化未 `commit`；确认 `WorkflowVideoInstantiationService` 已持久化 |
 | 汇总矩阵为空 | B 阶段三人均已提交；点「刷新汇总」 |

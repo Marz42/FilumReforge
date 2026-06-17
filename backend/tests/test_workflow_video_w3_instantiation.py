@@ -49,7 +49,7 @@ AGGREGATE_SCHEMA = {
 LAUNCH_SCHEMA = {
   "fields": [
     {"key": "theme", "label": "主题", "type": "text", "required": True},
-    {"key": "manager_user_id", "label": "负责人", "type": "text", "required": True},
+    {"key": "manager_user_id", "label": "负责人", "type": "user", "required": True},
   ]
 }
 

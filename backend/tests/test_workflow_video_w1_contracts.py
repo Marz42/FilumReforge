@@ -36,6 +36,18 @@ def test_w1_launch_schema_requires_fields() -> None:
   assert len(parsed.fields) == 2
 
 
+def test_w1_launch_schema_accepts_single_user_field() -> None:
+  parsed = validate_launch_schema(
+    {
+      "fields": [
+        {"key": "theme", "label": "主题", "type": "text", "required": True},
+        {"key": "manager_user_id", "label": "负责人", "type": "user", "required": True},
+      ]
+    }
+  )
+  assert parsed.fields[1].type == "user"
+
+
 def test_w1_capture_schema_rejects_invalid_row_bounds() -> None:
   with pytest.raises(ValidationError, match="max_rows"):
     CaptureSchema.model_validate(
