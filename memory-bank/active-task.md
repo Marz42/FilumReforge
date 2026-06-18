@@ -10,7 +10,7 @@
 |------|------|
 | **任务标题** | 任务中心 v2 重做 · **TC-P2**（视图拆分 + 任务统计） |
 | **优先级** | P0 · 路线图下一焦点 |
-| **状态** | TC-P0 ✅ @ `7bc242c`；TC-P1 ✅ @ `feat/task-center-p0-profile`（P1-7/P1-8 本地待 commit）；**TC-P2 未开始** |
+| **状态** | TC-P0 ✅ @ `7bc242c`；TC-P1 ✅ @ `578c149`（已合并 **main**）；**TC-P2 未开始** |
 | **关联** | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) §TC-P2、[`plans/workflow-video-v1-ui-simplification-design.md`](./plans/workflow-video-v1-ui-simplification-design.md) §11.3 |
 
 ---
@@ -32,8 +32,8 @@
 
 ## TC-P1 收尾（工程，非功能阻塞）
 
-- [ ] 提交 P1-7/P1-8 变更（建议 2 commit，见实施计划 §实施顺序）
-- [ ] 合并 `feat/task-center-p0-profile` → main
+- [x] 提交 P1-7/P1-8 变更并合并 main @ `578c149`
+- [ ] （可选）`git push origin main`
 - [ ] （可选）live 多账号 E2E、Docker A–F 手工实测
 
 ---
