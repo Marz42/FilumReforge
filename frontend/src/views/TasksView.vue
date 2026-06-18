@@ -30,6 +30,7 @@ import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import VideoCapturePanel from '@/components/workflow/VideoCapturePanel.vue'
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
+import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
 import {
   isVideoWorkflowProfile,
   resolveTaskDetailProfile,
@@ -457,7 +458,10 @@ const selectedTaskUserFacingTagType = computed(() => {
 })
 const usesVideoWorkflowLayout = computed(() => isVideoWorkflowProfile(selectedTaskProfile.value))
 const showCaptureProgressPanel = computed(
-  () => selectedTaskProfile.value.showCaptureProgress && graphInstance.value !== null,
+  () => selectedTaskProfile.value.id === 'video_n2_aggregate' && graphInstance.value !== null,
+)
+const showVideoTrackingPanel = computed(
+  () => selectedTaskProfile.value.id === 'video_batch_root' && graphInstance.value !== null,
 )
 const showDetailHeaderActions = computed(() => {
   const profileId = selectedTaskProfile.value.id
@@ -1520,6 +1524,12 @@ watch(
               </el-descriptions-item>
             </el-descriptions>
 
+            <VideoTrackingPanel
+              v-if="showVideoTrackingPanel && graphInstance"
+              :graph-instance="graphInstance"
+              :users="users"
+              @dispatched="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
+            />
             <VideoCaptureProgressPanel
               v-if="showCaptureProgressPanel && graphInstance"
               :graph-instance="graphInstance"

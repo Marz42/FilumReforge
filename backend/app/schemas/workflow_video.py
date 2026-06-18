@@ -213,6 +213,20 @@ class FinalizeTopicsResponse(BaseModel):
   message: str | None = None
 
 
+class DispatchTopicRequest(BaseModel):
+  topic_id: UUID
+  title: str = Field(min_length=1, max_length=255)
+  script_writer_user_id: UUID
+  source_node_instance_id: UUID | None = None
+
+
+class DispatchTopicResponse(BaseModel):
+  instance_id: UUID
+  child_instance_id: UUID
+  fork_status: str
+  message: str | None = None
+
+
 class CreateGraphTemplateRunRequest(BaseModel):
   inputs: dict[str, Any] = Field(default_factory=dict)
   participants_snapshot: dict[str, ParticipantsSnapshotEntry] = Field(min_length=1)

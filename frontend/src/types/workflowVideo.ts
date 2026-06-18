@@ -56,6 +56,20 @@ export interface FinalizeTopicsResponse {
   message?: string | null
 }
 
+export interface DispatchTopicRequest {
+  topic_id: string
+  title: string
+  script_writer_user_id: string
+  source_node_instance_id?: string | null
+}
+
+export interface DispatchTopicResponse {
+  instance_id: string
+  child_instance_id: string
+  fork_status: string
+  message?: string | null
+}
+
 export interface RejectedCaptureItem {
   reason: string
   topic_id?: string

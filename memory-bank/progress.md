@@ -2,6 +2,23 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 — TC-P1 增量派发（dispatch_topic + VideoTrackingPanel）
+
+**完成事项**:
+- [x] `POST /workflow-graph/instances/{id}/dispatch-topic` API + `WorkflowVideoFormService.dispatch_topic()`
+- [x] N1 强制单条选题；capture 完成后 Task → `done`
+- [x] `_ensure_finalize_actor` 允许批次负责人（`manager_user_id`）与 N2 assignee
+- [x] 前端 `VideoTrackingPanel`（ROOT 跟踪页 x/y + 行级「指派并启动制作」）
+- [x] pytest `test_workflow_video_dispatch_topic.py`；mock E2E `workflow-video-incremental-dispatch-mock.spec.ts`
+
+**遗留（TC-P1 余量）**:
+- [ ] P1-6 `VideoProductionPanel` 文件提交
+- [ ] P1-7 更多菜单退回
+- [ ] P1-8 实例化 participant 默认策略
+
+**下一步建议**:
+- P1-6 制作步骤文件上传主按钮 → P1-7 打回菜单
+
 ### 2026-06-18 12:42 - 任务协同 UI 简化设计 + HTML Demo
 
 **完成事项**:

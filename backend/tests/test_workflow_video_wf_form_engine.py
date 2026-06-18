@@ -187,7 +187,8 @@ async def test_wf_submit_capture_persists_topics_and_marks_review(db_session) ->
 
   await db_session.refresh(seed["task"])
   await db_session.refresh(seed["propose_node"])
-  assert seed["task"].status == TaskStatus.REVIEW
+  assert seed["task"].status == TaskStatus.DONE
+  assert seed["task"].completed_at is not None
   assert seed["propose_node"].engine_state == WorkflowNodeEngineState.COMPLETED
 
 

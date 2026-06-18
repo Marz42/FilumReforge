@@ -80,6 +80,7 @@ export const videoMockState = {
   childInstanceIds: [] as string[],
   childRootTaskIds: [] as string[],
   captureSubmitted: new Set<string>(),
+  forkedTopics: {} as Record<string, string>,
   finalized: false,
   forked: false,
   /** When false, `/auth/refresh` returns 401 so the login form is shown (guestOnly redirect). */
@@ -98,6 +99,7 @@ export const videoMockState = {
 
 export function resetVideoMockForMultiAccount(runLabel: string): void {
   videoMockState.captureSubmitted.clear()
+  videoMockState.forkedTopics = {}
   videoMockState.rejectedTopicIds.clear()
   videoMockState.finalized = false
   videoMockState.forked = false
@@ -119,11 +121,11 @@ function buildCaptureTask(editorId: string, taskId: string) {
     // E2E 以管理员登录，采集面板仅对当前 assignee 可见
     assignee_id: editor.id,
     department_id: 'dept-video-copy',
-    status: videoMockState.captureSubmitted.has(taskId) ? 'review' : 'doing',
+    status: videoMockState.captureSubmitted.has(taskId) ? 'done' : 'doing',
     priority: 'medium',
     due_date: null,
     started_at: '2025-05-01T08:00:00Z',
-    completed_at: null,
+    completed_at: videoMockState.captureSubmitted.has(taskId) ? '2025-05-01T09:00:00Z' : null,
     parent_task_id: rootTaskId,
     source_type: 'template',
     extra_metadata: {
@@ -369,6 +371,7 @@ function buildBatchGraphInstance() {
       root_task_id: rootTaskId,
       fork_status: videoMockState.forked ? 'completed' : 'pending',
       forked_child_instance_ids: videoMockState.childInstanceIds,
+      forked_topics: { ...videoMockState.forkedTopics },
       schema_snapshot: {
         nodes: {
           N1_PROPOSE: {
@@ -666,26 +669,30 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       && (apiPath === `/workflow-graph/instances/${batchInstanceId}/submissions`
         || apiPath.startsWith(`/workflow-graph/instances/${batchInstanceId}/submissions?`))
     ) {
-      const submissions = captureTasks
-        .filter((task) => videoMockState.captureSubmitted.has(task.id))
-        .map((task) => {
-          const topicIndex = captureTasks.findIndex((capture) => capture.id === task.id)
-          return {
+      const submissions = captureTasks.map((task) => {
+        const topicIndex = captureTasks.findIndex((capture) => capture.id === task.id)
+        const editor = editorUsers[topicIndex] ?? editorUsers[0]
+        const submitted = videoMockState.captureSubmitted.has(task.id)
+        return {
           node_instance_id: task.extra_metadata.workflow_node_instance_id,
           node_key: 'N1_PROPOSE',
           instance_key: task.extra_metadata.template_node_instance_key,
           assignee_user_id: task.assignee_id,
-          assignee_email: editorUsers[topicIndex]?.email ?? adminUser.email,
-          topics: [
-            {
-              topic_id: videoMockState.topicIds[topicIndex],
-              title: `选题 ${String.fromCharCode(65 + topicIndex)}`,
-              content: null,
-              reason: null,
-            },
-          ],
+          assignee_email: editor.email,
+          assignee_display_name: editor.email,
+          submitted_at: submitted ? '2025-05-01T09:00:00Z' : null,
+          topics: submitted
+            ? [
+                {
+                  topic_id: videoMockState.topicIds[topicIndex],
+                  title: `选题 ${String.fromCharCode(65 + topicIndex)}`,
+                  content: null,
+                  reason: null,
+                },
+              ]
+            : [],
         }
-        })
+      })
       await fulfillJson(route, { instance_id: batchInstanceId, node_key: 'N1_PROPOSE', submissions })
       return
     }
@@ -699,6 +706,48 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
         instance_id: batchInstanceId,
         rejected_count: body.topic_ids?.length ?? 0,
         reason: body.reason ?? 'UAT mock reject',
+      })
+      return
+    }
+
+    if (request.method() === 'POST' && apiPath === `/workflow-graph/instances/${batchInstanceId}/dispatch-topic`) {
+      const body = request.postDataJSON() as {
+        topic_id?: string
+        title?: string
+        script_writer_user_id?: string
+      }
+      const topicId = body.topic_id ?? ''
+      if (topicId && videoMockState.forkedTopics[topicId]) {
+        await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ detail: '该选题已派发制作，不可重复。' }) })
+        return
+      }
+
+      const topicIndex = Math.max(0, videoMockState.topicIds.indexOf(topicId))
+      const childId = `child-inst-dispatch-${topicIndex + 1}`
+      const childTaskId = `task-child-dispatch-${topicIndex + 1}`
+      const scriptTaskId = `task-n3-dispatch-${topicIndex + 1}`
+      const reviewTaskId = `task-n4-dispatch-${topicIndex + 1}`
+      const authorId = body.script_writer_user_id ?? editorUsers[topicIndex]?.id ?? editorUsers[0].id
+
+      videoMockState.forked = true
+      videoMockState.forkedTopics[topicId] = childId
+      if (!videoMockState.childInstanceIds.includes(childId)) {
+        videoMockState.childInstanceIds.push(childId)
+        videoMockState.childRootTaskIds.push(childTaskId)
+        videoMockState.productionTasks.push({
+          scriptTaskId,
+          reviewTaskId,
+          authorId,
+          deliverableDone: false,
+          reviewDone: false,
+        })
+      }
+
+      await fulfillJson(route, {
+        instance_id: batchInstanceId,
+        child_instance_id: childId,
+        fork_status: 'partial',
+        message: '已指派并启动制作子 Run。',
       })
       return
     }

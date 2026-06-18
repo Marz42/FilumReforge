@@ -2,7 +2,8 @@
 
 > 🌡️ WARM — 涉及选题会、批次 Run、按题 fork、表单引擎时读取。
 
-**计划**: `plans/workflow-video-v1-implementation-plan.md` v2.0 · **ADR**: `decisions.md` ADR-006 · **运维**: `handbooks/workflow-video-v1-*.md`
+**计划**: `plans/workflow-video-v1-implementation-plan.md` v2.0 · **ADR**: `decisions.md` ADR-006 · **运维**: `handbooks/workflow-video-v1-*.md`  
+**UI 迭代（v2 草案）**: [`plans/workflow-video-v1-ui-simplification-design.md`](../plans/workflow-video-v1-ui-simplification-design.md) · Demo: [`demos/workflow-task-detail-v2.html`](../demos/workflow-task-detail-v2.html)
 
 ---
 

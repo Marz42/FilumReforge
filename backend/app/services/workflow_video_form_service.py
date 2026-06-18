@@ -33,6 +33,7 @@ from app.schemas.workflow_video import (
   CaptureSchema,
   RejectedCaptureItem,
   FinalizeTopicsResponse,
+  DispatchTopicResponse,
   InstanceSubmissionsResponse,
   NodeSubmissionRead,
   TopicCaptureRow,
@@ -204,9 +205,10 @@ class WorkflowVideoFormService:
   ) -> None:
     now = datetime.now(UTC)
     node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
-    node_instance.business_state = WorkflowNodeBusinessState.PENDING_REVIEW
+    node_instance.business_state = WorkflowNodeBusinessState.DONE
     node_instance.completed_at = now
-    task.status = TaskStatus.REVIEW
+    task.status = TaskStatus.DONE
+    task.completed_at = now
     task.updated_at = now
     metadata = dict(task.extra_metadata or {})
     metadata["latest_capture_state"] = "submitted"
@@ -229,6 +231,8 @@ class WorkflowVideoFormService:
 
     schema = self._resolve_capture_schema(node_instance)
     normalized_topics = self._normalize_topics(schema=schema, raw_topics=topics)
+    if schema.max_rows == 1 and len(normalized_topics) != 1:
+      raise ConflictError("N1 采集节点每次只能提交 1 条选题。")
     await self._upsert_capture_deliverable(
       node_instance=node_instance,
       actor=actor,
@@ -333,6 +337,26 @@ class WorkflowVideoFormService:
       return
     if actor.id == instance.initiator_user_id:
       return
+
+    context = instance.context if isinstance(instance.context, dict) else {}
+    manager_id = context.get("manager_user_id")
+    if manager_id is not None and str(manager_id) == str(actor.id):
+      return
+
+    aggregate_nodes = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance)
+        .where(
+          WorkflowNodeInstance.instance_id == instance.id,
+          WorkflowNodeInstance.node_key == DEFAULT_AGGREGATE_NODE_KEY,
+        )
+        .order_by(WorkflowNodeInstance.iteration.desc())
+      )
+    )
+    aggregate_node = aggregate_nodes[0] if aggregate_nodes else None
+    if aggregate_node is not None and aggregate_node.assignee_user_id == actor.id:
+      return
+
     raise AuthorizationError("当前账号不能确认选题清单。")
 
   async def finalize_topics(
@@ -422,4 +446,106 @@ class WorkflowVideoFormService:
       fork_deferred=False,
       child_instance_ids=fork_result.child_instance_ids,
       message=f"已派发 {fork_result.forked_count} 条制作子 Run（跳过 {fork_result.skipped_count} 条重复）。",
+    )
+
+  async def _resolve_capture_source_node_key(
+    self,
+    *,
+    instance: WorkflowGraphInstance,
+  ) -> str:
+    if instance.template_id is not None:
+      template = await self._session.get(WorkflowGraphTemplate, instance.template_id)
+      if template is not None and isinstance(template.config, dict):
+        configured = template.config.get("capture_node_key")
+        if isinstance(configured, str) and configured.strip():
+          return configured.strip()
+    context = instance.context if isinstance(instance.context, dict) else {}
+    configured = context.get("capture_node_key")
+    if isinstance(configured, str) and configured.strip():
+      return configured.strip()
+    return "N1_PROPOSE"
+
+  async def dispatch_topic(
+    self,
+    *,
+    actor: User,
+    instance_id: UUID,
+    topic_id: UUID,
+    title: str,
+    script_writer_user_id: UUID,
+    source_node_instance_id: UUID | None = None,
+  ) -> DispatchTopicResponse:
+    """Incrementally fork one production child Run without completing N2 aggregate."""
+    ensure_active_user(actor)
+    instance = await self._session.get(WorkflowGraphInstance, instance_id)
+    if instance is None:
+      raise NotFoundError("图实例不存在。")
+    await self._ensure_finalize_actor(actor=actor, instance=instance)
+
+    context = dict(instance.context or {})
+    forked_topics = context.get("forked_topics")
+    if isinstance(forked_topics, dict) and str(topic_id) in forked_topics:
+      raise ConflictError("该选题已派发制作，不可重复。")
+
+    source_node_key = await self._resolve_capture_source_node_key(instance=instance)
+    submissions_response = await self.list_instance_submissions(
+      instance_id=instance_id,
+      node_key=source_node_key,
+    )
+
+    matched_submission: NodeSubmissionRead | None = None
+    matched_topic: TopicCaptureRow | None = None
+    for submission in submissions_response.submissions:
+      if source_node_instance_id is not None and submission.node_instance_id != source_node_instance_id:
+        continue
+      if submission.submitted_at is None or not submission.topics:
+        continue
+      for topic_row in submission.topics:
+        row_topic_id = topic_row.topic_id
+        if row_topic_id is not None and row_topic_id == topic_id:
+          matched_submission = submission
+          matched_topic = topic_row
+          break
+      if matched_topic is not None:
+        break
+
+    if matched_submission is None or matched_topic is None:
+      raise NotFoundError("未找到已提交的选题，无法派发。")
+
+    approved = ApprovedTopic(
+      topic_id=topic_id,
+      title=title.strip() or matched_topic.title,
+      content=matched_topic.content,
+      reason=matched_topic.reason,
+      source_submitter_id=matched_submission.assignee_user_id,
+      source_node_instance_id=matched_submission.node_instance_id,
+      script_author_id=script_writer_user_id,
+    )
+
+    fork_result = await self._fork_service.fork_production_runs(
+      actor=actor,
+      batch_instance_id=instance_id,
+      approved_topics=[approved],
+    )
+
+    if fork_result.forked_count == 0:
+      raise ConflictError("该选题已派发制作，不可重复。")
+
+    child_instance_id = fork_result.child_instance_ids[-1]
+    await WorkflowRunEventService(self._session).append(
+      instance_id=instance_id,
+      event_type="topic_dispatched",
+      actor_user_id=actor.id,
+      payload={
+        "topic_id": str(topic_id),
+        "child_instance_id": str(child_instance_id),
+        "script_author_id": str(script_writer_user_id),
+      },
+    )
+
+    return DispatchTopicResponse(
+      instance_id=instance_id,
+      child_instance_id=child_instance_id,
+      fork_status=fork_result.fork_status,
+      message="已指派并启动制作子 Run。",
     )

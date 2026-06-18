@@ -4,7 +4,9 @@
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](./architecture.md)。
 
-**版本**: 与 [`architecture.md`](./architecture.md) 同步（Paradigma Phase 2 自 architecture §8–§13 迁出）  
+**版本**: v3.12.1（与 [`architecture.md`](./architecture.md) 同步；Paradigma Phase 2 自 architecture §8–§13 迁出）  
+**最后同步**: 2026-06-18 @ commit `98ad370`
+
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
 ---
@@ -16,10 +18,14 @@
 - **通用错误**: `backend/app/api/error_handlers.py` 返回 `request_id` + 业务错误码
 - **认证**: JWT access token + HttpOnly refresh cookie（`backend/app/api/routes/auth.py`）
 - **附件下载**: `GET /api/v1/attachments/{id}/content`（鉴权后流式返回）
-- **图引擎**: `backend/app/api/routes/workflow_graph_engine.py`（实例/节点完成/打回/接管等）
-- **视频工作流 v1**: `backend/app/schemas/workflow_video.py`、`backend/app/api/routes/workflow_video.py`
+- **图引擎 + 视频 v1 运行时**: `backend/app/api/routes/workflow_graph_engine.py`（前缀 `/api/v1/workflow-graph`）
+  - 图实例/节点：`GET/POST .../instances/{id}`、`.../node-instances/{id}/complete|deep-reject|takeover`
+  - 图模板管理：`GET/PATCH .../templates/{id}`、`GET .../feature-flags`
+  - 视频 v1 表单/批次：`POST .../templates/{id}/runs`、`.../node-instances/{id}/submit-capture`、`.../finalize-topics`、`.../instances/{id}/dispatch-topic`（TC-P1 增量派发）、`.../reject-captures`、`.../fork-production-runs` 等
+- **视频 v1 Pydantic**: `backend/app/schemas/workflow_video.py`（`launch_schema` / `capture_schema` / `aggregate_schema` 等）
+- **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md)
 
-> 图引擎七表（`workflow_graph_*`）及视频 v1 增量表（如 `workflow_run_events`）的字段以 **Alembic 迁移与 ORM 模型**为准；本文件 §10 侧重 legacy + 核心业务表，图引擎表见 `backend/app/models/workflow_graph.py`。
+> §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.48 为图引擎与运行事件**摘要**（完整列定义以 ORM + Alembic 为准）。
 
 ---
 
@@ -66,9 +72,15 @@
 | `workflow_instance_status` | `pending`, `in_progress`, `approved`, `rejected`, `returned`, `cancelled`, `completed` | 已实现 |
 | `workflow_step_run_status` | `pending`, `approved`, `rejected`, `returned`, `delegated`, `skipped` | 已实现 |
 | `notification_receipt_type` | `delivered`, `read`, `acknowledged` | 已实现 |
-| `push_subscription_status` | `active`, `expired`, `revoked` | Phase 5 规划 |
-| `document_category` | `policy`, `sop`, `announcement`, `faq`, `other` | Phase 5 规划 |
-| `document_status` | `draft`, `published`, `archived` | Phase 5 规划 |
+| `push_subscription_status` | `active`, `expired`, `revoked` | 已实现（Phase 5） |
+| `document_category` | `policy`, `sop`, `announcement`, `faq`, `other` | 已实现（Phase 5） |
+| `document_status` | `draft`, `published`, `archived` | 已实现（Phase 5） |
+| `workflow_graph_template_status` | `draft`, `active`, `archived` | 已实现（图引擎 Phase 2） |
+| `workflow_graph_node_type` | `task`, `approval`, `notice` | 已实现 |
+| `workflow_graph_instance_status` | `pending`, `active`, `completed`, `cancelled`, `terminated` | 已实现 |
+| `workflow_node_engine_state` | `pending`, `activated`, `acknowledged`, `completed`, `terminated` | 已实现 |
+| `workflow_node_business_state` | `draft`, `assigned`, `accepted`, `rejected`, `delegated`, `doing`, `pending_review`, `done`, `returned_for_rework`, `cancelled` | 已实现 |
+| `workflow_outbox_event_status` | `pending`, `retrying`, `dispatched`, `failed` | 已实现（Phase 11-C） |
 
 ## 10. 全量数据库 Schema
 
@@ -406,7 +418,7 @@
 
 **设计说明**
 
-- 当前主要绑定 `task`、`task_comment`、`profile`、`notification_message`。
+- 当前主要绑定 `task`、`task_comment`、`profile`、`document`、`notification_message`、**`report`**。
 - 生命周期事件等对象仍属于后续扩展方向。
 
 ### 10.14 `tasks`
@@ -469,7 +481,9 @@
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
 | `id` | `uuid` | PK | 模板主键 |
-| `code` | `varchar(64)` | UNIQUE, NOT NULL | 模板编码 |
+| `code` | `varchar(64)` | UNIQUE, NOT NULL | 模板编码（对外稳定标识） |
+| `base_code` | `varchar(64)` | NOT NULL | 版本族编码（Stage 2 Phase 2） |
+| `version` | `int4` | NOT NULL, DEFAULT `1` | 模板版本号 |
 | `name` | `varchar(120)` | NOT NULL | 模板名称 |
 | `category` | `varchar(64)` | NOT NULL | 模板分类 |
 | `description` | `text` | NULL | 模板描述 |
@@ -477,12 +491,15 @@
 | `config` | `jsonb` | NOT NULL, DEFAULT `'{}'::jsonb` | 模板配置 |
 | `is_active` | `bool` | NOT NULL, DEFAULT `true` | 是否启用 |
 | `created_by` | `uuid` | FK -> `users.id`, NOT NULL | 创建人 |
+| `source_template_id` | `uuid` | FK -> `task_templates.id`, NULL | 来源模板（新建版本链） |
 | `created_at` | `timestamptz` | NOT NULL | 创建时间 |
 | `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
 
 **索引**
 
 - `uq_task_templates_code`
+- `uq_task_templates_base_version (base_code, version)`
+- `idx_task_templates_base_code (base_code)`
 - `idx_task_templates_category_active (category, is_active)`
 
 ### 10.17 `task_template_steps`
@@ -804,7 +821,7 @@
 
 ### 10.29 `push_subscriptions`
 
-**实现状态**: Phase 5 规划
+**实现状态**: 已实现（Phase 5）
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -867,7 +884,7 @@
 
 ### 10.32 `documents`
 
-**实现状态**: Phase 5 规划
+**实现状态**: 已实现（Phase 5）
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -890,7 +907,7 @@
 
 ### 10.33 `document_embeddings`
 
-**实现状态**: Phase 5 规划
+**实现状态**: 已实现（Phase 5）
 
 | 字段 | 类型 | 约束 | 说明 |
 | --- | --- | --- | --- |
@@ -1074,6 +1091,30 @@
 - `idx_error_events_actor_user_id (actor_user_id, created_at)`
 - `idx_error_events_source_binding (source_type, source_id)`
 
+### 10.41–10.48 图引擎与运行事件（摘要）
+
+> **实现状态**: 已实现（工作流重构 Phase 2–11；视频 v1 增量见迁移 `20260522_01`、`20260523_01`）。  
+> **ORM**: `backend/app/models/workflow_graph.py` · **迁移**: `20260429_04_workflow_graph_core.py` 及后续
+
+| 表 | 职责 | 关键字段 / 约束 |
+| --- | --- | --- |
+| `workflow_graph_templates` | DAG 模板定义 | `code`、`base_code`+`version`、`status`、`context_schema`、`config`、`source_template_id` |
+| `workflow_graph_template_nodes` | 模板节点 | `node_key`、`node_type`、`assignment_mode`、`join_mode`、`assignee_rule`、`config` |
+| `workflow_graph_template_edges` | 条件边 | `from_node_id`、`to_node_id`、`condition`、`priority`、`is_reject_path` |
+| `workflow_graph_instances` | 运行实例 | `context`+`context_version`、`status`、`current_node_key`、`run_label`、`parent_instance_id`（批次/fork） |
+| `workflow_node_instances` | 节点运行态 | `node_key`、`instance_key`、`iteration`、`engine_state`、`business_state`、`assignee_user_id` |
+| `workflow_deliverables` | 节点交付快照 | `node_instance_id`（UNIQUE）、`summary`、`payload`、`submitted_at` |
+| `workflow_outbox_events` | 可靠异步投递 | `event_type`、`status`、`attempt_count`、`available_at`、`last_error` |
+| `workflow_run_events` | Append-only 运行事件 | `instance_id`、`event_type`、`actor_user_id`、`payload`、`created_at`（W8） |
+
+**关系补充**
+
+- `workflow_graph_templates 1:N workflow_graph_template_nodes / edges / instances`
+- `workflow_graph_instances 1:N workflow_node_instances / outbox_events / run_events`
+- `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run fork）
+- `workflow_node_instances 1:1 workflow_deliverables`（按节点快照）
+- 兼容 `Task` 投影通过 `extra_metadata` / `source_id` 与 graph 锚点互链（见 `architecture.md` §6.13B）
+
 ## 11. 关系说明
 
 - `users 1:1 profiles`
@@ -1114,26 +1155,19 @@
 - `board_cards 1:1 board_card_archives`
 - `announcements 1:1 announcement_archives`
 - `attachments N:N 业务对象` 通过 `attachment_links`
+- `workflow_graph_templates 1:N workflow_graph_instances`
+- `workflow_graph_instances 1:N workflow_node_instances` / `workflow_run_events` / `workflow_outbox_events`
+- `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run）
+- `workflow_node_instances 1:1 workflow_deliverables`
 
 ## 12. 当前验证基线
 
-截至当前文档版本，仓库至少具备如下验证能力：
+权威数字见 [`progress.md`](./progress.md)「测试基线」表（2026-06-18 @ `98ad370`）：
 
-- backend：
-  - `pytest`（覆盖 models / migrations / services / api / workers）
-  - `python -m compileall app tests`
-- frontend：
-  - `npm run test:unit -- --run`
-  - `npm run type-check`
-  - `npm run build`
-  - `npm run lint`
-- 用户验测：
-  - Phase 1：实际点击“初始化管理员”和“登录”通过
-  - Phase 2：用户简单测试反馈“看上去基本没有问题”
-- 编排：
-  - Compose 文件可做配置级检查
-  - `worker` 已纳入编排
-  - 完整 Docker 运行级验证仍建议在具备 Docker 的环境执行
+- backend：`pytest` **212 passed, 1 skipped**（`test_migrations.py` 需本机 PostgreSQL + `POSTGRES_TEST_ADMIN_DSN`）；`compileall` PASS
+- frontend：vitest **39 文件 / 119 用例**；`type-check` / `build` PASS
+- Playwright mock：**9/9**（login + task-center + workflow-video-v1）
+- 未纳入每次刷新：`docker-gui`、`playwright_live`、Ubuntu 回滚演练
 
 ## 13. 维护规则
 

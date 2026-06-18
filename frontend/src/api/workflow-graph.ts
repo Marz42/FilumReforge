@@ -7,6 +7,7 @@ import type {
   RejectCapturesRequest,
   RejectCapturesResponse,
   FinalizeTopicsResponse,
+  DispatchTopicResponse,
   InstanceSubmissionsResponse,
   ParticipantUserPreview,
   PreviewParticipantsResponse,
@@ -147,6 +148,22 @@ export async function forkProductionRuns(
 ): Promise<ForkProductionRunsResponse> {
   const { data } = await http.post<ForkProductionRunsResponse>(
     `/workflow-graph/instances/${instanceId}/fork-production`,
+  )
+  return data
+}
+
+export async function dispatchInstanceTopic(
+  instanceId: string,
+  payload: {
+    topic_id: string
+    title: string
+    script_writer_user_id: string
+    source_node_instance_id?: string | null
+  },
+): Promise<DispatchTopicResponse> {
+  const { data } = await http.post<DispatchTopicResponse>(
+    `/workflow-graph/instances/${instanceId}/dispatch-topic`,
+    payload,
   )
   return data
 }

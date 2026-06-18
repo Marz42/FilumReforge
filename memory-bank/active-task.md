@@ -8,51 +8,44 @@
 
 | 字段 | 内容 |
 |------|------|
-| **任务标题** | 任务中心 v2 重做 · TC-P0（Action Profile + 详情减法） |
+| **任务标题** | 任务中心 v2 重做 · TC-P1（增量派发 + 后端收口） |
 | **优先级** | P0 · 路线图下一焦点 |
-| **状态** | TC-P0 首 PR 已实现 @ `feat/task-center-p0-profile`；待合并 / Docker 截图验收 |
-| **关联** | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md)、[`plans/workflow-video-v1-ui-simplification-design.md`](./plans/workflow-video-v1-ui-simplification-design.md)、[`demos/workflow-task-center-v2.1-demo.html`](./demos/workflow-task-center-v2.1-demo.html) |
+| **状态** | TC-P0 已合并 @ `7bc242c`；TC-P1 核心（P1-1–P1-5、P1-9 mock）已实现 @ `feat/task-center-p0-profile` |
+| **关联** | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md)、[`plans/workflow-video-v1-ui-simplification-design.md`](./plans/workflow-video-v1-ui-simplification-design.md) |
 
 ---
 
-## 当前阶段：TC-P0
+## 当前阶段：TC-P1
 
 | # | 工作项 | 状态 |
 |---|--------|------|
-| P0-1 | `TaskDetailProfile` + 用户态映射 | 已完成 |
-| P0-2 | `TaskDetailShell` 骨架 | 部分（逻辑并入 TasksView + compact meta） |
-| P0-3 | `VideoCapturePanel` N1 单表单 | 已完成 |
-| P0-4 | ROOT/N2 submissions 进度 x/y | 已完成 |
-| P0-5 | ROOT Profile 裁剪 | 已完成 |
-| P0-6 | Master 列表 Run 列 | 已完成 |
-| P0-7 | 实例化 → 跟踪 Tab | 已完成 |
-| P0-8 | vitest + Playwright 回归 | 进行中 |
+| P1-1 | `dispatch_topic` API | 已完成 |
+| P1-2 | `WorkflowVideoFormService.dispatch_topic()` | 已完成 |
+| P1-3 | `VideoTrackingPanel` | 已完成 |
+| P1-4 | N1 单条校验 | 已完成 |
+| P1-5 | Capture → Task `DONE` | 已完成 |
+| P1-6 | `submit_mode=file` / `VideoProductionPanel` | 未开始 |
+| P1-7 | 更多菜单 · 退回 | 未开始 |
+| P1-8 | 实例化 participant 默认 | 未开始 |
+| P1-9 | E2E 增量派发 mock | 已完成 |
 
 ---
 
-## 验收清单（TC-P0）
+## 验收清单（TC-P1）
 
-- [x] N1 详情仅 **1 个主按钮**「提交选题」，无「提交交付物」
-- [x] N2 / ROOT 展示 **x/y 采集进度** 与待交人
-- [x] 批次 ROOT 无交付/评论主表单
-- [x] 列表可区分 Run（`run_label` 或等价列）
-- [x] 详情首屏仅核心元数据 + **更多** 菜单（compact meta；评论默认折叠）
-- [x] `type-check` + vitest 127/127 + mock E2E 7/7
+- [x] 2/3 时可 dispatch，子 Run 与待办出现（mock E2E）
+- [x] 重复 dispatch 409 + UI 禁用（pytest + forked_topics）
+- [ ] 文件节点「上传并提交」（P1-6）
+- [ ] 更多退回 → 用户态「已退回」（P1-7）
+- [x] N1 提交后 Task 为 done（非 review）
 
 ---
 
-## 后续阶段（见实施计划）
+## 后续阶段
 
 | 阶段 | 概要 |
 |------|------|
-| **TC-P1** | `dispatch_topic` API + `VideoTrackingPanel` 增量派发 |
 | **TC-P2** | 看板/甘特/统计入口 + `TasksView` 拆分 |
-
----
-
-## Paradigma 对齐状态
-
-**Phase 0–4 已全部完成**（2026-06-17）。任务中心 v2 设计 v2.1 + Demo 评审完成（2026-06-18）。
 
 ---
 

@@ -27,6 +27,8 @@ from app.schemas.workflow_video import (
   CreateGraphTemplateRunResponse,
   FinalizeTopicsRequest,
   FinalizeTopicsResponse,
+  DispatchTopicRequest,
+  DispatchTopicResponse,
   RejectCapturesRequest,
   RejectCapturesResponse,
   RejectProductionStepRequest,
@@ -394,6 +396,27 @@ async def finalize_instance_topics(
     instance_id=instance_id,
     approved_topics=payload.approved_topics,
     rejected_topics=payload.rejected_topics,
+  )
+
+
+@router.post(
+  "/instances/{instance_id}/dispatch-topic",
+  response_model=DispatchTopicResponse,
+  tags=["workflow-graph"],
+)
+async def dispatch_instance_topic(
+  instance_id: UUID,
+  payload: DispatchTopicRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  form_service: Annotated[WorkflowVideoFormService, Depends(get_workflow_video_form_service)],
+) -> DispatchTopicResponse:
+  return await form_service.dispatch_topic(
+    actor=actor,
+    instance_id=instance_id,
+    topic_id=payload.topic_id,
+    title=payload.title,
+    script_writer_user_id=payload.script_writer_user_id,
+    source_node_instance_id=payload.source_node_instance_id,
   )
 
 
