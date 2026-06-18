@@ -5,8 +5,8 @@
 | 字段 | 内容 |
 |------|------|
 | **当前版本** | `0.87.1`（根目录 `VERSION`） |
-| **版本主题** | Paradigma memory-bank 对齐 + 工程质量与多工作流统一 |
-| **阶段** | Stage 2 / 工作流深化 / 部署演练 |
+| **版本主题** | 任务中心 v2 重做（Action Profile + 增量派发 + IA 2.0） |
+| **阶段** | Stage 2 / 工作流深化 / 任务协同产品化 |
 
 ---
 
@@ -27,16 +27,34 @@
 | Stage 2 Phase 0–6 | done | 模板治理、生命周期联动、邀请注册、消息深化 |
 | 视频工作流 v1 W0–W10 | done | 选题会、表单引擎、按题 fork、E2E 硬化 |
 | Memory-Bank Phase 0–4 | done | 协议层 + HOT/WARM/COLD + 对齐审查 |
+| 任务中心 v2 设计 | done | UX 规格 v2.1 + 交互 Demo 评审通过（2026-06-18） |
 
 ---
 
-## 🚧 进行中 / 下一版焦点
+## 🔥 下一焦点（P0）
+
+| 优先级 | 主题 | 目标 | 计划入口 |
+|--------|------|------|----------|
+| **P0** | **任务中心 v2 重做** | Action Profile、详情减法、ROOT 增量派发、列表/看板/甘特/统计分阶段落地 | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) · 规格 [`plans/workflow-video-v1-ui-simplification-design.md`](./plans/workflow-video-v1-ui-simplification-design.md) |
+
+**阶段切片**
+
+| 阶段 | 交付概要 | 目标 |
+|------|----------|------|
+| TC-P0 | Profile + N1 单表单 + 进度文案 + 列表 Run 列 | ≈2 周内 |
+| TC-P1 | `dispatch_topic` + 跟踪页增量派发 + submit_mode/退回 | ≈+2 周 |
+| TC-P2 | 看板/甘特/统计入口 + `TasksView` 拆分 | ≈+3 周 |
+
+---
+
+## 🚧 并行 / 后续焦点
 
 | 优先级 | 主题 | 目标 | 计划入口 |
 |--------|------|------|----------|
 | P1 | 工作流 E 与图引擎统一 | 产品级单一模板源评估与深化 | `plans/implementation-plan.md` |
 | P2 | 生命周期规则化 | 默认映射 + 前端结构化配置 | `plans/improvements-stage2-implementation-plan.md` §11 |
 | P2 | 通知渠道深化 | 真实 Email/WebSocket、投递观测 | 同上 |
+| P2 | Docker 图模板实测收尾 | A–F 手工 / live E2E 与 TC-P0 联调 | `handbooks/workflow-video-v1-docker-runbook.md` |
 | P3 | 注册方式扩展 | 公开/审批式注册（产品决策后） | `project-brief.md` |
 | P3 | E2E 基线刷新 | Playwright live、docker-gui 与发布 commit 同步 | `handbooks/e2e-gui-verification-automation-runbook.md` |
 | 暂缓 | Ubuntu 最小回滚演练 | git 回退 + systemd ± 迁移 rollback dry-run | `deployment-runbook-ubuntu-2404.md` §21.8 |
@@ -57,11 +75,12 @@
 ## 并行工作线
 
 ```
-主线（工程质量）───── 图模板 Docker 实测 / E2E live 基线 / 回归扩面
+主线（产品）────────── 任务中心 v2（TC-P0 → P1 → P2）
         │
-        ├─ 工作流 E ─── 模板/调度深化、与图引擎统一
-        ├─ 图引擎 ───── 视频 v1 运维与新产品模板
-        └─ memory-bank ─ Paradigma 维护（Phase 5）
+        ├─ 视频 v1 ──── 选题会模板运维、dispatch_topic 后端
+        ├─ 工作流 E ─── 模板/调度深化、与图引擎统一（P1，TC-P3 后）
+        ├─ 工程质量 ─── Docker 实测 / E2E live 基线
+        └─ memory-bank ─ Paradigma 维护
 ```
 
-细计划不合并进本表；见 `plans/implementation-plan.md`、`workflow-refactor-implementation-plan.md`、`workflow-video-v1-implementation-plan.md`。
+细计划见 [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md)、[`plans/implementation-plan.md`](./plans/implementation-plan.md)、[`plans/workflow-video-v1-implementation-plan.md`](./plans/workflow-video-v1-implementation-plan.md)。

@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Filum · 任务协同 v2.1 Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --surface: #fff;
+      --surface-muted: #eef0fe;
+      --text: #1a1d2e;
+      --text-secondary: #667085;
+      --text-muted: #909399;
+      --border: #ebeef5;
+      --primary: #5b6ef5;
+      --primary-dark: #4a5bd4;
+      --success: #12b76a;
+      --warning: #f79009;
+      --danger: #f04438;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Noto Sans SC', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    code { font-size: 12px; background: rgba(0,0,0,.06); padding: 1px 6px; border-radius: 4px; }
+
+    .banner {
+      background: linear-gradient(135deg, #4a5bd4, #5b6ef5 50%, #7c8cf7);
+      color: #fff;
+      padding: 18px 24px;
+    }
+    .banner h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .banner p { font-size: 12px; opacity: .92; max-width: 900px; }
+
+    .app-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .app-bar .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .app-bar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+    .label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+
+    .tab, .view-btn, .user-btn, .scenario-chip {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      padding: 7px 12px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tab.active, .view-btn.active, .user-btn.active {
+      background: var(--surface-muted);
+      border-color: var(--primary);
+      color: var(--primary-dark);
+    }
+    .tab:disabled { opacity: .45; cursor: not-allowed; }
+
+    .btn {
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    .profile-tag {
+      margin-left: auto;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--surface-muted);
+      color: var(--primary-dark);
+      font-weight: 600;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      max-width: 1320px;
+      margin: 0 auto;
+      min-height: calc(100vh - 200px);
+    }
+    .master {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 14px;
+    }
+    .master h2 { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; font-weight: 600; }
+    .task-row {
+      padding: 11px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .task-row:hover { border-color: var(--primary); }
+    .task-row.selected { border-color: var(--primary); background: var(--surface-muted); }
+    .task-row .title { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+    .task-row .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+    .chip { padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 10px; }
+    .chip-run { background: #f0f4ff; color: #4a5bd4; }
+    .chip-pending { background: #fffaeb; color: #b54708; }
+    .chip-progress { background: #ecfdf3; color: #027a48; }
+    .chip-done { background: #f2f4f7; color: #667085; }
+    .chip-review { background: #fef3f2; color: #b42318; }
+    .chip-reject { background: #fef3f2; color: #b42318; }
+
+    .detail { padding: 18px 22px 40px; }
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .detail-header h2 { font-size: 17px; font-weight: 700; }
+    .detail-header .sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+    .actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+
+    .meta-compact {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      font-size: 13px;
+    }
+    .meta-compact span { color: var(--text-secondary); }
+    .meta-compact strong { color: var(--text); font-weight: 600; }
+    .meta-more {
+      font-size: 12px;
+      color: var(--primary);
+      cursor: pointer;
+      border: none;
+      background: none;
+      text-decoration: underline;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+    .panel h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+
+    .progress-bar { background: #f2f4f7; border-radius: 999px; height: 8px; overflow: hidden; margin: 6px 0; }
+    .progress-bar > div { height: 100%; background: linear-gradient(90deg, var(--primary), #8b97f8); border-radius: 999px; transition: width .3s; }
+
+    .topic-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .topic-table th, .topic-table td { border: 1px solid var(--border); padding: 8px; text-align: left; vertical-align: middle; }
+    .topic-table th { background: #f9fafb; font-size: 11px; }
+    .topic-table tr.pending { opacity: .55; background: #fafafa; }
+    .topic-table tr.dispatched { background: #f0fdf4; }
+    .topic-table select { font: inherit; font-size: 12px; padding: 4px; max-width: 120px; }
+
+    .form-field { margin-bottom: 12px; }
+    .form-field label { display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; }
+    .form-field input, .form-field textarea, .form-field select {
+      width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius); font: inherit; font-size: 13px;
+    }
+    .form-field textarea { min-height: 64px; resize: vertical; }
+    .file-drop {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .file-drop.has-file { border-color: var(--success); background: #ecfdf3; color: #027a48; }
+
+    .dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    .dash-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .dash-card:hover { border-color: var(--primary); }
+    .dash-card strong { display: block; font-size: 13px; margin-bottom: 3px; }
+    .dash-card span { font-size: 11px; color: var(--text-secondary); }
+
+    .timeline { list-style: none; padding-left: 10px; border-left: 2px solid var(--border); }
+    .timeline li { padding: 0 0 10px 12px; font-size: 12px; position: relative; }
+    .timeline li::before {
+      content: ''; width: 7px; height: 7px; background: var(--primary); border-radius: 50%;
+      position: absolute; left: -16px; top: 6px;
+    }
+    .timeline .time { font-size: 10px; color: var(--text-muted); margin-left: 6px; }
+
+    .collapse {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .collapse summary {
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      background: #fafafa;
+    }
+    .collapse .body { padding: 10px 12px; font-size: 12px; color: var(--text-muted); }
+
+    .note {
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: #fafafa;
+      margin-top: 12px;
+    }
+    .note strong { color: var(--text-secondary); }
+
+    .sim-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #fffaeb;
+      color: #b54708;
+      margin-left: 6px;
+    }
+
+    /* Modal */
+    .overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(15, 23, 42, .45);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+    }
+    .modal-head { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+    .modal-head h3 { font-size: 16px; }
+    .modal-body { padding: 16px 18px; }
+    .modal-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+    /* Dropdown */
+    .dropdown { position: relative; }
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      right: 0; top: calc(100% + 4px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      min-width: 140px;
+      z-index: 50;
+    }
+    .dropdown-menu.open { display: block; }
+    .dropdown-menu button {
+      display: block; width: 100%; text-align: left;
+      padding: 9px 12px; border: none; background: none; font: inherit; font-size: 12px; cursor: pointer;
+    }
+    .dropdown-menu button:hover { background: var(--surface-muted); }
+    .dropdown-menu button.danger { color: var(--danger); }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      background: #1a1d2e;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      box-shadow: var(--shadow-lg);
+      z-index: 200;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all .25s;
+      pointer-events: none;
+      max-width: 360px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Stats / Board / Gantt placeholders */
+    .placeholder-view {
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--text-secondary);
+    }
+    .placeholder-view h3 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+    .placeholder-view p { font-size: 13px; max-width: 520px; margin: 0 auto 16px; }
+    .stat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 720px; margin: 0 auto; text-align: left; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+    .stat-card .num { font-size: 24px; font-weight: 700; color: var(--primary); }
+    .stat-card .cap { font-size: 12px; color: var(--text-secondary); }
+
+    .board-columns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 0 4px; }
+    .board-col { background: #f9fafb; border-radius: var(--radius); padding: 10px; min-height: 200px; }
+    .board-col h4 { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; }
+    .board-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px;
+      margin-bottom: 6px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .board-card:hover { border-color: var(--primary); }
+
+    .gantt-mock {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      overflow-x: auto;
+    }
+    .gantt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; }
+    .gantt-label { width: 120px; flex-shrink: 0; }
+    .gantt-track { flex: 1; height: 22px; background: #f2f4f7; border-radius: 4px; position: relative; min-width: 300px; }
+    .gantt-bar {
+      position: absolute; height: 100%; border-radius: 4px;
+      background: linear-gradient(90deg, var(--primary), #8b97f8);
+      display: flex; align-items: center; padding: 0 6px; color: #fff; font-size: 10px; font-weight: 600;
+    }
+
+    .empty-master { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .master { border-right: none; border-bottom: 1px solid var(--border); }
+      .profile-tag { margin-left: 0; width: 100%; margin-top: 6px; }
+      .board-columns { grid-template-columns: 1fr 1fr; }
+      .stat-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="banner">
+    <h1>任务协同 · v2.1 交互 Demo <span class="sim-badge">本地模拟</span></h1>
+    <p>
+      规格 <code>workflow-video-v1-ui-simplification-design.md</code> v2.1 ·
+      覆盖 S1 模板派发 · S2 增量跟踪派发 · S3 多 submit_mode · S4 任务中心 IA（统计/看板/甘特为示意）·
+      切换角色体验完整流程
+    </p>
+  </header>
+
+  <div class="app-bar">
+    <div class="group">
+      <span class="label">角色</span>
+      <button type="button" class="user-btn active" data-user="han">韩策（部门管理）</button>
+      <button type="button" class="user-btn" data-user="luyan">陆言（文案编辑）</button>
+      <button type="button" class="user-btn" data-user="song">宋遥（文案编辑）</button>
+    </div>
+    <div class="sep"></div>
+    <div class="group">
+      <span class="label">Tab</span>
+      <button type="button" class="tab" data-tab="inbox">待办</button>
+      <button type="button" class="tab active" data-tab="tracking">跟踪</button>
+      <button type="button" class="tab" data-tab="history">历史</button>
+      <button type="button" class="tab" data-tab="stats">统计</button>
+    </div>
+    <div class="sep"></div>
+    <div class="group" id="viewToolbar">
+      <span class="label">视图</span>
+      <button type="button" class="view-btn active" data-view="list">列表</button>
+      <button type="button" class="view-btn" data-view="board">看板</button>
+      <button type="button" class="view-btn" data-view="gantt">甘特</button>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm" id="btnInstantiate">从模板创建</button>
+    <span class="profile-tag" id="profileTag">—</span>
+  </div>
+
+  <div class="layout" id="mainLayout">
+    <aside class="master" id="masterPanel"></aside>
+    <main class="detail" id="detailPanel"></main>
+  </div>
+
+  <!-- S1 Modal -->
+  <div class="overlay" id="instantiateOverlay">
+    <div class="modal">
+      <div class="modal-head"><h3>从模板创建 · 选题会批次</h3></div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label>主题 / Run 标签 *</label>
+          <input type="text" id="instTheme" value="春季选题会" />
+        </div>
+        <div class="form-field">
+          <label>所属部门</label>
+          <select id="instDept"><option>视频文案部</option></select>
+        </div>
+        <div class="form-field">
+          <label>采集参与人（文案编辑）</label>
+          <select id="instParticipants" multiple size="3" style="height:auto">
+            <option value="song" selected>宋遥</option>
+            <option value="cheng" selected>程野</option>
+            <option value="luyan" selected>陆言</option>
+          </select>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:6px">
+            默认「指定成员」；发起人韩策不参与 N1 fan-out（模拟 P1 规则）
+          </p>
+        </div>
+        <div class="form-field">
+          <label>截止时间</label>
+          <input type="datetime-local" value="2026-06-20T18:00" />
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" id="btnCancelInst">取消</button>
+        <button type="button" class="btn btn-primary" id="btnConfirmInst">确定派发</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ─── Simulated backend state ───────────────────────────────────────
+    const USERS = {
+      han: { id: 'han', name: '韩策', role: 'manager', dept: '视频文案部' },
+      luyan: { id: 'luyan', name: '陆言', role: 'editor', dept: '视频文案部' },
+      song: { id: 'song', name: '宋遥', role: 'editor', dept: '视频文案部' },
+      cheng: { id: 'cheng', name: '程野', role: 'editor', dept: '视频文案部' },
+    };
+
+    const WRITERS = ['陆言', '宋遥', '程野'];
+
+    let state = {
+      runLabel: '春季选题会',
+      runId: 'inst-demo-001',
+      dueAt: '2026-06-20 18:00',
+      dept: '视频文案部',
+      captures: [
+        { userId: 'song', title: '选题B 时间管理', note: '面向职场新人', submitted: true, submittedAt: '09:55', topicId: 'topic-b' },
+        { userId: 'cheng', title: '选题C 沟通技巧', note: '冲突化解场景', submitted: true, submittedAt: '09:57', topicId: 'topic-c' },
+        { userId: 'luyan', title: '', note: '', submitted: false, submittedAt: null, topicId: null, rejected: false },
+      ],
+      forked: [],
+      productionTasks: [],
+      events: [
+        { text: '运行已创建', time: '09:55', actor: '韩策' },
+        { text: '采集已提交 — 宋遥 · 选题B 时间管理', time: '09:55' },
+        { text: '采集已提交 — 程野 · 选题C 沟通技巧', time: '09:57' },
+      ],
+      currentUser: 'han',
+      tab: 'tracking',
+      view: 'list',
+      selectedTask: 'root',
+      n2BatchMode: false,
+      fileUploaded: false,
+    };
+
+    // ─── Derived helpers ───────────────────────────────────────────────
+    function captureTotal() { return state.captures.length; }
+    function captureSubmitted() { return state.captures.filter(c => c.submitted).length; }
+    function capturePendingNames() {
+      return state.captures.filter(c => !c.submitted).map(c => USERS[c.userId].name).join('、') || '无';
+    }
+    function progressPct() {
+      return Math.round((captureSubmitted() / captureTotal()) * 100);
+    }
+    function isForked(topicId) {
+      return state.forked.some(f => f.topicId === topicId);
+    }
+    function nowTime() {
+      const d = new Date();
+      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2800);
+    }
+    function addEvent(text, actor) {
+      state.events.unshift({ text, time: nowTime(), actor });
+      if (state.events.length > 8) state.events.pop();
+    }
+
+    // ─── Task model (simulated projection) ─────────────────────────────
+    function buildTasks() {
+      const u = state.currentUser;
+      const user = USERS[u];
+      const tasks = [];
+
+      if (u === 'han') {
+        if (state.tab === 'tracking' || state.tab === 'inbox') {
+          tasks.push({ id: 'root', title: '选题会（批次）', run: state.runLabel, status: '进行中', profile: 'video_batch_root' });
+        }
+        if (state.n2BatchMode && captureSubmitted() >= captureTotal()) {
+          tasks.push({ id: 'n2', title: '汇总派发', run: state.runLabel, status: '待处理', profile: 'video_n2_aggregate' });
+        }
+      }
+
+      state.captures.forEach(cap => {
+        if (cap.userId === u && !cap.submitted && state.tab === 'inbox') {
+          tasks.push({
+            id: `n1-${cap.userId}`,
+            title: cap.rejected ? '提交选题（已退回）' : '提交选题',
+            run: state.runLabel,
+            status: cap.rejected ? '已退回' : '待处理',
+            profile: 'video_n1_capture',
+          });
+        }
+        if (cap.userId === u && cap.submitted && state.tab === 'history') {
+          tasks.push({ id: `n1-done-${cap.userId}`, title: '提交选题', run: state.runLabel, status: '已完成', profile: 'video_n1_capture' });
+        }
+      });
+
+      state.productionTasks.forEach(pt => {
+        if (pt.assigneeId === u && state.tab === 'inbox') {
+          tasks.push({
+            id: pt.id,
+            title: pt.stepTitle,
+            run: pt.runLabel,
+            status: pt.status,
+            profile: pt.profile,
+            submitMode: pt.submitMode,
+          });
+        }
+        if (pt.assigneeId === u && pt.status === '已完成' && state.tab === 'history') {
+          tasks.push({ id: pt.id + '-hist', title: pt.stepTitle, run: pt.runLabel, status: '已完成', profile: pt.profile });
+        }
+      });
+
+      if (u === 'han' && state.tab === 'history') {
+        state.forked.forEach((f, i) => {
+          tasks.push({ id: `hist-fork-${i}`, title: `汇总 · ${f.title}`, run: f.runLabel, status: '已完成', profile: 'video_batch_root' });
+        });
+      }
+
+      return tasks;
+    }
+
+    function statusChipClass(status) {
+      const map = { '待处理': 'chip-pending', '进行中': 'chip-progress', '已完成': 'chip-done', '待确认': 'chip-review', '已退回': 'chip-reject' };
+      return map[status] || 'chip-done';
+    }
+
+    // ─── Actions (simulate API) ────────────────────────────────────────
+    function submitCapture(userId, title, note) {
+      const cap = state.captures.find(c => c.userId === userId);
+      if (!cap || cap.submitted) return;
+      cap.title = title || `${USERS[userId].name}的选题`;
+      cap.note = note;
+      cap.submitted = true;
+      cap.submittedAt = nowTime();
+      cap.topicId = cap.topicId || `topic-${userId}-${Date.now()}`;
+      cap.rejected = false;
+      addEvent(`采集已提交 — ${USERS[userId].name} · ${cap.title}`);
+      toast(`${USERS[userId].name} 已提交选题（模拟 POST /tasks/{id}/capture）`);
+      state.selectedTask = userId === 'han' ? 'root' : `n1-done-${userId}`;
+      if (state.tab === 'inbox') state.tab = 'history';
+      render();
+    }
+
+    function dispatchTopic(topicId, title, writerName, sourceUserId) {
+      if (isForked(topicId)) return;
+      const runLabel = `${title.slice(0, 8)}…`;
+      state.forked.push({
+        topicId,
+        title,
+        writerName,
+        runLabel,
+        status: '脚本撰写中',
+        sourceUserId,
+      });
+      state.productionTasks.push({
+        id: `prod-${topicId}`,
+        assigneeId: Object.values(USERS).find(u => u.name === writerName)?.id || 'luyan',
+        stepTitle: '脚本撰写',
+        runLabel,
+        status: '待处理',
+        profile: 'video_production_step',
+        submitMode: 'file',
+        topicId,
+      });
+      addEvent(`制作 Run 已 fork — ${title} → ${writerName}（模拟 dispatch_topic）`);
+      toast(`已指派 ${writerName} 并启动制作（模拟 POST .../dispatch-topic）`);
+      render();
+    }
+
+    function submitFile(taskId) {
+      const pt = state.productionTasks.find(t => t.id === taskId);
+      if (!pt) return;
+      pt.status = '已完成';
+      const fork = state.forked.find(f => f.topicId === pt.topicId);
+      if (fork) fork.status = '脚本已提交';
+      addEvent(`脚本已提交 — ${fork?.title || ''}`);
+      toast('文件已上传并提交（模拟 deliverable）');
+      state.tab = 'history';
+      render();
+    }
+
+    function rejectCapture(userId) {
+      const cap = state.captures.find(c => c.userId === userId);
+      if (!cap || !cap.submitted) return;
+      const topicId = cap.topicId;
+      cap.submitted = false;
+      cap.rejected = true;
+      cap.title = '';
+      cap.topicId = null;
+      state.forked = state.forked.filter(f => f.sourceUserId !== userId);
+      if (topicId) {
+        state.productionTasks = state.productionTasks.filter(t => t.topicId !== topicId);
+      }
+      addEvent(`采集已打回 — ${USERS[userId].name}`);
+      toast('已打回，成员待办将变为「已退回」');
+      render();
+    }
+
+    function resetDemo() {
+      state = {
+        ...state,
+        captures: [
+          { userId: 'song', title: '选题B 时间管理', note: '', submitted: true, submittedAt: '09:55', topicId: 'topic-b' },
+          { userId: 'cheng', title: '选题C 沟通技巧', note: '', submitted: true, submittedAt: '09:57', topicId: 'topic-c' },
+          { userId: 'luyan', title: '', note: '', submitted: false, submittedAt: null, topicId: null, rejected: false },
+        ],
+        forked: [],
+        productionTasks: [],
+        events: [{ text: '运行已创建', time: nowTime(), actor: '韩策' }],
+        tab: 'tracking',
+        selectedTask: 'root',
+      };
+      render();
+    }
+
+    // ─── Render ────────────────────────────────────────────────────────
+    function renderMaster() {
+      const tasks = buildTasks();
+      const el = document.getElementById('masterPanel');
+      const tabLabels = { inbox: '待办', tracking: '跟踪', history: '历史', stats: '统计' };
+
+      if (state.tab === 'stats' || (state.view !== 'list' && state.tab !== 'stats')) {
+        if (state.tab === 'stats') {
+          el.innerHTML = `<h2>${tabLabels[state.tab]}</h2><p class="empty-master">统计页无任务列表<br><small>见右侧示意面板</small></p>`;
+          return;
+        }
+      }
+
+      if (tasks.length === 0) {
+        el.innerHTML = `<h2>${tabLabels[state.tab]}</h2><p class="empty-master">暂无任务<br><small>切换角色或 Tab 试试</small></p>`;
+        return;
+      }
+
+      el.innerHTML = `<h2>${tabLabels[state.tab]} · 列表 v2</h2>` + tasks.map(t => `
+        <div class="task-row ${state.selectedTask === t.id ? 'selected' : ''}" data-task="${t.id}">
+          <div class="title">${t.title}</div>
+          <div class="meta">
+            <span class="chip chip-run">Run: ${t.run}</span>
+            <span class="chip ${statusChipClass(t.status)}">${t.status}</span>
+          </div>
+        </div>
+      `).join('');
+
+      el.querySelectorAll('.task-row').forEach(row => {
+        row.addEventListener('click', () => {
+          state.selectedTask = row.dataset.task;
+          renderDetail();
+          el.querySelectorAll('.task-row').forEach(r => r.classList.toggle('selected', r.dataset.task === state.selectedTask));
+        });
+      });
+    }
+
+    function renderDetail() {
+      const el = document.getElementById('detailPanel');
+      const user = USERS[state.currentUser];
+
+      if (state.tab === 'stats') {
+        el.innerHTML = renderStatsView();
+        document.getElementById('profileTag').textContent = 'P2 · 任务统计（示意）';
+        return;
+      }
+
+      if (state.view === 'board') {
+        el.innerHTML = renderBoardView();
+        document.getElementById('profileTag').textContent = '视图: 看板（示意）';
+        return;
+      }
+
+      if (state.view === 'gantt') {
+        el.innerHTML = renderGanttView();
+        document.getElementById('profileTag').textContent = '视图: 甘特（示意）';
+        return;
+      }
+
+      const taskId = state.selectedTask;
+      let html = '';
+
+      if (taskId === 'root' || (state.currentUser === 'han' && state.tab === 'tracking' && !buildTasks().find(t => t.id === taskId))) {
+        state.selectedTask = 'root';
+        html = renderRootTracking();
+        document.getElementById('profileTag').textContent = 'Profile: video_batch_root';
+      } else if (taskId === 'n2') {
+        html = renderN2Batch();
+        document.getElementById('profileTag').textContent = 'Profile: video_n2_aggregate';
+      } else if (taskId.startsWith('n1-')) {
+        const uid = taskId.replace('n1-', '').replace('done-', '');
+        html = renderN1Capture(uid === taskId ? state.currentUser : uid.replace('done-', ''));
+        document.getElementById('profileTag').textContent = 'Profile: video_n1_capture · submit_mode=form';
+      } else if (taskId.startsWith('n1-done-')) {
+        html = renderN1Done();
+        document.getElementById('profileTag').textContent = 'Profile: video_n1_capture · 已完成';
+      } else {
+        const pt = state.productionTasks.find(t => t.id === taskId || t.id === taskId.replace('-hist', ''));
+        if (pt) {
+          html = pt.submitMode === 'file' ? renderN3File(pt) : renderGenericStep(pt);
+          document.getElementById('profileTag').textContent = `Profile: video_production_step · submit_mode=${pt.submitMode}`;
+        } else {
+          html = `<div class="placeholder-view"><p>请选择左侧任务</p></div>`;
+        }
+      }
+
+      el.innerHTML = html;
+      bindDetailEvents();
+    }
+
+    function renderMetaCompact(status, extra) {
+      return `
+        <div class="meta-compact">
+          <span>用户态 <strong>${status}</strong></span>
+          <span>截止 <strong>${state.dueAt}</strong></span>
+          <span>部门 <strong>${state.dept}</strong></span>
+          ${extra || ''}
+          <button type="button" class="meta-more" data-action="toggle-more">更多信息 ▸</button>
+        </div>
+        <div class="collapse" id="moreMeta" style="display:none">
+          <div class="body">运行类型: 批次 Run · instance ${state.runId}<br>引擎态: 本 Demo 不展示 business_state / engine_state</div>
+        </div>
+      `;
+    }
+
+    function renderRootTracking() {
+      const sub = captureSubmitted();
+      const tot = captureTotal();
+      const pct = progressPct();
+      return `
+        <div class="detail-header">
+          <div>
+            <h2>选题会（批次）</h2>
+            <p class="sub">批次 ROOT · 跟踪 · Run: ${state.runLabel} · ${USERS.han.name}</p>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn btn-ghost btn-sm" data-action="toggle-n2-mode">
+              ${state.n2BatchMode ? '切换：增量模式' : '切换：N2 批量模式'}
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" data-action="open-stats">任务统计</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>采集进度 <span class="sim-badge">S2 · 不依赖 N2 激活</span></h3>
+          <p style="font-size:14px">已收到 <strong>${sub} / ${tot}</strong> 份采集 · 待 <strong>${capturePendingNames()}</strong> 提交</p>
+          <div class="progress-bar"><div style="width:${pct}%"></div></div>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:6px">
+            模拟 <code>GET .../instances/{id}/submissions</code> — 当前后端 N2 仍须全员交齐才进待办；增量派发走 ROOT + dispatch_topic（P1）
+          </p>
+        </div>
+
+        <div class="panel">
+          <h3>已交选题 · 增量派发</h3>
+          <table class="topic-table">
+            <thead>
+              <tr><th>选题</th><th>提交人</th><th>时间</th><th>脚本撰写人</th><th></th></tr>
+            </thead>
+            <tbody>
+              ${state.captures.map(cap => {
+                if (!cap.submitted) {
+                  return `<tr class="pending"><td colspan="2">（等待采集）</td><td>—</td><td>${USERS[cap.userId].name}</td><td><span style="font-size:11px;color:var(--text-muted)">未提交</span></td></tr>`;
+                }
+                const forked = isForked(cap.topicId);
+                return `<tr class="${forked ? 'dispatched' : ''}">
+                  <td>${cap.title}</td>
+                  <td>${USERS[cap.userId].name}</td>
+                  <td>${cap.submittedAt}</td>
+                  <td>${forked
+                    ? state.forked.find(f => f.topicId === cap.topicId)?.writerName
+                    : `<select class="writer-select" data-topic="${cap.topicId}">${WRITERS.map(w => `<option>${w}</option>`).join('')}</select>`}
+                  </td>
+                  <td>${forked
+                    ? `<span style="color:var(--success);font-size:11px;font-weight:600">制作中</span>`
+                    : `<button type="button" class="btn btn-primary btn-sm" data-dispatch="${cap.topicId}" data-user="${cap.userId}">指派并启动制作</button>`}
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <h3>子制作 Run</h3>
+          <div class="dash-grid">
+            ${state.forked.length ? state.forked.map(f => `
+              <div class="dash-card" data-goto-prod="${f.topicId}">
+                <strong>${f.title}</strong>
+                <span>${f.runLabel} · ${f.writerName} · ${f.status}</span>
+              </div>
+            `).join('') : '<p style="font-size:12px;color:var(--text-muted)">暂无 — 在上方对已提交选题点击「指派并启动制作」</p>'}
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>最近事件 <span style="font-weight:400;font-size:11px;color:var(--text-muted)">（全量 → 任务统计）</span></h3>
+          <ul class="timeline">
+            ${state.events.slice(0, 3).map(e => `<li>${e.text}${e.actor ? ` — ${e.actor}` : ''} <span class="time">${e.time}</span></li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="note">
+          <strong>本 Profile 已隐藏：</strong>交付物、采集表单、评论编辑、握手区。
+          <strong>未模拟：</strong>「结束采集」关闭 N1 入口（P2）；真实环境 N2 批量「确认派发」见切换模式。
+        </div>
+      `;
+    }
+
+    function renderN2Batch() {
+      const sub = captureSubmitted();
+      const tot = captureTotal();
+      const canFinalize = sub >= tot;
+      return `
+        <div class="detail-header">
+          <div>
+            <h2>汇总派发</h2>
+            <p class="sub">N2 批量模式 · Run: ${state.runLabel}</p>
+          </div>
+          <div class="actions">
+            <div class="dropdown">
+              <button type="button" class="btn btn-ghost btn-sm" data-action="more-menu">更多 ▾</button>
+              <div class="dropdown-menu" id="moreMenu">
+                <button type="button" data-action="reject-song">打回 · 宋遥</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" ${canFinalize ? '' : 'disabled'} data-action="batch-finalize">
+              确认派发
+            </button>
+          </div>
+        </div>
+        ${renderMetaCompact('待处理')}
+        <div class="panel">
+          <h3>采集进度</h3>
+          <p>已收到 <strong>${sub} / ${tot}</strong> 份 · 待 <strong>${capturePendingNames()}</strong></p>
+          <div class="progress-bar"><div style="width:${progressPct()}%"></div></div>
+        </div>
+        <div class="panel">
+          <h3>待汇总矩阵</h3>
+          <table class="topic-table">
+            <thead><tr><th>通过</th><th>选题</th><th>提交人</th><th>脚本撰写人</th></tr></thead>
+            <tbody>
+              ${state.captures.filter(c => c.submitted).map(c => `
+                <tr><td><input type="checkbox" checked /></td><td>${c.title}</td><td>${USERS[c.userId].name}</td>
+                <td><select>${WRITERS.map(w => `<option>${w}</option>`).join('')}</select></td></tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="note"><strong>批量模式</strong> 模拟 <code>POST .../finalize-topics</code>；需 ${tot}/${tot} 才启用主按钮。增量模式请用 ROOT 跟踪页。</div>
+      `;
+    }
+
+    function renderN1Capture(userId) {
+      const cap = state.captures.find(c => c.userId === userId);
+      const u = USERS[userId];
+      const rejected = cap?.rejected;
+      return `
+        <div class="detail-header">
+          <div>
+            <h2>${rejected ? '提交选题（已退回）' : '提交选题'}</h2>
+            <p class="sub">${state.runLabel} · 执行人: ${u.name}</p>
+          </div>
+          <div class="actions">
+            <div class="dropdown">
+              <button type="button" class="btn btn-ghost btn-sm" data-action="more-menu">更多 ▾</button>
+              <div class="dropdown-menu" id="moreMenu">
+                <button type="button" class="danger" data-action="request-help">请求协助（示意）</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="btnSubmitTopic">提交选题</button>
+          </div>
+        </div>
+        ${renderMetaCompact(rejected ? '已退回' : '待处理', `<span>执行人 <strong>${u.name}</strong></span>`)}
+        ${rejected ? '<div class="panel" style="border-color:var(--danger);background:#fef3f2"><p style="font-size:13px;color:#b42318">管理端已打回，请修改后重新提交。</p></div>' : ''}
+        <div class="panel">
+          <h3>选题表单（单条 · 非表格）</h3>
+          <div class="form-field"><label>选题标题 *</label><input type="text" id="topicTitle" placeholder="例如：选题A 职场效率" value="${cap?.title || ''}" /></div>
+          <div class="form-field"><label>说明（可选）</label><textarea id="topicNote" placeholder="简要说明">${cap?.note || ''}</textarea></div>
+        </div>
+        <details class="collapse"><summary>评论与留痕（默认折叠）</summary><div class="body">暂无评论</div></details>
+        <div class="note"><strong>已隐藏：</strong>提交交付物、握手、表格多行。提交后模拟节点 COMPLETED，任务从待办移至历史。</div>
+      `;
+    }
+
+    function renderN1Done() {
+      return `<div class="placeholder-view"><h3>选题已提交</h3><p>该任务已完成，可在历史 Tab 查看。</p></div>`;
+    }
+
+    function renderN3File(pt) {
+      return `
+        <div class="detail-header">
+          <div>
+            <h2>脚本撰写</h2>
+            <p class="sub">${pt.runLabel} · 执行人: ${USERS[pt.assigneeId].name}</p>
+          </div>
+          <div class="actions">
+            <div class="dropdown">
+              <button type="button" class="btn btn-ghost btn-sm" data-action="more-menu">更多 ▾</button>
+              <div class="dropdown-menu" id="moreMenu">
+                <button type="button" class="danger" data-action="return-task">退回</button>
+                <button type="button" data-action="open-stats">打开任务统计</button>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="btnUploadSubmit" ${state.fileUploaded ? '' : ''}>上传并提交</button>
+          </div>
+        </div>
+        ${renderMetaCompact('待处理', `<span>执行人 <strong>${USERS[pt.assigneeId].name}</strong></span>`)}
+        <div class="panel">
+          <h3>脚本文件 · submit_mode=file</h3>
+          <div class="file-drop ${state.fileUploaded ? 'has-file' : ''}" id="fileDrop">
+            ${state.fileUploaded ? '✓ 已选择 script-v1.docx' : '点击或拖拽上传脚本文件'}
+          </div>
+          <div class="form-field" style="margin-top:12px"><label>说明（可选）</label><textarea placeholder="版本说明"></textarea></div>
+        </div>
+        <details class="collapse"><summary>工作流节点追踪（默认折叠）</summary><div class="body">N3_SCRIPT_WRITE · ACTIVATED</div></details>
+        <div class="note"><strong>未模拟：</strong>N4 审核（submit_mode=review）可切换角色至韩策查看示意 — 见底部场景指引。</div>
+      `;
+    }
+
+    function renderGenericStep(pt) {
+      return `<div class="placeholder-view"><h3>${pt.stepTitle}</h3><p>步骤详情示意</p></div>`;
+    }
+
+    function renderStatsView() {
+      const sub = captureSubmitted();
+      return `
+        <div class="detail-header"><div><h2>任务统计</h2><p class="sub">P2 入口示意 · /task-center/stats</p></div></div>
+        <div class="placeholder-view">
+          <h3>部门 / Run 维度汇总</h3>
+          <p>正式版将迁入：运行事件全量、节点耗时、Workload 图表。详情页仅保留最近 3 条事件摘要。</p>
+          <div class="stat-cards">
+            <div class="stat-card"><div class="num">${sub}/${captureTotal()}</div><div class="cap">本 Run 采集完成</div></div>
+            <div class="stat-card"><div class="num">${state.forked.length}</div><div class="cap">已 fork 制作 Run</div></div>
+            <div class="stat-card"><div class="num">${state.productionTasks.filter(t => t.status === '待处理').length}</div><div class="cap">制作待办积压</div></div>
+          </div>
+        </div>
+        <div class="panel" style="max-width:720px;margin:16px auto">
+          <h3>运行事件（全量）</h3>
+          <ul class="timeline">
+            ${state.events.map(e => `<li>${e.text} <span class="time">${e.time}</span></li>`).join('')}
+          </ul>
+        </div>
+        <div class="note" style="max-width:720px;margin:0 auto">
+          <strong>文字说明（S4）：</strong>看板 / 甘特 / 统计的完整交互属于 P2；本 Demo 在「视图」切换提供静态示意，数据与左侧列表联动有限。
+        </div>
+      `;
+    }
+
+    function renderBoardView() {
+      const tasks = buildTasks();
+      const cols = { '待处理': [], '进行中': [], '待确认': [], '已完成': [] };
+      tasks.forEach(t => { if (cols[t.status]) cols[t.status].push(t); else cols['进行中'].push(t); });
+      return `
+        <div class="detail-header"><div><h2>看板视图</h2><p class="sub">按用户态分列 · P2 重做</p></div></div>
+        <div class="board-columns">
+          ${Object.entries(cols).map(([name, items]) => `
+            <div class="board-col"><h4>${name}</h4>
+              ${items.map(t => `<div class="board-card" data-task="${t.id}"><strong>${t.title}</strong><br><span class="chip chip-run">${t.run}</span></div>`).join('') || '<span style="font-size:11px;color:var(--text-muted)">空</span>'}
+            </div>
+          `).join('')}
+        </div>
+        <div class="note"><strong>文字说明：</strong>正式看板支持按 Run 分组、拖拽改态（若产品允许）；当前为只读示意。</div>
+      `;
+    }
+
+    function renderGanttView() {
+      const items = [
+        { label: '陆言 · 提交选题', start: 10, width: 25, color: 'var(--warning)' },
+        { label: '宋遥 · 脚本撰写', start: 35, width: 30, color: 'var(--primary)' },
+        { label: '批次 · 截止', start: 70, width: 20, color: 'var(--danger)' },
+      ];
+      return `
+        <div class="detail-header"><div><h2>甘特视图</h2><p class="sub">仅有 deadline 的任务 · 按 Run 着色 · P2</p></div></div>
+        <div class="gantt-mock">
+          ${items.map(i => `
+            <div class="gantt-row">
+              <div class="gantt-label">${i.label}</div>
+              <div class="gantt-track"><div class="gantt-bar" style="left:${i.start}%;width:${i.width}%;background:${i.color}">6/18–6/20</div></div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="note"><strong>文字说明：</strong>无 deadline 的 N1 不进甘特；正式实现读取 <code>due_at</code> 与 Run 色板。</div>
+      `;
+    }
+
+    function bindDetailEvents() {
+      document.querySelectorAll('[data-dispatch]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const topicId = btn.dataset.dispatch;
+          const userId = btn.dataset.user;
+          const cap = state.captures.find(c => c.userId === userId);
+          const row = btn.closest('tr');
+          const writer = row?.querySelector('.writer-select')?.value || '陆言';
+          dispatchTopic(topicId, cap.title, writer, userId);
+        });
+      });
+
+      document.getElementById('btnSubmitTopic')?.addEventListener('click', () => {
+        const title = document.getElementById('topicTitle')?.value.trim();
+        if (!title) { toast('请填写选题标题'); return; }
+        const note = document.getElementById('topicNote')?.value.trim();
+        submitCapture(state.currentUser, title, note);
+      });
+
+      document.getElementById('fileDrop')?.addEventListener('click', () => {
+        state.fileUploaded = true;
+        toast('已选择文件（模拟）');
+        renderDetail();
+      });
+
+      document.getElementById('btnUploadSubmit')?.addEventListener('click', () => {
+        if (!state.fileUploaded) { toast('请先上传文件'); return; }
+        const pt = state.productionTasks.find(t => t.id === state.selectedTask);
+        if (pt) submitFile(pt.id);
+      });
+
+      document.querySelector('[data-action="toggle-n2-mode"]')?.addEventListener('click', () => {
+        state.n2BatchMode = !state.n2BatchMode;
+        toast(state.n2BatchMode ? '已切换 N2 批量模式（全员到齐后出现汇总待办）' : '已切换增量模式（ROOT 跟踪派发）');
+        render();
+      });
+
+      document.querySelector('[data-action="batch-finalize"]')?.addEventListener('click', () => {
+        state.captures.filter(c => c.submitted && !isForked(c.topicId)).forEach(c => {
+          dispatchTopic(c.topicId, c.title, '陆言', c.userId);
+        });
+        toast('批量确认派发（模拟 finalize_topics）');
+        render();
+      });
+
+      document.querySelector('[data-action="reject-song"]')?.addEventListener('click', () => {
+        rejectCapture('song');
+        document.getElementById('moreMenu')?.classList.remove('open');
+      });
+
+      document.querySelector('[data-action="toggle-more"]')?.addEventListener('click', () => {
+        const m = document.getElementById('moreMeta');
+        if (m) m.style.display = m.style.display === 'none' ? 'block' : 'none';
+      });
+
+      document.querySelector('[data-action="more-menu"]')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('moreMenu')?.classList.toggle('open');
+      });
+
+      document.querySelector('[data-action="open-stats"]')?.addEventListener('click', () => {
+        state.tab = 'stats';
+        state.view = 'list';
+        render();
+      });
+
+      document.querySelectorAll('[data-goto-prod]').forEach(card => {
+        card.addEventListener('click', () => {
+          const topicId = card.dataset.gotoProd;
+          const pt = state.productionTasks.find(t => t.topicId === topicId);
+          if (pt) {
+            state.currentUser = pt.assigneeId;
+            state.tab = 'inbox';
+            state.selectedTask = pt.id;
+            document.querySelectorAll('.user-btn').forEach(b => b.classList.toggle('active', b.dataset.user === pt.assigneeId));
+            toast(`已切换至 ${USERS[pt.assigneeId].name} 待办`);
+            render();
+          }
+        });
+      });
+
+      document.querySelectorAll('.board-card').forEach(card => {
+        card.addEventListener('click', () => {
+          state.view = 'list';
+          state.selectedTask = card.dataset.task;
+          render();
+        });
+      });
+    }
+
+    function render() {
+      const tasks = buildTasks();
+      if (!tasks.find(t => t.id === state.selectedTask) && state.tab !== 'stats') {
+        if (tasks.length) state.selectedTask = tasks[0].id;
+        else if (state.currentUser === 'han' && state.tab === 'tracking') state.selectedTask = 'root';
+      }
+
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === state.tab);
+      });
+      document.querySelectorAll('.view-btn').forEach(v => {
+        v.classList.toggle('active', v.dataset.view === state.view);
+        v.disabled = state.tab === 'stats';
+      });
+      document.getElementById('viewToolbar').style.opacity = state.tab === 'stats' ? '.5' : '1';
+
+      renderMaster();
+      renderDetail();
+    }
+
+    // ─── Global events ─────────────────────────────────────────────────
+    document.querySelectorAll('.user-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.currentUser = btn.dataset.user;
+        state.fileUploaded = false;
+        document.querySelectorAll('.user-btn').forEach(b => b.classList.toggle('active', b === btn));
+        if (state.currentUser !== 'han' && state.tab === 'tracking') state.tab = 'inbox';
+        render();
+      });
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        state.tab = tab.dataset.tab;
+        state.view = 'list';
+        if (state.tab === 'tracking' && state.currentUser === 'han') state.selectedTask = 'root';
+        render();
+      });
+    });
+
+    document.querySelectorAll('.view-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (state.tab === 'stats') return;
+        state.view = btn.dataset.view;
+        render();
+      });
+    });
+
+    document.getElementById('btnInstantiate').addEventListener('click', () => {
+      document.getElementById('instantiateOverlay').classList.add('open');
+    });
+    document.getElementById('btnCancelInst').addEventListener('click', () => {
+      document.getElementById('instantiateOverlay').classList.remove('open');
+    });
+    document.getElementById('btnConfirmInst').addEventListener('click', () => {
+      state.runLabel = document.getElementById('instTheme').value || '春季选题会';
+      document.getElementById('instantiateOverlay').classList.remove('open');
+      state.currentUser = 'han';
+      document.querySelectorAll('.user-btn').forEach(b => b.classList.toggle('active', b.dataset.user === 'han'));
+      resetDemo();
+      toast('派发成功 → 已进入跟踪 Tab（模拟 S1）');
+    });
+
+    document.addEventListener('click', () => {
+      document.getElementById('moreMenu')?.classList.remove('open');
+    });
+
+    // ─── Guided scenario hint in banner area ───────────────────────────
+    render();
+  </script>
+
+  <div style="max-width:1320px;margin:0 auto;padding:16px 24px 32px">
+    <div class="note">
+      <strong>推荐体验路径（模拟真实行为）：</strong><br>
+      1️⃣ <strong>S1</strong> 点击「从模板创建」→ 确定派发 → 自动进入韩策跟踪页<br>
+      2️⃣ <strong>S2</strong> 在 ROOT 对已提交选题点「指派并启动制作」（无需等陆言交齐）→ 点击子 Run 卡片自动切到文案编辑待办<br>
+      3️⃣ <strong>S3</strong> 切换「陆言」→ 待办提交选题；或在上一步进入「脚本撰写」→ 上传并提交（submit_mode=file）<br>
+      4️⃣ <strong>S4</strong> 切换看板/甘特/统计 Tab — 统计页有全量事件；看板/甘特为 P2 文字+示意<br>
+      <strong>无法模拟：</strong>真实 JWT 鉴权、WebSocket 推送、并发 fork 409、图引擎 join 门控变更；均在界面中用 amber 标签或 note 标明。
+    </div>
+  </div>
+</body>
+</html>

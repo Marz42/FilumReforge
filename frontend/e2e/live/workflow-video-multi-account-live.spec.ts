@@ -311,7 +311,7 @@ async function openTaskByTitleHint(page: Page, accessToken: string, hint: string
 }
 
 async function submitCapture(page: Page, title: string): Promise<void> {
-  await page.locator('[data-testid="template-capture-panel"] tbody input').first().fill(title)
+  await page.getByTestId('template-capture-title').fill(title)
   const captureResp = page.waitForResponse(
     (r) => /\/submit-capture\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
     { timeout: 60_000 },

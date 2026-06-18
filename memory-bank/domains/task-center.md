@@ -13,7 +13,7 @@
 | Inbox-first | 主标签：待处理 / 跟踪 / 历史 |
 | 建立任务 | 页头 Dialog；graph 手动任务 dual-write |
 | 搜索 | `GET /api/v1/tasks/search` |
-| 多视图 | 列表 / 看板 / 甘特（任务详情内） |
+| 多视图 | 列表 / 看板 / 甘特（任务详情内）→ **v2 重做中**见 [`plans/task-center-v2-implementation-plan.md`](../plans/task-center-v2-implementation-plan.md) |
 | 个人备忘 | 全局浮窗；`task_memos` |
 | 任务模板入口 | `/task-templates`（工作流 E） |
 

@@ -22,6 +22,7 @@ import type {
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
+import { resolveTaskRunLabel } from '@/domain/task-detail/run-label'
 
 type TaskCenterFilter = 'inbox' | 'tracking' | 'history'
 type TaskCenterViewMode = 'list' | 'board' | 'gantt'
@@ -280,6 +281,10 @@ function resolvePriorityLabel(priority: TaskPriority): string {
 
 function resolveSourceTypeLabel(sourceType: TaskSourceType): string {
   return SOURCE_TYPE_LABELS[sourceType]
+}
+
+function resolveMasterRunLabel(title: string): string {
+  return resolveTaskRunLabel(title)
 }
 
 function resetPublishForm(): void {
@@ -676,7 +681,12 @@ onMounted(() => {
             </template>
 
             <template v-else-if="activeFilter === 'inbox'">
-              <el-table-column prop="title" label="任务标题" min-width="220" />
+              <el-table-column prop="title" label="任务标题" min-width="200" />
+              <el-table-column label="Run" min-width="140">
+                <template #default="{ row }: { row: TaskCenterInboxItem }">
+                  {{ resolveMasterRunLabel(row.title) }}
+                </template>
+              </el-table-column>
               <el-table-column label="优先级" width="120">
                 <template #default="{ row }: { row: TaskCenterInboxItem }">
                   <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
@@ -702,12 +712,17 @@ onMounted(() => {
             </template>
 
             <template v-else-if="activeFilter === 'tracking'">
-              <el-table-column label="任务标题" min-width="220">
+              <el-table-column label="任务标题" min-width="200">
                 <template #default="{ row }: { row: TaskCenterTrackingItem }">
                   <el-space wrap>
                     <span>{{ row.title }}</span>
                     <el-tag v-if="isOverdue(row)" type="danger" size="small" effect="plain">已逾期</el-tag>
                   </el-space>
+                </template>
+              </el-table-column>
+              <el-table-column label="Run" min-width="140">
+                <template #default="{ row }: { row: TaskCenterTrackingItem }">
+                  {{ resolveMasterRunLabel(row.title) }}
                 </template>
               </el-table-column>
               <el-table-column prop="department_name" label="部门" min-width="160" />
@@ -741,7 +756,12 @@ onMounted(() => {
             </template>
 
             <template v-else>
-              <el-table-column prop="title" label="任务标题" min-width="220" />
+              <el-table-column prop="title" label="任务标题" min-width="200" />
+              <el-table-column label="Run" min-width="140">
+                <template #default="{ row }: { row: TaskCenterHistoryItem }">
+                  {{ resolveMasterRunLabel(row.title) }}
+                </template>
+              </el-table-column>
               <el-table-column label="来源" width="120">
                 <template #default="{ row }: { row: TaskCenterHistoryItem }">
                   {{ resolveSourceTypeLabel(row.source_type) }}

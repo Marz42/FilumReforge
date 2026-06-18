@@ -42,6 +42,8 @@ export interface InstanceSubmissionsResponse {
     instance_key: string
     assignee_user_id: string | null
     assignee_email?: string | null
+    assignee_display_name?: string | null
+    submitted_at?: string | null
     topics: TopicCaptureSubmitResponse['topics']
   }>
 }

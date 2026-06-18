@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -91,6 +92,18 @@ interface StepFormState {
 }
 
 const authStore = useAuthStore()
+const router = useRouter()
+
+function handleGraphTemplateInstantiated(payload: { instanceId: string; rootTaskId: string }): void {
+  ElMessage.success('模板已派发，正在打开跟踪视图')
+  void router.push({
+    path: '/task-center',
+    query: {
+      filter: 'tracking',
+      selected: payload.rootTaskId,
+    },
+  })
+}
 const props = withDefaults(defineProps<Props>(), {
   canManageTemplates: undefined,
   canPublishTask: undefined,
@@ -1255,6 +1268,7 @@ onMounted(() => {
       :users="users"
       :can-publish="canPublishTask"
       data-testid="task-templates-graph-tab"
+      @instantiated="handleGraphTemplateInstantiated"
     />
 
     <el-row v-else :gutter="20">

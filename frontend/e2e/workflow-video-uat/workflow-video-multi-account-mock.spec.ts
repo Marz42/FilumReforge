@@ -102,7 +102,7 @@ async function openCaptureTask(page: Page, hint: string): Promise<void> {
 
 async function submitCapture(page: Page, title: string): Promise<void> {
 
-  await page.locator('[data-testid="template-capture-panel"] tbody input').first().fill(title)
+  await page.getByTestId('template-capture-title').fill(title)
 
   const captureResp = page.waitForResponse(
 

@@ -2,6 +2,48 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 12:42 - 任务协同 UI 简化设计 + HTML Demo
+
+**完成事项**:
+- [x] 汇总 Docker/浏览器实测问题，写入 [`plans/workflow-video-v1-ui-simplification-design.md`](plans/workflow-video-v1-ui-simplification-design.md)（问题归类、Action Profile、P0–P2 路线）
+- [x] 单页交互 Demo：[`demos/workflow-task-detail-v2.html`](demos/workflow-task-detail-v2.html)（N1/N2/ROOT/手动四场景）
+- [x] 更新 `README.md`、`domains/workflow-video-v1.md` 索引
+
+**下一步建议**:
+- 产品评审 Demo → 批准 P0 后改 `TasksView` / 新增 Action Profile
+
+### 2026-06-18 11:52 - Docker 图模板实测环境配置（8080 栈）
+
+**完成事项**:
+- [x] 新建 `infra/docker/.env`（`WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`、`FRONTEND_APP_URL=http://127.0.0.1:8080`、JWT 密钥）
+- [x] 因本机 `aestas` 栈占用 5432/6379/8000/5173，Filum 宿主机端口改为 **5433 / 6380 / 8001 / 5174**，Nginx 仍为 **8080**
+- [x] `docker compose up -d` 全栈 healthy
+- [x] `seed_sample_data --password FilumTest123!` + `seed_workflow_video_templates`
+- [x] API 冒烟：`workflow_graph_template_engine_enabled=true`；图模板 `topic_meeting_batch_v1`、`video_production_per_topic_v1` 均为 `active`
+
+**遗留问题**:
+- [ ] 用户手工 A–F 实测（见 multi-account E2E 指南 §4）
+
+**下一步建议**:
+- 浏览器打开 `http://127.0.0.1:8080`，用 `demo.video.copy.lead@example.com` / `FilumTest123!` 开始阶段 A
+
+### 2026-06-18 11:23 - 工作区恢复、全量测试与 memory-bank 对齐更新
+
+**完成事项**:
+- [x] 发现工作区 **409 个 tracked 文件**误删；`git restore .` 恢复至 `98ad370`，工作树干净
+- [x] 重建 `backend/.venv` + `npm ci`；全量自动化基线复跑
+- [x] 后端 **212 passed, 1 skipped**（`test_migrations.py`：本机 PostgreSQL 凭据不匹配时 skip）；`compileall` PASS
+- [x] 前端 vitest **119/119**、`type-check`、`build` PASS；Playwright mock **9/9**
+- [x] memory-bank 对齐更新：`architecture.md`（v3.12.1、Dialog 入口、损坏链接）、`data-contracts.md`（图引擎 §10.41–48、Phase 5 状态、API 索引、模板版本字段）、`progress.md`、`active-task.md`、`known-issues.md`；新增 `history/reports/alignment-assessment-20260618.md`
+
+**遗留问题**:
+- [ ] Alembic 往返测试需可用 PostgreSQL（`POSTGRES_TEST_ADMIN_DSN` 或 Compose postgres）
+- [ ] Docker A–F 手工/多账号实测（`active-task.md` 主线）
+- [ ] `docker-gui` / `playwright_live` 基线未重跑
+
+**下一步建议**:
+- 启动 Compose 后走 A–F 实测，或跑 `npm run test:e2e:workflow-video-multi-account-mock`
+
 ### 2026-06-18 - Docker 图模板本地实测环境就绪
 
 **完成事项**:
@@ -91,21 +133,21 @@
 
 | 字段 | 值 |
 | --- | --- |
-| `baseline_id` | `2026-06-18-main-7512ab9` |
-| `commit` | `7512ab9`（`docs: align memory-bank baseline and Docker graph template setup`）；测试数字仍取自 `45954eb` |
-| `runner_os` | Windows 11 + `backend/.venv`（Python 3.11）；前端 `npm ci` 后原生 Node |
-| `pytest` | **213 passed**（`backend/.venv/Scripts/python.exe -m pytest`，约 130s；`test_alembic_upgrade_and_downgrade` 需本机 PostgreSQL，`POSTGRES_TEST_ADMIN_DSN` 默认 `postgresql://filum:filum@127.0.0.1:5432/postgres`） |
-| `compileall` | PASS（`python -m compileall -q app tests`） |
-| `vitest` | **39 文件 / 119 用例** 全绿（`npm run test:unit -- --run`，约 22s） |
+| `baseline_id` | `2026-06-18-main-98ad370` |
+| `commit` | `98ad370`（`docs(progress): record Docker graph template setup and remote sync`） |
+| `runner_os` | Windows 11 + `backend/.venv`（Python 3.12.9）；前端 `npm ci` 后原生 Node |
+| `pytest` | **212 passed, 1 skipped**（`backend/.venv/Scripts/python.exe -m pytest backend/tests`，约 90–130s；skip = `test_migrations.py::test_alembic_upgrade_and_downgrade`，需 `POSTGRES_TEST_ADMIN_DSN`，默认 `postgresql://filum:filum@127.0.0.1:5432/postgres`） |
+| `compileall` | PASS（`python -m compileall -q backend/app backend/tests`） |
+| `vitest` | **39 文件 / 119 用例** 全绿（`npm run test:unit -- --run`，约 15–23s） |
 | `type-check` / `build` | PASS（`npm run type-check`、`npm run build`；Vite chunk size 为信息性警告） |
-| `playwright_mock` | **5/5** @ `e2e/login.spec.ts` + `e2e/task-center.spec.ts` + `e2e/workflow-video-v1.spec.ts`（`npm run test:e2e -- e2e/login.spec.ts e2e/task-center.spec.ts e2e/workflow-video-v1.spec.ts`） |
+| `playwright_mock` | **9/9** @ `e2e/login.spec.ts` + `e2e/task-center.spec.ts` + `e2e/workflow-video-v1.spec.ts` |
 | `check-release.sh` | **Windows 等价 P0 全绿**（2026-05-21 记录）；生产/Ubuntu 主机应在 Linux 原生目录执行 `bash scripts/check-release.sh` |
 | `eslint` | 8 errors（`npm run lint`，非阻塞；待清理） |
 | `docker-gui` | **未在本机重跑**；沿用 **2026-05-20** 基线 **18/18** @ `http://127.0.0.1:8080` |
-| `docker_manual` | Compose 栈 @ `http://127.0.0.1:8080` 已就绪（种子 + 图模板）；**手工 A–F 实测进行中** |
+| `docker_manual` | Compose 配置与种子脚本已在 6/18 会话验证；**A–F 手工实测待完成** |
 | `playwright_live` | 未纳入本次基线重跑 |
-| `memory_bank_sync` | **已对齐** — 本地 `main` ≡ `origin/main` @ `7512ab9`（2026-06-18 核查） |
-| `notes` | 图任务握手 accept（`c1ff391`）；Paradigma Phase 0–4（`9962df2`）；Docker 图模板开关见 `infra/docker/.env.example`；mock E2E 需 `npx playwright install chromium` |
+| `memory_bank_sync` | 文档已同步至 `98ad370`（2026-06-18 对齐更新） |
+| `notes` | 工作区误删 409 文件后已 `git restore` 恢复；mock E2E 需 `npx playwright install chromium` |
 
 ## 视频工作流 v1（workflow-video-v1）
 
@@ -340,7 +382,9 @@
 
 ## 当前已知问题
 
-- **测试基线**（2026-05-21）：后端 **153 passed**；前端 **106/106**；无阻塞性单测失败。
+- **测试基线**（2026-06-18 @ `98ad370`）：后端 **212 passed, 1 skipped**；前端 **119/119**；Playwright mock **9/9**。
+- **Alembic 往返 skip**：无可用 PostgreSQL 或 `POSTGRES_TEST_ADMIN_DSN` 凭据错误时跳过；非代码失败。
+- **工作区误删风险**：若 `git status` 出现大量 `D` 文件，先 `git restore .` 再跑测试（2026-06-18 已遇一次）。
 - **Docker GUI**：本次开发机未重跑；沿用 2026-05-20 **18/18** @ `http://127.0.0.1:8080`。
 - **`check-release.sh`**：须在 **Linux 原生** 仓库路径执行（避免 WSL 挂载盘 `node_modules` 的 rolldown 绑定问题）；Windows 开发机以「测试基线」中等价 P0 为准。
 - **Ubuntu 最小回滚路径**：未演练（Phase 6 遗留，见「当前规划焦点」）。
@@ -706,7 +750,7 @@
 
 Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。当前建议优先级：
 
-1. **本地 Docker 图模板实测**（视频工作流 v1；`infra/docker/.env` + 种子账号，见 `workflow-video-v1-docker-runbook.md`）
+1. **本地 Docker 图模板实测**（视频工作流 v1；工作区已恢复 @ `98ad370`，自动化基线已绿；A–F 待完成）
 2. **工作流 E 与图引擎产品级统一**、模板 / 调度深化
 3. **生命周期规则化默认映射 + 前端结构化配置入口**
 4. **公开 / 审批式注册（若需要）与真实通知渠道适配**
@@ -730,3 +774,29 @@ Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。
   - `type-check`
   - `build`
   - `lint`
+
+---
+
+## 2026-06-18 · UI 简化设计 v2.1
+
+- 完善 [`plans/workflow-video-v1-ui-simplification-design.md`](./plans/workflow-video-v1-ui-simplification-design.md) 至 **v2.1**：
+  - 产品四场景 S1–S4（模板派发、增量跟踪派发、成员多提交类型、任务中心 IA 2.0）
+  - §6.2b 增量派发 + §9.1 `dispatch_topic` API 契约草案
+  - Action Profile `submit_mode`、详情布局、验收标准分 P0/P1/P2
+- 待：产品评审 Demo → P0 实现 `TaskDetailProfile`
+- 新增交互 Demo [`demos/workflow-task-center-v2.1-demo.html`](./demos/workflow-task-center-v2.1-demo.html)（S1–S4 本地状态模拟）
+
+## 2026-06-18 · 任务中心 v2 立项
+
+- **roadmap.md**：任务中心 v2 升为 **P0 下一焦点**；版本主题更新
+- **新增** [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md)（TC-P0–P2、PR 切分、API、验收、里程碑）
+- **active-task.md**：切换为 TC-P0 开干清单
+- Demo 行为已评审通过 → 工程计划与 UX 规格 v2.1 对齐
+
+## 2026-06-18 · TC-P0 实现（feat/task-center-p0-profile）
+
+- **domain**：`frontend/src/domain/task-detail/{profile,user-state,run-label}.ts` + vitest
+- **组件**：`VideoCapturePanel`（N1 单表单）、`VideoCaptureProgressPanel`（x/y 进度）
+- **集成**：`TasksView.vue` Profile 裁剪；`TaskCenterView` Run 列；实例化 → 跟踪 Tab
+- **测试**：type-check ✓ · vitest 127 ✓ · workflow mock E2E 7/7 ✓
+- **下一步**：TC-P1 `dispatch_topic` + `VideoTrackingPanel` 增量派发

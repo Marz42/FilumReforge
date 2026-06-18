@@ -157,7 +157,7 @@ onMounted(() => {
       </div>
     </template>
 
-    <el-empty v-if="matrixRows.length === 0" description="暂无待汇总提交" />
+    <el-empty v-if="matrixRows.length === 0 && !loading" description="暂无已提交选题，请等待采集进度更新" />
 
     <el-table v-else :data="matrixRows" border size="small">
       <el-table-column label="通过" width="64">

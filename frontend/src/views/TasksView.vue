@@ -28,7 +28,18 @@ import { acceptTaskAssignment,
 import { getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
 import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
-import TemplateCapturePanel from '@/components/workflow/TemplateCapturePanel.vue'
+import VideoCapturePanel from '@/components/workflow/VideoCapturePanel.vue'
+import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
+import {
+  isVideoWorkflowProfile,
+  resolveTaskDetailProfile,
+} from '@/domain/task-detail/profile'
+import { resolveTaskRunLabel } from '@/domain/task-detail/run-label'
+import {
+  resolveTaskUserFacingStateForTask,
+  TASK_USER_FACING_STATE_LABELS,
+  userFacingStateTagType,
+} from '@/domain/task-detail/user-state'
 import { decideStepRun } from '@/api/task-templates'
 import { listUsers } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
@@ -427,18 +438,38 @@ const isGraphRootBatchTask = computed(
     && selectedTaskMetadata.value.workflow_graph_root_task === true
     && graphRunKind.value === 'batch',
 )
+const selectedTaskProfile = computed(() =>
+  resolveTaskDetailProfile(selectedTask.value, { currentUserId: authStore.user?.id }),
+)
+const selectedTaskUserFacingState = computed(() => {
+  if (!selectedTask.value) {
+    return null
+  }
+  return resolveTaskUserFacingStateForTask(selectedTask.value, authStore.user?.id)
+})
+const selectedTaskUserFacingStateLabel = computed(() => {
+  const state = selectedTaskUserFacingState.value
+  return state ? TASK_USER_FACING_STATE_LABELS[state] : '—'
+})
+const selectedTaskUserFacingTagType = computed(() => {
+  const state = selectedTaskUserFacingState.value
+  return state ? userFacingStateTagType(state) : 'info'
+})
+const usesVideoWorkflowLayout = computed(() => isVideoWorkflowProfile(selectedTaskProfile.value))
+const showCaptureProgressPanel = computed(
+  () => selectedTaskProfile.value.showCaptureProgress && graphInstance.value !== null,
+)
+const showDetailHeaderActions = computed(() => {
+  const profileId = selectedTaskProfile.value.id
+  return profileId !== 'video_n1_capture'
+    && profileId !== 'video_n2_aggregate'
+    && profileId !== 'video_batch_root'
+})
 const showVideoCapturePanel = computed(
-  () =>
-    isGraphTemplateTask.value
-    && graphTemplateNodeKey.value === 'N1_PROPOSE'
-    && selectedTask.value?.assignee_id === authStore.user?.id
-    && selectedTask.value?.status !== 'done',
+  () => selectedTaskProfile.value.id === 'video_n1_capture',
 )
 const showVideoAggregatePanel = computed(
-  () =>
-    isGraphTemplateTask.value
-    && graphTemplateNodeKey.value === 'N2_AGGREGATE'
-    && selectedTask.value?.assignee_id === authStore.user?.id,
+  () => selectedTaskProfile.value.id === 'video_n2_aggregate',
 )
 const showBatchRunDashboard = computed(() => isGraphRootBatchTask.value && graphInstance.value !== null)
 const graphParentInstanceId = computed(() => {
@@ -527,6 +558,16 @@ function resolveStatusLabel(status: TaskStatus): string {
 
 function resolvePriorityLabel(priority: TaskPriority): string {
   return PRIORITY_LABELS[priority]
+}
+
+function resolveTaskListRunLabel(task: Task): string {
+  const metadata = (task.extra_metadata as Record<string, unknown> | undefined) ?? {}
+  const graphLabel =
+    graphInstance.value?.run_label
+    ?? (typeof graphInstance.value?.context?.run_label === 'string'
+      ? graphInstance.value.context.run_label
+      : null)
+  return resolveTaskRunLabel(task.title, metadata, graphLabel)
 }
 
 function formatRate(value: number): string {
@@ -1187,7 +1228,19 @@ watch(
           <template v-if="viewMode === 'list'">
             <el-table :data="tasks" stripe highlight-current-row data-testid="tasks-list-table" @row-click="handleTaskClick">
               <el-table-column prop="title" label="任务标题" min-width="180" />
-              <el-table-column label="执行人" min-width="180">
+              <el-table-column label="Run" min-width="140">
+                <template #default="{ row }: { row: Task }">
+                  {{ resolveTaskRunLabel(row.title, (row.extra_metadata as Record<string, unknown>) ?? {}) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="用户态" width="120">
+                <template #default="{ row }: { row: Task }">
+                  <el-tag :type="normalizeTagType(userFacingStateTagType(resolveTaskUserFacingStateForTask(row, authStore.user?.id)))" effect="plain">
+                    {{ TASK_USER_FACING_STATE_LABELS[resolveTaskUserFacingStateForTask(row, authStore.user?.id)] }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="执行人" min-width="160">
                 <template #default="{ row }: { row: Task }">
                   {{ resolveUserLabel(row.assignee_id) }}
                 </template>
@@ -1288,7 +1341,7 @@ watch(
           <template #header>
             <div class="page__header">
               <span>任务协同详情</span>
-              <div style="display: flex; gap: 8px; align-items: center">
+              <div v-if="showDetailHeaderActions" style="display: flex; gap: 8px; align-items: center">
                 <template v-if="canDecideApproval">
                   <el-button
                     type="success"
@@ -1384,7 +1437,26 @@ watch(
           />
 
           <template v-if="selectedTask">
-            <el-descriptions :column="1" border>
+            <div
+              v-if="selectedTaskProfile.compactMetadata"
+              class="page__compact-meta"
+              data-testid="task-detail-compact-meta"
+            >
+              <el-space wrap>
+                <span>
+                  用户态
+                  <el-tag :type="normalizeTagType(selectedTaskUserFacingTagType)" effect="plain">
+                    {{ selectedTaskUserFacingStateLabel }}
+                  </el-tag>
+                </span>
+                <span>截止时间 {{ formatDateTime(selectedTask.due_date) }}</span>
+                <span>所属部门 {{ resolveDepartmentName(selectedTask.department_id) }}</span>
+                <span>Run {{ resolveTaskListRunLabel(selectedTask) }}</span>
+                <span>执行人 {{ resolveUserLabel(selectedTask.assignee_id) }}</span>
+              </el-space>
+            </div>
+
+            <el-descriptions v-if="!selectedTaskProfile.compactMetadata" :column="1" border>
               <el-descriptions-item label="任务标题">
                 {{ selectedTask.title }}
               </el-descriptions-item>
@@ -1410,10 +1482,10 @@ watch(
               <el-descriptions-item label="任务描述">
                 {{ selectedTask.description || '—' }}
               </el-descriptions-item>
-              <el-descriptions-item label="握手状态">
+              <el-descriptions-item v-if="!selectedTaskProfile.hideHandshakeFields" label="握手状态">
                 {{ handshakeStateLabel }}
               </el-descriptions-item>
-              <el-descriptions-item v-if="isGraphHandshakeTask && workflowNodeIteration > 1" label="迭代版本">
+              <el-descriptions-item v-if="!selectedTaskProfile.hideHandshakeFields && isGraphHandshakeTask && workflowNodeIteration > 1" label="迭代版本">
                 V{{ workflowNodeIteration }}（系统深度打回重放）
               </el-descriptions-item>
               <el-descriptions-item v-if="isGraphHandshakeTask && workflowDeepRejectionReason" label="打回原因">
@@ -1448,12 +1520,16 @@ watch(
               </el-descriptions-item>
             </el-descriptions>
 
+            <VideoCaptureProgressPanel
+              v-if="showCaptureProgressPanel && graphInstance"
+              :graph-instance="graphInstance"
+            />
             <BatchRunDashboard
               v-if="showBatchRunDashboard"
               :graph-instance="graphInstance"
               @open-task="(taskId) => { selectedTaskId = taskId; void loadSelectedTaskDetails(taskId) }"
             />
-            <TemplateCapturePanel
+            <VideoCapturePanel
               v-if="showVideoCapturePanel && selectedTask"
               :task="selectedTask"
               :graph-instance="graphInstance"
@@ -1468,7 +1544,7 @@ watch(
             />
 
             <el-card
-              v-if="workflowRunEvents.length > 0"
+              v-if="workflowRunEvents.length > 0 && !usesVideoWorkflowLayout"
               shadow="never"
               class="page__run-events"
               data-testid="workflow-run-events"
@@ -1488,6 +1564,25 @@ watch(
               </el-timeline>
             </el-card>
 
+            <el-card
+              v-else-if="workflowRunEvents.length > 0 && usesVideoWorkflowLayout"
+              shadow="never"
+              class="page__run-events"
+              data-testid="workflow-run-events-compact"
+            >
+              <template #header><strong>最近事件</strong></template>
+              <el-timeline>
+                <el-timeline-item
+                  v-for="event in workflowRunEvents.slice(0, 3)"
+                  :key="event.id"
+                  :timestamp="formatDateTime(event.created_at)"
+                >
+                  {{ resolveRunEventLabel(event.event_type) }}
+                </el-timeline-item>
+              </el-timeline>
+            </el-card>
+
+            <template v-if="!selectedTaskProfile.hideDeliverable">
             <el-divider>交付与验收</el-divider>
 
             <el-form v-if="canSubmitDeliverable" label-position="top">
@@ -1521,6 +1616,9 @@ watch(
               </el-form-item>
             </el-form>
 
+            </template>
+
+            <template v-if="!selectedTaskProfile.hideWatchers">
             <el-divider>关注人与抄送</el-divider>
 
             <div class="page__watchers">
@@ -1554,7 +1652,9 @@ watch(
                 </el-button>
               </div>
             </div>
+            </template>
 
+            <template v-if="!usesVideoWorkflowLayout">
             <el-divider>任务资料附件</el-divider>
 
             <div data-testid="tasks-attachment-upload">
@@ -1606,6 +1706,30 @@ watch(
               </el-card>
             </el-space>
 
+            </template>
+
+            <el-collapse v-if="selectedTaskProfile.collapseComments" class="page__comments-collapse">
+              <el-collapse-item title="评论与留痕" name="comments">
+                <el-form label-position="top">
+                  <el-form-item label="评论内容">
+                    <el-input
+                      v-model="commentForm.content"
+                      type="textarea"
+                      :rows="4"
+                      placeholder="请输入任务评论或协作说明"
+                    />
+                  </el-form-item>
+                  <el-form-item v-if="authStore.isManagementRole" label="内部备注">
+                    <el-switch v-model="commentForm.is_internal" />
+                  </el-form-item>
+                </el-form>
+                <el-button type="primary" :loading="commentSubmitting" @click="handleCommentSubmit">
+                  提交评论
+                </el-button>
+              </el-collapse-item>
+            </el-collapse>
+
+            <template v-else>
             <el-divider>评论与留痕</el-divider>
 
             <el-form label-position="top">
@@ -1644,7 +1768,7 @@ watch(
             <el-divider>活动时间线</el-divider>
 
             <!-- 图引擎节点板块（仅图任务显示） -->
-            <template v-if="graphInstance">
+            <template v-if="graphInstance && !usesVideoWorkflowLayout">
               <el-divider>工作流节点追踪</el-divider>
               <el-space direction="vertical" fill class="page__node-timeline" data-testid="tasks-graph-panel">
                 <el-card
@@ -1679,9 +1803,9 @@ watch(
               </el-space>
             </template>
 
-            <el-empty v-if="taskActivity.length === 0" description="暂无活动记录" />
+            <el-empty v-if="!usesVideoWorkflowLayout && taskActivity.length === 0" description="暂无活动记录" />
 
-            <el-timeline v-else>
+            <el-timeline v-else-if="!usesVideoWorkflowLayout">
               <el-timeline-item
                 v-for="entry in taskActivity"
                 :key="`${entry.entry_type}-${entry.created_at}`"
@@ -1730,6 +1854,8 @@ watch(
                 </el-card>
               </el-timeline-item>
             </el-timeline>
+
+            </template>
           </template>
 
           <el-empty v-else description="点击左侧任务查看协同详情" />
@@ -2005,6 +2131,19 @@ watch(
 
 .page__inline-tag {
   margin-left: 8px;
+}
+
+.page__compact-meta {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+  font-size: 13px;
+}
+
+.page__comments-collapse {
+  margin-top: 16px;
 }
 
 .page__comment-attachments {
