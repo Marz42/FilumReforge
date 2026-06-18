@@ -32,6 +32,7 @@ import VideoCapturePanel from '@/components/workflow/VideoCapturePanel.vue'
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
 import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue'
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
+import TaskDetailMoreMenu from '@/components/task-detail/TaskDetailMoreMenu.vue'
 import {
   isVideoWorkflowProfile,
   resolveTaskDetailProfile,
@@ -361,6 +362,44 @@ const canReviewDeliverable = computed(() => {
   }
 
   return authStore.isManagementRole || user.id === task.creator_id
+})
+const useVideoProductionReviewMoreMenu = computed(
+  () =>
+    selectedTaskProfile.value.id === 'video_production_step'
+    && selectedTaskProfile.value.submitMode === 'review',
+)
+const canRejectProductionStep = computed(() => {
+  const task = selectedTask.value
+  const user = authStore.user
+  if (!task || !user || !useVideoProductionReviewMoreMenu.value || task.status !== 'review') {
+    return false
+  }
+  return authStore.isManagementRole || user.id === task.assignee_id || user.id === task.creator_id
+})
+const canManageCaptureReject = computed(() => {
+  const user = authStore.user
+  const instance = graphInstance.value
+  if (!user || !instance) {
+    return false
+  }
+  if (authStore.isManagementRole) {
+    return true
+  }
+  if (user.id === instance.initiator_user_id) {
+    return true
+  }
+  const context = instance.context ?? {}
+  const managerId = context.manager_user_id
+  if (managerId != null && String(managerId) === user.id) {
+    return true
+  }
+  const aggregateNode = instance.node_instances?.find(
+    (node) => node.node_key.startsWith('N2_') || node.node_key.includes('AGGREGATE'),
+  )
+  if (aggregateNode?.assignee_user_id === user.id) {
+    return true
+  }
+  return false
 })
 const completionRateText = computed(() => formatRate(statsSummary.value?.completion_rate ?? 0))
 const overdueRateText = computed(() => formatRate(statsSummary.value?.overdue_rate ?? 0))
@@ -1379,6 +1418,7 @@ watch(
                     验收通过
                   </el-button>
                   <el-button
+                    v-if="!useVideoProductionReviewMoreMenu"
                     type="danger"
                     :loading="approvalSubmitting"
                     @click="openReworkDialog"
@@ -1448,6 +1488,15 @@ watch(
                   {{ nextStatusAction.label }}
                 </el-button>
               </div>
+              <TaskDetailMoreMenu
+                v-if="selectedTask && usesVideoWorkflowLayout"
+                :profile="selectedTaskProfile"
+                :task="selectedTask"
+                :graph-instance="graphInstance"
+                :can-manage-capture-reject="canManageCaptureReject"
+                :can-reject-production="canRejectProductionStep"
+                @action-done="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
+              />
             </div>
           </template>
 
@@ -1545,7 +1594,9 @@ watch(
               v-if="showVideoTrackingPanel && graphInstance"
               :graph-instance="graphInstance"
               :users="users"
+              :can-manage-reject="canManageCaptureReject"
               @dispatched="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
+              @rejected="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
             />
             <VideoCaptureProgressPanel
               v-if="showCaptureProgressPanel && graphInstance"
@@ -1573,7 +1624,9 @@ watch(
               :task="selectedTask"
               :graph-instance="graphInstance"
               :users="users"
+              :can-manage-reject="canManageCaptureReject"
               @finalized="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
+              @rejected="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
             />
 
             <el-card

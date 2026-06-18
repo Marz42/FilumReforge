@@ -28,6 +28,8 @@
 | 视频工作流 v1 W0–W10 | done | 选题会、表单引擎、按题 fork、E2E 硬化 |
 | Memory-Bank Phase 0–4 | done | 协议层 + HOT/WARM/COLD + 对齐审查 |
 | 任务中心 v2 设计 | done | UX 规格 v2.1 + 交互 Demo 评审通过（2026-06-18） |
+| 任务中心 v2 TC-P0 | done | Action Profile、N1 单表单、Run 列、用户态 @ `7bc242c` |
+| 任务中心 v2 TC-P1 | done | `dispatch_topic`、VideoTrackingPanel、打回/退回、participant 收口 @ `feat/task-center-p0-profile` |
 
 ---
 
@@ -35,15 +37,15 @@
 
 | 优先级 | 主题 | 目标 | 计划入口 |
 |--------|------|------|----------|
-| **P0** | **任务中心 v2 重做** | Action Profile、详情减法、ROOT 增量派发、列表/看板/甘特/统计分阶段落地 | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) · 规格 [`plans/workflow-video-v1-ui-simplification-design.md`](./plans/workflow-video-v1-ui-simplification-design.md) |
+| **P0** | **任务中心 v2 · TC-P2** | 列表/看板/甘特独立组件、任务统计入口、`TasksView` 瘦身 | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) §TC-P2 |
 
 **阶段切片**
 
-| 阶段 | 交付概要 | 目标 |
+| 阶段 | 交付概要 | 状态 |
 |------|----------|------|
-| TC-P0 | Profile + N1 单表单 + 进度文案 + 列表 Run 列 | ≈2 周内 |
-| TC-P1 | `dispatch_topic` + 跟踪页增量派发 + submit_mode/退回 | ≈+2 周 |
-| TC-P2 | 看板/甘特/统计入口 + `TasksView` 拆分 | ≈+3 周 |
+| TC-P0 | Profile + N1 单表单 + 进度文案 + 列表 Run 列 | ✅ 完成 |
+| TC-P1 | `dispatch_topic` + 跟踪页增量派发 + submit_mode/退回 | ✅ 完成 |
+| TC-P2 | 看板/甘特/统计入口 + `TasksView` 拆分 | 🔥 下一焦点 |
 
 ---
 
@@ -75,9 +77,9 @@
 ## 并行工作线
 
 ```
-主线（产品）────────── 任务中心 v2（TC-P0 → P1 → P2）
+主线（产品）────────── 任务中心 v2（TC-P0 ✅ → P1 ✅ → P2 🔥）
         │
-        ├─ 视频 v1 ──── 选题会模板运维、dispatch_topic 后端
+        ├─ 视频 v1 ──── 选题会模板运维（dispatch/reject 已落地）
         ├─ 工作流 E ─── 模板/调度深化、与图引擎统一（P1，TC-P3 后）
         ├─ 工程质量 ─── Docker 实测 / E2E live 基线
         └─ memory-bank ─ Paradigma 维护

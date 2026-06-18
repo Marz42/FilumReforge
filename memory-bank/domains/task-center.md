@@ -13,7 +13,7 @@
 | Inbox-first | 主标签：待处理 / 跟踪 / 历史 |
 | 建立任务 | 页头 Dialog；graph 手动任务 dual-write |
 | 搜索 | `GET /api/v1/tasks/search` |
-| 多视图 | 列表 / 看板 / 甘特（任务详情内）→ **v2 重做中**见 [`plans/task-center-v2-implementation-plan.md`](../plans/task-center-v2-implementation-plan.md) |
+| 多视图 | 列表 / 看板 / 甘特（任务详情内）→ **v2 重做中**见 [`plans/task-center-v2-implementation-plan.md`](../plans/task-center-v2-implementation-plan.md)（TC-P0/P1 ✅，TC-P2 拆分视图） |
 | 个人备忘 | 全局浮窗；`task_memos` |
 | 任务模板入口 | `/task-templates`（工作流 E） |
 
@@ -44,7 +44,8 @@
 | `backend/app/services/task_service.py` | 状态机、评论、图投影 |
 | `backend/app/api/routes/task_center.py` | 任务中心 API |
 | `frontend/src/views/TaskCenterView.vue` | 主壳层 |
-| `frontend/src/views/TasksView.vue` | 详情、图节点板块 |
+| `frontend/src/views/TasksView.vue` | 详情、图节点板块、Action Profile、`TaskDetailMoreMenu` |
+| `frontend/src/components/task-detail/TaskDetailMoreMenu.vue` | 更多菜单：打回采集 / 制作退回（TC-P1；完整 Shell 留 TC-P2） |
 | `frontend/src/components/` | `FilumDateTimePicker` 等 |
 
 ---

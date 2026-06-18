@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { dispatchInstanceTopic, listInstanceSubmissions } from '@/api/workflow-graph'
+import { dispatchInstanceTopic, listInstanceSubmissions, rejectInstanceCaptures } from '@/api/workflow-graph'
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
 import type { InstanceSubmissionsResponse } from '@/types/workflowVideo'
 import type { User, WorkflowGraphInstanceDetail } from '@/types/api'
@@ -14,18 +14,25 @@ const props = withDefaults(
     graphInstance: WorkflowGraphInstanceDetail | null
     users: User[]
     sourceNodeKey?: string
+    canManageReject?: boolean
   }>(),
   {
     sourceNodeKey: 'N1_PROPOSE',
+    canManageReject: false,
   },
 )
 
 const emit = defineEmits<{
   dispatched: []
+  rejected: []
 }>()
 
 const loading = ref(false)
 const submittingTopicId = ref<string | null>(null)
+const rejectingTopicId = ref<string | null>(null)
+const rejectDialogVisible = ref(false)
+const rejectReason = ref('')
+const rejectTargetRow = ref<TrackingRow | null>(null)
 const submissions = ref<InstanceSubmissionsResponse['submissions']>([])
 const writerByTopicId = ref<Record<string, string>>({})
 
@@ -151,6 +158,38 @@ async function handleDispatch(row: TrackingRow): Promise<void> {
   }
 }
 
+function openRejectDialog(row: TrackingRow): void {
+  rejectTargetRow.value = row
+  rejectReason.value = ''
+  rejectDialogVisible.value = true
+}
+
+async function handleRejectConfirm(): Promise<void> {
+  const instanceId = props.graphInstance?.id
+  const row = rejectTargetRow.value
+  const reason = rejectReason.value.trim()
+  if (!instanceId || !row?.topicId || !reason) {
+    ElMessage.warning('请填写打回原因')
+    return
+  }
+
+  rejectingTopicId.value = row.topicId
+  try {
+    await rejectInstanceCaptures(instanceId, {
+      rejections: [{ topic_id: row.topicId, reason }],
+    })
+    ElMessage.success('已打回采集')
+    rejectDialogVisible.value = false
+    emit('rejected')
+    await loadSubmissions()
+    await progressPanelRef.value?.reload()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    rejectingTopicId.value = null
+  }
+}
+
 onMounted(() => {
   void loadSubmissions()
 })
@@ -202,24 +241,52 @@ watch(
             <span v-else class="video-tracking__muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }: { row: TrackingRow }">
-            <el-button
-              v-if="!row.pending && !row.dispatched && row.topicId"
-              type="primary"
-              size="small"
-              :loading="submittingTopicId === row.topicId"
-              data-testid="video-tracking-dispatch"
-              @click="handleDispatch(row)"
-            >
-              指派并启动制作
-            </el-button>
+            <div v-if="!row.pending && !row.dispatched && row.topicId" class="video-tracking__actions">
+              <el-button
+                type="primary"
+                size="small"
+                :loading="submittingTopicId === row.topicId"
+                data-testid="video-tracking-dispatch"
+                @click="handleDispatch(row)"
+              >
+                指派并启动制作
+              </el-button>
+              <el-button
+                v-if="canManageReject"
+                type="danger"
+                size="small"
+                plain
+                :loading="rejectingTopicId === row.topicId"
+                data-testid="video-tracking-reject"
+                @click="openRejectDialog(row)"
+              >
+                打回
+              </el-button>
+            </div>
             <span v-else-if="row.dispatched" class="video-tracking__dispatched">已派发</span>
             <span v-else class="video-tracking__muted">等待采集</span>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-dialog v-model="rejectDialogVisible" title="打回采集" width="440px">
+      <el-input
+        v-model="rejectReason"
+        type="textarea"
+        :rows="3"
+        placeholder="打回原因"
+        data-testid="video-tracking-reject-reason"
+      />
+      <template #footer>
+        <el-button @click="rejectDialogVisible = false">取消</el-button>
+        <el-button type="danger" :loading="rejectingTopicId !== null" @click="handleRejectConfirm">
+          确认打回
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -250,5 +317,11 @@ watch(
 .video-tracking__muted {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+
+.video-tracking__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 </style>

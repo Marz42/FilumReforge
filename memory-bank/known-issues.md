@@ -52,8 +52,10 @@
 
 | 项 | 状态 | 说明 |
 |----|------|------|
+| pytest migration skip | 1 skipped @ `98ad370` | `test_migrations.py` 需 PostgreSQL；凭据错误时 skip，非失败 |
+| 工作区 mass deletion | 2026-06-18 已恢复 | 409 文件 `D` → `git restore .`；跑测试前务必 `git status` |
 | docker-gui 18/18 | 沿用 2026-05-20 基线 | 本机未重跑时需 Compose 栈 |
-| Playwright mock（task-center + W10） | **5/5** @ `45954eb` 后 | `npm run test:e2e -- e2e/task-center.spec.ts e2e/workflow-video-v1.spec.ts` |
+| Playwright mock | **9/9** @ `98ad370` | login + task-center + workflow-video-v1 |
 | Playwright live | 未纳入每次基线 | 多账号见 `workflow-video-v1-multi-account-e2e-guide.md` |
 | eslint | 8 errors | 非 release 阻塞，待清理未使用变量 |
 | Ubuntu 最小回滚 | **暂缓** | 原 P0，用户决定上线前再练 |

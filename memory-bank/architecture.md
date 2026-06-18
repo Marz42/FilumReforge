@@ -1,7 +1,8 @@
 # Project Filum 架构基线
 
-**版本**: v3.12.0  
-**状态**: Phase A–5 与重构 Step 1–7 已完成；工作流图引擎 Phase 3–11-G 与 **Stage 2 Phase 0–6**（含在线 Ubuntu 主机演练）已落地；**Ubuntu 最小回滚演练**仍为待办；**附件**已统一 MIME/大小策略并支持汇报 `attachment_links(report)`；图引擎写接口已 **`session.commit()`** 持久化，实例详情 API 避免 ORM 关系懒加载；**memory-bank** 已重组为 `handbooks/`、`plans/`、`history/`、`archive/outdated/`（见 `memory-bank/README.md`），且仓库内 `.github/*`、`infra/`、`verification-runs/` 等指向上述文档的链接已与新目录对齐；汇报中心「发起向上/向下」已收敛为页头 **「发起汇报」** 弹窗统一入口（`/reports`）  
+**文档版本**: v3.12.1（工程基线修订号，与产品 SemVer [`VERSION`](../VERSION) `0.87.1` 独立）  
+**最后同步**: 2026-06-18 @ commit `98ad370`  
+**状态摘要**: Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11-G、视频工作流 v1 W0–W10、Stage 2 Phase 0–6、Paradigma memory-bank Phase 0–4 均已落地；**Ubuntu 最小回滚演练**与 **Docker A–F 手工实测**仍为待办。细节见 [`progress.md`](./progress.md) 与 [`roadmap.md`](./roadmap.md)。  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -23,7 +24,7 @@
 - `architecture.md`：工程基线、运行时、模块职责、核心流程（本文件）
 - `data-contracts.md`：schema、枚举、实体关系、API 索引
 - `conventions.md`：编码与协作规范
-- 当前任务 → 更新 [ctive-task.md](./active-task.md)
+- 当前任务 → 更新 [active-task.md](./active-task.md)
 - `plans/implementation-plan.md`：宏观开发顺序
 - `progress.md`：阶段验收与会话摘要
 
@@ -329,7 +330,7 @@
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
 | `frontend/src/views/ProfilesView.vue` | 原 Phase 3 档案治理工作台，当前保留为回归参考与兼容底座 |
 | `frontend/src/views/KnowledgeBaseView.vue` | 知识库页面 |
-| `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为任务中心聚合页；工作流重构 Phase 1 后默认落在“待处理”，主标签为待处理 / 跟踪 / 备忘 / 模板，建立任务改为页头全局 Drawer，历史任务并入跟踪视图；Step 6 起消费消息来源 `?selected=` |
+| `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为任务中心聚合页；工作流重构 Phase 1 后默认落在“待处理”，主标签为待处理 / 跟踪 / 历史；**建立任务**为页头居中 **Dialog**（含未保存关闭确认）；个人备忘为右下角浮窗；任务模板在 `/task-templates`；Step 6 起消费消息来源 `?selected=` |
 | `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用；Step 6 起支持外部来源指定初始选中任务 |
 | `frontend/src/views/TaskTemplatesView.vue` | 工作流 E 结构化设计器首版，支持步骤增删改、JSON 导入、实例快照、模板删除与已有模板编辑 |
 | `frontend/src/views/ReportsView.vue` | 汇报中心工作台：待处理 / 我发起 / 历史三主标签；**「发起汇报」** 页头入口打开弹窗，在弹窗内选择向上汇报或向下传达并填写表单（深链 `?tab=upward|downward` 仍可自动打开对应表单）；消费消息来源 `?selected=` 高亮 |
@@ -489,7 +490,7 @@
 3. `TaskTemplateService` 与 `TaskAutomationService` 使用“管理角色 + 部门负责人 + 部门能力”判断模板管理与组织任务发布权限。
 4. `TaskService` 输出 `list_task_inbox()`、`list_task_tracking()` 与 `list_task_history()`，前端据此拆分待办 / 跟踪，并在跟踪视图中附带历史任务区块。
 5. `TaskMemoService` 负责 `task_memos` 的新增、编辑、删除，并校验关联任务是否对当前用户可见。
-6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览；建立任务入口已收敛到任务中心页头全局 Drawer，`TasksView.vue` 在嵌入 tracking 时不再暴露第二个创建入口。
+6. 任务跟踪标签继续复用 `TasksView.vue` 的列表 / 看板 / 甘特图、活动时间线与负载概览；建立任务入口已收敛到任务中心页头 **Dialog**，`TasksView.vue` 在嵌入 tracking 时不再暴露第二个创建入口。
 
 ### 6.13B 图引擎核心与运行时链路（Phase 2-6 当前基线）
 
@@ -558,4 +559,4 @@
 - schema、枚举、实体关系 → 更新 [data-contracts.md](./data-contracts.md)
 - 阶段状态与验测 → 更新 [progress.md](./progress.md)
 - 产品边界 → 更新 [project-brief.md](./project-brief.md)
-- 当前任务 → 更新 [ctive-task.md](./active-task.md)
+- 当前任务 → 更新 [active-task.md](./active-task.md)

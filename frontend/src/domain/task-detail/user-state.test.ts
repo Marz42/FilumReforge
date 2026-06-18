@@ -49,4 +49,14 @@ describe('resolveTaskUserFacingState', () => {
     )
     expect(state).toBe('returned')
   })
+
+  it('maps capture reject metadata to returned', () => {
+    const state = resolveTaskUserFacingState(
+      makeTask({
+        extra_metadata: { latest_capture_state: 'rejected' },
+      }),
+      'video_n1_capture',
+    )
+    expect(state).toBe('returned')
+  })
 })

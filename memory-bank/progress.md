@@ -2,6 +2,33 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 — TC-P1 状态对齐（文档 + 验收确认）
+
+**结论**: TC-P1 功能范围 **无遗留阻塞**；P1-1–P1-9 均已实现并通过 mock/pytest/vitest。
+
+**工程收尾（非功能）**:
+- P1-7/P1-8 变更仍在工作区，待 commit + 合并 PR
+- live E2E、Docker A–F 手工实测为并行线，非 P1 验收必需
+
+**文档更新**: `roadmap`/`active-task` 切换至 TC-P2；设计 §11.2、实施计划验收勾选；`domains/workflow-video-v1.md` API 表。
+
+**下一步**: TC-P2 视图拆分 + 任务统计；或先提交/合并 TC-P1 分支。
+
+### 2026-06-18 — TC-P1-7 / P1-8 打回 UI + 实例化 participant 收口
+
+**完成事项**:
+- [x] **P1-8**：`ParticipantsSnapshotEntry.include_initiator`；实例化 `_resolve_participant_snapshot`（policy 校验 + 默认排除发起人）；`TemplateInstantiateDialog`「发起人参与采集」开关
+- [x] **P1-7**：`rejectProductionStep` API 封装；`TaskDetailMoreMenu`（更多 → 打回/退回）；`VideoTrackingPanel` / `TemplateAggregatePanel` 行级打回；review 节点「打回返工」移入更多菜单
+- [x] 后端 rework：`latest_capture_state: "rejected"` metadata 对齐用户态
+- [x] pytest W3 instantiation（+3）、W5 rework；vitest user-state；mock E2E `workflow-video-reject-mock.spec.ts` + multi-account 回归
+
+**遗留（TC-P2）**:
+- [ ] 完整 `TaskDetailShell.vue` 拆分
+- [ ] 「打开任务统计」菜单项
+
+**下一步建议**:
+- 提交 TC-P1 分支 → 开 TC-P2 PR
+
 ### 2026-06-18 — TC-P1 增量派发（dispatch_topic + VideoTrackingPanel）
 
 **完成事项**:

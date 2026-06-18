@@ -79,7 +79,8 @@ async def test_w5_reject_topic_reopens_only_submitter(db_session) -> None:
   await db_session.refresh(task_a)
   await db_session.refresh(task_b)
   assert task_a.status == TaskStatus.DOING
-  assert task_b.status == TaskStatus.REVIEW
+  assert (task_a.extra_metadata or {}).get("latest_capture_state") == "rejected"
+  assert task_b.status == TaskStatus.DONE
 
   n2 = await db_session.scalar(
     select(WorkflowNodeInstance).where(

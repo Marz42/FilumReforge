@@ -261,6 +261,7 @@ class WorkflowVideoReworkService:
         task.updated_at = now
         metadata = dict(task.extra_metadata or {})
         metadata["latest_rework_reason"] = reason
+        metadata["latest_capture_state"] = "rejected"
         metadata["latest_review_state"] = "returned_for_rework"
         metadata["rework_count"] = int(metadata.get("rework_count") or 0) + 1
         if topic_id is not None:

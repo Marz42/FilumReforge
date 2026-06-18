@@ -21,8 +21,10 @@
 - **图引擎 + 视频 v1 运行时**: `backend/app/api/routes/workflow_graph_engine.py`（前缀 `/api/v1/workflow-graph`）
   - 图实例/节点：`GET/POST .../instances/{id}`、`.../node-instances/{id}/complete|deep-reject|takeover`
   - 图模板管理：`GET/PATCH .../templates/{id}`、`GET .../feature-flags`
-  - 视频 v1 表单/批次：`POST .../templates/{id}/runs`、`.../node-instances/{id}/submit-capture`、`.../finalize-topics`、`.../instances/{id}/dispatch-topic`（TC-P1 增量派发）、`.../reject-captures`、`.../fork-production-runs` 等
+  - 视频 v1 表单/批次：`POST .../templates/{id}/runs`、`.../node-instances/{id}/submit-capture`、`.../finalize-topics`、`.../instances/{id}/dispatch-topic`（TC-P1 增量派发）、`.../instances/{id}/reject-captures`、`POST .../tasks/{task_id}/reject-production`（TC-P1-7 制作审核退回）、`.../fork-production-runs` 等
 - **视频 v1 Pydantic**: `backend/app/schemas/workflow_video.py`（`launch_schema` / `capture_schema` / `aggregate_schema` 等）
+  - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409
+  - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
 - **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md)
 
 > §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.48 为图引擎与运行事件**摘要**（完整列定义以 ORM + Alembic 为准）。

@@ -6,6 +6,10 @@
 
 ### Added
 
+- **TC-P1** 任务中心：`dispatch_topic` API、`VideoTrackingPanel` 增量派发、`VideoProductionPanel` 文件提交
+- **TC-P1** 打回：`TaskDetailMoreMenu`、行级 capture reject、`rejectProductionStep`；`latest_capture_state: rejected` metadata
+- **TC-P1** 实例化：`ParticipantsSnapshotEntry.include_initiator`、policy 校验与默认排除发起人
+- Playwright mock：`workflow-video-reject-mock.spec.ts`
 - Paradigma 对齐 memory-bank：HOT 层（`project-brief`、`data-contracts`、`conventions`、`active-task`）
 - Paradigma Phase 3：WARM/COLD 层（`roadmap`、`changelog`、`domains/`、`decisions`、`known-issues`、`glossary`）
 - `AGENT_RULES.md`、`INIT_PROMPT.md`、`.cursor/rules/memory-bank-protocol.mdc`

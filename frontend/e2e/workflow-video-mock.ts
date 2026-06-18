@@ -86,6 +86,7 @@ export const videoMockState = {
   /** When false, `/auth/refresh` returns 401 so the login form is shown (guestOnly redirect). */
   sessionActive: false,
   rejectedTopicIds: new Set<string>(),
+  rejectedCaptureTaskIds: new Set<string>(),
   currentUserId: copyLeadUser.id,
   runLabel: 'E2E多账号批次',
   productionTasks: [] as Array<{
@@ -101,6 +102,7 @@ export function resetVideoMockForMultiAccount(runLabel: string): void {
   videoMockState.captureSubmitted.clear()
   videoMockState.forkedTopics = {}
   videoMockState.rejectedTopicIds.clear()
+  videoMockState.rejectedCaptureTaskIds.clear()
   videoMockState.finalized = false
   videoMockState.forked = false
   videoMockState.childInstanceIds = []
@@ -113,6 +115,8 @@ export function resetVideoMockForMultiAccount(runLabel: string): void {
 
 function buildCaptureTask(editorId: string, taskId: string) {
   const editor = editorUsers.find((user) => user.id === editorId) ?? editorUsers[0]
+  const submitted = videoMockState.captureSubmitted.has(taskId)
+  const rejected = videoMockState.rejectedCaptureTaskIds.has(taskId)
   return {
     id: taskId,
     title: '选题会（批次） / 提交选题',
@@ -121,11 +125,11 @@ function buildCaptureTask(editorId: string, taskId: string) {
     // E2E 以管理员登录，采集面板仅对当前 assignee 可见
     assignee_id: editor.id,
     department_id: 'dept-video-copy',
-    status: videoMockState.captureSubmitted.has(taskId) ? 'done' : 'doing',
+    status: rejected ? 'doing' : submitted ? 'done' : 'doing',
     priority: 'medium',
     due_date: null,
     started_at: '2025-05-01T08:00:00Z',
-    completed_at: videoMockState.captureSubmitted.has(taskId) ? '2025-05-01T09:00:00Z' : null,
+    completed_at: submitted && !rejected ? '2025-05-01T09:00:00Z' : null,
     parent_task_id: rootTaskId,
     source_type: 'template',
     extra_metadata: {
@@ -136,17 +140,25 @@ function buildCaptureTask(editorId: string, taskId: string) {
       template_node_key: 'N1_PROPOSE',
       template_node_instance_key: editorId,
       run_kind: 'batch',
+      ...(rejected
+        ? {
+            latest_rework_reason: 'E2E mock reject',
+            latest_capture_state: 'rejected',
+          }
+        : {}),
     },
     created_at: '2025-05-01T08:00:00Z',
     updated_at: '2025-05-01T08:00:00Z',
   }
 }
 
-const captureTasks = [
-  buildCaptureTask('user-editor-a', 'task-capture-a'),
-  buildCaptureTask('user-editor-b', 'task-capture-b'),
-  buildCaptureTask('user-editor-c', 'task-capture-c'),
-]
+function getCaptureTasks() {
+  return [
+    buildCaptureTask('user-editor-a', 'task-capture-a'),
+    buildCaptureTask('user-editor-b', 'task-capture-b'),
+    buildCaptureTask('user-editor-c', 'task-capture-c'),
+  ]
+}
 
 type VideoMockTask = ReturnType<typeof buildRootTask>
 
@@ -238,7 +250,7 @@ function buildTaskCenterSnapshot() {
   const tracking = [
     toTaskCenterTrackingItem(root, '批次运行'),
     toTaskCenterTrackingItem(aggregate, '汇总派发'),
-    ...captureTasks.map((task) => toTaskCenterTrackingItem(task, '提交选题')),
+    ...getCaptureTasks().map((task) => toTaskCenterTrackingItem(task, '提交选题')),
   ]
   for (const [index, childTaskId] of videoMockState.childRootTaskIds.entries()) {
     tracking.push(
@@ -255,7 +267,7 @@ function buildTaskCenterSnapshot() {
     )
   }
 
-  const inboxTasks: VideoMockTask[] = captureTasks.filter(
+  const inboxTasks: VideoMockTask[] = getCaptureTasks().filter(
     (task) => !videoMockState.captureSubmitted.has(task.id) && task.assignee_id === currentUserId,
   )
   for (const production of videoMockState.productionTasks) {
@@ -367,6 +379,7 @@ function buildBatchGraphInstance() {
     context: {
       run_kind: 'batch',
       run_label: videoMockState.runLabel,
+      manager_user_id: copyLeadUser.id,
       inputs: { theme: 'W10 E2E', manager_user_id: copyLeadUser.id },
       root_task_id: rootTaskId,
       fork_status: videoMockState.forked ? 'completed' : 'pending',
@@ -669,10 +682,12 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       && (apiPath === `/workflow-graph/instances/${batchInstanceId}/submissions`
         || apiPath.startsWith(`/workflow-graph/instances/${batchInstanceId}/submissions?`))
     ) {
-      const submissions = captureTasks.map((task) => {
-        const topicIndex = captureTasks.findIndex((capture) => capture.id === task.id)
+      const submissions = getCaptureTasks().map((task) => {
+        const topicIndex = getCaptureTasks().findIndex((capture) => capture.id === task.id)
         const editor = editorUsers[topicIndex] ?? editorUsers[0]
         const submitted = videoMockState.captureSubmitted.has(task.id)
+        const topicId = videoMockState.topicIds[topicIndex]
+        const topicRejected = topicId ? videoMockState.rejectedTopicIds.has(topicId) : false
         return {
           node_instance_id: task.extra_metadata.workflow_node_instance_id,
           node_key: 'N1_PROPOSE',
@@ -680,17 +695,18 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
           assignee_user_id: task.assignee_id,
           assignee_email: editor.email,
           assignee_display_name: editor.email,
-          submitted_at: submitted ? '2025-05-01T09:00:00Z' : null,
-          topics: submitted
-            ? [
-                {
-                  topic_id: videoMockState.topicIds[topicIndex],
-                  title: `选题 ${String.fromCharCode(65 + topicIndex)}`,
-                  content: null,
-                  reason: null,
-                },
-              ]
-            : [],
+          submitted_at: submitted && !topicRejected ? '2025-05-01T09:00:00Z' : null,
+          topics:
+            submitted && !topicRejected
+              ? [
+                  {
+                    topic_id: topicId,
+                    title: `选题 ${String.fromCharCode(65 + topicIndex)}`,
+                    content: null,
+                    reason: null,
+                  },
+                ]
+              : [],
         }
       })
       await fulfillJson(route, { instance_id: batchInstanceId, node_key: 'N1_PROPOSE', submissions })
@@ -698,14 +714,27 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     }
 
     if (request.method() === 'POST' && apiPath === `/workflow-graph/instances/${batchInstanceId}/reject-captures`) {
-      const body = request.postDataJSON() as { topic_ids?: string[]; reason?: string }
-      for (const topicId of body.topic_ids ?? []) {
+      const body = request.postDataJSON() as {
+        rejections?: Array<{ topic_id?: string; reason?: string }>
+      }
+      const captureTaskIds = ['task-capture-a', 'task-capture-b', 'task-capture-c']
+      for (const rejection of body.rejections ?? []) {
+        const topicId = rejection.topic_id
+        if (!topicId) {
+          continue
+        }
         videoMockState.rejectedTopicIds.add(topicId)
+        const topicIndex = videoMockState.topicIds.indexOf(topicId)
+        if (topicIndex >= 0) {
+          const taskId = captureTaskIds[topicIndex]
+          videoMockState.captureSubmitted.delete(taskId)
+          videoMockState.rejectedCaptureTaskIds.add(taskId)
+        }
       }
       await fulfillJson(route, {
         instance_id: batchInstanceId,
-        rejected_count: body.topic_ids?.length ?? 0,
-        reason: body.reason ?? 'UAT mock reject',
+        reopened_count: body.rejections?.length ?? 0,
+        reopened_instance_keys: [],
       })
       return
     }
@@ -874,10 +903,10 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     if (request.method() === 'POST' && /^\/workflow-graph\/tasks\/[^/]+\/submit-capture$/.test(apiPath)) {
       const taskId = apiPath.split('/').filter(Boolean)[2] ?? ''
       videoMockState.captureSubmitted.add(taskId)
-      const topicIndex = captureTasks.findIndex((task) => task.id === taskId)
+      const topicIndex = getCaptureTasks().findIndex((task) => task.id === taskId)
       await fulfillJson(route, {
         task_id: taskId,
-        node_instance_id: `ni-capture-${captureTasks[topicIndex]?.assignee_id ?? 'a'}`,
+        node_instance_id: `ni-capture-${getCaptureTasks()[topicIndex]?.assignee_id ?? 'a'}`,
         topic_count: 1,
         topics: [{ topic_id: videoMockState.topicIds[topicIndex], title: `选题 ${String.fromCharCode(65 + topicIndex)}` }],
       })
@@ -890,7 +919,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     }
 
     if (request.method() === 'GET' && apiPath === '/tasks') {
-      const allTasks = [buildRootTask(), buildAggregateTask(), ...captureTasks]
+      const allTasks = [buildRootTask(), buildAggregateTask(), ...getCaptureTasks()]
       if (videoMockState.childRootTaskIds.length > 0) {
         for (const [index, childTaskId] of videoMockState.childRootTaskIds.entries()) {
           allTasks.push({
@@ -924,7 +953,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     if (request.method() === 'GET' && apiPath === '/tasks/views/board') {
       await fulfillJson(route, [
         { status: 'todo', tasks: [] },
-        { status: 'doing', tasks: captureTasks },
+        { status: 'doing', tasks: getCaptureTasks() },
         { status: 'review', tasks: [] },
         { status: 'done', tasks: [] },
       ])
@@ -1046,7 +1075,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     if (request.method() === 'GET' && /^\/tasks\/[^/]+$/.test(apiPath)) {
       const segments = apiPath.split('/').filter(Boolean)
       const taskId = segments[1]
-      let task = [buildRootTask(), buildAggregateTask(), ...captureTasks].find((item) => item.id === taskId)
+      let task = [buildRootTask(), buildAggregateTask(), ...getCaptureTasks()].find((item) => item.id === taskId)
       const production = videoMockState.productionTasks.find(
         (item) => item.scriptTaskId === taskId || item.reviewTaskId === taskId,
       )

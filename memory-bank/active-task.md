@@ -8,44 +8,41 @@
 
 | 字段 | 内容 |
 |------|------|
-| **任务标题** | 任务中心 v2 重做 · TC-P1（增量派发 + 后端收口） |
+| **任务标题** | 任务中心 v2 重做 · **TC-P2**（视图拆分 + 任务统计） |
 | **优先级** | P0 · 路线图下一焦点 |
-| **状态** | TC-P0 已合并 @ `7bc242c`；TC-P1 核心（P1-1–P1-5、P1-9 mock）已实现 @ `feat/task-center-p0-profile` |
-| **关联** | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md)、[`plans/workflow-video-v1-ui-simplification-design.md`](./plans/workflow-video-v1-ui-simplification-design.md) |
+| **状态** | TC-P0 ✅ @ `7bc242c`；TC-P1 ✅ @ `feat/task-center-p0-profile`（P1-7/P1-8 本地待 commit）；**TC-P2 未开始** |
+| **关联** | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) §TC-P2、[`plans/workflow-video-v1-ui-simplification-design.md`](./plans/workflow-video-v1-ui-simplification-design.md) §11.3 |
 
 ---
 
-## 当前阶段：TC-P1
+## 当前阶段：TC-P2
 
 | # | 工作项 | 状态 |
 |---|--------|------|
-| P1-1 | `dispatch_topic` API | 已完成 |
-| P1-2 | `WorkflowVideoFormService.dispatch_topic()` | 已完成 |
-| P1-3 | `VideoTrackingPanel` | 已完成 |
-| P1-4 | N1 单条校验 | 已完成 |
-| P1-5 | Capture → Task `DONE` | 已完成 |
-| P1-6 | `submit_mode=file` / `VideoProductionPanel` | 已完成 |
-| P1-7 | 更多菜单 · 退回 | 未开始 |
-| P1-8 | 实例化 participant 默认 | 未开始 |
-| P1-9 | E2E 增量派发 mock | 已完成 |
+| P2-1 | 路由 `/task-center/stats` 或 Tab「统计」 | 未开始 |
+| P2-2 | `TaskCenterStatsView` | 未开始 |
+| P2-3 | `TaskCenterListView.vue` | 未开始 |
+| P2-4 | `TaskCenterBoardView.vue` | 未开始 |
+| P2-5 | `TaskCenterGanttView.vue` | 未开始 |
+| P2-6 | 详情迁出（引擎追踪 / 全量事件 → 统计页） | 未开始 |
+| P2-7 | `config.ui_profile` | 未开始 |
+| P2-8 | `TasksView` 瘦身 → 委托 `TaskDetailShell` | 未开始 |
 
 ---
 
-## 验收清单（TC-P1）
+## TC-P1 收尾（工程，非功能阻塞）
 
-- [x] 2/3 时可 dispatch，子 Run 与待办出现（mock E2E）
-- [x] 重复 dispatch 409 + UI 禁用（pytest + forked_topics）
-- [x] 文件节点「上传并提交」（P1-6）
-- [ ] 更多退回 → 用户态「已退回」（P1-7）
-- [x] N1 提交后 Task 为 done（非 review）
+- [ ] 提交 P1-7/P1-8 变更（建议 2 commit，见实施计划 §实施顺序）
+- [ ] 合并 `feat/task-center-p0-profile` → main
+- [ ] （可选）live 多账号 E2E、Docker A–F 手工实测
 
 ---
 
-## 后续阶段
+## 验收清单（TC-P2 · = 设计 §11.3）
 
-| 阶段 | 概要 |
-|------|------|
-| **TC-P2** | 看板/甘特/统计入口 + `TasksView` 拆分 |
+- [ ] 三视图独立组件且与 Demo §7.2 一致
+- [ ] 统计入口可看全量事件与部门汇总
+- [ ] 详情仅保留最近 3 条事件摘要
 
 ---
 

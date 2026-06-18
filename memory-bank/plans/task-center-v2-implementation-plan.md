@@ -172,13 +172,15 @@ POST /api/v1/workflow-graph/instances/{instance_id}/dispatch-topic
 3. `fix(workflow): N1 single-topic validation and task status projection`  
 4. `feat(task-center): production file submit and more-menu reject`
 
-**验收**（= 设计 §11.2）
+**验收**（= 设计 §11.2）— **2026-06-18 完成**
 
-- [ ] 2/3 时可 dispatch，子 Run 与待办出现  
-- [ ] 重复 dispatch 409 + UI 禁用  
-- [ ] 文件节点「上传并提交」  
-- [ ] 更多退回 → 用户态「已退回」  
-- [ ] 实例化后进入跟踪 Tab  
+- [x] 2/3 时可 dispatch，子 Run 与待办出现  
+- [x] 重复 dispatch 409 + UI 禁用  
+- [x] 文件节点「上传并提交」  
+- [x] 更多退回 → 用户态「已退回」  
+- [x] 实例化后进入跟踪 Tab（`TaskTemplatesView` → `filter=tracking`）
+
+**实现分支**: `feat/task-center-p0-profile`（P1-7/P1-8 待合并 commit；P1-1–P1-6 已提交 @ `a6562e4` / `8c347a2`）
 
 **测试命令**
 
@@ -253,7 +255,7 @@ cd frontend && npx playwright test e2e/live/workflow-video-multi-account-live.sp
 | 阶段 | 更新 |
 |------|------|
 | P0 完成 | `progress.md`；`domains/task-center.md` Profile 段 |
-| P1 完成 | `data-contracts.md` dispatch-topic；`domains/workflow-video-v1.md` |
+| P1 完成 | `data-contracts.md` dispatch-topic / reject / include_initiator；`domains/workflow-video-v1.md` | ✅ 2026-06-18 |
 | P2 完成 | `architecture.md` §前端组件；`changelog.md` + `VERSION` patch |
 | 全程 | `active-task.md` 验收勾选 |
 

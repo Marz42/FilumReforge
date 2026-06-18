@@ -6,6 +6,8 @@ import type {
   GraphTemplateSummary,
   RejectCapturesRequest,
   RejectCapturesResponse,
+  RejectProductionStepRequest,
+  RejectProductionStepResponse,
   FinalizeTopicsResponse,
   DispatchTopicResponse,
   InstanceSubmissionsResponse,
@@ -174,6 +176,17 @@ export async function rejectInstanceCaptures(
 ): Promise<RejectCapturesResponse> {
   const { data } = await http.post<RejectCapturesResponse>(
     `/workflow-graph/instances/${instanceId}/reject-captures`,
+    payload,
+  )
+  return data
+}
+
+export async function rejectProductionStep(
+  taskId: string,
+  payload: RejectProductionStepRequest,
+): Promise<RejectProductionStepResponse> {
+  const { data } = await http.post<RejectProductionStepResponse>(
+    `/workflow-graph/tasks/${taskId}/reject-production`,
     payload,
   )
   return data

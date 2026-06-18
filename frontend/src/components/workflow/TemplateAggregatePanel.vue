@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { finalizeInstanceTopics, listInstanceSubmissions } from '@/api/workflow-graph'
+import { finalizeInstanceTopics, listInstanceSubmissions, rejectInstanceCaptures } from '@/api/workflow-graph'
 import type { InstanceSubmissionsResponse } from '@/types/workflowVideo'
 import type { Task, User, WorkflowGraphInstanceDetail } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
@@ -12,14 +12,17 @@ const props = defineProps<{
   task: Task
   graphInstance: WorkflowGraphInstanceDetail | null
   users: User[]
+  canManageReject?: boolean
 }>()
 
 const emit = defineEmits<{
   finalized: []
+  rejected: []
 }>()
 
 const loading = ref(false)
 const submitting = ref(false)
+const rejectingTopicId = ref<string | null>(null)
 const submissions = ref<InstanceSubmissionsResponse['submissions']>([])
 
 interface MatrixRow {
@@ -137,6 +140,26 @@ async function handleFinalize(): Promise<void> {
   }
 }
 
+async function handleRejectRow(row: MatrixRow): Promise<void> {
+  const instanceId = props.graphInstance?.id
+  if (!instanceId || !row.topic_id) {
+    return
+  }
+  rejectingTopicId.value = row.topic_id
+  try {
+    await rejectInstanceCaptures(instanceId, {
+      rejections: [{ topic_id: row.topic_id, reason: '汇总打回，请修改后重新提交' }],
+    })
+    ElMessage.success('已打回该选题')
+    emit('rejected')
+    await loadSubmissions()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    rejectingTopicId.value = null
+  }
+}
+
 onMounted(() => {
   void loadSubmissions()
 })
@@ -183,6 +206,21 @@ onMounted(() => {
               :value="option.value"
             />
           </el-select>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="canManageReject" label="打回" width="88" fixed="right">
+        <template #default="{ row }: { row: MatrixRow }">
+          <el-button
+            v-if="row.topic_id"
+            type="danger"
+            size="small"
+            plain
+            :loading="rejectingTopicId === row.topic_id"
+            data-testid="template-aggregate-reject"
+            @click="handleRejectRow(row)"
+          >
+            打回
+          </el-button>
         </template>
       </el-table-column>
     </el-table>

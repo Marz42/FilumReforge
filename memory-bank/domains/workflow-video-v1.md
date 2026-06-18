@@ -29,6 +29,17 @@
 Pydantic：`backend/app/schemas/workflow_video.py`  
 服务：`WorkflowVideoFormService`、`WorkflowVideoInstantiationService`、`WorkflowVideoForkService`、`WorkflowVideoReworkService`
 
+**TC-P1 运行时扩展**（2026-06-18）：
+
+| API | 说明 |
+|-----|------|
+| `POST .../instances/{id}/dispatch-topic` | 增量派发单题 → fork 子 Run |
+| `POST .../instances/{id}/reject-captures` | N1 采集打回 |
+| `POST .../tasks/{task_id}/reject-production` | 制作审核节点退回 |
+| `ParticipantsSnapshotEntry.include_initiator` | 实例化 snapshot；默认 `false` 排除发起人 fan-out |
+
+详见 `data-contracts.md` API 索引。
+
 ---
 
 ## Feature 开关
