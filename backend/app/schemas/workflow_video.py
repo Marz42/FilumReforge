@@ -89,11 +89,13 @@ class AggregateSchema(BaseModel):
 class ParticipantPolicyDefinition(BaseModel):
   type: Literal["department_members"] = "department_members"
   department_id: UUID | None = None
+  exclude_initiator_by_default: bool = True
 
 
 class ParticipantsSnapshotEntry(BaseModel):
   mode: Literal["all", "subset"]
   user_ids: list[UUID] = Field(default_factory=list)
+  include_initiator: bool = False
 
   @model_validator(mode="after")
   def _validate_subset(self) -> ParticipantsSnapshotEntry:

@@ -281,3 +281,75 @@ async def test_w3_missing_launch_field_raises(db_session) -> None:
         "copywriters": ParticipantsSnapshotEntry(mode="subset", user_ids=[seed["editors"][0].id])
       },
     )
+
+
+@pytest.mark.asyncio
+async def test_w3_excludes_initiator_from_n1_fanout_by_default(db_session) -> None:
+  seed = await _seed_topic_meeting_batch_template(db_session)
+  manager = seed["manager"]
+  editors = seed["editors"]
+  template = seed["template"]
+  department = seed["department"]
+
+  service = WorkflowVideoInstantiationService(db_session, settings=_enabled_settings())
+  result = await service.instantiate_graph_template(
+    actor=manager,
+    template_id=template.id,
+    inputs={"theme": "排除发起人", "manager_user_id": str(manager.id)},
+    participants_snapshot={
+      "copywriters": ParticipantsSnapshotEntry(
+        mode="subset",
+        user_ids=[manager.id, *[editor.id for editor in editors]],
+        include_initiator=False,
+      )
+    },
+    department_id=department.id,
+  )
+
+  n1_nodes = [ni for ni in result.node_instances if ni.node_key == "N1_PROPOSE"]
+  assert len(n1_nodes) == 3
+  assignee_ids = {ni.assignee_user_id for ni in n1_nodes}
+  assert manager.id not in assignee_ids
+  assert assignee_ids == {editor.id for editor in editors}
+
+
+@pytest.mark.asyncio
+async def test_w3_rejects_out_of_policy_participant(db_session) -> None:
+  from uuid import uuid4
+
+  seed = await _seed_topic_meeting_batch_template(db_session)
+  service = WorkflowVideoInstantiationService(db_session, settings=_enabled_settings())
+  with pytest.raises(ConflictError):
+    await service.instantiate_graph_template(
+      actor=seed["admin"],
+      template_id=seed["template"].id,
+      inputs={"theme": "越界", "manager_user_id": str(seed["manager"].id)},
+      participants_snapshot={
+        "copywriters": ParticipantsSnapshotEntry(
+          mode="subset",
+          user_ids=[uuid4()],
+        )
+      },
+      department_id=seed["department"].id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_w3_rejects_empty_participants_after_initiator_filter(db_session) -> None:
+  seed = await _seed_topic_meeting_batch_template(db_session)
+  manager = seed["manager"]
+  service = WorkflowVideoInstantiationService(db_session, settings=_enabled_settings())
+  with pytest.raises(ConflictError, match="至少保留一名采集参与人"):
+    await service.instantiate_graph_template(
+      actor=manager,
+      template_id=seed["template"].id,
+      inputs={"theme": "仅发起人", "manager_user_id": str(manager.id)},
+      participants_snapshot={
+        "copywriters": ParticipantsSnapshotEntry(
+          mode="subset",
+          user_ids=[manager.id],
+          include_initiator=False,
+        )
+      },
+      department_id=seed["department"].id,
+    )

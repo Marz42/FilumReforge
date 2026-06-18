@@ -87,6 +87,18 @@ export interface RejectCapturesResponse {
   reopened_instance_keys: string[]
 }
 
+export interface RejectProductionStepRequest {
+  reason: string
+  target_node_key?: string | null
+}
+
+export interface RejectProductionStepResponse {
+  instance_id: string
+  target_node_key: string
+  target_node_instance_id: string
+  iteration: number
+}
+
 export interface ForkProductionRunsResponse {
   batch_instance_id: string
   forked_count: number
@@ -99,7 +111,7 @@ export interface CreateGraphTemplateRunRequest {
   inputs?: Record<string, unknown>
   participants_snapshot: Record<
     string,
-    { mode: 'all' | 'subset'; user_ids: string[] }
+    { mode: 'all' | 'subset'; user_ids: string[]; include_initiator?: boolean }
   >
   department_id?: string | null
   run_label?: string | null
@@ -122,6 +134,7 @@ export interface PreviewParticipantsResponse {
   snapshot: {
     mode: 'all' | 'subset'
     user_ids: string[]
+    include_initiator?: boolean
   }
 }
 

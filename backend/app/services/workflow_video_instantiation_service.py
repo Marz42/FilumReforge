@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -40,7 +40,10 @@ from app.schemas.workflow_video import (
   validate_run_context,
 )
 from app.services.access_control import can_publish_org_tasks, ensure_active_user
-from app.services.participant_resolution_service import resolve_assignee_from_rule
+from app.services.participant_resolution_service import (
+  ParticipantResolutionService,
+  resolve_assignee_from_rule,
+)
 from app.services.workflow_rule_resolver import resolve_actor_department_id
 from app.services.task_service import TaskService
 from app.services.workflow_graph_service import WorkflowGraphService
@@ -159,6 +162,56 @@ class WorkflowVideoInstantiationService:
       key: entry.model_dump(mode="json")
       for key, entry in payload.items()
     }
+
+  async def _resolve_participant_snapshot(
+    self,
+    *,
+    actor: User,
+    template: WorkflowGraphTemplate,
+    snapshot_payload: dict[str, dict[str, Any]],
+    department_id: UUID | None,
+  ) -> dict[str, dict[str, Any]]:
+    resolver = ParticipantResolutionService(self._session)
+    resolved: dict[str, dict[str, Any]] = {}
+
+    for policy_ref, raw_entry in snapshot_payload.items():
+      entry = ParticipantsSnapshotEntry.model_validate(raw_entry)
+      allowed_users = await resolver.resolve_policy_for_template(
+        actor=actor,
+        template=template,
+        policy_ref=policy_ref,
+        department_id=department_id,
+        mode=entry.mode,
+        selected_user_ids=entry.user_ids if entry.mode == "subset" else None,
+      )
+      allowed_ids = {user.id for user in allowed_users}
+
+      if entry.mode == "subset":
+        invalid = [uid for uid in entry.user_ids if uid not in allowed_ids]
+        if invalid:
+          raise ConflictError(f"参与人不在策略 {policy_ref} 允许范围内。")
+        user_ids = list(entry.user_ids)
+      else:
+        user_ids = [user.id for user in allowed_users]
+
+      if not entry.include_initiator:
+        user_ids = [uid for uid in user_ids if uid != actor.id]
+
+      if not user_ids:
+        raise ConflictError("至少保留一名采集参与人。")
+
+      sanitized_mode: Literal["all", "subset"] = entry.mode
+      if entry.mode == "all" and len(user_ids) < len(allowed_users):
+        sanitized_mode = "subset"
+
+      sanitized = ParticipantsSnapshotEntry(
+        mode=sanitized_mode,
+        user_ids=user_ids,
+        include_initiator=entry.include_initiator,
+      )
+      resolved[policy_ref] = sanitized.model_dump(mode="json")
+
+    return resolved
 
   @staticmethod
   def _parse_department_pools(template: WorkflowGraphTemplate) -> dict[str, UUID]:
@@ -295,6 +348,13 @@ class WorkflowVideoInstantiationService:
                 department_id = UUID(str(raw_department_id))
               except ValueError:
                 department_id = None
+
+    snapshot_payload = await self._resolve_participant_snapshot(
+      actor=actor,
+      template=template,
+      snapshot_payload=snapshot_payload,
+      department_id=department_id,
+    )
 
     resolved_run_label = run_label or normalized_inputs.get("theme") or template.name
     context: dict[str, Any] = {

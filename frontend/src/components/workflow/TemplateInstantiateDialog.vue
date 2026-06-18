@@ -39,6 +39,7 @@ const launchDateTimes = reactive<Record<string, Date | null>>({})
 const runLabel = ref('')
 const departmentId = ref('')
 const participantMode = ref<'all' | 'subset'>('subset')
+const includeInitiator = ref(false)
 const selectedParticipantIds = ref<string[]>([])
 const previewUsers = ref<ParticipantUserPreview[]>([])
 const candidateUsers = ref<ParticipantUserPreview[]>([])
@@ -82,8 +83,16 @@ const participantUserOptions = computed(() => {
 })
 
 const previewUserSummary = computed(() =>
-  previewUsers.value.map((user) => formatUserOptionLabel(user)).join('，'),
+  effectivePreviewUsers.value.map((user) => formatUserOptionLabel(user)).join('，'),
 )
+
+const effectivePreviewUsers = computed(() => {
+  const initiatorId = authStore.user?.id
+  if (includeInitiator.value || !initiatorId) {
+    return previewUsers.value
+  }
+  return previewUsers.value.filter((user) => user.id !== initiatorId)
+})
 
 function isManagerUserField(key: string): boolean {
   return key === 'manager_user_id'
@@ -98,6 +107,7 @@ function resetForm(): void {
   runLabel.value = ''
   departmentId.value = props.defaultDepartmentId ?? ''
   participantMode.value = 'subset'
+  includeInitiator.value = false
   selectedParticipantIds.value = []
   previewUsers.value = []
   candidateUsers.value = []
@@ -207,6 +217,10 @@ async function handleSubmit(): Promise<void> {
     ElMessage.warning('请至少选择一名参与人')
     return
   }
+  if (effectivePreviewUsers.value.length === 0) {
+    ElMessage.warning('排除发起人后至少保留一名采集参与人')
+    return
+  }
 
   submitting.value = true
   try {
@@ -220,6 +234,7 @@ async function handleSubmit(): Promise<void> {
             participantMode.value === 'all'
               ? previewUsers.value.map((user) => user.id)
               : selectedParticipantIds.value,
+          include_initiator: includeInitiator.value,
         },
       },
       department_id: departmentId.value || null,
@@ -246,6 +261,12 @@ watch(
 )
 
 watch(participantMode, () => {
+  if (props.modelValue) {
+    void loadParticipantPreview()
+  }
+})
+
+watch(includeInitiator, () => {
   if (props.modelValue) {
     void loadParticipantPreview()
   }
@@ -355,8 +376,16 @@ watch(participantMode, () => {
             />
           </el-select>
         </el-form-item>
-        <p v-if="previewUsers.length" class="workflow-dialog__preview">
-          将展开 {{ previewUsers.length }} 个采集任务<span v-if="previewUserSummary">：{{ previewUserSummary }}</span>
+        <el-form-item>
+          <el-checkbox v-model="includeInitiator" data-testid="template-include-initiator">
+            发起人参与采集
+          </el-checkbox>
+        </el-form-item>
+        <p v-if="effectivePreviewUsers.length" class="workflow-dialog__preview">
+          将展开 {{ effectivePreviewUsers.length }} 个采集任务<span v-if="previewUserSummary">：{{ previewUserSummary }}</span>
+        </p>
+        <p v-else-if="previewUsers.length && !includeInitiator" class="workflow-dialog__preview workflow-dialog__preview--warn">
+          当前选择排除发起人后将无采集任务，请增选参与人或勾选「发起人参与采集」
         </p>
       </el-form>
     </template>
@@ -383,5 +412,9 @@ watch(participantMode, () => {
   margin: 0;
   color: var(--el-text-color-secondary);
   font-size: 13px;
+}
+
+.workflow-dialog__preview--warn {
+  color: var(--el-color-warning);
 }
 </style>
