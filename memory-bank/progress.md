@@ -2,6 +2,35 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 — TC-P2 Phase 3（TaskDetailShell + TasksView 瘦身）
+
+**完成事项**:
+- [x] 新建 `TaskDetailShell.vue`（详情 header / profile 面板 / 对话框 / 最近 3 条事件）
+- [x] `TasksView.vue` 瘦身为 workspace 壳层（~698 行），详情列委托 Shell
+- [x] `TaskCenterView` 右侧详情改用 `TaskDetailShell`；legacy 回退仍用 `TasksView`
+- [x] v2 下隐藏 `BatchRunDashboard`（统计页承载 Run 事件）
+- [x] vitest：`TasksView.spec.ts` / `TaskCenterView.spec.ts` 适配
+
+**遗留**:
+- [ ] `config.ui_profile`（P2-7 / Phase 4）
+- [ ] 提交 `feat/task-center-p2-views-stats` 并合并 main
+
+**分支**: `feat/task-center-p2-views-stats`
+
+### 2026-06-18 — TC-P2 Phase 0–2（三视图 + 统计 Tab）
+
+**完成事项**:
+- [x] `useTaskCenterWorkspace` / `useTaskUserFacingProjection` composables + Run 色板
+- [x] `TaskCenterListView` / `BoardView` / `GanttView` + `TaskCenterView` 集成（`VITE_TASK_CENTER_V2_UI_ENABLED` 默认 true）
+- [x] `filter=stats` + `TaskCenterStatsView` MVP；`/task-center/stats` redirect
+- [x] `TaskDetailMoreMenu`「打开任务统计」
+- [x] vitest 投影/色板单测
+
+**遗留**:
+- [ ] `config.ui_profile`（P2-7）
+
+**分支**: `feat/task-center-p2-views-stats`
+
 ### 2026-06-18 — TC-P1 状态对齐（文档 + 验收确认）
 
 **结论**: TC-P1 功能范围 **无遗留阻塞**；P1-1–P1-9 均已实现并通过 mock/pytest/vitest。

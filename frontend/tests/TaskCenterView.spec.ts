@@ -4,7 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { TaskCenterSnapshot, User } from '@/types/api'
+import type { Task, TaskCenterSnapshot, User } from '@/types/api'
 
 vi.mock('@/api/task-center', () => ({
   getTaskCenterSnapshot: vi.fn(),
@@ -12,12 +12,17 @@ vi.mock('@/api/task-center', () => ({
 
 vi.mock('@/api/attachments', () => ({
   uploadAttachment: vi.fn(),
+  listAttachments: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('@/api/tasks', () => ({
   createTask: vi.fn(),
   createTaskComment: vi.fn(),
   searchTasks: vi.fn(),
+  listTasks: vi.fn(),
+  getTask: vi.fn(),
+  listTaskActivity: vi.fn().mockResolvedValue([]),
+  listTaskWatchers: vi.fn().mockResolvedValue([]),
 }))
 
 const route = reactive({
@@ -36,7 +41,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
-import { createTask, createTaskComment } from '@/api/tasks'
+import { createTask, createTaskComment, getTask, listTasks } from '@/api/tasks'
 import { useAuthStore } from '@/stores/auth'
 import TaskCenterView from '@/views/TaskCenterView.vue'
 
@@ -126,6 +131,100 @@ const mockSnapshot: TaskCenterSnapshot = {
   task_memos: [],
 }
 
+const detailShellStub = {
+  props: ['initialSelectedTaskId'],
+  template: '<div data-testid="tasks-detail-stub">{{ initialSelectedTaskId || "empty" }}</div>',
+}
+
+const detailShellSimpleStub = {
+  template: '<div data-testid="tasks-detail-stub">detail</div>',
+}
+
+function buildTasksFromSnapshot(snapshot: TaskCenterSnapshot): Task[] {
+  const tasks: Task[] = []
+
+  for (const item of snapshot.task_inbox) {
+    tasks.push({
+      id: item.task_id,
+      title: item.title,
+      description: null,
+      creator_id: 'user-1',
+      assignee_id: 'user-1',
+      department_id: 'dept-1',
+      status: item.status,
+      priority: item.priority,
+      due_date: item.due_date,
+      started_at: null,
+      completed_at: null,
+      parent_task_id: null,
+      source_type: 'manual',
+      extra_metadata: {},
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    })
+  }
+
+  for (const item of snapshot.task_tracking) {
+    tasks.push({
+      id: item.task_id,
+      title: item.title,
+      description: null,
+      creator_id: 'user-1',
+      assignee_id: 'user-1',
+      department_id: 'dept-1',
+      status: item.status,
+      priority: item.priority,
+      due_date: item.due_date,
+      started_at: null,
+      completed_at: null,
+      parent_task_id: null,
+      source_type: 'manual',
+      extra_metadata: {
+        latest_deliverable_submitted_at: item.latest_deliverable_submitted_at,
+        rework_count: item.rework_count,
+        latest_review_quality_score: item.review_quality_score,
+      },
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    })
+  }
+
+  for (const item of snapshot.task_history) {
+    tasks.push({
+      id: item.task_id,
+      title: item.title,
+      description: null,
+      creator_id: 'user-1',
+      assignee_id: 'user-1',
+      department_id: 'dept-1',
+      status: 'done',
+      priority: item.priority,
+      due_date: item.due_date,
+      started_at: null,
+      completed_at: item.completed_at,
+      parent_task_id: null,
+      source_type: item.source_type,
+      extra_metadata: {},
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+    })
+  }
+
+  return tasks
+}
+
+function syncListTasksFromSnapshot(snapshot: TaskCenterSnapshot): void {
+  const tasks = buildTasksFromSnapshot(snapshot)
+  vi.mocked(listTasks).mockResolvedValue(tasks)
+  vi.mocked(getTask).mockImplementation(async (taskId: string) => {
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task) {
+      throw new Error(`Task ${taskId} not found`)
+    }
+    return task
+  })
+}
+
 describe('TaskCenter view', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -138,6 +237,7 @@ describe('TaskCenter view', () => {
     authStore.user = mockUser
 
     vi.mocked(getTaskCenterSnapshot).mockResolvedValue(mockSnapshot)
+    syncListTasksFromSnapshot(mockSnapshot)
   })
 
   it('renders inbox by default with filter chips and master-detail layout', async () => {
@@ -145,7 +245,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div data-testid="tasks-detail-stub">detail</div>' },
+          TaskDetailShell: detailShellSimpleStub,
         },
       },
     })
@@ -167,7 +267,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div>detail</div>' },
+          TaskDetailShell: { template: '<div>detail</div>' },
         },
       },
     })
@@ -206,7 +306,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div>detail</div>' },
+          TaskDetailShell: { template: '<div>detail</div>' },
         },
       },
     })
@@ -249,7 +349,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div>detail</div>' },
+          TaskDetailShell: { template: '<div>detail</div>' },
         },
       },
     })
@@ -290,7 +390,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div>detail</div>' },
+          TaskDetailShell: { template: '<div>detail</div>' },
         },
       },
     })
@@ -310,7 +410,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div>detail</div>' },
+          TaskDetailShell: { template: '<div>detail</div>' },
         },
       },
     })
@@ -335,7 +435,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div>detail</div>' },
+          TaskDetailShell: { template: '<div>detail</div>' },
         },
       },
     })
@@ -344,7 +444,7 @@ describe('TaskCenter view', () => {
 
     expect(wrapper.find('[data-testid="task-center-tracking-panel"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('跟进视频发布')
-    expect(wrapper.text()).toContain('待验收')
+    expect(wrapper.text()).toContain('进行中')
     expect(wrapper.text()).not.toContain('归档旧公告')
   })
 
@@ -355,7 +455,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div>detail</div>' },
+          TaskDetailShell: { template: '<div>detail</div>' },
         },
       },
     })
@@ -367,22 +467,21 @@ describe('TaskCenter view', () => {
   })
 
   it('clears invalid selected query when inbox is empty', async () => {
-    vi.mocked(getTaskCenterSnapshot).mockResolvedValue({
+    const emptySnapshot = {
       ...mockSnapshot,
       task_inbox: [],
       task_tracking: [],
       task_history: [],
-    })
+    }
+    vi.mocked(getTaskCenterSnapshot).mockResolvedValue(emptySnapshot)
+    syncListTasksFromSnapshot(emptySnapshot)
     route.query = { filter: 'inbox', selected: 'missing-task' }
 
     mount(TaskCenterView, {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: {
-            props: ['initialSelectedTaskId'],
-            template: '<div data-testid="tasks-detail-stub">{{ initialSelectedTaskId }}</div>',
-          },
+          TaskDetailShell: detailShellStub,
         },
       },
     })
@@ -396,21 +495,20 @@ describe('TaskCenter view', () => {
   })
 
   it('does not pass selected id to detail when master list is empty', async () => {
-    vi.mocked(getTaskCenterSnapshot).mockResolvedValue({
+    const emptySnapshot = {
       ...mockSnapshot,
       task_inbox: [],
       task_tracking: [],
       task_history: [],
-    })
+    }
+    vi.mocked(getTaskCenterSnapshot).mockResolvedValue(emptySnapshot)
+    syncListTasksFromSnapshot(emptySnapshot)
 
     const wrapper = mount(TaskCenterView, {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: {
-            props: ['initialSelectedTaskId'],
-            template: '<div data-testid="tasks-detail-stub">{{ initialSelectedTaskId || "empty" }}</div>',
-          },
+          TaskDetailShell: detailShellStub,
         },
       },
     })
@@ -438,7 +536,7 @@ describe('TaskCenter view', () => {
       global: {
         plugins: [ElementPlus],
         stubs: {
-          TasksView: { template: '<div>detail</div>' },
+          TaskDetailShell: { template: '<div>detail</div>' },
         },
       },
     })

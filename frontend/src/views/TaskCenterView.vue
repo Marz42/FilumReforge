@@ -6,10 +6,22 @@ import { useRoute, useRouter } from 'vue-router'
 import { uploadAttachment } from '@/api/attachments'
 import { createTask, createTaskComment, searchTasks, type TaskSearchResult } from '@/api/tasks'
 import { getTaskCenterSnapshot } from '@/api/task-center'
+import TaskCenterBoardView from '@/components/task-center/TaskCenterBoardView.vue'
+import TaskCenterFilterCards from '@/components/task-center/TaskCenterFilterCards.vue'
+import TaskCenterGanttView from '@/components/task-center/TaskCenterGanttView.vue'
+import TaskCenterListView from '@/components/task-center/TaskCenterListView.vue'
+import TaskCenterStatsView from '@/components/task-center/TaskCenterStatsView.vue'
+import { useTaskCenterWorkspace } from '@/composables/useTaskCenterWorkspace'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
+import {
+  TASK_CENTER_V2_UI_ENABLED,
+  type TaskCenterFilter,
+  type TaskCenterViewMode,
+} from '@/constants/task-center'
 import { useGlobalMemoPanel } from '@/composables/useGlobalMemoPanel'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
-import TaskCenterFilterCards from '@/components/task-center/TaskCenterFilterCards.vue'
+import { useAuthStore } from '@/stores/auth'
+import TaskDetailShell from '@/components/task-detail/TaskDetailShell.vue'
 import TasksView from '@/views/TasksView.vue'
 import type {
   TaskCenterHistoryItem,
@@ -24,8 +36,14 @@ import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 import { resolveTaskRunLabel } from '@/domain/task-detail/run-label'
 
-type TaskCenterFilter = 'inbox' | 'tracking' | 'history'
-type TaskCenterViewMode = 'list' | 'board' | 'gantt'
+const LEGACY_TAB_TO_FILTER: Record<string, TaskCenterFilter> = {
+  inbox: 'inbox',
+  tracking: 'tracking',
+  history: 'history',
+  stats: 'stats',
+  tasks: 'tracking',
+  publish: 'inbox',
+}
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: '待办',
@@ -62,16 +80,9 @@ const SOURCE_TYPE_LABELS: Record<TaskSourceType, string> = {
   ai: 'AI 工具',
 }
 
-const LEGACY_TAB_TO_FILTER: Record<string, TaskCenterFilter> = {
-  inbox: 'inbox',
-  tracking: 'tracking',
-  history: 'history',
-  tasks: 'tracking',
-  publish: 'inbox',
-}
-
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const { openPanel: openGlobalMemoPanel } = useGlobalMemoPanel()
 const loading = ref(false)
 const taskDialogVisible = ref(false)
@@ -102,7 +113,12 @@ const publishForm = reactive({
 const activeFilter = computed<TaskCenterFilter>(() => normalizeFilter(route.query.filter ?? route.query.tab))
 const workspaceViewMode = computed<TaskCenterViewMode>(() => normalizeViewMode(route.query.view))
 const selectedTaskId = computed(() => (typeof route.query.selected === 'string' ? route.query.selected : ''))
-const isListLayout = computed(() => workspaceViewMode.value === 'list')
+const isStatsLayout = computed(() => TASK_CENTER_V2_UI_ENABLED && activeFilter.value === 'stats')
+const isListLayout = computed(() => workspaceViewMode.value === 'list' && !isStatsLayout.value)
+const usesV2Workspace = computed(
+  () => TASK_CENTER_V2_UI_ENABLED && !isStatsLayout.value && activeFilter.value !== 'stats',
+)
+const viewToggleDisabled = computed(() => isStatsLayout.value)
 
 const permissions = computed(() => {
   return (
@@ -187,6 +203,13 @@ const displayListItems = computed(() => {
 
 const isSearchMode = computed(() => taskSearchQuery.value.trim().length > 0)
 
+const { rows: workspaceRows, loading: workspaceLoading } = useTaskCenterWorkspace({
+  filter: activeFilter,
+  snapshot,
+  currentUserId: computed(() => authStore.user?.id),
+  enabled: computed(() => usesV2Workspace.value && !isSearchMode.value),
+})
+
 const masterListTaskIds = computed(() => new Set(displayListItems.value.map((item) => item.task_id)))
 
 const effectiveSelectedTaskId = computed(() => {
@@ -235,7 +258,7 @@ function normalizeFilter(rawFilter: unknown): TaskCenterFilter {
   if (mapped) {
     return mapped
   }
-  if (rawFilter === 'inbox' || rawFilter === 'tracking' || rawFilter === 'history') {
+  if (rawFilter === 'inbox' || rawFilter === 'tracking' || rawFilter === 'history' || rawFilter === 'stats') {
     return rawFilter
   }
   return 'inbox'
@@ -261,7 +284,7 @@ function buildRouteQuery(options: {
   if (filter !== 'inbox') {
     query.filter = filter
   }
-  if (view !== 'list') {
+  if (view !== 'list' && filter !== 'stats') {
     query.view = view
   }
   if (selected) {
@@ -416,6 +439,9 @@ function handleFilterChange(value: TaskCenterFilter): void {
 }
 
 function handleViewModeChange(value: TaskCenterViewMode): void {
+  if (viewToggleDisabled.value) {
+    return
+  }
   void router.replace({
     name: 'task-center',
     query: buildRouteQuery({ view: value }),
@@ -568,10 +594,11 @@ onMounted(() => {
             <el-tag :type="permissions.can_publish_task ? 'success' : 'info'" effect="plain">
               {{ permissions.can_publish_task ? '可发布任务' : '仅查看任务' }}
             </el-tag>
-            <el-button-group>
+            <el-button-group :class="{ 'task-center-view__view-toggle--disabled': viewToggleDisabled }">
               <el-button
                 size="small"
                 :type="workspaceViewMode === 'list' ? 'primary' : undefined"
+                :disabled="viewToggleDisabled"
                 data-testid="task-view-list"
                 @click="handleViewModeChange('list')"
               >
@@ -580,6 +607,7 @@ onMounted(() => {
               <el-button
                 size="small"
                 :type="workspaceViewMode === 'board' ? 'primary' : undefined"
+                :disabled="viewToggleDisabled"
                 data-testid="task-view-board"
                 @click="handleViewModeChange('board')"
               >
@@ -588,6 +616,7 @@ onMounted(() => {
               <el-button
                 size="small"
                 :type="workspaceViewMode === 'gantt' ? 'primary' : undefined"
+                :disabled="viewToggleDisabled"
                 data-testid="task-view-gantt"
                 @click="handleViewModeChange('gantt')"
               >
@@ -625,11 +654,14 @@ onMounted(() => {
       <TaskCenterFilterCards
         :active-filter="activeFilter"
         :counts="filterCounts"
+        :show-stats="TASK_CENTER_V2_UI_ENABLED"
         @change="handleFilterChange"
       />
     </el-card>
 
-    <template v-if="isListLayout">
+    <TaskCenterStatsView v-if="isStatsLayout" :snapshot="snapshot" />
+
+    <template v-else-if="isListLayout">
       <div class="task-center-view__master-detail">
         <el-card
           shadow="never"
@@ -646,12 +678,27 @@ onMounted(() => {
           </template>
 
           <el-empty
-            v-if="displayListItems.length === 0"
+            v-if="usesV2Workspace && !isSearchMode && workspaceRows.length === 0 && !workspaceLoading"
+            description="暂无任务"
+          />
+
+          <TaskCenterListView
+            v-else-if="usesV2Workspace && !isSearchMode"
+            :filter="activeFilter"
+            :rows="workspaceRows"
+            :selected-task-id="effectiveSelectedTaskId"
+            :loading="workspaceLoading"
+            @select="handleMasterRowClick"
+            @nudge="handleNudge"
+          />
+
+          <el-empty
+            v-else-if="!usesV2Workspace && displayListItems.length === 0"
             :description="isSearchMode ? '未找到匹配任务' : '暂无任务'"
           />
 
           <el-table
-            v-else
+            v-else-if="!usesV2Workspace || isSearchMode"
             v-loading="taskSearchLoading && isSearchMode"
             :data="displayListItems"
             :row-key="rowKey"
@@ -790,12 +837,51 @@ onMounted(() => {
         </el-card>
 
         <div class="task-center-view__detail">
-          <TasksView
-            :show-create-task-composer="false"
+          <TaskDetailShell
             :initial-selected-task-id="effectiveSelectedTaskId"
             :delegate-user-options="publishUserOptions"
-            detail-only
-            hide-stats
+            @select-task="handleMasterRowClick"
+          />
+        </div>
+      </div>
+    </template>
+
+    <template v-else-if="usesV2Workspace">
+      <div class="task-center-view__master-detail">
+        <el-card
+          shadow="never"
+          class="filum-panel-card task-center-view__master"
+          :data-testid="masterPanelTestId"
+        >
+          <template #header>
+            <div class="task-center-view__section-header">
+              <span v-if="workspaceViewMode === 'board'">看板视图</span>
+              <span v-else>甘特视图</span>
+              <small>按用户态与 Run 展示当前筛选下的任务</small>
+            </div>
+          </template>
+
+          <TaskCenterBoardView
+            v-if="workspaceViewMode === 'board'"
+            :rows="workspaceRows"
+            :selected-task-id="effectiveSelectedTaskId"
+            :loading="workspaceLoading"
+            @select="handleMasterRowClick"
+          />
+          <TaskCenterGanttView
+            v-else
+            :rows="workspaceRows"
+            :selected-task-id="effectiveSelectedTaskId"
+            :loading="workspaceLoading"
+            @select="handleMasterRowClick"
+          />
+        </el-card>
+
+        <div class="task-center-view__detail">
+          <TaskDetailShell
+            :initial-selected-task-id="effectiveSelectedTaskId"
+            :delegate-user-options="publishUserOptions"
+            @select-task="handleMasterRowClick"
           />
         </div>
       </div>
@@ -962,6 +1048,10 @@ onMounted(() => {
   margin: 6px 0 0;
   color: var(--filum-text-secondary);
   font-size: 13px;
+}
+
+.task-center-view__view-toggle--disabled {
+  opacity: 0.5;
 }
 
 .task-center-view__filters {

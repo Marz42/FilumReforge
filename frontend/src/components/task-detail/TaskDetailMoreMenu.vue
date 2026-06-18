@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 
 import {
   listInstanceSubmissions,
@@ -8,8 +9,11 @@ import {
   rejectProductionStep,
 } from '@/api/workflow-graph'
 import type { TaskDetailProfile } from '@/domain/task-detail/profile'
+import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import type { Task, WorkflowGraphInstanceDetail } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
+
+const router = useRouter()
 
 const props = defineProps<{
   profile: TaskDetailProfile
@@ -45,6 +49,10 @@ const menuItems = computed(() => {
 
   if (props.canRejectProduction && props.task && profileId === 'video_production_step') {
     items.push({ key: 'reject-production', label: '退回…' })
+  }
+
+  if (TASK_CENTER_V2_UI_ENABLED && props.graphInstance && props.task) {
+    items.push({ key: 'open-stats', label: '打开任务统计' })
   }
 
   return items
@@ -105,6 +113,16 @@ async function handleMenuCommand(key: string): Promise<void> {
   }
   if (key === 'reject-production') {
     openProductionRejectDialog()
+    return
+  }
+  if (key === 'open-stats' && props.task) {
+    await router.push({
+      name: 'task-center',
+      query: {
+        filter: 'stats',
+        selected: props.task.id,
+      },
+    })
   }
 }
 

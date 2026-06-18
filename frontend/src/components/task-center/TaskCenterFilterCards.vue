@@ -1,5 +1,9 @@
 <script setup lang="ts">
-export type TaskCenterFilter = 'inbox' | 'tracking' | 'history'
+import { computed } from 'vue'
+
+import type { TaskCenterFilter } from '@/constants/task-center'
+
+export type { TaskCenterFilter }
 
 const props = defineProps<{
   activeFilter: TaskCenterFilter
@@ -7,7 +11,9 @@ const props = defineProps<{
     inbox: number
     tracking: number
     history: number
+    stats?: number
   }
+  showStats?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -46,7 +52,19 @@ const cards: Array<{
     testId: 'task-filter-history',
     count: () => props.counts.history,
   },
+  {
+    filter: 'stats',
+    title: '任务统计',
+    description: '部门汇总、运行事件与人员负载',
+    buttonLabel: '统计',
+    testId: 'task-filter-stats',
+    count: () => props.counts.stats ?? props.counts.tracking,
+  },
 ]
+
+const visibleCards = computed(() =>
+  props.showStats ? cards : cards.filter((card) => card.filter !== 'stats'),
+)
 
 function handleSelect(filter: TaskCenterFilter): void {
   emit('change', filter)
@@ -54,9 +72,13 @@ function handleSelect(filter: TaskCenterFilter): void {
 </script>
 
 <template>
-  <div class="task-center-filter-cards" data-testid="task-center-filter-cards">
+  <div
+    class="task-center-filter-cards"
+    :class="{ 'task-center-filter-cards--four': showStats }"
+    data-testid="task-center-filter-cards"
+  >
     <article
-      v-for="card in cards"
+      v-for="card in visibleCards"
       :key="card.filter"
       class="task-center-filter-cards__card"
       :class="{ 'task-center-filter-cards__card--active': activeFilter === card.filter }"
@@ -67,7 +89,7 @@ function handleSelect(filter: TaskCenterFilter): void {
           <h3 class="task-center-filter-cards__title">{{ card.title }}</h3>
           <p class="task-center-filter-cards__description">{{ card.description }}</p>
         </div>
-        <el-badge :value="card.count()" :max="99" type="primary" />
+        <el-badge v-if="card.filter !== 'stats'" :value="card.count()" :max="99" type="primary" />
       </div>
       <el-button
         :type="activeFilter === card.filter ? 'primary' : 'default'"
@@ -87,6 +109,10 @@ function handleSelect(filter: TaskCenterFilter): void {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 16px;
+}
+
+.task-center-filter-cards--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .task-center-filter-cards__card {
@@ -133,7 +159,8 @@ function handleSelect(filter: TaskCenterFilter): void {
 }
 
 @media (max-width: 960px) {
-  .task-center-filter-cards {
+  .task-center-filter-cards,
+  .task-center-filter-cards--four {
     grid-template-columns: 1fr;
   }
 }

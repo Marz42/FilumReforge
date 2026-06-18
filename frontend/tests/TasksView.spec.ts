@@ -23,6 +23,7 @@ vi.mock('@/api/tasks', () => ({
   delegateTaskAssignment: vi.fn(),
   getTaskStatsSummary: vi.fn(),
   getTaskWorkload: vi.fn(),
+  getTask: vi.fn(),
   listTaskActivity: vi.fn(),
   listTaskBoard: vi.fn(),
   listTaskGantt: vi.fn(),
@@ -55,6 +56,7 @@ import {
   delegateTaskAssignment,
   getTaskStatsSummary,
   getTaskWorkload,
+  getTask,
   listTaskActivity,
   listTaskBoard,
   listTaskGantt,
@@ -215,6 +217,17 @@ const mockActivity: TaskActivityEntry[] = [
   },
 ]
 
+function mockTaskList(tasks: Task[]): void {
+  vi.mocked(listTasks).mockResolvedValue(tasks)
+  vi.mocked(getTask).mockImplementation(async (taskId: string) => {
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task) {
+      throw new Error(`Task ${taskId} not found`)
+    }
+    return task
+  })
+}
+
 describe('Tasks view', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -226,7 +239,7 @@ describe('Tasks view', () => {
     authStore.accessToken = 'test-access-token'
     authStore.user = mockUsers[0] ?? null
 
-    vi.mocked(listTasks).mockResolvedValue(mockTasks)
+    mockTaskList(mockTasks)
     vi.mocked(listTaskBoard).mockResolvedValue(mockBoard)
     vi.mocked(listTaskGantt).mockResolvedValue(mockGantt)
     vi.mocked(listDepartments).mockResolvedValue([mockDepartment])
@@ -388,7 +401,7 @@ describe('Tasks view', () => {
   })
 
   it('shows deliverable review actions instead of generic review completion for manual review tasks', async () => {
-    vi.mocked(listTasks).mockResolvedValue([
+    mockTaskList([
       {
         ...mockTasks[0],
         status: 'review',
@@ -424,7 +437,7 @@ describe('Tasks view', () => {
   })
 
   it('shows handshake actions for assigned graph manual tasks and accepts assignment', async () => {
-    vi.mocked(listTasks).mockResolvedValue([
+    mockTaskList([
       {
         ...mockTasks[0],
         extra_metadata: {
@@ -469,7 +482,7 @@ describe('Tasks view', () => {
   })
 
   it('shows start action after graph manual task has been accepted', async () => {
-    vi.mocked(listTasks).mockResolvedValue([
+    mockTaskList([
       {
         ...mockTasks[0],
         extra_metadata: {
@@ -493,7 +506,7 @@ describe('Tasks view', () => {
   })
 
   it('shows iteration version badge and deep rejection reason for replayed graph tasks', async () => {
-    vi.mocked(listTasks).mockResolvedValue([
+    mockTaskList([
       {
         ...mockTasks[0],
         extra_metadata: {
@@ -520,7 +533,7 @@ describe('Tasks view', () => {
   })
 
   it('does not show iteration badge for first-iteration graph tasks', async () => {
-    vi.mocked(listTasks).mockResolvedValue([
+    mockTaskList([
       {
         ...mockTasks[0],
         extra_metadata: {

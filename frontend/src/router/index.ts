@@ -103,6 +103,15 @@ const router = createRouter({
           component: TaskCenterView,
         },
         {
+          path: 'task-center/stats',
+          redirect: {
+            name: 'task-center',
+            query: {
+              filter: 'stats',
+            },
+          },
+        },
+        {
           path: 'tasks',
           redirect: {
             name: 'task-center',
