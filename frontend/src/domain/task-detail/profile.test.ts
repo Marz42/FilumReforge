@@ -87,5 +87,7 @@ describe('resolveTaskDetailProfile', () => {
     const profile = resolveTaskDetailProfile(task)
     expect(isVideoWorkflowProfile(profile)).toBe(true)
     expect(profile.id).toBe('video_production_step')
+    expect(profile.submitMode).toBe('file')
+    expect(profile.hideDeliverable).toBe(true)
   })
 })

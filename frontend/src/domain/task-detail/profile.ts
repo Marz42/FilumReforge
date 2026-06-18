@@ -131,11 +131,12 @@ export function resolveTaskDetailProfile(
     }
 
     if (key && !isCaptureNode(key) && !isAggregateNode(key)) {
+      const submitMode = inferSubmitMode(key)
       return {
         id: 'video_production_step',
-        submitMode: inferSubmitMode(key),
+        submitMode,
         showCaptureProgress: false,
-        hideDeliverable: false,
+        hideDeliverable: submitMode === 'file',
         hideHandshakeFields: true,
         hideWatchers: false,
         collapseComments: false,

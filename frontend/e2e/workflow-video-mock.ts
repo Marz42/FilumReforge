@@ -1000,6 +1000,21 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
+    if (request.method() === 'POST' && apiPath === '/attachments') {
+      await fulfillJson(route, {
+        id: `att-${Date.now()}`,
+        filename: 'script.docx',
+        content_type: 'application/octet-stream',
+        size_bytes: 1024,
+        target_type: 'task',
+        target_id: 'task-mock',
+        visibility: 'private',
+        relation: 'deliverable',
+        created_at: '2025-05-01T11:00:00Z',
+      })
+      return
+    }
+
     if (request.method() === 'GET' && apiPath.startsWith('/attachments')) {
       await fulfillJson(route, [])
       return

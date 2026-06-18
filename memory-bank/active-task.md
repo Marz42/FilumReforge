@@ -24,7 +24,7 @@
 | P1-3 | `VideoTrackingPanel` | 已完成 |
 | P1-4 | N1 单条校验 | 已完成 |
 | P1-5 | Capture → Task `DONE` | 已完成 |
-| P1-6 | `submit_mode=file` / `VideoProductionPanel` | 未开始 |
+| P1-6 | `submit_mode=file` / `VideoProductionPanel` | 已完成 |
 | P1-7 | 更多菜单 · 退回 | 未开始 |
 | P1-8 | 实例化 participant 默认 | 未开始 |
 | P1-9 | E2E 增量派发 mock | 已完成 |
@@ -35,7 +35,7 @@
 
 - [x] 2/3 时可 dispatch，子 Run 与待办出现（mock E2E）
 - [x] 重复 dispatch 409 + UI 禁用（pytest + forked_topics）
-- [ ] 文件节点「上传并提交」（P1-6）
+- [x] 文件节点「上传并提交」（P1-6）
 - [ ] 更多退回 → 用户态「已退回」（P1-7）
 - [x] N1 提交后 Task 为 done（非 review）
 

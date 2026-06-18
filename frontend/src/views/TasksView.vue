@@ -30,6 +30,7 @@ import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import VideoCapturePanel from '@/components/workflow/VideoCapturePanel.vue'
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
+import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue'
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
 import {
   isVideoWorkflowProfile,
@@ -475,6 +476,13 @@ const showVideoCapturePanel = computed(
 const showVideoAggregatePanel = computed(
   () => selectedTaskProfile.value.id === 'video_n2_aggregate',
 )
+const showVideoProductionPanel = computed(
+  () =>
+    selectedTaskProfile.value.id === 'video_production_step'
+    && selectedTaskProfile.value.submitMode === 'file'
+    && selectedTask.value !== null,
+)
+const videoProductionPanelRef = ref<InstanceType<typeof VideoProductionPanel> | null>(null)
 const showBatchRunDashboard = computed(() => isGraphRootBatchTask.value && graphInstance.value !== null)
 const graphParentInstanceId = computed(() => {
   if (graphInstance.value?.parent_instance_id) {
@@ -1415,6 +1423,15 @@ watch(
                   </el-button>
                 </template>
                 <el-button
+                  v-else-if="canSubmitDeliverable && selectedTaskProfile.submitMode === 'file'"
+                  type="primary"
+                  :loading="videoProductionPanelRef?.submitting ?? false"
+                  data-testid="video-production-header-submit"
+                  @click="videoProductionPanelRef?.submit()"
+                >
+                  上传并提交
+                </el-button>
+                <el-button
                   v-else-if="canSubmitDeliverable"
                   type="warning"
                   :loading="deliverableSubmitting"
@@ -1543,6 +1560,12 @@ watch(
               v-if="showVideoCapturePanel && selectedTask"
               :task="selectedTask"
               :graph-instance="graphInstance"
+              @submitted="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
+            />
+            <VideoProductionPanel
+              v-if="showVideoProductionPanel && selectedTask"
+              ref="videoProductionPanelRef"
+              :task="selectedTask"
               @submitted="() => selectedTask && loadSelectedTaskDetails(selectedTask.id)"
             />
             <TemplateAggregatePanel

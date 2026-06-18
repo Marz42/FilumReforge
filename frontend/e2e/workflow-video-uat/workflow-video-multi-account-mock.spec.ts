@@ -353,46 +353,26 @@ test.describe('Workflow Video multi-account mock', () => {
     await loginAs(page, ACCOUNTS.copyA, PASSWORD)
     const scriptTaskId = videoMockState.productionTasks[0]?.scriptTaskId ?? 'task-n3-1'
     await page.goto(`/task-center?filter=inbox&selected=${scriptTaskId}`)
-    await expect(page.locator('textarea[placeholder*="交付"]').first()).toBeVisible({ timeout: 30_000 })
-
-
+    await expect(page.getByTestId('video-production-panel')).toBeVisible({ timeout: 30_000 })
 
     const acceptBtn = page.getByRole('button', { name: '接受任务' })
-
     if (await acceptBtn.isVisible().catch(() => false)) {
-
       await acceptBtn.click()
-
     }
-
     const startBtn = page.getByRole('button', { name: '开始处理' })
-
     if (await startBtn.isVisible().catch(() => false)) {
-
       await startBtn.click()
-
     }
 
-
-
-    await page
-
-      .locator('textarea[placeholder*="交付"]')
-
-      .first()
-
-      .fill(`脚本正文 ${RUN_TAG}`)
+    await page.getByTestId('video-production-note').fill(`脚本正文 ${RUN_TAG}`)
+    const fileInput = page.locator('[data-testid="video-production-upload"] input[type="file"]')
+    await fileInput.setInputFiles('e2e/fixtures/minimal.png')
 
     const deliverResp = page.waitForResponse(
-
       (r) => /\/api\/v1\/tasks\/.*\/deliverable\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
-
       { timeout: 60_000 },
-
     )
-
-    await page.getByRole('button', { name: '提交交付物' }).click()
-
+    await page.getByTestId('video-production-submit').click()
     await deliverResp
 
     await snap(page, 'phase-e-script-deliverable.png')
