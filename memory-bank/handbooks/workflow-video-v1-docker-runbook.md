@@ -23,6 +23,18 @@ docker compose exec backend python -m app.scripts.seed_sample_data --password Fi
 docker compose exec backend python -m app.scripts.seed_workflow_video_templates
 ```
 
+**生产机部门 code 不是 demo 三件套时**（常见：多个文案部 + 一个后期部），指定现有部门编码：
+
+```bash
+cd backend
+source .venv/bin/activate
+python -m app.scripts.seed_workflow_video_templates \
+  --copy-dept-code <主文案部code> \
+  --post-dept-code <后期部code>
+```
+
+`--voice-dept-code` 可省略（新版 N5 已合并配音上传，配音池仅为配置占位，默认与文案部相同）。
+
 ## 2. 功能开关（W9）
 
 ```bash
