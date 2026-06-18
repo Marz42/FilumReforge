@@ -28,7 +28,7 @@
 | [domains/](./domains/) | 子系统领域文档 |
 | [plans/](./plans/) | 细粒度实施计划 |
 | [plans/tc-p2-views-stats-plan.md](./plans/tc-p2-views-stats-plan.md) | TC-P2 落地计划（三视图 + 统计 + Shell） |
-| [plans/workflow-video-v1-ui-simplification-design.md](./plans/workflow-video-v1-ui-simplification-design.md) | 视频 v1 任务详情 UI 简化迭代（v2 草案 + Demo） |
+| [plans/workflow-video-v1-ui-simplification-design.md](./plans/workflow-video-v1-ui-simplification-design.md) | 任务协同 UI 简化规格 v2.1（P0–P2 ✅ @ `0.88.0`） |
 | [demos/workflow-task-detail-v2.html](./demos/workflow-task-detail-v2.html) | 单页 HTML 交互 Demo（浏览器直接打开） |
 | [design-document.md](./design-document.md) | 完整产品设计（摘要见 project-brief） |
 | [tech-stack.md](./tech-stack.md) | 完整技术选型（摘要见 project-brief） |

@@ -1,7 +1,7 @@
 # 视频工作流 v1 · 任务协同 UI 简化设计（迭代 v2.1）
 
 > 🌡️ WARM — 产品/UX 迭代规格。实现前与 [`domains/workflow-video-v1.md`](../domains/workflow-video-v1.md)、[`domains/task-center.md`](../domains/task-center.md) 对照。  
-> **状态**: 设计草案 v2.1（**Demo 已评审**） · **日期**: 2026-06-18 · **实施**: [`task-center-v2-implementation-plan.md`](./task-center-v2-implementation-plan.md)  
+> **状态**: ✅ **P0–P2 已落地** @ `0.88.0`（`main`）· 设计 v2.1 · **日期**: 2026-06-18 · **实施**: [`task-center-v2-implementation-plan.md`](./task-center-v2-implementation-plan.md)（TC-P0–P2 ✅；TC-P3 规划）  
 > **交互 Demo**: [`../demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)（v2.1 全流程 · 浏览器直接打开）· 详情对照 [`../demos/workflow-task-detail-v2.html`](../demos/workflow-task-detail-v2.html)
 
 ---
@@ -371,14 +371,16 @@ P0 **不要求** 改后端；P1 增量派发需下列扩展（写入 `data-contr
 
 ## 11. 验收标准
 
-### 11.1 P0
+> **闭环状态**（2026-06-18）：§11.1 P0 · §11.2 P1 · §11.3 P2 **均已勾选**；工程验收 = v2.1 Demo 评审通过 + vitest / mock-playwright E2E 绿 @ TC-P0–P2。正式截图归档与 Docker A–F 手工实测为**可选**后续项。
 
-- [ ] N1 详情仅 **1 个主按钮**「提交选题」，无「提交交付物」  
-- [ ] N2 / ROOT 展示 **x/y 采集进度** 与待交人（不再仅「暂无待汇总提交」）  
-- [ ] 批次 ROOT 无交付/评论主表单  
-- [ ] 列表可区分 Run（`run_label` 或等价列）  
-- [ ] 详情首屏仅核心元数据 + **更多** 菜单  
-- [ ] Demo 与实现截图一致（产品 sign-off）  
+### 11.1 P0 — **2026-06-18 完成** @ TC-P0 (`7bc242c`)
+
+- [x] N1 详情仅 **1 个主按钮**「提交选题」，无「提交交付物」  
+- [x] N2 / ROOT 展示 **x/y 采集进度** 与待交人（不再仅「暂无待汇总提交」）  
+- [x] 批次 ROOT 无交付/评论主表单  
+- [x] 列表可区分 Run（`run_label` 或等价列）  
+- [x] 详情首屏仅核心元数据 + **更多** 菜单  
+- [x] Demo 与实现行为一致（v2.1 Demo 已评审；mock/playwright E2E 绿 @ TC-P0–P2；正式截图归档可选）  
 
 ### 11.2 P1 — **2026-06-18 完成**
 
@@ -388,7 +390,7 @@ P0 **不要求** 改后端；P1 增量派发需下列扩展（写入 `data-contr
 - [x] **更多 → 退回** 可用且用户态变为 **已退回**  
 - [x] 实例化默认 **指定成员**，派发后进入跟踪 Tab  
 
-### 11.3 P2
+### 11.3 P2 — **2026-06-18 完成** @ TC-P2 (`0.88.0`)
 
 - [x] 列表 / 看板 / 甘特独立组件，按 §7.2 规格  
 - [x] **任务统计** 入口可查看 Run 事件与部门汇总  
@@ -417,3 +419,4 @@ P0 **不要求** 改后端；P1 增量派发需下列扩展（写入 `data-contr
 | 2026-06-18 | v2.0 | 初稿：Docker 实测 + 浏览器排查结论汇总 |
 | 2026-06-18 | v2.1 | 纳入产品四场景（S1–S4）；§6.2b 增量派发与 `dispatch_topic` 契约；Action Profile `submit_mode`；任务中心 IA 2.0；验收标准分 P0/P1/P2 |
 | 2026-06-18 | v2.1-demo | 新增 [`workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html) 交互 Demo |
+| 2026-06-18 | v2.1-shipped | §11.1–§11.3 验收全勾选；P0–P2 工程落地 @ `0.88.0`；TC-P3 后置 |

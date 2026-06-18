@@ -3,7 +3,7 @@
 > 🌡️ WARM — 可排期、可验收的工程清单。  
 > **产品规格**: [`workflow-video-v1-ui-simplification-design.md`](./workflow-video-v1-ui-simplification-design.md) v2.1  
 > **交互基准**: [`../demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)（产品已评审通过行为）  
-> **状态**: 已立项 · **日期**: 2026-06-18 · **路线图**: [`roadmap.md`](../roadmap.md) **P0 下一焦点**
+> **状态**: ✅ **TC-P0–P2 已完成** @ `0.88.0` · **日期**: 2026-06-18 · **路线图**: [`roadmap.md`](../roadmap.md) → **TC-P3** 规划
 
 ---
 
@@ -122,13 +122,13 @@ flowchart TB
 3. `feat(task-center): capture progress on ROOT and N2`  
 4. `feat(task-center): master list run column and shell header`
 
-**验收**（= 设计 §11.1）
+**验收**（= 设计 §11.1）— **2026-06-18 完成** @ TC-P0
 
-- [ ] N1 详情仅 1 主按钮，无「提交交付物」  
-- [ ] ROOT/N2 显示 x/y 与待交人  
-- [ ] ROOT 无交付/评论主表单  
-- [ ] 列表有 Run 列  
-- [ ] 详情首屏仅 deadline / 部门 / 用户态 + 更多  
+- [x] N1 详情仅 1 主按钮，无「提交交付物」  
+- [x] ROOT/N2 显示 x/y 与待交人  
+- [x] ROOT 无交付/评论主表单  
+- [x] 列表有 Run 列  
+- [x] 详情首屏仅 deadline / 部门 / 用户态 + 更多  
 
 **测试命令**
 
@@ -180,7 +180,7 @@ POST /api/v1/workflow-graph/instances/{instance_id}/dispatch-topic
 - [x] 更多退回 → 用户态「已退回」  
 - [x] 实例化后进入跟踪 Tab（`TaskTemplatesView` → `filter=tracking`）
 
-**实现分支**: `feat/task-center-p0-profile`（P1-7/P1-8 待合并 commit；P1-1–P1-6 已提交 @ `a6562e4` / `8c347a2`）
+**实现分支**: `feat/task-center-p0-profile` @ `578c149`（已合并 main）
 
 **测试命令**
 
@@ -254,10 +254,10 @@ cd frontend && npx playwright test e2e/live/workflow-video-multi-account-live.sp
 
 | 阶段 | 更新 |
 |------|------|
-| P0 完成 | `progress.md`；`domains/task-center.md` Profile 段 |
+| P0 完成 | `progress.md`；`domains/task-center.md` Profile 段 | ✅ 2026-06-18 |
 | P1 完成 | `data-contracts.md` dispatch-topic / reject / include_initiator；`domains/workflow-video-v1.md` | ✅ 2026-06-18 |
-| P2 完成 | `architecture.md` §前端组件；`changelog.md` + `VERSION` patch |
-| 全程 | `active-task.md` 验收勾选 |
+| P2 完成 | `architecture.md` §前端组件；`changelog.md` + `VERSION` → `0.88.0` | ✅ 2026-06-18 |
+| 全程 | `active-task.md` 验收勾选；设计 §11 全勾选 | ✅ 2026-06-18 |
 
 ---
 
@@ -266,9 +266,9 @@ cd frontend && npx playwright test e2e/live/workflow-video-multi-account-live.sp
 | 里程碑 | 目标日期 | 标志 |
 |--------|----------|------|
 | TC-P0 开干 | 2026-06-19 | Profile + N1 单表单 PR 合并 |
-| TC-P0 完成 | 2026-07-02 | §11.1 全勾选 + Docker 实测截图 |
-| TC-P1 完成 | 2026-07-16 | dispatch_topic + 多账号 E2E |
-| TC-P2 完成 | 2026-08-06 | 统计入口 + 三视图上线 |
+| TC-P0 完成 | 2026-06-18 | §11.1 全勾选 @ `7bc242c` |
+| TC-P1 完成 | 2026-06-18 | dispatch_topic + 多账号 mock E2E |
+| TC-P2 完成 | 2026-06-18 | 统计入口 + 三视图 @ `0.88.0` |
 
 *日期为排期建议，随 PR 速率调整。*
 
@@ -291,3 +291,4 @@ cd frontend && npx playwright test e2e/live/workflow-video-multi-account-live.sp
 | 日期 | 说明 |
 |------|------|
 | 2026-06-18 | 初稿：Demo 评审通过后立项；TC-P0–P2 拆分与验收绑定设计 v2.1 |
+| 2026-06-18 | TC-P0–P2 完成；§11 验收闭环；`VERSION` `0.88.0` |

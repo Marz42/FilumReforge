@@ -2,6 +2,16 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 — 任务协同 UI 简化设计 · 文档验收闭环
+
+**完成事项**:
+- [x] 设计 §11.1 P0 六项勾选（@ TC-P0 `7bc242c`）
+- [x] 设计 §11.3 补全完成日期；文档头状态 → P0–P2 已落地 @ `0.88.0`
+- [x] 实施计划 TC-P0 验收勾选；§7 文档清单、§8 里程碑实际日期对齐
+- [x] 修订记录 `v2.1-shipped`
+
+**分支**: `main`
+
 ### 2026-06-18 — TC-P2 合并 main + 文档对齐 @ `0.88.0`
 
 **完成事项**:
@@ -10,7 +20,7 @@
 - [x] E2E 绿：login / task-center / task-center-stats / workflow-video-v1
 - [x] Playwright 本地 Chrome（`.playwright-browsers/` + config 自动检测）
 - [x] 合并 `feat/task-center-p2-views-stats` → main
-- [x] memory-bank：`VERSION` `0.88.0`、roadmap、active-task→TC-P3、设计 §11.3 勾选
+- [x] memory-bank：`VERSION` `0.88.0`、roadmap、active-task→TC-P3、设计 §11 全勾选
 
 **分支**: `main` @ `0.88.0`
 
@@ -23,11 +33,11 @@
 - [x] v2 下隐藏 `BatchRunDashboard`（统计页承载 Run 事件）
 - [x] vitest：`TasksView.spec.ts` / `TaskCenterView.spec.ts` 适配
 
-**遗留**:
-- [ ] `config.ui_profile`（P2-7 / Phase 4）
-- [ ] 提交 `feat/task-center-p2-views-stats` 并合并 main
+**遗留**（已于 `33f9cd6` / `0.88.0` 解决）:
+- [x] `config.ui_profile`（P2-7）
+- [x] 提交 `feat/task-center-p2-views-stats` 并合并 main
 
-**分支**: `feat/task-center-p2-views-stats`
+**分支**: `feat/task-center-p2-views-stats` → merged `main`
 
 ### 2026-06-18 — TC-P2 Phase 0–2（三视图 + 统计 Tab）
 
@@ -38,10 +48,10 @@
 - [x] `TaskDetailMoreMenu`「打开任务统计」
 - [x] vitest 投影/色板单测
 
-**遗留**:
-- [ ] `config.ui_profile`（P2-7）
+**遗留**（已于 `33f9cd6` 解决）:
+- [x] `config.ui_profile`（P2-7）
 
-**分支**: `feat/task-center-p2-views-stats`
+**分支**: `feat/task-center-p2-views-stats` → merged `main`
 
 ### 2026-06-18 — TC-P1 状态对齐（文档 + 验收确认）
 

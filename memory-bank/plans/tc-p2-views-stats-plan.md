@@ -213,7 +213,7 @@ MVP 可 **不增后端**：统计页用 tracking 任务 + 按需 fetch instance 
 
 ### Phase 3 · `TaskDetailShell` + TasksView 瘦身（P2-8，~2 PR）
 
-**P0 未完成项**，P2 必做以满足 §7.4。
+**历史说明**：Phase 3 启动时 P0 Shell 骨架未独立；P2-8 已完成以满足设计 §7.4。
 
 #### `TaskDetailShell.vue` 职责
 
