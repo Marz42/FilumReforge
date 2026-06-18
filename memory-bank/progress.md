@@ -2,6 +2,22 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 - Docker 图模板本地实测环境就绪
+
+**完成事项**:
+- [x] `infra/docker/.env` 配置图模板开关（`WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true` 等）与 `FRONTEND_APP_URL=http://127.0.0.1:8080`
+- [x] `docker-compose.yml` worker 同步 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`；`.env.example` / `README.md` 文档对齐
+- [x] Compose 栈 `up -d --build` 健康；`seed_sample_data` + `seed_workflow_video_templates` 已执行
+- [x] commit `7512ab9`（memory-bank 基线、Playwright mock W10、runbook `backend` 服务名修正）
+- [x] **memory-bank 对齐核查**：`git fetch origin` 后 `HEAD` 与 `origin/main` 均为 `7512ab9`，`memory-bank/` 无 diff
+
+**遗留问题**:
+- [ ] 用户手工 A–F 多账号图模板实测（见 `workflow-video-v1-multi-account-e2e-guide.md`）
+- [ ] `docker-gui` / `playwright_live` 基线未重跑
+
+**下一步建议**:
+- 从 `http://127.0.0.1:8080` 登录 demo 账号（密码 `FilumTest123!`）走完选题会批次实例化 → N1 采集 → N2 汇总
+
 ### 2026-06-18 - 测试基线刷新与 Playwright mock E2E 修补
 
 **完成事项**:
@@ -16,7 +32,7 @@
 - [ ] `playwright_live` 未纳入本次基线
 
 **下一步建议**:
-- 执行 Ubuntu 最小回滚路径演练（见 `deployment-runbook-ubuntu-2404.md` §21.8）
+- Docker 图模板本地实测环境配置（见本会话下一条摘要）
 
 ### 2026-06-17 23:30 - Memory-Bank Phase 4 引用修复与对齐审查
 
@@ -75,8 +91,8 @@
 
 | 字段 | 值 |
 | --- | --- |
-| `baseline_id` | `2026-06-18-main-45954eb` |
-| `commit` | `45954eb`（`test(backend): align sample seed assertions and run migrations on PostgreSQL`） |
+| `baseline_id` | `2026-06-18-main-7512ab9` |
+| `commit` | `7512ab9`（`docs: align memory-bank baseline and Docker graph template setup`）；测试数字仍取自 `45954eb` |
 | `runner_os` | Windows 11 + `backend/.venv`（Python 3.11）；前端 `npm ci` 后原生 Node |
 | `pytest` | **213 passed**（`backend/.venv/Scripts/python.exe -m pytest`，约 130s；`test_alembic_upgrade_and_downgrade` 需本机 PostgreSQL，`POSTGRES_TEST_ADMIN_DSN` 默认 `postgresql://filum:filum@127.0.0.1:5432/postgres`） |
 | `compileall` | PASS（`python -m compileall -q app tests`） |
@@ -85,9 +101,11 @@
 | `playwright_mock` | **5/5** @ `e2e/login.spec.ts` + `e2e/task-center.spec.ts` + `e2e/workflow-video-v1.spec.ts`（`npm run test:e2e -- e2e/login.spec.ts e2e/task-center.spec.ts e2e/workflow-video-v1.spec.ts`） |
 | `check-release.sh` | **Windows 等价 P0 全绿**（2026-05-21 记录）；生产/Ubuntu 主机应在 Linux 原生目录执行 `bash scripts/check-release.sh` |
 | `eslint` | 8 errors（`npm run lint`，非阻塞；待清理） |
-| `docker-gui` | **未在本机重跑**（Compose 栈未启动）；沿用 **2026-05-20** 基线 **18/18** @ `http://127.0.0.1:8080` |
+| `docker-gui` | **未在本机重跑**；沿用 **2026-05-20** 基线 **18/18** @ `http://127.0.0.1:8080` |
+| `docker_manual` | Compose 栈 @ `http://127.0.0.1:8080` 已就绪（种子 + 图模板）；**手工 A–F 实测进行中** |
 | `playwright_live` | 未纳入本次基线重跑 |
-| `notes` | 图任务握手 accept 修复（`c1ff391`）；Paradigma memory-bank Phase 0–4（`9962df2`）；mock E2E 需 `npx playwright install chromium` |
+| `memory_bank_sync` | **已对齐** — 本地 `main` ≡ `origin/main` @ `7512ab9`（2026-06-18 核查） |
+| `notes` | 图任务握手 accept（`c1ff391`）；Paradigma Phase 0–4（`9962df2`）；Docker 图模板开关见 `infra/docker/.env.example`；mock E2E 需 `npx playwright install chromium` |
 
 ## 视频工作流 v1（workflow-video-v1）
 
