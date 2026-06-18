@@ -14,11 +14,13 @@ import {
 
 import AppHeader from '@/components/shell/AppHeader.vue'
 import GlobalMemoFloat from '@/components/shell/GlobalMemoFloat.vue'
+import { useTaskCenterPermissions } from '@/composables/useTaskCenterPermissions'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const { ensureLoaded, canAccessTaskTemplates } = useTaskCenterPermissions()
 const route = useRoute()
 const router = useRouter()
 const isMobileViewport = ref(false)
@@ -43,6 +45,9 @@ const specialNavigationItems = computed(() => {
 
   if (authStore.isManagementRole) {
     items.push({ label: '人员管理', routeName: 'people', icon: User })
+  }
+
+  if (canAccessTaskTemplates.value) {
     items.push({ label: '任务模板', routeName: 'task-templates', icon: DocumentCopy })
   }
 
@@ -109,6 +114,9 @@ watch(
 onMounted(() => {
   syncViewport()
   window.addEventListener('resize', syncViewport)
+  if (authStore.isAuthenticated) {
+    void ensureLoaded()
+  }
 })
 
 onBeforeUnmount(() => {

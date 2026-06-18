@@ -28,6 +28,7 @@ from app.services.condition_evaluator import (
   is_else_condition,
 )
 from app.services.notification_service import NotificationService
+from app.services.workflow_assignee_resolver import resolve_node_assignee_id
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.models import (
   Task,
@@ -621,6 +622,8 @@ class WorkflowGraphService:
     # 计算每个节点的入度
     in_degree: dict[UUID, int] = {node.id: 0 for node in nodes}
     for edge in edges:
+      if edge.is_reject_path:
+        continue
       if edge.to_node_id in in_degree:
         in_degree[edge.to_node_id] += 1
 
@@ -785,6 +788,15 @@ class WorkflowGraphService:
       return
 
     activated_notice_nodes: list[WorkflowNodeInstance] = []
+    initiator: User | None = None
+    template: WorkflowGraphTemplate | None = None
+    if graph_instance.template_id is not None:
+      template = await self._session.get(WorkflowGraphTemplate, graph_instance.template_id)
+      initiator = await self._session.get(User, graph_instance.initiator_user_id)
+      if initiator is not None:
+        ensure_active_user(initiator)
+
+    instance_context = graph_instance.context if isinstance(graph_instance.context, dict) else {}
 
     for downstream_template_node_id in downstream_node_ids:
       downstream_template_node: WorkflowGraphTemplateNode | None = await self._session.get(
@@ -834,6 +846,22 @@ class WorkflowGraphService:
       downstream_ni.business_state = WorkflowNodeBusinessState.ASSIGNED
       downstream_ni.activated_at = now
       downstream_ni.node_instance_version += 1
+
+      if (
+        downstream_ni.assignee_user_id is None
+        and template is not None
+        and initiator is not None
+        and downstream_template_node is not None
+      ):
+        downstream_ni.assignee_user_id = await resolve_node_assignee_id(
+          self._session,
+          actor=initiator,
+          template=template,
+          template_node=downstream_template_node,
+          node_instance=downstream_ni,
+          context=instance_context,
+          department_id=graph_instance.department_id,
+        )
 
       if join_mode == "any":
         await self._terminate_wait_any_peer_nodes(
@@ -1109,6 +1137,11 @@ class WorkflowGraphService:
       return  # 还有未完成的节点
 
     if graph_instance.status == WorkflowGraphInstanceStatus.ACTIVE:
+      context = dict(graph_instance.context or {})
+      if context.get("run_kind") == "production":
+        context["archived"] = True
+        context["archived_at"] = now.isoformat()
+        graph_instance.context = context
       graph_instance.status = WorkflowGraphInstanceStatus.COMPLETED
       graph_instance.completed_at = now
       graph_instance.current_node_key = None
@@ -1140,17 +1173,19 @@ class WorkflowGraphService:
     *,
     parent_instance_id: UUID,
     limit: int = 50,
+    include_completed: bool = False,
   ) -> list[WorkflowGraphInstance]:
     await self.get_instance(instance_id=parent_instance_id)
     normalized_limit = max(1, min(limit, 100))
-    return list(
-      await self._session.scalars(
-        select(WorkflowGraphInstance)
-        .where(WorkflowGraphInstance.parent_instance_id == parent_instance_id)
-        .order_by(WorkflowGraphInstance.created_at.asc())
-        .limit(normalized_limit)
-      )
+    query = (
+      select(WorkflowGraphInstance)
+      .where(WorkflowGraphInstance.parent_instance_id == parent_instance_id)
+      .order_by(WorkflowGraphInstance.created_at.asc())
+      .limit(normalized_limit)
     )
+    if not include_completed:
+      query = query.where(WorkflowGraphInstance.status != WorkflowGraphInstanceStatus.COMPLETED)
+    return list(await self._session.scalars(query))
 
   async def list_instances_for_template(
     self,

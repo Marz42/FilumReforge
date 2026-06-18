@@ -375,7 +375,7 @@ flowchart TB
 | WF-2 | `GET .../instances/{id}/submissions?node_key=N1_PROPOSE` | 汇总 API 数据源 | done |
 | WF-3 | `finalize_aggregate(run_id, approved_topics[], rejected[])` | 写 context；**fork 留 WFK**（`fork_deferred: true`） | done |
 | WF-4 | 题级 `topic_id` 生成（客户端或服务端 UUID） | 打回/fork 幂等 | done |
-| WF-5 | 与 `completion_policy=on_capture_submitted / on_aggregate_confirmed` 挂钩 | 最小实现于 `WorkflowVideoFormService`；完整编排 W4 | partial |
+| WF-5 | 与 `completion_policy=on_capture_submitted / on_aggregate_confirmed` 挂钩 | 最小实现于 `WorkflowVideoFormService`；完整编排 W4 | done |
 
 **验收**：API 层可提交多行选题、拉齐汇总 JSON、finalize 写出 `approved_topics`。
 
@@ -413,7 +413,7 @@ flowchart TB
 |----|------|------|------|
 | W4-1 | `WorkflowOrchestrationService` | capture 提交 → 节点可完成 | done |
 | W4-2 | aggregate 确认 → 完成 N2；调用 WFK | 事务边界；**fork 仍留 WFK** | done |
-| W4-3 | `on_task_accepted` / deliverable / review | 模板图 `handshake_required` 接受路径 | partial |
+| W4-3 | `on_task_accepted` / deliverable / review | 模板图 `handshake_required` 接受路径；N6→N7→N8 主管派发 | done |
 | W4-4 | all-of：同 node_key 全部 instance 满足后才激活 N2 | `_upstream_join_satisfied` | done |
 | W4-5 | 接入 `TaskService` 与模板图任务执行路径 | 激活节点自动 `create_task_record` | done |
 

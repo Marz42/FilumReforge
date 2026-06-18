@@ -56,14 +56,16 @@ async def test_w6_seed_templates_idempotent(db_session) -> None:
   ).all()
   assert len(production_nodes) == 10
   assert production_nodes[0].node_key == "N3_SCRIPT_WRITE"
-  assert production_nodes[-1].node_key == "N12_CLOSE"
+  assert production_nodes[-1].node_key == "N12_COSIGN"
+  assert any(node.node_key == "N5_VO_UPLOAD" for node in production_nodes)
+  assert not any(node.node_key == "N6_VO_REVIEW" for node in production_nodes)
 
   edge_count = await db_session.scalar(
     select(func.count())
     .select_from(WorkflowGraphTemplateEdge)
     .where(WorkflowGraphTemplateEdge.template_id == production.id)
   )
-  assert edge_count == 12
+  assert edge_count == 11
 
   copy_dept = await db_session.scalar(select(Department).where(Department.code == "video-copywriting"))
   assert copy_dept is not None

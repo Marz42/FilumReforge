@@ -9,8 +9,7 @@ import {
 } from '@/api/workflow-graph'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import { useAuthStore } from '@/stores/auth'
-import type { GraphTemplateSummary, ParticipantUserPreview } from '@/types/workflowVideo'
-import type { User } from '@/types/api'
+import type { GraphTemplateSummary, ParticipantUserPreview, CreateGraphTemplateRunRequest } from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
 import {
@@ -21,7 +20,6 @@ import {
 const props = defineProps<{
   modelValue: boolean
   template: GraphTemplateSummary | null
-  users: User[]
   defaultDepartmentId?: string
 }>()
 
@@ -51,16 +49,13 @@ const visible = computed({
 })
 
 const launchSchema = computed(() => resolveLaunchSchema(props.template?.config as Record<string, unknown> | undefined))
-const policyRef = computed(() => resolveParticipantPolicyRefs(props.template?.config as Record<string, unknown> | undefined)[0] ?? 'copywriters')
-
-const userOptions = computed(() =>
-  props.users
-    .filter((user) => user.status === 'active')
-    .map((user) => ({
-      value: user.id,
-      label: formatUserOptionLabel({ email: user.email }),
-    })),
+const participantPolicyRefs = computed(() =>
+  resolveParticipantPolicyRefs(props.template?.config as Record<string, unknown> | undefined),
 )
+const hasParticipantPolicy = computed(() => participantPolicyRefs.value.length > 0)
+const policyRef = computed(() => participantPolicyRefs.value[0] ?? '')
+
+const userOptions = computed(() => [] as Array<{ value: string; label: string }>)
 
 /** 负责人与「指定成员」同源：管理所负责部门 + 所属部门成员，并与参与人预览合并去重 */
 const managerUserOptions = computed(() => {
@@ -153,14 +148,17 @@ async function loadManagerOptions(): Promise<void> {
 }
 
 async function loadDialogOptions(): Promise<void> {
-  await loadCandidateUsers()
   await loadManagerOptions()
   applyDefaultManager()
+  if (!hasParticipantPolicy.value || !policyRef.value) {
+    return
+  }
+  await loadCandidateUsers()
   await loadParticipantPreview()
 }
 
 async function loadCandidateUsers(): Promise<void> {
-  if (!props.template) {
+  if (!props.template || !policyRef.value) {
     return
   }
   try {
@@ -177,7 +175,7 @@ async function loadCandidateUsers(): Promise<void> {
 }
 
 async function loadParticipantPreview(): Promise<void> {
-  if (!props.template) {
+  if (!props.template || !policyRef.value) {
     return
   }
   if (participantMode.value === 'subset' && selectedParticipantIds.value.length === 0) {
@@ -213,30 +211,34 @@ async function handleSubmit(): Promise<void> {
       return
     }
   }
-  if (participantMode.value === 'subset' && selectedParticipantIds.value.length === 0) {
-    ElMessage.warning('请至少选择一名参与人')
-    return
-  }
-  if (effectivePreviewUsers.value.length === 0) {
-    ElMessage.warning('排除发起人后至少保留一名采集参与人')
-    return
+  if (hasParticipantPolicy.value) {
+    if (participantMode.value === 'subset' && selectedParticipantIds.value.length === 0) {
+      ElMessage.warning('请至少选择一名参与人')
+      return
+    }
+    if (effectivePreviewUsers.value.length === 0) {
+      ElMessage.warning('排除发起人后至少保留一名采集参与人')
+      return
+    }
   }
 
   submitting.value = true
   try {
     const inputs: Record<string, unknown> = { ...launchValues }
+    const participantsSnapshot: CreateGraphTemplateRunRequest['participants_snapshot'] = {}
+    if (hasParticipantPolicy.value && policyRef.value) {
+      participantsSnapshot[policyRef.value] = {
+        mode: participantMode.value,
+        user_ids:
+          participantMode.value === 'all'
+            ? previewUsers.value.map((user) => user.id)
+            : selectedParticipantIds.value,
+        include_initiator: includeInitiator.value,
+      }
+    }
     const result = await createGraphTemplateRun(props.template.id, {
       inputs,
-      participants_snapshot: {
-        [policyRef.value]: {
-          mode: participantMode.value,
-          user_ids:
-            participantMode.value === 'all'
-              ? previewUsers.value.map((user) => user.id)
-              : selectedParticipantIds.value,
-          include_initiator: includeInitiator.value,
-        },
-      },
+      participants_snapshot: participantsSnapshot,
       department_id: departmentId.value || null,
       run_label: runLabel.value.trim() || null,
     })
@@ -261,13 +263,13 @@ watch(
 )
 
 watch(participantMode, () => {
-  if (props.modelValue) {
+  if (props.modelValue && hasParticipantPolicy.value) {
     void loadParticipantPreview()
   }
 })
 
 watch(includeInitiator, () => {
-  if (props.modelValue) {
+  if (props.modelValue && hasParticipantPolicy.value) {
     void loadParticipantPreview()
   }
 })
@@ -352,7 +354,8 @@ watch(includeInitiator, () => {
           <el-input v-else v-model="launchValues[field.key]" />
         </el-form-item>
 
-        <el-divider>参与人（{{ policyRef }}）</el-divider>
+        <el-divider v-if="hasParticipantPolicy">参与人（{{ policyRef }}）</el-divider>
+        <template v-if="hasParticipantPolicy">
         <el-form-item label="参与范围">
           <el-radio-group v-model="participantMode">
             <el-radio-button value="subset">指定成员</el-radio-button>
@@ -387,6 +390,7 @@ watch(includeInitiator, () => {
         <p v-else-if="previewUsers.length && !includeInitiator" class="workflow-dialog__preview workflow-dialog__preview--warn">
           当前选择排除发起人后将无采集任务，请增选参与人或勾选「发起人参与采集」
         </p>
+        </template>
       </el-form>
     </template>
 

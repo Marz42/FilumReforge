@@ -450,11 +450,13 @@ async def list_graph_instance_children(
   actor: Annotated[User, Depends(get_current_user)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
   limit: Annotated[int, Query(ge=1, le=100)] = 50,
+  include_completed: Annotated[bool, Query()] = False,
 ) -> list[WorkflowGraphInstanceRead]:
   _ = actor
   children = await workflow_graph_service.list_child_instances(
     parent_instance_id=instance_id,
     limit=limit,
+    include_completed=include_completed,
   )
   results: list[WorkflowGraphInstanceRead] = []
   for child in children:

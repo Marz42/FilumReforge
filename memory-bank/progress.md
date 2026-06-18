@@ -1,5 +1,18 @@
 # Project Filum 进度记录
 
+## 会话摘要（模板主管派发 N6→N7→N8）
+
+### 2026-06-18 — 制作流下游分配与 N7 采集 @ `0.89.0`
+
+**完成事项**:
+- [x] 共享 `workflow_assignee_resolver`；下游激活时解析 `assignee_user_id`
+- [x] `_sync_graph_projection`：单节点 DONE 不结束整个 Run
+- [x] `on_review_approved` / `on_submit_deliverable` 推进下游；N3 `completion_policy` 修正
+- [x] N7 capture 写回 `edit_assignee_id`；种子列 `type=user`；`video_capture_assign` 前端面板
+- [x] 后端 `test_workflow_video_w4_production_progression.py`；前端 profile 单测；Mock E2E Phase G–I
+
+**分支**: `main`
+
 ## 会话摘要（Paradigma 对齐）
 
 ### 2026-06-18 — Legacy E 前端隐藏 · 任务模板统一命名 @ `0.89.0`
@@ -905,3 +918,14 @@ Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。
 - **集成**：`TasksView.vue` Profile 裁剪；`TaskCenterView` Run 列；实例化 → 跟踪 Tab
 - **测试**：type-check ✓ · vitest 127 ✓ · workflow mock E2E 7/7 ✓
 - **下一步**：TC-P1 `dispatch_topic` + `VideoTrackingPanel` 增量派发
+
+## 2026-06-18 · 制作流 N3–N12 改版（配音合并 + 文案会签）
+
+- **种子 v3**（`workflow_video_template_seed_data.py`）：
+  - 移除 N6 配音审核；N5 合并为 `N5_VO_UPLOAD`（脚本作者多附件上传）
+  - N8/N9 粗剪制作/审核；N10 平台上传；N11 排期 capture（发布时间/平台/标题）
+  - N12 拆为 `N12_CLOSE`（后期确认）+ `N12_COSIGN`（文案负责人会签）
+- **后端**：制作 Run 完成时 `context.archived=true`；批次看板 `GET .../children` 默认隐藏已结案子流
+- **前端**：`video_production_multi` / `video_production_platform` / `video_capture_schedule` Profile；多文件上传与平台链接交付面板
+- **测试**：W4/W6 更新；Mock E2E **A–N** 覆盖 N1–N12（`workflow-video-multi-account-mock.spec.ts`）
+- **部署**：需在 `backend/` 重跑 `python -m app.scripts.seed_workflow_video_templates` 刷新模板

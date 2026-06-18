@@ -63,6 +63,34 @@ export async function listGraphTemplates(): Promise<GraphTemplateSummary[]> {
   }))
 }
 
+export interface GraphTemplateDetail extends GraphTemplateSummary {
+  nodes: Array<{
+    id: string
+    node_key: string
+    title: string
+    sort_order: number
+  }>
+}
+
+export async function getGraphTemplateDetail(templateId: string): Promise<GraphTemplateDetail> {
+  const { data } = await http.get<GraphTemplateDetail>(`/workflow-graph/templates/${templateId}`)
+  return {
+    ...data,
+    config: data.config ?? {},
+  }
+}
+
+export async function updateGraphTemplate(
+  templateId: string,
+  payload: { name?: string; description?: string | null },
+): Promise<GraphTemplateDetail> {
+  const { data } = await http.patch<GraphTemplateDetail>(`/workflow-graph/templates/${templateId}`, payload)
+  return {
+    ...data,
+    config: data.config ?? {},
+  }
+}
+
 export async function listInstanceChildren(
   instanceId: string,
   limit = 50,
@@ -107,7 +135,7 @@ export async function getWorkflowGraphInstance(
 
 export async function submitTaskTopicCapture(
   taskId: string,
-  topics: Array<{ topic_id?: string; title: string; content?: string | null; reason?: string | null }>,
+  topics: Array<Record<string, string | null | undefined>>,
 ): Promise<TopicCaptureSubmitResponse> {
   const { data } = await http.post<TopicCaptureSubmitResponse>(
     `/workflow-graph/tasks/${taskId}/submit-capture`,

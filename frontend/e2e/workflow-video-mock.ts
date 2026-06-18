@@ -20,11 +20,33 @@ const copyLeadUser = {
   updated_at: '2025-01-01T00:00:00Z',
 }
 
+const postLeadUser = {
+  id: 'user-post-lead',
+  email: 'demo.video.post.lead@example.com',
+  role: 'employee',
+  status: 'active',
+  last_login_at: '2025-01-01T00:00:00Z',
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+}
+
+const videoEditorUser = {
+  id: 'user-video-editor',
+  email: 'demo.video.editor@example.com',
+  role: 'employee',
+  status: 'active',
+  last_login_at: null,
+  created_at: '2025-01-01T00:00:00Z',
+  updated_at: '2025-01-01T00:00:00Z',
+}
+
 export const VIDEO_DEMO_ACCOUNTS = {
   copyLead: copyLeadUser.email,
   copyA: 'demo.video.copy.a@example.com',
   copyB: 'demo.video.copy.b@example.com',
   copyC: 'demo.video.copy.c@example.com',
+  postLead: postLeadUser.email,
+  editor: videoEditorUser.email,
 } as const
 
 const editorUsers = [
@@ -57,7 +79,7 @@ const editorUsers = [
   },
 ]
 
-const allDemoUsers = [copyLeadUser, ...editorUsers, adminUser]
+const allDemoUsers = [copyLeadUser, postLeadUser, videoEditorUser, ...editorUsers, adminUser]
 
 function resolveUserByEmail(email: string) {
   return allDemoUsers.find((user) => user.email === email) ?? copyLeadUser
@@ -90,11 +112,30 @@ export const videoMockState = {
   currentUserId: copyLeadUser.id,
   runLabel: 'E2E多账号批次',
   productionTasks: [] as Array<{
+    childInstanceId: string
     scriptTaskId: string
     reviewTaskId: string
+    voUploadTaskId: string
+    editAssignTaskId: string
+    editWorkTaskId: string
+    editReviewTaskId: string
+    platformUploadTaskId: string
+    scheduleTaskId: string
+    postCloseTaskId: string
+    copyCosignTaskId: string
     authorId: string
     deliverableDone: boolean
     reviewDone: boolean
+    voUploadDone: boolean
+    editAssignDone: boolean
+    editWorkDone: boolean
+    editReviewDone: boolean
+    platformUploadDone: boolean
+    scheduleDone: boolean
+    postCloseDone: boolean
+    copyCosignDone: boolean
+    archived: boolean
+    editAssigneeId: string | null
   }>,
 }
 
@@ -190,7 +231,7 @@ function toTaskCenterTrackingItem(task: VideoMockTask, currentStageLabel: string
   }
 }
 
-function buildProductionScriptTask(scriptTaskId: string, authorId: string, topicLabel: string) {
+function buildProductionScriptTask(scriptTaskId: string, authorId: string, topicLabel: string, childInstanceId = 'child-inst-1') {
   const author = resolveUserById(authorId)
   return {
     id: scriptTaskId,
@@ -207,7 +248,7 @@ function buildProductionScriptTask(scriptTaskId: string, authorId: string, topic
     parent_task_id: null,
     source_type: 'template',
     extra_metadata: {
-      workflow_graph_instance_id: 'child-inst-1',
+      workflow_graph_instance_id: childInstanceId,
       workflow_node_instance_id: `ni-script-${scriptTaskId}`,
       template_node_key: 'N3_SCRIPT_WRITE',
       run_kind: 'production',
@@ -217,7 +258,7 @@ function buildProductionScriptTask(scriptTaskId: string, authorId: string, topic
   }
 }
 
-function buildProductionReviewTask(reviewTaskId: string, topicLabel: string) {
+function buildProductionReviewTask(reviewTaskId: string, topicLabel: string, childInstanceId = 'child-inst-1') {
   return {
     id: reviewTaskId,
     title: `单题制作 / 脚本审核 ${topicLabel}`,
@@ -233,7 +274,7 @@ function buildProductionReviewTask(reviewTaskId: string, topicLabel: string) {
     parent_task_id: null,
     source_type: 'template',
     extra_metadata: {
-      workflow_graph_instance_id: 'child-inst-1',
+      workflow_graph_instance_id: childInstanceId,
       workflow_node_instance_id: `ni-review-${reviewTaskId}`,
       template_node_key: 'N4_SCRIPT_REVIEW',
       run_kind: 'production',
@@ -241,6 +282,304 @@ function buildProductionReviewTask(reviewTaskId: string, topicLabel: string) {
     created_at: '2025-05-01T12:00:00Z',
     updated_at: '2025-05-01T12:00:00Z',
   }
+}
+
+function buildProductionVoUploadTask(
+  voUploadTaskId: string,
+  authorId: string,
+  topicLabel: string,
+  childInstanceId: string,
+) {
+  return {
+    id: voUploadTaskId,
+    title: `单题制作 / 配音审核并上传 ${topicLabel}`,
+    description: null,
+    creator_id: copyLeadUser.id,
+    assignee_id: authorId,
+    department_id: 'dept-video-copy',
+    status: 'doing',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T13:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: childInstanceId,
+      workflow_node_instance_id: `ni-vo-upload-${voUploadTaskId}`,
+      template_node_key: 'N5_VO_UPLOAD',
+      run_kind: 'production',
+      ui_profile: 'video_production_multi',
+    },
+    created_at: '2025-05-01T13:00:00Z',
+    updated_at: '2025-05-01T13:00:00Z',
+  }
+}
+
+function buildProductionEditAssignTask(editAssignTaskId: string, topicLabel: string, childInstanceId: string) {
+  return {
+    id: editAssignTaskId,
+    title: `单题制作 / 指派剪辑 ${topicLabel}`,
+    description: null,
+    creator_id: postLeadUser.id,
+    assignee_id: postLeadUser.id,
+    department_id: 'dept-video-post',
+    status: 'doing',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T14:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: childInstanceId,
+      workflow_node_instance_id: `ni-edit-assign-${editAssignTaskId}`,
+      template_node_key: 'N7_EDIT_ASSIGN',
+      run_kind: 'production',
+      ui_profile: 'video_capture_assign',
+    },
+    created_at: '2025-05-01T14:00:00Z',
+    updated_at: '2025-05-01T14:00:00Z',
+  }
+}
+
+function buildProductionEditWorkTask(editWorkTaskId: string, assigneeId: string, topicLabel: string, childInstanceId: string) {
+  const assignee = resolveUserById(assigneeId)
+  return {
+    id: editWorkTaskId,
+    title: `单题制作 / 粗剪制作 ${topicLabel}`,
+    description: null,
+    creator_id: postLeadUser.id,
+    assignee_id: assignee.id,
+    department_id: 'dept-video-post',
+    status: 'doing',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T15:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: childInstanceId,
+      workflow_node_instance_id: `ni-edit-work-${editWorkTaskId}`,
+      template_node_key: 'N8_EDIT_WORK',
+      run_kind: 'production',
+    },
+    created_at: '2025-05-01T15:00:00Z',
+    updated_at: '2025-05-01T15:00:00Z',
+  }
+}
+
+function buildProductionEditReviewTask(
+  editReviewTaskId: string,
+  authorId: string,
+  topicLabel: string,
+  childInstanceId: string,
+) {
+  return {
+    id: editReviewTaskId,
+    title: `单题制作 / 粗剪审核 ${topicLabel}`,
+    description: null,
+    creator_id: copyLeadUser.id,
+    assignee_id: authorId,
+    department_id: 'dept-video-copy',
+    status: 'review',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T16:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: childInstanceId,
+      workflow_node_instance_id: `ni-edit-review-${editReviewTaskId}`,
+      template_node_key: 'N9_EDIT_REVIEW',
+      run_kind: 'production',
+    },
+    created_at: '2025-05-01T16:00:00Z',
+    updated_at: '2025-05-01T16:00:00Z',
+  }
+}
+
+function buildProductionPlatformUploadTask(
+  platformUploadTaskId: string,
+  assigneeId: string,
+  topicLabel: string,
+  childInstanceId: string,
+) {
+  return {
+    id: platformUploadTaskId,
+    title: `单题制作 / 上传平台 ${topicLabel}`,
+    description: null,
+    creator_id: postLeadUser.id,
+    assignee_id: assigneeId,
+    department_id: 'dept-video-post',
+    status: 'doing',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T17:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: childInstanceId,
+      workflow_node_instance_id: `ni-platform-${platformUploadTaskId}`,
+      template_node_key: 'N10_UPLOAD',
+      run_kind: 'production',
+      ui_profile: 'video_production_platform',
+    },
+    created_at: '2025-05-01T17:00:00Z',
+    updated_at: '2025-05-01T17:00:00Z',
+  }
+}
+
+function buildProductionScheduleTask(
+  scheduleTaskId: string,
+  topicLabel: string,
+  childInstanceId: string,
+) {
+  return {
+    id: scheduleTaskId,
+    title: `单题制作 / 排期发布 ${topicLabel}`,
+    description: null,
+    creator_id: postLeadUser.id,
+    assignee_id: postLeadUser.id,
+    department_id: 'dept-video-post',
+    status: 'doing',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T18:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: childInstanceId,
+      workflow_node_instance_id: `ni-schedule-${scheduleTaskId}`,
+      template_node_key: 'N11_SCHEDULE',
+      run_kind: 'production',
+      ui_profile: 'video_capture_schedule',
+    },
+    created_at: '2025-05-01T18:00:00Z',
+    updated_at: '2025-05-01T18:00:00Z',
+  }
+}
+
+function buildProductionCloseReviewTask(
+  taskId: string,
+  nodeKey: 'N12_CLOSE' | 'N12_COSIGN',
+  titleSuffix: string,
+  assigneeId: string,
+  topicLabel: string,
+  childInstanceId: string,
+) {
+  return {
+    id: taskId,
+    title: `单题制作 / ${titleSuffix} ${topicLabel}`,
+    description: null,
+    creator_id: postLeadUser.id,
+    assignee_id: assigneeId,
+    department_id: nodeKey === 'N12_CLOSE' ? 'dept-video-post' : 'dept-video-copy',
+    status: 'review',
+    priority: 'medium',
+    due_date: null,
+    started_at: '2025-05-01T19:00:00Z',
+    completed_at: null,
+    parent_task_id: null,
+    source_type: 'template',
+    extra_metadata: {
+      workflow_graph_instance_id: childInstanceId,
+      workflow_node_instance_id: `ni-${nodeKey.toLowerCase()}-${taskId}`,
+      template_node_key: nodeKey,
+      run_kind: 'production',
+    },
+    created_at: '2025-05-01T19:00:00Z',
+    updated_at: '2025-05-01T19:00:00Z',
+  }
+}
+
+function resolveProductionCurrentNodeKey(
+  production: (typeof videoMockState.productionTasks)[number] | undefined,
+): string {
+  if (!production) {
+    return 'N3_SCRIPT_WRITE'
+  }
+  if (production.archived || production.copyCosignDone) {
+    return 'N12_COSIGN'
+  }
+  if (production.postCloseDone) {
+    return 'N12_COSIGN'
+  }
+  if (production.scheduleDone) {
+    return 'N12_CLOSE'
+  }
+  if (production.platformUploadDone) {
+    return 'N11_SCHEDULE'
+  }
+  if (production.editReviewDone) {
+    return 'N10_UPLOAD'
+  }
+  if (production.editWorkDone) {
+    return 'N9_EDIT_REVIEW'
+  }
+  if (production.editAssignDone) {
+    return 'N8_EDIT_WORK'
+  }
+  if (production.voUploadDone) {
+    return 'N7_EDIT_ASSIGN'
+  }
+  if (production.reviewDone) {
+    return 'N5_VO_UPLOAD'
+  }
+  if (production.deliverableDone) {
+    return 'N4_SCRIPT_REVIEW'
+  }
+  return 'N3_SCRIPT_WRITE'
+}
+
+function createProductionEntry(index: number, childId: string, authorId: string) {
+  const suffix = index + 1
+  return {
+    childInstanceId: childId,
+    scriptTaskId: `task-n3-${suffix}`,
+    reviewTaskId: `task-n4-${suffix}`,
+    voUploadTaskId: `task-n5-${suffix}`,
+    editAssignTaskId: `task-n7-${suffix}`,
+    editWorkTaskId: `task-n8-${suffix}`,
+    editReviewTaskId: `task-n9-${suffix}`,
+    platformUploadTaskId: `task-n10-${suffix}`,
+    scheduleTaskId: `task-n11-${suffix}`,
+    postCloseTaskId: `task-n12-close-${suffix}`,
+    copyCosignTaskId: `task-n12-cosign-${suffix}`,
+    authorId,
+    deliverableDone: false,
+    reviewDone: false,
+    voUploadDone: false,
+    editAssignDone: false,
+    editWorkDone: false,
+    editReviewDone: false,
+    platformUploadDone: false,
+    scheduleDone: false,
+    postCloseDone: false,
+    copyCosignDone: false,
+    archived: false,
+    editAssigneeId: null as string | null,
+  }
+}
+
+function findProductionByTaskId(taskId: string) {
+  return videoMockState.productionTasks.find(
+    (item) =>
+      item.scriptTaskId === taskId
+      || item.reviewTaskId === taskId
+      || item.voUploadTaskId === taskId
+      || item.editAssignTaskId === taskId
+      || item.editWorkTaskId === taskId
+      || item.editReviewTaskId === taskId
+      || item.platformUploadTaskId === taskId
+      || item.scheduleTaskId === taskId
+      || item.postCloseTaskId === taskId
+      || item.copyCosignTaskId === taskId,
+  )
 }
 
 function buildTaskCenterSnapshot() {
@@ -271,17 +610,95 @@ function buildTaskCenterSnapshot() {
     (task) => !videoMockState.captureSubmitted.has(task.id) && task.assignee_id === currentUserId,
   )
   for (const production of videoMockState.productionTasks) {
+    const label = production.scriptTaskId
     if (!production.deliverableDone && production.authorId === currentUserId) {
       inboxTasks.push(
         buildProductionScriptTask(
           production.scriptTaskId,
           production.authorId,
-          production.scriptTaskId,
+          label,
+          production.childInstanceId,
         ),
       )
     }
     if (!production.reviewDone && copyLeadUser.id === currentUserId) {
-      inboxTasks.push(buildProductionReviewTask(production.reviewTaskId, production.reviewTaskId))
+      inboxTasks.push(buildProductionReviewTask(production.reviewTaskId, label, production.childInstanceId))
+    }
+    if (production.reviewDone && !production.voUploadDone && production.authorId === currentUserId) {
+      inboxTasks.push(
+        buildProductionVoUploadTask(
+          production.voUploadTaskId,
+          production.authorId,
+          label,
+          production.childInstanceId,
+        ),
+      )
+    }
+    if (production.voUploadDone && !production.editAssignDone && postLeadUser.id === currentUserId) {
+      inboxTasks.push(buildProductionEditAssignTask(production.editAssignTaskId, label, production.childInstanceId))
+    }
+    if (production.editAssignDone && !production.editWorkDone && production.editAssigneeId === currentUserId) {
+      inboxTasks.push(
+        buildProductionEditWorkTask(
+          production.editWorkTaskId,
+          production.editAssigneeId,
+          label,
+          production.childInstanceId,
+        ),
+      )
+    }
+    if (production.editWorkDone && !production.editReviewDone && production.authorId === currentUserId) {
+      inboxTasks.push(
+        buildProductionEditReviewTask(
+          production.editReviewTaskId,
+          production.authorId,
+          label,
+          production.childInstanceId,
+        ),
+      )
+    }
+    if (
+      production.editReviewDone
+      && !production.platformUploadDone
+      && production.editAssigneeId === currentUserId
+    ) {
+      inboxTasks.push(
+        buildProductionPlatformUploadTask(
+          production.platformUploadTaskId,
+          production.editAssigneeId,
+          label,
+          production.childInstanceId,
+        ),
+      )
+    }
+    if (production.platformUploadDone && !production.scheduleDone && postLeadUser.id === currentUserId) {
+      inboxTasks.push(
+        buildProductionScheduleTask(production.scheduleTaskId, label, production.childInstanceId),
+      )
+    }
+    if (production.scheduleDone && !production.postCloseDone && postLeadUser.id === currentUserId) {
+      inboxTasks.push(
+        buildProductionCloseReviewTask(
+          production.postCloseTaskId,
+          'N12_CLOSE',
+          '结案确认',
+          postLeadUser.id,
+          label,
+          production.childInstanceId,
+        ),
+      )
+    }
+    if (production.postCloseDone && !production.copyCosignDone && copyLeadUser.id === currentUserId) {
+      inboxTasks.push(
+        buildProductionCloseReviewTask(
+          production.copyCosignTaskId,
+          'N12_COSIGN',
+          '文案会签归档',
+          copyLeadUser.id,
+          label,
+          production.childInstanceId,
+        ),
+      )
     }
   }
 
@@ -455,21 +872,26 @@ function buildBatchGraphInstance() {
 }
 
 function buildChildGraphInstance(childId: string, topicTitle: string, rootTask: string) {
+  const production = videoMockState.productionTasks.find((item) => item.childInstanceId === childId)
+  const currentNodeKey = resolveProductionCurrentNodeKey(production)
+
   return {
     id: childId,
     template_id: productionTemplateId,
     initiator_user_id: adminUser.id,
     department_id: 'dept-video-copy',
     source_type: 'template',
-    status: 'active',
-    current_node_key: 'N3_SCRIPT_WRITE',
+    status: production?.archived ? 'completed' : 'active',
+    current_node_key: currentNodeKey,
     run_label: topicTitle,
     parent_instance_id: batchInstanceId,
     context: {
       run_kind: 'production',
       topic_title: topicTitle,
       root_task_id: rootTask,
-      script_author_id: adminUser.id,
+      script_author_id: production?.authorId ?? adminUser.id,
+      edit_assignee_id: production?.editAssigneeId ?? null,
+      archived: production?.archived ?? false,
       schema_snapshot: {
         nodes: {
           N3_SCRIPT_WRITE: {
@@ -480,12 +902,34 @@ function buildChildGraphInstance(childId: string, topicTitle: string, rootTask: 
               columns: [{ key: 'title', label: '脚本标题', type: 'text', required: true }],
             },
           },
+          N7_EDIT_ASSIGN: {
+            capture_schema: {
+              mode: 'row_table',
+              min_rows: 1,
+              max_rows: 1,
+              columns: [{ key: 'edit_assignee_id', label: '剪辑师', type: 'user', required: true }],
+            },
+            ui_profile: 'video_capture_assign',
+          },
+          N11_SCHEDULE: {
+            capture_schema: {
+              mode: 'row_table',
+              min_rows: 1,
+              max_rows: 1,
+              columns: [
+                { key: 'publish_at', label: '发布时间', type: 'datetime', required: true },
+                { key: 'platform', label: '发布平台', type: 'text', required: true },
+                { key: 'publish_title', label: '标题', type: 'text', required: true },
+              ],
+            },
+            ui_profile: 'video_capture_schedule',
+          },
         },
       },
     },
-    context_version: 1,
+    context_version: production?.archived ? 8 : production?.copyCosignDone ? 7 : 1,
     max_iterations: 5,
-    completed_at: null,
+    completed_at: production?.archived ? '2025-05-01T20:00:00Z' : null,
     created_at: '2025-05-01T11:00:00Z',
     node_instances: [
       {
@@ -495,21 +939,41 @@ function buildChildGraphInstance(childId: string, topicTitle: string, rootTask: 
         node_key: 'N3_SCRIPT_WRITE',
         title: '撰写脚本',
         node_type: 'task',
-        engine_state: 'activated',
+        engine_state: production?.deliverableDone ? 'completed' : 'activated',
         business_state: 'doing',
-        assignee_user_id: adminUser.id,
+        assignee_user_id: production?.authorId ?? adminUser.id,
         iteration: 1,
         activated_at: '2025-05-01T11:00:00Z',
-        completed_at: null,
+        completed_at: production?.deliverableDone ? '2025-05-01T12:00:00Z' : null,
         terminated_at: null,
         created_at: '2025-05-01T11:00:00Z',
       },
+      ...(production?.voUploadDone
+        ? [
+            {
+              id: `ni-edit-assign-${childId}`,
+              instance_id: childId,
+              template_node_id: 'tn-n7',
+              node_key: 'N7_EDIT_ASSIGN',
+              title: '指派剪辑',
+              node_type: 'task',
+              engine_state: production.editAssignDone ? 'completed' : 'activated',
+              business_state: 'doing',
+              assignee_user_id: postLeadUser.id,
+              iteration: 1,
+              activated_at: '2025-05-01T14:00:00Z',
+              completed_at: production.editAssignDone ? '2025-05-01T15:00:00Z' : null,
+              terminated_at: null,
+              created_at: '2025-05-01T14:00:00Z',
+            },
+          ]
+        : []),
     ],
-    total_node_count: 1,
-    completed_node_count: 0,
+    total_node_count: 6,
+    completed_node_count: production?.editAssignDone ? 4 : production?.voUploadDone ? 3 : production?.reviewDone ? 2 : 0,
     active_node_count: 1,
-    pending_node_count: 0,
-    progress_percent: 0,
+    pending_node_count: 2,
+    progress_percent: production?.editAssignDone ? 66 : production?.voUploadDone ? 50 : 33,
   }
 }
 
@@ -570,6 +1034,8 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     if (request.method() === 'GET' && apiPath === '/workflow-graph/managed-department-member-options') {
       await fulfillJson(route, [
         { id: copyLeadUser.id, email: copyLeadUser.email, display_name: '韩策' },
+        { id: postLeadUser.id, email: postLeadUser.email, display_name: '季衡' },
+        { id: videoEditorUser.id, email: videoEditorUser.email, display_name: '叶舟' },
         { id: editorUsers[0].id, email: editorUsers[0].email, display_name: '陆言' },
         { id: editorUsers[1].id, email: editorUsers[1].email, display_name: '宋遥' },
         { id: editorUsers[2].id, email: editorUsers[2].email, display_name: '程野' },
@@ -754,8 +1220,6 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       const topicIndex = Math.max(0, videoMockState.topicIds.indexOf(topicId))
       const childId = `child-inst-dispatch-${topicIndex + 1}`
       const childTaskId = `task-child-dispatch-${topicIndex + 1}`
-      const scriptTaskId = `task-n3-dispatch-${topicIndex + 1}`
-      const reviewTaskId = `task-n4-dispatch-${topicIndex + 1}`
       const authorId = body.script_writer_user_id ?? editorUsers[topicIndex]?.id ?? editorUsers[0].id
 
       videoMockState.forked = true
@@ -763,13 +1227,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       if (!videoMockState.childInstanceIds.includes(childId)) {
         videoMockState.childInstanceIds.push(childId)
         videoMockState.childRootTaskIds.push(childTaskId)
-        videoMockState.productionTasks.push({
-          scriptTaskId,
-          reviewTaskId,
-          authorId,
-          deliverableDone: false,
-          reviewDone: false,
-        })
+        videoMockState.productionTasks.push(createProductionEntry(topicIndex, childId, authorId))
       }
 
       await fulfillJson(route, {
@@ -791,18 +1249,10 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       for (const [index, topic] of body.approved_topics.entries()) {
         const childId = `child-inst-${index + 1}`
         const childTaskId = `task-child-${index + 1}`
-        const scriptTaskId = `task-n3-${index + 1}`
-        const reviewTaskId = `task-n4-${index + 1}`
         const authorId = editorUsers[index]?.id ?? editorUsers[0].id
         videoMockState.childInstanceIds.push(childId)
         videoMockState.childRootTaskIds.push(childTaskId)
-        videoMockState.productionTasks.push({
-          scriptTaskId,
-          reviewTaskId,
-          authorId,
-          deliverableDone: false,
-          reviewDone: false,
-        })
+        videoMockState.productionTasks.push(createProductionEntry(index, childId, authorId))
       }
       await fulfillJson(route, {
         instance_id: batchInstanceId,
@@ -815,9 +1265,14 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     }
 
     if (request.method() === 'GET' && apiPath === `/workflow-graph/instances/${batchInstanceId}/children`) {
-      const children = videoMockState.childInstanceIds.map((childId, index) =>
-        buildChildGraphInstance(childId, `选题 ${String.fromCharCode(65 + index)}`, videoMockState.childRootTaskIds[index] ?? ''),
-      )
+      const children = videoMockState.childInstanceIds
+        .map((childId, index) =>
+          buildChildGraphInstance(childId, `选题 ${String.fromCharCode(65 + index)}`, videoMockState.childRootTaskIds[index] ?? ''),
+        )
+        .filter((child) => {
+          const production = videoMockState.productionTasks.find((item) => item.childInstanceId === child.id)
+          return !production?.archived
+        })
       await fulfillJson(route, children)
       return
     }
@@ -902,6 +1357,30 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
 
     if (request.method() === 'POST' && /^\/workflow-graph\/tasks\/[^/]+\/submit-capture$/.test(apiPath)) {
       const taskId = apiPath.split('/').filter(Boolean)[2] ?? ''
+      const production = findProductionByTaskId(taskId)
+      if (production && production.editAssignTaskId === taskId) {
+        const body = request.postDataJSON() as { topics?: Array<{ edit_assignee_id?: string }> }
+        const editAssigneeId = body.topics?.[0]?.edit_assignee_id ?? videoEditorUser.id
+        production.editAssignDone = true
+        production.editAssigneeId = editAssigneeId
+        await fulfillJson(route, {
+          task_id: taskId,
+          node_instance_id: `ni-edit-assign-${production.childInstanceId}`,
+          topic_count: 1,
+          topics: [{ edit_assignee_id: editAssigneeId }],
+        })
+        return
+      }
+      if (production && production.scheduleTaskId === taskId) {
+        production.scheduleDone = true
+        await fulfillJson(route, {
+          task_id: taskId,
+          node_instance_id: `ni-schedule-${production.childInstanceId}`,
+          topic_count: 1,
+          topics: [{ publish_at: '2025-06-01T10:00:00Z', platform: '抖音', publish_title: 'E2E 标题' }],
+        })
+        return
+      }
       videoMockState.captureSubmitted.add(taskId)
       const topicIndex = getCaptureTasks().findIndex((task) => task.id === taskId)
       await fulfillJson(route, {
@@ -1051,11 +1530,19 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
 
     if (request.method() === 'POST' && /^\/tasks\/[^/]+\/deliverable$/.test(apiPath)) {
       const taskId = apiPath.split('/').filter(Boolean)[1] ?? ''
-      const production = videoMockState.productionTasks.find((item) => item.scriptTaskId === taskId)
+      const production = findProductionByTaskId(taskId)
       if (production) {
-        production.deliverableDone = true
+        if (production.scriptTaskId === taskId) {
+          production.deliverableDone = true
+        } else if (production.voUploadTaskId === taskId) {
+          production.voUploadDone = true
+        } else if (production.editWorkTaskId === taskId) {
+          production.editWorkDone = true
+        } else if (production.platformUploadTaskId === taskId) {
+          production.platformUploadDone = true
+        }
       }
-      await fulfillJson(route, { id: taskId, status: 'review' })
+      await fulfillJson(route, { id: taskId, status: 'done' })
       return
     }
 
@@ -1064,9 +1551,18 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       && (/^\/tasks\/[^/]+\/review$/.test(apiPath) || /^\/tasks\/[^/]+\/deliverable\/review$/.test(apiPath))
     ) {
       const taskId = apiPath.split('/').filter(Boolean)[1] ?? ''
-      const production = videoMockState.productionTasks.find((item) => item.reviewTaskId === taskId)
+      const production = findProductionByTaskId(taskId)
       if (production) {
-        production.reviewDone = true
+        if (production.reviewTaskId === taskId) {
+          production.reviewDone = true
+        } else if (production.editReviewTaskId === taskId) {
+          production.editReviewDone = true
+        } else if (production.postCloseTaskId === taskId) {
+          production.postCloseDone = true
+        } else if (production.copyCosignTaskId === taskId) {
+          production.copyCosignDone = true
+          production.archived = true
+        }
       }
       await fulfillJson(route, { id: taskId, status: 'done' })
       return
@@ -1076,14 +1572,63 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       const segments = apiPath.split('/').filter(Boolean)
       const taskId = segments[1]
       let task = [buildRootTask(), buildAggregateTask(), ...getCaptureTasks()].find((item) => item.id === taskId)
-      const production = videoMockState.productionTasks.find(
-        (item) => item.scriptTaskId === taskId || item.reviewTaskId === taskId,
-      )
+      const production = findProductionByTaskId(taskId ?? '')
       if (!task && production) {
+        const label = production.scriptTaskId
         if (production.scriptTaskId === taskId) {
-          task = buildProductionScriptTask(production.scriptTaskId, production.authorId, `题${production.scriptTaskId}`)
-        } else {
-          task = buildProductionReviewTask(production.reviewTaskId, `题${production.reviewTaskId}`)
+          task = buildProductionScriptTask(production.scriptTaskId, production.authorId, label, production.childInstanceId)
+        } else if (production.reviewTaskId === taskId) {
+          task = buildProductionReviewTask(production.reviewTaskId, label, production.childInstanceId)
+        } else if (production.voUploadTaskId === taskId) {
+          task = buildProductionVoUploadTask(
+            production.voUploadTaskId,
+            production.authorId,
+            label,
+            production.childInstanceId,
+          )
+        } else if (production.editAssignTaskId === taskId) {
+          task = buildProductionEditAssignTask(production.editAssignTaskId, label, production.childInstanceId)
+        } else if (production.editWorkTaskId === taskId) {
+          task = buildProductionEditWorkTask(
+            production.editWorkTaskId,
+            production.editAssigneeId ?? videoEditorUser.id,
+            label,
+            production.childInstanceId,
+          )
+        } else if (production.editReviewTaskId === taskId) {
+          task = buildProductionEditReviewTask(
+            production.editReviewTaskId,
+            production.authorId,
+            label,
+            production.childInstanceId,
+          )
+        } else if (production.platformUploadTaskId === taskId) {
+          task = buildProductionPlatformUploadTask(
+            production.platformUploadTaskId,
+            production.editAssigneeId ?? videoEditorUser.id,
+            label,
+            production.childInstanceId,
+          )
+        } else if (production.scheduleTaskId === taskId) {
+          task = buildProductionScheduleTask(production.scheduleTaskId, label, production.childInstanceId)
+        } else if (production.postCloseTaskId === taskId) {
+          task = buildProductionCloseReviewTask(
+            production.postCloseTaskId,
+            'N12_CLOSE',
+            '结案确认',
+            postLeadUser.id,
+            label,
+            production.childInstanceId,
+          )
+        } else if (production.copyCosignTaskId === taskId) {
+          task = buildProductionCloseReviewTask(
+            production.copyCosignTaskId,
+            'N12_COSIGN',
+            '文案会签归档',
+            copyLeadUser.id,
+            label,
+            production.childInstanceId,
+          )
         }
       }
       if (!task && taskId?.startsWith('task-child-')) {

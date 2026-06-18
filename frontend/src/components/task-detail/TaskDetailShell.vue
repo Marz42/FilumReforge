@@ -21,7 +21,7 @@ import { acceptTaskAssignment,
 import { getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
 import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
-import VideoCapturePanel from '@/components/workflow/VideoCapturePanel.vue'
+import TemplateCapturePanel from '@/components/workflow/TemplateCapturePanel.vue'
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
 import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue'
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
@@ -467,18 +467,36 @@ const showVideoTrackingPanel = computed(
 const showDetailHeaderActions = computed(() => {
   const profileId = selectedTaskProfile.value.id
   return profileId !== 'video_n1_capture'
+    && profileId !== 'video_capture_assign'
+    && profileId !== 'video_capture_schedule'
     && profileId !== 'video_n2_aggregate'
     && profileId !== 'video_batch_root'
 })
 const showVideoCapturePanel = computed(
-  () => selectedTaskProfile.value.id === 'video_n1_capture',
+  () =>
+    (selectedTaskProfile.value.id === 'video_n1_capture'
+      || selectedTaskProfile.value.id === 'video_capture_assign'
+      || selectedTaskProfile.value.id === 'video_capture_schedule')
+    && selectedTask.value !== null,
 )
 const showVideoAggregatePanel = computed(
   () => selectedTaskProfile.value.id === 'video_n2_aggregate',
 )
+const videoProductionMode = computed((): 'single' | 'multi' | 'platform' => {
+  const profileId = selectedTaskProfile.value.id
+  if (profileId === 'video_production_multi') {
+    return 'multi'
+  }
+  if (profileId === 'video_production_platform') {
+    return 'platform'
+  }
+  return 'single'
+})
 const showVideoProductionPanel = computed(
   () =>
-    selectedTaskProfile.value.id === 'video_production_step'
+    (selectedTaskProfile.value.id === 'video_production_step'
+      || selectedTaskProfile.value.id === 'video_production_multi'
+      || selectedTaskProfile.value.id === 'video_production_platform')
     && selectedTaskProfile.value.submitMode === 'file'
     && selectedTask.value !== null,
 )
@@ -1302,7 +1320,7 @@ watch(
               :graph-instance="graphInstance"
               @open-task="(taskId: string) => emit('selectTask', taskId)"
             />
-            <VideoCapturePanel
+            <TemplateCapturePanel
               v-if="showVideoCapturePanel && selectedTask"
               :task="selectedTask"
               :graph-instance="graphInstance"
@@ -1312,6 +1330,7 @@ watch(
               v-if="showVideoProductionPanel && selectedTask"
               ref="videoProductionPanelRef"
               :task="selectedTask"
+              :mode="videoProductionMode"
               @submitted="reloadAfterAction"
             />
             <TemplateAggregatePanel

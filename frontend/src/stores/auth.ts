@@ -14,6 +14,7 @@ import {
   type LoginPayload,
 } from '@/api/auth'
 import { clearAuthSession, getAccessToken, setAccessToken } from '@/api/session'
+import { resetTaskCenterPermissionsCache } from '@/composables/useTaskCenterPermissions'
 import type { AuthSession, User, UserInvitationPreview } from '@/types/api'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -29,6 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
   )
 
   function applySession(session: AuthSession) {
+    resetTaskCenterPermissionsCache()
     accessToken.value = session.access_token
     user.value = session.user
     setAccessToken(session.access_token)
@@ -87,6 +89,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     initialized.value = true
     clearAuthSession()
+    resetTaskCenterPermissionsCache()
   }
 
   async function logout(): Promise<void> {

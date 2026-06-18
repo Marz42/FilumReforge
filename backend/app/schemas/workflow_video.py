@@ -116,8 +116,10 @@ class ApprovedTopic(BaseModel):
 
 
 class TopicCaptureRow(BaseModel):
+  model_config = ConfigDict(extra="allow")
+
   topic_id: UUID | None = None
-  title: str = Field(min_length=1, max_length=255)
+  title: str | None = Field(default=None, max_length=255)
   content: str | None = None
   reason: str | None = None
 
@@ -302,6 +304,12 @@ class WorkflowRunContextSchema(BaseModel):
   topic_id: UUID | None = None
   topic_title: str | None = None
   script_author_id: UUID | None = None
+  edit_assignee_id: UUID | None = None
+  publish_at: str | None = None
+  platform: str | None = None
+  publish_title: str | None = None
+  archived: bool | None = None
+  archived_at: str | None = None
   forked_child_instance_ids: list[UUID] = Field(default_factory=list)
 
 

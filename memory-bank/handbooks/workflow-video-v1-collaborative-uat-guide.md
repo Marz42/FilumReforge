@@ -112,7 +112,7 @@ npx playwright show-report verification-runs/workflow-video-uat-<时间戳>/play
 | --- | --- |
 | `npm run test:e2e:workflow-video` | W10 两条快速 mock 冒烟 |
 | `npm run test:e2e:workflow-video-uat` | **本指南 W0–W10 全阶段** + 截图 + `report.md` |
-| `npm run test:e2e:workflow-video-multi-account-mock` | 多账号 A–F（mock，7 用例） |
+| `npm run test:e2e:workflow-video-multi-account-mock` | 多账号 A–N（mock，15 用例，N1–N12） |
 | `npm run test:e2e:workflow-video-live` | 多账号 A–F（Docker Live 栈，7 用例） |
 
 ---
@@ -121,7 +121,7 @@ npx playwright show-report verification-runs/workflow-video-uat-<时间戳>/play
 
 1. **权限**：非 admin 发布组织任务、部门外用户不可实例化。
 2. **并发**：两人同时 finalize 同一批次（幂等与锁）。
-3. **制作链 N5–N12**：A–F 已由多账号 Live/Mock E2E 覆盖；N5–N12 握手与 deep_reject 仍须 Docker 种子 + 多账号 **人工**（见 [multi-account E2E 指南 §6](./workflow-video-v1-multi-account-e2e-guide.md)）。
+3. **制作链打回/deep_reject**：Mock A–N 覆盖 happy path；打回边仍建议 Docker 种子 + 多账号 **人工**抽测（见 [multi-account E2E 指南 §6](./workflow-video-v1-multi-account-e2e-guide.md)）。
 4. **消息/通知**：W9 outbox `workflow_node_activated` 下游投递（查 outbox 表或集成环境）。
 5. **性能**：汇总矩阵 30 人 × 100 题滚动与提交耗时。
 6. **回归**：发版前跑 §2.3 全量 pytest + `npm run type-check`。

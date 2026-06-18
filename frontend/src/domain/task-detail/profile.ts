@@ -5,6 +5,10 @@ export type TaskDetailProfileId =
   | 'video_n2_aggregate'
   | 'video_batch_root'
   | 'video_production_step'
+  | 'video_production_multi'
+  | 'video_production_platform'
+  | 'video_capture_assign'
+  | 'video_capture_schedule'
   | 'graph_manual'
   | 'legacy_task'
 
@@ -60,7 +64,11 @@ function inferSubmitMode(nodeKeyValue: string): TaskSubmitMode {
   if (isCaptureNode(nodeKeyValue)) {
     return 'form'
   }
-  if (nodeKeyValue.includes('REVIEW') || nodeKeyValue.startsWith('N4_')) {
+  if (
+    nodeKeyValue.includes('REVIEW')
+    || nodeKeyValue.startsWith('N4_')
+    || nodeKeyValue.startsWith('N12_')
+  ) {
     return 'review'
   }
   if (nodeKeyValue.startsWith('N3_') || nodeKeyValue.includes('SCRIPT')) {
@@ -82,6 +90,10 @@ const TASK_DETAIL_PROFILE_IDS: TaskDetailProfileId[] = [
   'video_n2_aggregate',
   'video_batch_root',
   'video_production_step',
+  'video_production_multi',
+  'video_production_platform',
+  'video_capture_assign',
+  'video_capture_schedule',
   'graph_manual',
   'legacy_task',
 ]
@@ -123,6 +135,42 @@ function profileFromOverride(
         submitMode: 'form',
         showCaptureProgress: false,
         ...VIDEO_PROFILE_DEFAULTS,
+      }
+    case 'video_capture_assign':
+      return {
+        id: 'video_capture_assign',
+        submitMode: 'form',
+        showCaptureProgress: false,
+        ...VIDEO_PROFILE_DEFAULTS,
+      }
+    case 'video_capture_schedule':
+      return {
+        id: 'video_capture_schedule',
+        submitMode: 'form',
+        showCaptureProgress: false,
+        ...VIDEO_PROFILE_DEFAULTS,
+      }
+    case 'video_production_multi':
+      return {
+        id: 'video_production_multi',
+        submitMode: 'file',
+        showCaptureProgress: false,
+        hideDeliverable: true,
+        hideHandshakeFields: true,
+        hideWatchers: false,
+        collapseComments: false,
+        compactMetadata: true,
+      }
+    case 'video_production_platform':
+      return {
+        id: 'video_production_platform',
+        submitMode: 'file',
+        showCaptureProgress: false,
+        hideDeliverable: true,
+        hideHandshakeFields: true,
+        hideWatchers: false,
+        collapseComments: false,
+        compactMetadata: true,
       }
     case 'video_production_step': {
       const key = nodeKey(metadata)
@@ -273,8 +321,16 @@ export function shouldShowLegacyStatusActions(
   if (profile.id === 'graph_manual' || profile.id === 'legacy_task') {
     return true
   }
-  if (profile.id === 'video_production_step' && taskStatus !== 'review') {
+  if (
+    (profile.id === 'video_production_step'
+      || profile.id === 'video_production_multi'
+      || profile.id === 'video_production_platform')
+    && taskStatus !== 'review'
+  ) {
     return profile.submitMode !== 'file'
+  }
+  if (profile.id === 'video_capture_assign' || profile.id === 'video_capture_schedule') {
+    return false
   }
   return false
 }

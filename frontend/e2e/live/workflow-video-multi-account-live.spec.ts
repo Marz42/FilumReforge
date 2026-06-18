@@ -311,13 +311,40 @@ async function openTaskByTitleHint(page: Page, accessToken: string, hint: string
 }
 
 async function submitCapture(page: Page, title: string): Promise<void> {
-  await page.getByTestId('template-capture-title').fill(title)
+  const titleInput = page.locator('[data-testid="template-capture-panel"] .el-input__inner').first()
+  await titleInput.fill(title)
   const captureResp = page.waitForResponse(
     (r) => /\/submit-capture\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
     { timeout: 60_000 },
   )
   await page.getByTestId('template-capture-submit').click()
   await captureResp
+}
+
+async function waitForTaskCenterEntry(
+  page: Page,
+  accessToken: string,
+  hint: string,
+): Promise<TaskCenterEntry> {
+  const headers = { Authorization: `Bearer ${accessToken}` }
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const response = await page.request.get('/api/v1/task-center', { headers })
+    expect(response.ok(), `task-center failed: ${response.status()}`).toBeTruthy()
+    const snapshot = (await response.json()) as {
+      task_inbox: TaskCenterEntry[]
+      task_tracking: TaskCenterEntry[]
+      task_history?: TaskCenterEntry[]
+    }
+    const hit =
+      snapshot.task_inbox.find((entry) => entry.title.includes(hint))
+      ?? snapshot.task_tracking.find((entry) => entry.title.includes(hint))
+      ?? snapshot.task_history?.find((entry) => entry.title.includes(hint))
+    if (hit) {
+      return hit
+    }
+    await page.waitForTimeout(2_000)
+  }
+  throw new Error(`task-center entry "${hint}" not found after polling`)
 }
 
 /** Element Plus filterable el-select（teleport 下拉）：输入关键字过滤后点选 */
@@ -550,7 +577,10 @@ test.describe('Workflow Video multi-account live', () => {
 
   test('Phase F: copy lead reviews script (N4)', async ({ page }) => {
     const { accessToken } = await login(page, ACCOUNTS.copyLead)
-    await openTaskByTitleHint(page, accessToken, `选题A ${RUN_TAG}`)
+    const reviewEntry =
+      (await waitForTaskCenterEntry(page, accessToken, '脚本审核').catch(() => null))
+      ?? (await waitForTaskCenterEntry(page, accessToken, `选题A ${RUN_TAG}`))
+    await page.goto(`/task-center?filter=inbox&selected=${reviewEntry.task_id}`)
 
     const approveBtn = page.getByRole('button', { name: '验收通过' })
     const hasApproveUi = await approveBtn.isVisible({ timeout: 30_000 }).catch(() => false)
@@ -562,19 +592,7 @@ test.describe('Workflow Video multi-account live', () => {
       await approveBtn.click()
       await reviewResp
     } else {
-      const centerResp = await page.request.get('/api/v1/task-center', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      expect(centerResp.ok()).toBeTruthy()
-      const center = (await centerResp.json()) as {
-        task_inbox: TaskCenterEntry[]
-        task_tracking: TaskCenterEntry[]
-      }
-      const reviewTask =
-        center.task_inbox.find((entry) => entry.title.includes(`选题A ${RUN_TAG}`))
-        ?? center.task_tracking.find((entry) => entry.title.includes(`选题A ${RUN_TAG}`))
-      expect(reviewTask, '选题 A 制作 Run 未出现在 task-center').toBeTruthy()
-      const reviewResp = await page.request.post(`/api/v1/tasks/${reviewTask!.task_id}/review`, {
+      const reviewResp = await page.request.post(`/api/v1/tasks/${reviewEntry.task_id}/review`, {
         headers: { Authorization: `Bearer ${accessToken}` },
         data: { action: 'approve', comment: `审核通过 ${RUN_TAG}`, quality_score: 5 },
       })

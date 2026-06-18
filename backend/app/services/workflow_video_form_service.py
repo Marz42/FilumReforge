@@ -174,7 +174,7 @@ class WorkflowVideoFormService:
       "kind": "topic_capture",
       "topics": [topic.model_dump(mode="json") for topic in topics],
     }
-    summary = f"提交 {len(topics)} 条选题"
+    summary = f"提交 {len(topics)} 条采集记录"
     deliverable = await self._session.scalar(
       select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id)
     )
@@ -196,6 +196,25 @@ class WorkflowVideoFormService:
       deliverable.signature = self._deliverable_signature(task_id=task_id, topics=topics)
     await self._session.flush()
     return deliverable
+
+  @staticmethod
+  def _merge_capture_into_context(
+    *,
+    instance: WorkflowGraphInstance,
+    schema: CaptureSchema,
+    topics: list[TopicCaptureRow],
+  ) -> None:
+    if schema.max_rows != 1 or len(topics) != 1:
+      return
+    row = topics[0].model_dump(mode="json")
+    context = dict(instance.context or {})
+    for column in schema.columns:
+      raw_value = row.get(column.key)
+      if raw_value is None or raw_value == "":
+        continue
+      context[column.key] = raw_value
+    instance.context = validate_run_context(context).model_dump(mode="json")
+    instance.context_version += 1
 
   async def _apply_capture_submitted(
     self,
@@ -232,12 +251,17 @@ class WorkflowVideoFormService:
     schema = self._resolve_capture_schema(node_instance)
     normalized_topics = self._normalize_topics(schema=schema, raw_topics=topics)
     if schema.max_rows == 1 and len(normalized_topics) != 1:
-      raise ConflictError("N1 采集节点每次只能提交 1 条选题。")
+      raise ConflictError("当前采集节点每次只能提交 1 条记录。")
     await self._upsert_capture_deliverable(
       node_instance=node_instance,
       actor=actor,
       topics=normalized_topics,
       task_id=task_id,
+    )
+    self._merge_capture_into_context(
+      instance=instance,
+      schema=schema,
+      topics=normalized_topics,
     )
     await self._apply_capture_submitted(task=task, node_instance=node_instance)
     await self._orchestration_service.after_capture_submitted(

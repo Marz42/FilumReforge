@@ -624,7 +624,7 @@ onMounted(() => {
               </el-button>
             </el-button-group>
             <el-button
-              v-if="permissions.can_manage_templates"
+              v-if="permissions.can_publish_task || authStore.user?.role === 'admin'"
               data-testid="task-center-open-templates"
               @click="router.push({ name: 'task-templates' })"
             >

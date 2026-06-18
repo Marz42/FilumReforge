@@ -61,3 +61,15 @@ export function resolveParticipantPolicyRefs(
   }
   return Object.keys(policies as Record<string, unknown>)
 }
+
+export function templateSupportsDirectInstantiation(
+  template: { run_kind?: string | null; config?: Record<string, unknown> } | null | undefined,
+): boolean {
+  if (!template) {
+    return false
+  }
+  if (template.run_kind === 'production') {
+    return false
+  }
+  return true
+}

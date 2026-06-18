@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { submitTaskTopicCapture } from '@/api/workflow-graph'
+import {
+  listManagedDepartmentMemberOptions,
+  submitTaskTopicCapture,
+} from '@/api/workflow-graph'
 import type { Task, WorkflowGraphInstanceDetail } from '@/types/api'
+import type { CaptureSchema, ParticipantUserPreview } from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
+import { formatUserOptionLabel } from '@/utils/userDisplay'
 import { resolveCaptureSchema } from '@/utils/workflowVideoSchema'
 
 const props = defineProps<{
@@ -17,14 +22,9 @@ const emit = defineEmits<{
 }>()
 
 const submitting = ref(false)
-
-interface CaptureRow {
-  title: string
-  content: string
-  reason: string
-}
-
-const rows = ref<CaptureRow[]>([{ title: '', content: '', reason: '' }])
+const managerLoading = ref(false)
+const managerCandidates = ref<ParticipantUserPreview[]>([])
+const rows = ref<Array<Record<string, string>>>([])
 
 const nodeKey = computed(() => {
   const metadata = props.task.extra_metadata as Record<string, unknown> | undefined
@@ -38,12 +38,55 @@ const captureSchema = computed(() =>
 const maxRows = computed(() => captureSchema.value?.max_rows ?? 20)
 const minRows = computed(() => captureSchema.value?.min_rows ?? 1)
 
+const hasUserColumn = computed(() =>
+  captureSchema.value?.columns.some((column) => column.type === 'user') ?? false,
+)
+
+const userOptions = computed(() =>
+  managerCandidates.value.map((user) => ({
+    value: user.id,
+    label: formatUserOptionLabel(user),
+  })),
+)
+
+function emptyRow(schema: CaptureSchema): Record<string, string> {
+  return Object.fromEntries(schema.columns.map((column) => [column.key, '']))
+}
+
+function resetRows(): void {
+  const schema = captureSchema.value
+  if (!schema) {
+    rows.value = []
+    return
+  }
+  rows.value = [emptyRow(schema)]
+}
+
+async function loadManagerOptions(): Promise<void> {
+  if (!hasUserColumn.value) {
+    return
+  }
+  managerLoading.value = true
+  try {
+    managerCandidates.value = await listManagedDepartmentMemberOptions()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+    managerCandidates.value = []
+  } finally {
+    managerLoading.value = false
+  }
+}
+
 function addRow(): void {
+  const schema = captureSchema.value
+  if (!schema) {
+    return
+  }
   if (rows.value.length >= maxRows.value) {
     ElMessage.warning(`最多提交 ${maxRows.value} 行`)
     return
   }
-  rows.value.push({ title: '', content: '', reason: '' })
+  rows.value.push(emptyRow(schema))
 }
 
 function removeRow(index: number): void {
@@ -60,26 +103,37 @@ async function handleSubmit(): Promise<void> {
     ElMessage.error('当前节点未配置采集表单')
     return
   }
-  const topics = rows.value
-    .map((row) => ({
-      title: row.title.trim(),
-      content: row.content.trim() || null,
-      reason: row.reason.trim() || null,
-    }))
-    .filter((row) => row.title)
-  if (topics.length < minRows.value) {
-    ElMessage.warning(`请至少填写 ${minRows.value} 条选题`)
+
+  const topics = rows.value.map((row) => {
+    const payload: Record<string, string | null> = {}
+    for (const column of schema.columns) {
+      const raw = row[column.key]?.trim?.() ?? row[column.key] ?? ''
+      payload[column.key] = raw || null
+    }
+    return payload
+  })
+
+  const filtered = topics.filter((topic) =>
+    schema.columns.some((column) => {
+      const value = topic[column.key]
+      return value != null && String(value).trim() !== ''
+    }),
+  )
+
+  if (filtered.length < minRows.value) {
+    ElMessage.warning(`请至少填写 ${minRows.value} 条记录`)
     return
   }
+
   for (const column of schema.columns) {
     if (!column.required) {
       continue
     }
-    const missing = topics.some((topic) => {
-      const value = (topic as Record<string, string | null>)[column.key]
-      return !value?.trim?.() && !value
+    const missing = filtered.some((topic) => {
+      const value = topic[column.key]
+      return value == null || String(value).trim() === ''
     })
-    if (missing && column.key === 'title') {
+    if (missing) {
       ElMessage.warning(`请填写必填列：${column.label}`)
       return
     }
@@ -87,8 +141,8 @@ async function handleSubmit(): Promise<void> {
 
   submitting.value = true
   try {
-    await submitTaskTopicCapture(props.task.id, topics)
-    ElMessage.success(`已提交 ${topics.length} 条选题`)
+    await submitTaskTopicCapture(props.task.id, filtered)
+    ElMessage.success(`已提交 ${filtered.length} 条记录`)
     emit('submitted')
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
@@ -96,6 +150,15 @@ async function handleSubmit(): Promise<void> {
     submitting.value = false
   }
 }
+
+watch(captureSchema, () => {
+  resetRows()
+  void loadManagerOptions()
+}, { immediate: true })
+
+onMounted(() => {
+  void loadManagerOptions()
+})
 </script>
 
 <template>
@@ -107,7 +170,7 @@ async function handleSubmit(): Promise<void> {
   >
     <template #header>
       <div class="workflow-panel__header">
-        <strong>表格采集</strong>
+        <strong>{{ nodeKey.includes('SCHEDULE') ? '排期信息' : '表格采集' }}</strong>
         <span class="workflow-panel__subtitle">{{ task.title }}</span>
       </div>
     </template>
@@ -119,17 +182,41 @@ async function handleSubmit(): Promise<void> {
         :label="column.label"
         min-width="140"
       >
-        <template #default="{ row }: { row: CaptureRow }">
+        <template #default="{ row }: { row: Record<string, string> }">
+          <el-select
+            v-if="column.type === 'user'"
+            v-model="row[column.key]"
+            filterable
+            clearable
+            :loading="managerLoading"
+            placeholder="选择成员"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="option in userOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
           <el-input
-            v-if="column.type === 'textarea'"
-            v-model="row[column.key as keyof CaptureRow]"
+            v-else-if="column.type === 'textarea'"
+            v-model="row[column.key]"
             type="textarea"
             :rows="2"
           />
-          <el-input v-else v-model="row[column.key as keyof CaptureRow]" />
+          <el-date-picker
+            v-else-if="column.type === 'datetime'"
+            v-model="row[column.key]"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ss[Z]"
+            placeholder="选择日期时间"
+            style="width: 100%"
+          />
+          <el-input v-else v-model="row[column.key]" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="72" fixed="right">
+      <el-table-column v-if="maxRows > 1" label="操作" width="72" fixed="right">
         <template #default="{ $index }">
           <el-button link type="danger" @click="removeRow($index)">删除</el-button>
         </template>
@@ -137,7 +224,7 @@ async function handleSubmit(): Promise<void> {
     </el-table>
 
     <div class="workflow-panel__actions">
-      <el-button @click="addRow">添加行</el-button>
+      <el-button v-if="maxRows > 1" @click="addRow">添加行</el-button>
       <el-button type="primary" :loading="submitting" data-testid="template-capture-submit" @click="handleSubmit">
         提交采集
       </el-button>

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import (
+  TaskDetailUiProfile,
   TaskPriority,
   TaskSourceType,
   TaskStatus,
@@ -24,11 +25,14 @@ from app.models import (
   User,
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
+  WorkflowGraphTemplateNode,
   WorkflowNodeInstance,
 )
 from app.schemas.workflow_video import validate_node_config
 from app.services.task_service import TaskService
+from app.services.workflow_assignee_resolver import resolve_node_assignee_id
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_node_config_helpers import resolve_completion_policy
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
 
@@ -58,6 +62,45 @@ class WorkflowOrchestrationService:
       return None
     return await self._session.get(WorkflowGraphTemplate, instance.template_id)
 
+  async def _load_template_node(
+    self,
+    *,
+    node_instance: WorkflowNodeInstance,
+  ) -> WorkflowGraphTemplateNode | None:
+    if node_instance.template_node_id is None:
+      return None
+    return await self._session.get(WorkflowGraphTemplateNode, node_instance.template_node_id)
+
+  async def _apply_review_projection_state(
+    self,
+    *,
+    instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+    task: Task,
+    template_node: WorkflowGraphTemplateNode | None,
+  ) -> None:
+    """Review nodes activated after upstream deliverable should enter REVIEW immediately."""
+    if resolve_completion_policy(node_instance=node_instance, template_node=template_node) != "on_review_approved":
+      return
+
+    now = datetime.now(UTC)
+    task.status = TaskStatus.REVIEW
+    task.completed_at = None
+    task.updated_at = now
+    node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
+    node_instance.business_state = WorkflowNodeBusinessState.PENDING_REVIEW
+    node_instance.acknowledged_at = node_instance.acknowledged_at or now
+    node_instance.completed_at = None
+
+    if instance.source_id is None:
+      return
+    root_task = await self._session.get(Task, instance.source_id)
+    if root_task is None:
+      return
+    root_task.status = TaskStatus.REVIEW
+    root_task.completed_at = None
+    root_task.updated_at = now
+
   async def _create_projection_task(
     self,
     *,
@@ -77,6 +120,20 @@ class WorkflowOrchestrationService:
       "run_kind": (instance.context or {}).get("run_kind"),
     }
     node_config = node_instance.config if isinstance(node_instance.config, dict) else {}
+    raw_profile = node_config.get("ui_profile")
+    if not isinstance(raw_profile, str) or not raw_profile.strip():
+      if node_instance.template_node_id is not None:
+        template_node = await self._session.get(
+          WorkflowGraphTemplateNode,
+          node_instance.template_node_id,
+        )
+        if template_node is not None and isinstance(template_node.config, dict):
+          raw_profile = template_node.config.get("ui_profile")
+    if isinstance(raw_profile, str) and raw_profile.strip():
+      try:
+        metadata["ui_profile"] = TaskDetailUiProfile(raw_profile.strip()).value
+      except ValueError:
+        pass
     if node_config.get("handshake_required"):
       metadata["workflow_handshake_state"] = "assigned"
       metadata["latest_handshake_action"] = "assigned"
@@ -96,6 +153,13 @@ class WorkflowOrchestrationService:
       )
       if task.status != TaskStatus.DOING:
         task.status = TaskStatus.DOING
+      template_node = await self._load_template_node(node_instance=node_instance)
+      await self._apply_review_projection_state(
+        instance=instance,
+        node_instance=node_instance,
+        task=task,
+        template_node=template_node,
+      )
       return task
 
     task = Task(
@@ -109,6 +173,14 @@ class WorkflowOrchestrationService:
       extra_metadata=metadata,
     )
     self._session.add(task)
+    await self._session.flush()
+    template_node = await self._load_template_node(node_instance=node_instance)
+    await self._apply_review_projection_state(
+      instance=instance,
+      node_instance=node_instance,
+      task=task,
+      template_node=template_node,
+    )
     await self._session.flush()
     return task
 
@@ -129,6 +201,12 @@ class WorkflowOrchestrationService:
         continue
       if self._task_id_from_node_config(node_instance) is not None:
         continue
+      await self.resolve_and_bind_assignee(
+        actor=actor,
+        template=template,
+        instance=instance,
+        node_instance=node_instance,
+      )
       task = await self._create_projection_task(
         actor=actor,
         template=template,
@@ -150,6 +228,65 @@ class WorkflowOrchestrationService:
     await self._session.flush()
     return created
 
+  async def resolve_and_bind_assignee(
+    self,
+    *,
+    actor: User,
+    template: WorkflowGraphTemplate,
+    instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+  ) -> None:
+    if node_instance.assignee_user_id is not None:
+      return
+    template_node = None
+    if node_instance.template_node_id is not None:
+      template_node = await self._session.get(
+        WorkflowGraphTemplateNode,
+        node_instance.template_node_id,
+      )
+    if template_node is None:
+      return
+    context = instance.context if isinstance(instance.context, dict) else {}
+    node_instance.assignee_user_id = await resolve_node_assignee_id(
+      self._session,
+      actor=actor,
+      template=template,
+      template_node=template_node,
+      node_instance=node_instance,
+      context=context,
+      department_id=instance.department_id,
+    )
+    await self._session.flush()
+
+  async def after_node_completed(
+    self,
+    *,
+    actor: User,
+    task: Task,
+    instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+  ) -> list[Task]:
+    """Advance downstream nodes after a template graph node reaches COMPLETED."""
+    newly_activated = await self._workflow_graph_service.progress_from_completed_node(
+      node_instance_id=node_instance.id,
+    )
+    if newly_activated:
+      template = await self._load_template(instance=instance)
+      if template is not None:
+        for activated in newly_activated:
+          await self.resolve_and_bind_assignee(
+            actor=actor,
+            template=template,
+            instance=instance,
+            node_instance=activated,
+          )
+      instance.current_node_key = newly_activated[0].node_key
+    return await self.ensure_projection_tasks(
+      actor=actor,
+      instance=instance,
+      node_instances=newly_activated,
+    )
+
   async def after_capture_submitted(
     self,
     *,
@@ -159,15 +296,11 @@ class WorkflowOrchestrationService:
     node_instance: WorkflowNodeInstance,
   ) -> list[Task]:
     """on_capture_submitted: complete gate + all-of activation + projection tasks."""
-    newly_activated = await self._workflow_graph_service.progress_from_completed_node(
-      node_instance_id=node_instance.id,
-    )
-    if instance.current_node_key != node_instance.node_key and newly_activated:
-      instance.current_node_key = newly_activated[0].node_key
-    return await self.ensure_projection_tasks(
+    return await self.after_node_completed(
       actor=actor,
+      task=task,
       instance=instance,
-      node_instances=newly_activated,
+      node_instance=node_instance,
     )
 
   async def after_aggregate_confirmed(

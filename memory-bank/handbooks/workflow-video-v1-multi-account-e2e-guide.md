@@ -50,8 +50,8 @@ npm run test:e2e:workflow-video-live
 | --- | --- | --- |
 | `npm run test:e2e:workflow-video` | admin | W10 冒烟 2 用例 |
 | `npm run test:e2e:workflow-video-uat` | admin | W0–W10 单账号 UAT + 截图 |
-| `npm run test:e2e:workflow-video-multi-account-mock` | copy lead/a/b/c | **本指南 A–F** |
-| `npm run test:e2e:workflow-video-live` | copy lead/a/b/c | **本指南 A–F（真实栈）** |
+| `npm run test:e2e:workflow-video-multi-account-mock` | copy lead/a/b/c + post/editor | **Mock A–N（N1–N12）** |
+| `npm run test:e2e:workflow-video-live` | copy lead/a/b/c | **Live A–F（真实栈）** |
 
 ---
 
@@ -64,8 +64,17 @@ npm run test:e2e:workflow-video-live
 | C | 汇总派发（N2 finalize） | 文案负责人 | 是 |
 | D | 批次看板验证 fork | 文案负责人 | 是 |
 | E | 子流撰写脚本（N3） | 脚本撰写人（汇总指定，默认 `copy.a` 写题 A） | 是 |
-| F | 脚本审核（N4） | 文案负责人（部门经理） | 是 |
-| G | 配音 N5–N6 … 结案 N12 | 配音/后期等 | **人工**（见 §6） |
+| F | 脚本审核（N4） | 文案负责人（部门经理） | Mock + Live |
+| G | 配音上传（N5） | 脚本撰写人 | Mock |
+| H | 指派剪辑（N7） | 后期负责人 `demo.video.post.lead@example.com` | Mock |
+| I | 粗剪制作（N8） | 剪辑师 `demo.video.editor@example.com` | Mock |
+| J | 粗剪审核（N9） | 脚本撰写人 | Mock |
+| K | 上传平台（N10） | 剪辑师 | Mock |
+| L | 排期发布（N11） | 后期负责人 | Mock |
+| M | 结案确认（N12_CLOSE） | 后期负责人 | Mock |
+| N | 文案会签归档（N12_COSIGN） | 文案负责人 | Mock |
+
+Live 自动化目前止于 **F**；G–N 见 Mock spec `workflow-video-multi-account-mock.spec.ts`。
 
 ---
 
@@ -205,15 +214,15 @@ npx playwright test -c playwright.workflow-video-live.config.ts
 
 ---
 
-## 6. 完整制作链（N5–N12）人工延伸
+## 6. Live 制作链延伸（G–N）
 
-自动化止于 N4（避免单次超过 30 分钟）。后续按种子模板顺序人工走查：
+Mock 多账号 spec 已自动化 **N5–N12**（阶段 G–N）。Live 栈若需同样覆盖，按种子模板顺序人工或扩展 `workflow-video-multi-account-live.spec.ts`：
 
-1. **白屿** `demo.video.vo.a`：N5 配音（握手接受 → 交付）。
-2. **韩策**：N6 配音审核。
-3. **季衡** `demo.video.post.lead`：N7 指派剪辑（表格采集剪辑人 → 选 **叶舟**）。
-4. **叶舟** `demo.video.editor`：N8 剪辑 → N10 上传。
-5. **季衡 / 韩策**：N9 成片审核、N11 排期、N12 结案。
+1. **copy.a**：N5 配音审核并上传（多附件）。
+2. **季衡** `demo.video.post.lead`：N7 指派剪辑 → N11 排期 → N12 结案确认。
+3. **叶舟** `demo.video.editor`：N8 粗剪 → N10 上传平台。
+4. **copy.a**：N9 粗剪审核。
+5. **韩策**：N12 文案会签归档（完成后子流从批次看板隐藏）。
 
 每步在 **待处理 / 任务跟踪** 按任务标题与 `template_node_key` 区分。
 

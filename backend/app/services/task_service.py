@@ -43,6 +43,7 @@ from app.models import (
   User,
   WorkflowDeliverable,
   WorkflowGraphInstance,
+  WorkflowGraphTemplateNode,
   WorkflowInstance,
   WorkflowNodeInstance,
   WorkflowStep,
@@ -51,6 +52,7 @@ from app.models import (
 from app.schemas.messages import NotificationMessage
 from app.services.notification_source import build_task_source_payload
 from app.services.workflow_graph_service import SingleNodeWorkflowSeed, WorkflowGraphService
+from app.services.workflow_node_config_helpers import resolve_completion_policy
 from app.services.workflow_rule_resolver import resolve_user_targets_from_rule
 from app.services.access_control import (
   MANAGEMENT_ROLES,
@@ -1390,6 +1392,66 @@ class TaskService:
       and self._read_uuid_metadata(metadata, "workflow_node_instance_id") is not None
     )
 
+  async def _load_template_graph_node_context(
+    self,
+    *,
+    task: Task,
+  ) -> tuple[
+    WorkflowGraphInstance | None,
+    WorkflowNodeInstance | None,
+    WorkflowGraphTemplateNode | None,
+    str | None,
+  ]:
+    from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+
+    if not WorkflowOrchestrationService.is_template_graph_projection(task):
+      return None, None, None, None
+
+    instance, node_instance = await self._load_workflow_graph_projection(task=task)
+    if instance is None or node_instance is None:
+      return None, None, None, None
+
+    template_node = None
+    if node_instance.template_node_id is not None:
+      template_node = await self._session.get(
+        WorkflowGraphTemplateNode,
+        node_instance.template_node_id,
+      )
+    policy = resolve_completion_policy(
+      node_instance=node_instance,
+      template_node=template_node,
+    )
+    return instance, node_instance, template_node, policy
+
+  async def _maybe_progress_template_graph_after_completion(
+    self,
+    *,
+    actor: User,
+    task: Task,
+    expected_policy: str,
+  ) -> None:
+    from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+
+    instance, node_instance, _template_node, policy = await self._load_template_graph_node_context(
+      task=task,
+    )
+    if instance is None or node_instance is None or policy != expected_policy:
+      return
+    if node_instance.engine_state != WorkflowNodeEngineState.COMPLETED:
+      return
+
+    orchestration = WorkflowOrchestrationService(
+      self._session,
+      workflow_graph_service=self._workflow_graph_service,
+      task_service=self,
+    )
+    await orchestration.after_node_completed(
+      actor=actor,
+      task=task,
+      instance=instance,
+      node_instance=node_instance,
+    )
+
   def _uses_graph_handshake_cycle(self, *, task: Task) -> bool:
     return task.source_type == TaskSourceType.MANUAL and self._uses_graph_projection(task=task)
 
@@ -1646,9 +1708,8 @@ class TaskService:
       node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
       node_instance.completed_at = reference_time
       node_instance.business_state = force_business_state or WorkflowNodeBusinessState.DONE
-      instance.status = WorkflowGraphInstanceStatus.COMPLETED
-      instance.completed_at = reference_time
-      instance.current_node_key = None
+      instance.current_node_key = node_instance.node_key
+      return
 
   async def _sync_graph_projection_for_handshake_state(
     self,
@@ -1695,6 +1756,10 @@ class TaskService:
 
   async def _ensure_task_reviewer(self, *, actor: User, task: Task) -> None:
     if actor.role in MANAGEMENT_ROLES or actor.id == task.creator_id:
+      return
+    from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+
+    if actor.id == task.assignee_id and WorkflowOrchestrationService.is_template_graph_projection(task):
       return
     raise AuthorizationError("当前账号不能验收该任务。")
 
@@ -2200,6 +2265,12 @@ class TaskService:
         "status": target_status.value,
       },
     )
+    if target_status == TaskStatus.DONE:
+      await self._maybe_progress_template_graph_after_completion(
+        actor=actor,
+        task=task,
+        expected_policy="on_review_approved",
+      )
     await self._session.commit()
     await self._session.refresh(task)
     if target_status == TaskStatus.DONE:
@@ -2236,6 +2307,11 @@ class TaskService:
       submitted_at=now,
     )
 
+    _instance, _node, _template_node, completion_policy = await self._load_template_graph_node_context(
+      task=task,
+    )
+    direct_complete = completion_policy == "on_submit_deliverable"
+
     metadata = self._copy_task_metadata(task)
     metadata.update(
       {
@@ -2243,9 +2319,43 @@ class TaskService:
         "latest_deliverable_attachment_ids": validated_attachment_ids,
         "latest_deliverable_submitted_at": now.isoformat(),
         "latest_deliverable_submitted_by_user_id": str(actor.id),
-        "latest_review_state": "pending_review",
       }
     )
+    if direct_complete:
+      metadata["latest_review_state"] = "approved"
+      task.extra_metadata = metadata
+      task.status = TaskStatus.DONE
+      task.updated_at = now
+      task.started_at = task.started_at or now
+      task.completed_at = now
+      await self._sync_graph_projection_for_task_status(
+        task=task,
+        target_status=TaskStatus.DONE,
+        reference_time=now,
+      )
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.STATUS_CHANGED,
+        from_status=TaskStatus.DOING,
+        to_status=TaskStatus.DONE,
+        detail={
+          "action": "submit_deliverable",
+          "summary": normalized_summary,
+          "attachment_ids": validated_attachment_ids,
+          "status": TaskStatus.DONE.value,
+        },
+      )
+      await self._maybe_progress_template_graph_after_completion(
+        actor=actor,
+        task=task,
+        expected_policy="on_submit_deliverable",
+      )
+      await self._session.commit()
+      await self._session.refresh(task)
+      return task
+
+    metadata["latest_review_state"] = "pending_review"
     task.extra_metadata = metadata
     task.status = TaskStatus.REVIEW
     task.updated_at = now
@@ -2525,6 +2635,11 @@ class TaskService:
           "quality_score": quality_score,
           "status": TaskStatus.DONE.value,
         },
+      )
+      await self._maybe_progress_template_graph_after_completion(
+        actor=actor,
+        task=task,
+        expected_policy="on_review_approved",
       )
       await self._session.commit()
       await self._session.refresh(task)

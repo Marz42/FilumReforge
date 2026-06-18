@@ -7,7 +7,7 @@ from uuid import UUID
 
 TOPIC_MEETING_BATCH_CODE = "topic_meeting_batch_v1"
 VIDEO_PRODUCTION_CODE = "video_production_per_topic_v1"
-SEED_VERSION = 2
+SEED_VERSION = 3
 
 CAPTURE_SCHEMA_TOPIC: dict[str, Any] = {
   "mode": "row_table",
@@ -48,7 +48,20 @@ EDIT_ASSIGN_CAPTURE_SCHEMA: dict[str, Any] = {
   "min_rows": 1,
   "max_rows": 1,
   "columns": [
-    {"key": "edit_assignee_id", "label": "剪辑师", "type": "text", "required": True},
+    {"key": "edit_assignee_id", "label": "剪辑师", "type": "user", "required": True},
+  ],
+  "storage": "deliverable_payload",
+  "completion_policy": "on_capture_submitted",
+}
+
+SCHEDULE_CAPTURE_SCHEMA: dict[str, Any] = {
+  "mode": "row_table",
+  "min_rows": 1,
+  "max_rows": 1,
+  "columns": [
+    {"key": "publish_at", "label": "发布时间", "type": "datetime", "required": True},
+    {"key": "platform", "label": "发布平台", "type": "text", "required": True},
+    {"key": "publish_title", "label": "标题", "type": "text", "required": True},
   ],
   "storage": "deliverable_payload",
   "completion_policy": "on_capture_submitted",
@@ -130,7 +143,7 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "title": "撰写脚本",
       "sort_order": 10,
       "assignee_rule": {"type": "context_var", "var": "script_author_id"},
-      "config": {"kind": "single", "completion_policy": "on_capture_submitted", "ui_profile": "video_production_step"},
+      "config": {"kind": "single", "completion_policy": "on_submit_deliverable", "ui_profile": "video_production_step"},
     },
     {
       "node_key": "N4_SCRIPT_REVIEW",
@@ -144,21 +157,15 @@ def build_production_nodes() -> list[dict[str, Any]]:
       },
     },
     {
-      "node_key": "N5_VO_WRITE",
-      "title": "配音制作",
+      "node_key": "N5_VO_UPLOAD",
+      "title": "配音审核并上传",
       "sort_order": 30,
-      "assignee_rule": {"type": "department_pool", "pool_key": "voice_over", "assignee_role": "member"},
-      "config": {"kind": "single", "handshake_required": True, "completion_policy": "on_submit_deliverable"},
-    },
-    {
-      "node_key": "N6_VO_REVIEW",
-      "title": "配音审核",
-      "sort_order": 40,
       "assignee_rule": {"type": "context_var", "var": "script_author_id"},
       "config": {
         "kind": "single",
-        "acceptance_spec": {"reject_to": {"node_key": "N5_VO_WRITE"}},
-        "completion_policy": "on_review_approved",
+        "completion_policy": "on_submit_deliverable",
+        "ui_profile": "video_production_multi",
+        "max_deliverable_attachments": 10,
       },
     },
     {
@@ -166,18 +173,22 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "title": "指派剪辑",
       "sort_order": 50,
       "assignee_rule": {"type": "department_pool", "pool_key": "post_production", "assignee_role": "manager"},
-      "config": {"kind": "single", "capture_schema": EDIT_ASSIGN_CAPTURE_SCHEMA},
+      "config": {
+        "kind": "single",
+        "capture_schema": EDIT_ASSIGN_CAPTURE_SCHEMA,
+        "ui_profile": "video_capture_assign",
+      },
     },
     {
       "node_key": "N8_EDIT_WORK",
-      "title": "剪辑制作",
+      "title": "粗剪制作",
       "sort_order": 60,
       "assignee_rule": {"type": "context_var", "var": "edit_assignee_id"},
-      "config": {"kind": "single", "completion_policy": "on_submit_deliverable"},
+      "config": {"kind": "single", "completion_policy": "on_submit_deliverable", "ui_profile": "video_production_step"},
     },
     {
       "node_key": "N9_EDIT_REVIEW",
-      "title": "成片审核",
+      "title": "粗剪审核",
       "sort_order": 70,
       "assignee_rule": {"type": "context_var", "var": "script_author_id"},
       "config": {
@@ -188,24 +199,39 @@ def build_production_nodes() -> list[dict[str, Any]]:
     },
     {
       "node_key": "N10_UPLOAD",
-      "title": "上传成片",
+      "title": "上传平台",
       "sort_order": 80,
       "assignee_rule": {"type": "context_var", "var": "edit_assignee_id"},
-      "config": {"kind": "single", "completion_policy": "on_submit_deliverable"},
+      "config": {
+        "kind": "single",
+        "completion_policy": "on_submit_deliverable",
+        "ui_profile": "video_production_platform",
+      },
     },
     {
       "node_key": "N11_SCHEDULE",
       "title": "排期发布",
       "sort_order": 90,
       "assignee_rule": {"type": "department_pool", "pool_key": "post_production", "assignee_role": "manager"},
-      "config": {"kind": "single", "completion_policy": "on_submit_deliverable"},
+      "config": {
+        "kind": "single",
+        "capture_schema": SCHEDULE_CAPTURE_SCHEMA,
+        "ui_profile": "video_capture_schedule",
+      },
     },
     {
       "node_key": "N12_CLOSE",
-      "title": "结案归档",
+      "title": "结案确认",
       "sort_order": 100,
       "assignee_rule": {"type": "department_pool", "pool_key": "post_production", "assignee_role": "manager"},
       "config": {"kind": "single", "completion_policy": "on_review_approved"},
+    },
+    {
+      "node_key": "N12_COSIGN",
+      "title": "文案会签归档",
+      "sort_order": 110,
+      "assignee_rule": {"type": "department_pool", "pool_key": "copywriters", "assignee_role": "manager"},
+      "config": {"kind": "single", "completion_policy": "on_review_approved", "archive_on_complete": True},
     },
   ]
 
@@ -217,15 +243,14 @@ def build_topic_meeting_edges() -> list[tuple[str, str, bool]]:
 def build_production_edges() -> list[tuple[str, str, bool]]:
   return [
     ("N3_SCRIPT_WRITE", "N4_SCRIPT_REVIEW", False),
-    ("N4_SCRIPT_REVIEW", "N5_VO_WRITE", False),
-    ("N5_VO_WRITE", "N6_VO_REVIEW", False),
-    ("N6_VO_REVIEW", "N7_EDIT_ASSIGN", False),
+    ("N4_SCRIPT_REVIEW", "N5_VO_UPLOAD", False),
+    ("N5_VO_UPLOAD", "N7_EDIT_ASSIGN", False),
     ("N7_EDIT_ASSIGN", "N8_EDIT_WORK", False),
     ("N8_EDIT_WORK", "N9_EDIT_REVIEW", False),
     ("N9_EDIT_REVIEW", "N10_UPLOAD", False),
     ("N10_UPLOAD", "N11_SCHEDULE", False),
     ("N11_SCHEDULE", "N12_CLOSE", False),
+    ("N12_CLOSE", "N12_COSIGN", False),
     ("N4_SCRIPT_REVIEW", "N3_SCRIPT_WRITE", True),
-    ("N6_VO_REVIEW", "N5_VO_WRITE", True),
     ("N9_EDIT_REVIEW", "N8_EDIT_WORK", True),
   ]

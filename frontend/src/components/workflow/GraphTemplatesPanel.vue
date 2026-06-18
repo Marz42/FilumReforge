@@ -3,14 +3,15 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { listGraphTemplates } from '@/api/workflow-graph'
+import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import type { GraphTemplateSummary } from '@/types/workflowVideo'
-import type { User } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
+import { templateSupportsDirectInstantiation } from '@/utils/workflowVideoSchema'
 
 const props = defineProps<{
-  users: User[]
   canPublish: boolean
+  canManage?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +22,11 @@ const loading = ref(false)
 const templates = ref<GraphTemplateSummary[]>([])
 const selectedTemplate = ref<GraphTemplateSummary | null>(null)
 const dialogVisible = ref(false)
+const editDialogVisible = ref(false)
+
+function canInstantiateTemplate(template: GraphTemplateSummary): boolean {
+  return props.canPublish && templateSupportsDirectInstantiation(template)
+}
 
 async function loadTemplates(): Promise<void> {
   loading.value = true
@@ -38,12 +44,25 @@ async function loadTemplates(): Promise<void> {
 }
 
 function openInstantiate(template: GraphTemplateSummary): void {
-  if (!props.canPublish) {
-    ElMessage.warning('当前账号无权发布组织任务')
+  if (!canInstantiateTemplate(template)) {
+    if (template.run_kind === 'production') {
+      ElMessage.info('单题制作模板由选题会批次汇总派发后自动 fork，不支持在此直接实例化')
+    } else if (!props.canPublish) {
+      ElMessage.warning('当前账号无权发布组织任务')
+    }
     return
   }
   selectedTemplate.value = template
   dialogVisible.value = true
+}
+
+function openEdit(template: GraphTemplateSummary): void {
+  if (!props.canManage) {
+    ElMessage.warning('当前账号无权编辑任务模板')
+    return
+  }
+  selectedTemplate.value = template
+  editDialogVisible.value = true
 }
 
 function handleCreated(payload: { instanceId: string; rootTaskId: string }): void {
@@ -83,12 +102,33 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column label="版本" width="72" prop="version" />
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="168" fixed="right">
           <template #default="{ row }: { row: GraphTemplateSummary }">
             <el-button
+              v-if="canManage"
               type="primary"
               link
-              :disabled="!canPublish"
+              data-testid="graph-template-edit"
+              @click.stop="openEdit(row)"
+            >
+              编辑
+            </el-button>
+            <el-tooltip
+              v-if="row.run_kind === 'production'"
+              content="由选题会批次汇总派发后自动 fork，不支持直接实例化"
+              placement="top"
+            >
+              <span>
+                <el-button type="primary" link disabled data-testid="graph-template-instantiate">
+                  实例化
+                </el-button>
+              </span>
+            </el-tooltip>
+            <el-button
+              v-else
+              type="primary"
+              link
+              :disabled="!canInstantiateTemplate(row)"
               data-testid="graph-template-instantiate"
               @click.stop="openInstantiate(row)"
             >
@@ -102,8 +142,13 @@ onMounted(() => {
     <TemplateInstantiateDialog
       v-model="dialogVisible"
       :template="selectedTemplate"
-      :users="users"
       @created="handleCreated"
+    />
+
+    <GraphTemplateEditDialog
+      v-model="editDialogVisible"
+      :template="selectedTemplate"
+      @saved="loadTemplates"
     />
   </div>
 </template>

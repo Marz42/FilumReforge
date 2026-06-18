@@ -77,6 +77,20 @@ describe('resolveTaskDetailProfile', () => {
     expect(profile.hideDeliverable).toBe(false)
   })
 
+  it('resolves video_capture_assign for N7 assign node ui_profile', () => {
+    const task = makeTask({
+      extra_metadata: {
+        workflow_graph_instance_id: 'inst-1',
+        template_node_key: 'N7_EDIT_ASSIGN',
+        ui_profile: 'video_capture_assign',
+      },
+    })
+    const profile = resolveTaskDetailProfile(task, { currentUserId: 'user-1' })
+    expect(profile.id).toBe('video_capture_assign')
+    expect(profile.submitMode).toBe('form')
+    expect(profile.hideDeliverable).toBe(true)
+  })
+
   it('honors ui_profile metadata override from template node config', () => {
     const task = makeTask({
       extra_metadata: {

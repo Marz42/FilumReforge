@@ -49,6 +49,12 @@ export function resolveTaskUserFacingState(
     return 'in_progress'
   }
 
+  if (profileId === 'video_capture_assign') {
+    if (task.status === 'todo' || task.status === 'doing') {
+      return 'pending'
+    }
+  }
+
   if (profileId === 'video_n1_capture' || profileId === 'video_n2_aggregate') {
     if (task.status === 'todo' || task.status === 'doing') {
       return 'pending'

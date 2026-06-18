@@ -45,6 +45,7 @@ from app.services.participant_resolution_service import (
   ParticipantResolutionService,
   resolve_assignee_from_rule,
 )
+from app.services.workflow_assignee_resolver import parse_department_pools, resolve_node_assignee_id
 from app.services.workflow_rule_resolver import resolve_actor_department_id
 from app.services.task_service import TaskService
 from app.services.workflow_graph_service import WorkflowGraphService
@@ -214,19 +215,6 @@ class WorkflowVideoInstantiationService:
 
     return resolved
 
-  @staticmethod
-  def _parse_department_pools(template: WorkflowGraphTemplate) -> dict[str, UUID]:
-    config = template.config if isinstance(template.config, dict) else {}
-    pools = config.get("department_pools")
-    if not isinstance(pools, dict):
-      return {}
-    parsed: dict[str, UUID] = {}
-    for key, value in pools.items():
-      if value is None:
-        continue
-      parsed[str(key)] = UUID(str(value))
-    return parsed
-
   async def _resolve_node_assignee(
     self,
     *,
@@ -236,27 +224,23 @@ class WorkflowVideoInstantiationService:
     node_config: dict[str, Any],
     context: dict[str, Any],
     department_id: UUID | None,
+    node_instance: WorkflowNodeInstance | None = None,
   ) -> UUID:
-    assignee_rule = node.assignee_rule if isinstance(node.assignee_rule, dict) and node.assignee_rule else None
-    assignee_ref = node_config.get("assignee_ref")
-    if isinstance(assignee_ref, dict):
-      assignee_rule = assignee_ref
-
-    if not assignee_rule:
-      return actor.id
-
-    users = await resolve_assignee_from_rule(
+    merged_instance = node_instance
+    if merged_instance is None:
+      merged_instance = WorkflowNodeInstance(
+        node_key=node.node_key,
+        config=node_config,
+      )
+    return await resolve_node_assignee_id(
       self._session,
       actor=actor,
-      assignee_rule=assignee_rule,
-      department_id=department_id,
-      allow_multiple=False,
+      template=template,
+      template_node=node,
+      node_instance=merged_instance,
       context=context,
-      department_pools=self._parse_department_pools(template),
+      department_id=department_id,
     )
-    if not users:
-      raise ConflictError(f"节点 {node.node_key} 无法解析受理人。")
-    return users[0].id
 
   @staticmethod
   def _apply_ui_profile_metadata(
@@ -402,6 +386,8 @@ class WorkflowVideoInstantiationService:
 
     in_degree: dict[UUID, int] = {node.id: 0 for node in nodes}
     for edge in edges:
+      if edge.is_reject_path:
+        continue
       if edge.to_node_id in in_degree:
         in_degree[edge.to_node_id] += 1
 
@@ -587,7 +573,7 @@ class WorkflowVideoInstantiationService:
         department_id=department_id,
         allow_multiple=False,
         context=context,
-        department_pools=self._parse_department_pools(template),
+        department_pools=parse_department_pools(template),
       )
       if users:
         return users[0].id
@@ -687,6 +673,8 @@ class WorkflowVideoInstantiationService:
 
     in_degree: dict[UUID, int] = {node.id: 0 for node in nodes}
     for edge in edges:
+      if edge.is_reject_path:
+        continue
       if edge.to_node_id in in_degree:
         in_degree[edge.to_node_id] += 1
 
