@@ -37,8 +37,8 @@
 - [x] P2-6 详情迁出（v2 隐藏 BatchRunDashboard；video 仅 3 条事件）
 - [x] P2-7 `config.ui_profile`（seed + 实例化 metadata + 前端 override）
 - [x] E2E：task-center / stats / workflow-video-v1 绿
-- [ ] （可选）`git push origin main`
-- [ ] （可选）live 多账号 E2E、Docker A–F 手工实测
+- [x] Mock 多账号 E2E A–N（15 用例，N1–N12）
+- [ ] （可选）live 多账号 E2E G–N、Docker Live A–F 手工实测
 
 ---
 

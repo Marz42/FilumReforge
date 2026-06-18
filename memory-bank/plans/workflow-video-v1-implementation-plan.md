@@ -216,23 +216,25 @@ flowchart TB
 
 **边**：`N1` → `N2`，`join_mode=all`（所有参与人皆已提交采集表）。
 
-### 3.2 `video_production_per_topic_v1`（单题制作）
+### 3.2 `video_production_per_topic_v1`（单题制作 · seed v3）
 
 | node_key | kind | 要点 |
 |----------|------|------|
 | `ROOT` | — | 标题含 `topic_title`；`parent_instance_id` 链批次 |
-| `N3_SCRIPT_WRITE` | single | `assignee_ref` ← `script_author_id` |
-| `N4_SCRIPT_REVIEW` | single | 部门负责人；reject → N3 |
-| `N5_VO_WRITE` | single | 配音部 pool；`handshake_required` |
-| `N6_VO_REVIEW` | single | `reviewer_ref` = `script_author_id`；reject → N5 |
-| `N7_EDIT_ASSIGN` | single | 后期负责人指派剪辑（`aggregate` 或 capture 简化 v1：capture 选剪辑人） |
-| `N8_EDIT_WORK` | single | 剪辑执行 |
-| `N9_EDIT_REVIEW` | single | `reviewer_ref` = `script_author_id`；reject → N8 |
-| `N10_UPLOAD` | single | url/附件交付物 |
-| `N11_SCHEDULE` | single | 排期字段（结构化 payload，非外部平台发帖） |
-| `N12_CLOSE` | single | 负责人确认归档；通知批次 ROOT 关注人 |
+| `N3_SCRIPT_WRITE` | single | `script_author_id` |
+| `N4_SCRIPT_REVIEW` | single | 文案部 manager；reject → N3 |
+| `N5_VO_UPLOAD` | single | **脚本作者**多附件配音上传（合并原 N5+N6） |
+| `N7_EDIT_ASSIGN` | single | 后期 manager；capture 选 `edit_assignee_id` |
+| `N8_EDIT_WORK` | single | 粗剪制作 |
+| `N9_EDIT_REVIEW` | single | 脚本作者粗剪审核；reject → N8 |
+| `N10_UPLOAD` | single | 剪辑师平台链接/截图 |
+| `N11_SCHEDULE` | single | capture：发布时间 / 平台 / 标题 |
+| `N12_CLOSE` | single | 后期 manager 结案确认 |
+| `N12_COSIGN` | single | 文案 manager 会签；完成后子 Run `archived` |
 
-> v1 可将 `N7_EDIT_ASSIGN` 与 `N8` 合并为一个节点以减工期；上表为完整目标态。
+**边（11）**：N3→N4→N5→N7→N8→N9→N10→N11→N12_CLOSE→N12_COSIGN；打回 N4→N3、N9→N8。
+
+> 旧版 N5 配音部握手 + N6 配音审核已移除；`voice_over` 池仅配置占位。
 
 ---
 
@@ -413,7 +415,7 @@ flowchart TB
 |----|------|------|------|
 | W4-1 | `WorkflowOrchestrationService` | capture 提交 → 节点可完成 | done |
 | W4-2 | aggregate 确认 → 完成 N2；调用 WFK | 事务边界；**fork 仍留 WFK** | done |
-| W4-3 | `on_task_accepted` / deliverable / review | 模板图 `handshake_required` 接受路径；N6→N7→N8 主管派发 | done |
+| W4-3 | deliverable / review 推进下游 | N5→N7→N8 主管派发；制作链 N9–N12 会签归档 | done |
 | W4-4 | all-of：同 node_key 全部 instance 满足后才激活 N2 | `_upstream_join_satisfied` | done |
 | W4-5 | 接入 `TaskService` 与模板图任务执行路径 | 激活节点自动 `create_task_record` | done |
 
@@ -466,8 +468,8 @@ flowchart TB
 | ID | 任务 | 说明 |
 |----|------|------|
 | W6-1 | `topic_meeting_batch_v1`：N1/N2 + schema + 边 | `WorkflowVideoTemplateSeedService` + `seed_sample_data` |
-| W6-2 | `video_production_per_topic_v1`：N3–N12 + schema | 同上；12 条边（含 3 条打回边） |
-| W6-3 | `participant_policy` 绑定文案/配音/后期部门 | `video-copywriting` / `video-voice` / `video-post` |
+| W6-2 | `video_production_per_topic_v1`：N3–N12 + schema | 同上；**11 条边**（含 2 条打回）；`seed_version=3` |
+| W6-3 | `participant_policy` / `department_pools` | demo：`video-*` 三部门；**生产**：`seed_workflow_video_templates --copy-dept-code --post-dept-code` |
 | W6-4 | 权限与 `can_publish_org_tasks` 对齐 | 三部门 `publish_org_task` + 负责人可发布 |
 | W6-5 | Runbook：Docker 复现 | [workflow-video-v1-docker-runbook.md](../handbooks/workflow-video-v1-docker-runbook.md) |
 
@@ -534,10 +536,10 @@ flowchart TB
 ## 8. 纵向切片（推荐排期）
 
 **切片 1（约 5–6 周，可演示）**  
-W0 → W1 → W2 → WF → W3 → W4 → W5（题级打回）→ WFK → W6（仅批次+制作前 4 节点）→ W7（Dialog + Capture + Aggregate + 简版看板）
+W0 → W1 → W2 → WF → W3 → W4 → W5 → WFK → W6 → W7 **✅**
 
 **切片 2**  
-制作模板 N5–N12 + 握手/验收 + W8 + W9 + W10 全量 UAT
+制作链 N3–N12（seed v3）+ Mock E2E A–N + W8 + W9 + W10 **✅**（Live 多账号仍止于 A–F）
 
 ---
 

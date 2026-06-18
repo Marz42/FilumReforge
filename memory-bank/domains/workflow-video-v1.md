@@ -10,11 +10,23 @@
 ## 产品口径
 
 ```
-选题会（批次 Run）→ approved_topics[] → 按题 fork 子 Run（video_production_per_topic_v1）
+选题会（批次 Run）→ approved_topics[] → 按题 fork 子 Run（video_production_per_topic_v1 · seed v3）
 ```
 
 - **无**独立「发起选题会」导航；选题会为图模板 `topic_meeting_batch_v1`
 - **无**单 Run 内多选题 DAG；改为按题 fork
+- 制作链 **10 节点**（N3–N5、N7–N12_COSIGN）；批次模板绑定 **一个**文案 `department_id`（多文案部时选主部门 seed，N2 仍可指定任意撰写人）
+
+### 生产模板刷新
+
+```bash
+cd backend && source .venv/bin/activate
+python -m app.scripts.seed_workflow_video_templates \
+  --copy-dept-code <文案部code> \
+  --post-dept-code <后期部code>
+```
+
+Demo 环境可省略参数（须存在 `video-copywriting` / `video-voice` / `video-post`）。详见 [workflow-video-v1-docker-runbook.md](../handbooks/workflow-video-v1-docker-runbook.md) 与 [deployment-runbook-ubuntu-2404.md §21.3.1](../handbooks/deployment-runbook-ubuntu-2404.md)。
 
 ---
 

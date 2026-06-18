@@ -37,7 +37,7 @@
 - 按 [workflow-video-v1-docker-runbook.md](./workflow-video-v1-docker-runbook.md) 启动 **8080** 栈并 `seed_workflow_video_templates`。
 - 设置 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`。
 - **多账号 A–F 自动化**：`npm run test:e2e:workflow-video-live`（Playwright 专用 `:38080` 栈，见 [multi-account E2E 指南](./workflow-video-v1-multi-account-e2e-guide.md)）；或对接已有 8080 栈并设置 `PLAYWRIGHT_LIVE_BASE_URL` / `PLAYWRIGHT_LIVE_PASSWORD`。
-- 人工走查 §5（N5–N12 等 mock 未覆盖项）。
+- 人工走查 §5（权限/打回/通知等 mock 未覆盖项；制作链 happy path 已由 Mock A–N 覆盖）。
 
 ### 2.3 仅后端契约（开发自测）
 
@@ -112,7 +112,7 @@ npx playwright show-report verification-runs/workflow-video-uat-<时间戳>/play
 | --- | --- |
 | `npm run test:e2e:workflow-video` | W10 两条快速 mock 冒烟 |
 | `npm run test:e2e:workflow-video-uat` | **本指南 W0–W10 全阶段** + 截图 + `report.md` |
-| `npm run test:e2e:workflow-video-multi-account-mock` | 多账号 A–N（mock，15 用例，N1–N12） |
+| `npm run test:e2e:workflow-video-multi-account-mock` | 多账号 A–N（mock，**15 用例**，N1–N12） |
 | `npm run test:e2e:workflow-video-live` | 多账号 A–F（Docker Live 栈，7 用例） |
 
 ---

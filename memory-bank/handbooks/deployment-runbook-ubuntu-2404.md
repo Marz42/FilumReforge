@@ -718,6 +718,39 @@ alembic upgrade head
 
 如果本轮后端依赖有变化，`pip install -e .` 不能省略。
 
+#### 21.3.1 视频工作流图模板刷新（`seed_version` 升级时）
+
+`.env` 须含 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`。在迁移之后执行：
+
+**Demo / 标准三部门（`video-copywriting` 等已存在）：**
+
+```bash
+sudo -u "$FILUM_USER" -H bash -lc '
+cd /srv/filum/backend
+source .venv/bin/activate
+python -m app.scripts.seed_workflow_video_templates
+'
+```
+
+**生产环境（自定义部门 code，例如文案 `Div.Alpha`、后期 `Div.Echo`）：**
+
+```bash
+sudo -u "$FILUM_USER" -H bash -lc '
+cd /srv/filum/backend
+source .venv/bin/activate
+python -m app.scripts.seed_workflow_video_templates \
+  --copy-dept-code Div.Alpha \
+  --post-dept-code Div.Echo
+'
+```
+
+说明：
+
+- **不要**在生产机跑 `seed_sample_data`（会写入 demo 账号/部门）
+- 脚本幂等：`seed_version` 变更时会重建模板节点/边；**已有 Run 实例不受影响**
+- 两部门须已设置 **部门经理**；文案/后期负责人部门建议具备 `publish_org_task` 能力
+- 完成后 `sudo systemctl restart filum-backend filum-worker`
+
 ### 21.4 更新 frontend 依赖并重建静态产物
 
 ```bash

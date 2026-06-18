@@ -929,3 +929,10 @@ Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。
 - **前端**：`video_production_multi` / `video_production_platform` / `video_capture_schedule` Profile；多文件上传与平台链接交付面板
 - **测试**：W4/W6 更新；Mock E2E **A–N** 覆盖 N1–N12（`workflow-video-multi-account-mock.spec.ts`）
 - **部署**：需在 `backend/` 重跑 `python -m app.scripts.seed_workflow_video_templates` 刷新模板
+
+## 2026-06-18 · 制作流收口（文档 + 生产部署）
+
+- **Git**：`6002783`（N3–N12 改版 + Mock A–N）、`8cd4002`（生产部门 CLI）、`55b665b`（VideoProductionPanel type-check）
+- **生产部署**：Ubuntu systemd 见 [deployment-runbook §21.3.1](./handbooks/deployment-runbook-ubuntu-2404.md)；示例 `--copy-dept-code Div.Alpha --post-dept-code Div.Echo`
+- **文档同步**：implementation-plan §3.2 seed v3、domains/workflow-video-v1、multi-account / collaborative UAT、changelog Unreleased、backend README
+- **待办**：Live E2E 延伸 G–N；多文案部并行批次（每部独立实例化或组织上级部门）

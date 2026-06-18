@@ -136,12 +136,11 @@ npx playwright test -c playwright.workflow-video-live.config.ts
 | 邮箱 | 姓名（种子） | 部门 | 本指南职责 |
 | --- | --- | --- | --- |
 | `demo.video.copy.lead@example.com` | 韩策 | 视频文案部 | 发布批次、汇总派发、看板、脚本审核 |
-| `demo.video.copy.a@example.com` | 陆言 | 视频文案部 | 选题 A 采集；题 A 脚本撰写人（默认） |
+| `demo.video.copy.a@example.com` | 陆言 | 视频文案部 | 选题 A 采集；题 A 脚本/配音上传 N3/N5；粗剪审核 N9 |
 | `demo.video.copy.b@example.com` | 宋遥 | 视频文案部 | 选题 B 采集 |
 | `demo.video.copy.c@example.com` | 程野 | 视频文案部 | 选题 C 采集 |
-| `demo.video.vo.a@example.com` | 白屿 | 视频配音部 | 人工：配音制作 N5 |
-| `demo.video.post.lead@example.com` | 季衡 | 视频后期部 | 人工：指派剪辑 N7 |
-| `demo.video.editor@example.com` | 叶舟 | 视频后期部 | 人工：剪辑/上传 N8–N10 |
+| `demo.video.post.lead@example.com` | 季衡 | 视频后期部 | 指派剪辑 N7；排期 N11；结案 N12_CLOSE |
+| `demo.video.editor@example.com` | 叶舟 | 视频后期部 | 粗剪 N8；平台上传 N10 |
 
 ---
 
@@ -255,7 +254,7 @@ npx playwright show-report verification-runs/workflow-video-live-<时间戳>/pla
 | 现象 | 原因 / 处理 |
 | --- | --- |
 | 任务模板页无实例化 / 403 | `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`（Compose 已透传；`.env` 设为 `true` 并重启 API） |
-| 负责人下拉显示 UUID / 为空 | 须 `seed_version≥2` 且重跑 `seed_workflow_video_templates`；负责人来自 `managed-department-member-options`，与参与人预览合并 |
+| 负责人下拉显示 UUID / 为空 | 须 `seed_version≥3` 且重跑 `seed_workflow_video_templates`；生产机用 `--copy-dept-code` / `--post-dept-code` 绑定真实部门（见 [Ubuntu 部署手册 §21.3.1](../handbooks/deployment-runbook-ubuntu-2404.md)） |
 | `LaunchSchema` 校验 `type=user` 失败 | 后端 `LaunchFieldSchema` 须含 `user`；升级 API 镜像后重跑种子 |
 | 参与人下拉为空 | 应用 `preview-participants` 填充选项；勿依赖 `listUsers` |
 | 实例化后 copy 成员 inbox=0 | 图实例化未 `commit`；确认 `WorkflowVideoInstantiationService` 已持久化 |

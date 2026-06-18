@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- 视频制作模板 **seed v3**：N5 合并配音上传、N11 排期 capture、N12 文案会签（`N12_CLOSE` + `N12_COSIGN`）；结案子 Run `archived` 且批次看板默认隐藏
+- `seed_workflow_video_templates` 支持 `--copy-dept-code` / `--post-dept-code`（生产环境绑定真实部门）
+- Mock 多账号 E2E **阶段 A–N**（15 用例，N1–N12 happy path）
+- 前端 Profile：`video_production_multi` / `video_production_platform` / `video_capture_schedule`
+
+### Changed
+
+- 制作链移除 N6 配音审核与配音部握手节点；W4/W6 测试与 E2E mock 状态机同步更新
+
 ---
 
 ## [0.89.0] - 2026-06-18

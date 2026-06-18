@@ -65,6 +65,11 @@ python -m compileall app tests
 ```sh
 . .venv/bin/activate
 python -m app.scripts.seed_sample_data --password 'FilumTest123!'
+python -m app.scripts.seed_workflow_video_templates \
+  --copy-dept-code video-copywriting \
+  --post-dept-code video-post
 ```
+
+生产环境部门 code 非 demo 三件套时，**必须**指定 `--copy-dept-code` 与 `--post-dept-code`（`--voice-dept-code` 可省略，默认同文案部）。
 
 更多系统级说明见 [`README.md`](../README.md)、[`memory-bank/project-brief.md`](../memory-bank/project-brief.md)、[`memory-bank/architecture.md`](../memory-bank/architecture.md)、[`memory-bank/data-contracts.md`](../memory-bank/data-contracts.md)。
