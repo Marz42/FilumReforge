@@ -41,16 +41,22 @@ const panelSubtitle = computed(() => {
   return '上传文件并提交验收'
 })
 
+function extractRawFiles(uploadFiles: UploadFile[]): File[] {
+  const files: File[] = []
+  for (const item of uploadFiles) {
+    if (item.raw) {
+      files.push(item.raw)
+    }
+  }
+  return files
+}
+
 function handleFileChange(_uploadFile: UploadFile, uploadFiles: UploadFile[]): void {
-  selectedFiles.value = uploadFiles
-    .map((item) => item.raw)
-    .filter((file): file is File => file instanceof File)
+  selectedFiles.value = extractRawFiles(uploadFiles)
 }
 
 function handleFileRemove(_uploadFile: UploadFile, uploadFiles: UploadFile[]): void {
-  selectedFiles.value = uploadFiles
-    .map((item) => item.raw)
-    .filter((file): file is File => file instanceof File)
+  selectedFiles.value = extractRawFiles(uploadFiles)
 }
 
 function hasPlatformLink(value: string): boolean {
