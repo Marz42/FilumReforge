@@ -4,20 +4,23 @@
 
 ## [Unreleased]
 
+---
+
+## [0.88.0] - 2026-06-18
+
 ### Added
 
-- **TC-P1** 任务中心：`dispatch_topic` API、`VideoTrackingPanel` 增量派发、`VideoProductionPanel` 文件提交
-- **TC-P1** 打回：`TaskDetailMoreMenu`、行级 capture reject、`rejectProductionStep`；`latest_capture_state: rejected` metadata
-- **TC-P1** 实例化：`ParticipantsSnapshotEntry.include_initiator`、policy 校验与默认排除发起人
-- Playwright mock：`workflow-video-reject-mock.spec.ts`
-- Paradigma 对齐 memory-bank：HOT 层（`project-brief`、`data-contracts`、`conventions`、`active-task`）
-- Paradigma Phase 3：WARM/COLD 层（`roadmap`、`changelog`、`domains/`、`decisions`、`known-issues`、`glossary`）
-- `AGENT_RULES.md`、`INIT_PROMPT.md`、`.cursor/rules/memory-bank-protocol.mdc`
+- **TC-P2** 任务中心：`TaskCenterListView` / `BoardView` / `GanttView` 独立三视图（用户态 × Run）
+- **TC-P2** `filter=stats` + `TaskCenterStatsView`（部门汇总、run_events、负载表）；`/task-center/stats` redirect
+- **TC-P2** `TaskDetailShell.vue`；`TasksView` 瘦身为 workspace 壳层
+- **TC-P2** `config.ui_profile`：模板节点配置 → 实例化 metadata → 前端 Profile 优先读取
+- **TC-P2** E2E：`task-center-stats.spec.ts`；board/gantt 断言；workflow-video 适配 v2 UI
+- Playwright 本地 Chrome：`.playwright-browsers/` + `playwright.config.ts` 自动检测
 
 ### Changed
 
-- `architecture.md` 瘦身；schema 迁至 `data-contracts.md`
-- `design-document.md`、`tech-stack.md` 标记【已迁移】，摘要迁至 `project-brief.md`
+- v2 UI 下隐藏 `BatchRunDashboard`；详情 video 仅展示最近 3 条 run_events
+- `memory-bank`：TC-P2 验收勾选、roadmap/active-task 切换至 TC-P3
 
 ---
 

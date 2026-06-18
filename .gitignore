@@ -25,6 +25,9 @@ frontend/.env
 
 infra/docker/.env
 verification-runs/
+.playwright-browsers/
+.playwright-browsers-tmp*/
+chrome-win64.zip
 
 # Local reference clone (Paradigma memory-bank template); not part of Filum repo
 /paradigma/

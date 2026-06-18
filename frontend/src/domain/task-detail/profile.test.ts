@@ -77,6 +77,17 @@ describe('resolveTaskDetailProfile', () => {
     expect(profile.hideDeliverable).toBe(false)
   })
 
+  it('honors ui_profile metadata override from template node config', () => {
+    const task = makeTask({
+      extra_metadata: {
+        workflow_graph_instance_id: 'inst-1',
+        template_node_key: 'N3_SCRIPT_WRITE',
+        ui_profile: 'graph_manual',
+      },
+    })
+    expect(resolveTaskDetailProfile(task).id).toBe('graph_manual')
+  })
+
   it('identifies video workflow profiles', () => {
     const task = makeTask({
       extra_metadata: {

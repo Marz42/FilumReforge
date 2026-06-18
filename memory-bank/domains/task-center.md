@@ -13,7 +13,7 @@
 | Inbox-first | 主标签：待处理 / 跟踪 / 历史 |
 | 建立任务 | 页头 Dialog；graph 手动任务 dual-write |
 | 搜索 | `GET /api/v1/tasks/search` |
-| 多视图 | 列表 / 看板 / 甘特（任务详情内）→ **v2 重做中**见 [`plans/task-center-v2-implementation-plan.md`](../plans/task-center-v2-implementation-plan.md)（TC-P0/P1 ✅，TC-P2 拆分视图） |
+| 多视图 | 列表 / 看板 / 甘特独立组件（**用户态 × Run**）；`filter=stats` 任务统计 Tab — TC-P2 ✅ @ `0.88.0` |
 | 个人备忘 | 全局浮窗；`task_memos` |
 | 任务模板入口 | `/task-templates`（工作流 E） |
 
@@ -43,9 +43,14 @@
 | `backend/app/services/task_center_service.py` | 任务中心聚合 |
 | `backend/app/services/task_service.py` | 状态机、评论、图投影 |
 | `backend/app/api/routes/task_center.py` | 任务中心 API |
-| `frontend/src/views/TaskCenterView.vue` | 主壳层 |
-| `frontend/src/views/TasksView.vue` | 详情、图节点板块、Action Profile、`TaskDetailMoreMenu` |
-| `frontend/src/components/task-detail/TaskDetailMoreMenu.vue` | 更多菜单：打回采集 / 制作退回（TC-P1；完整 Shell 留 TC-P2） |
+| `frontend/src/views/TaskCenterView.vue` | 主壳层：filter（inbox/tracking/history/stats）+ view（list/board/gantt）+ Master-Detail |
+| `frontend/src/views/TasksView.vue` | v2 工作区壳层（~700 行）；详情委托 `TaskDetailShell` |
+| `frontend/src/components/task-center/TaskCenterListView.vue` | 列表视图（Run + 用户态列） |
+| `frontend/src/components/task-center/TaskCenterBoardView.vue` | 看板（列=用户态，卡片含 Run chip） |
+| `frontend/src/components/task-center/TaskCenterGanttView.vue` | 甘特 MVP（`due_at` + Run 色条） |
+| `frontend/src/components/task-center/TaskCenterStatsView.vue` | 任务统计（部门汇总 + run_events + 负载表） |
+| `frontend/src/components/task-detail/TaskDetailShell.vue` | 详情 Shell：header / profile 面板 / 最近 3 条事件 |
+| `frontend/src/components/task-detail/TaskDetailMoreMenu.vue` | 更多菜单：打回 / 退回 / 打开任务统计 |
 | `frontend/src/components/` | `FilumDateTimePicker` 等 |
 
 ---

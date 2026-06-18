@@ -330,8 +330,13 @@
 | `frontend/src/api/profiles.ts` | Phase 3 档案、岗位、生命周期、授权 API client |
 | `frontend/src/views/ProfilesView.vue` | 原 Phase 3 档案治理工作台，当前保留为回归参考与兼容底座 |
 | `frontend/src/views/KnowledgeBaseView.vue` | 知识库页面 |
-| `frontend/src/views/TaskCenterView.vue` | Step 3 后升级为任务中心聚合页；工作流重构 Phase 1 后默认落在“待处理”，主标签为待处理 / 跟踪 / 历史；**建立任务**为页头居中 **Dialog**（含未保存关闭确认）；个人备忘为右下角浮窗；任务模板在 `/task-templates`；Step 6 起消费消息来源 `?selected=` |
-| `frontend/src/views/TasksView.vue` | Phase 4 任务工作台，Step 3 后作为任务跟踪详情与多视图底座继续复用；Step 6 起支持外部来源指定初始选中任务 |
+| `frontend/src/views/TaskCenterView.vue` | 任务中心聚合页：`filter`（inbox/tracking/history/**stats**）+ `view`（list/board/gantt）；Master-Detail 列表/看板/甘特由 `TaskCenter*View` 子组件承载；详情区用 `TaskDetailShell`（TC-P2） |
+| `frontend/src/views/TasksView.vue` | TC-P2 后瘦身为 workspace 壳层（~700 行）；详情、对话框与 profile 面板委托 `TaskDetailShell.vue`；legacy 全列表路径仍保留 |
+| `frontend/src/components/task-center/TaskCenterListView.vue` | TC-P2 列表视图（Run + 用户态） |
+| `frontend/src/components/task-center/TaskCenterBoardView.vue` | TC-P2 看板（列=用户态） |
+| `frontend/src/components/task-center/TaskCenterGanttView.vue` | TC-P2 甘特 MVP |
+| `frontend/src/components/task-center/TaskCenterStatsView.vue` | TC-P2 任务统计 Tab |
+| `frontend/src/components/task-detail/TaskDetailShell.vue` | TC-P2 详情 Shell（header / meta / profile 面板 / 最近 3 条 run_events） |
 | `frontend/src/views/TaskTemplatesView.vue` | 工作流 E 结构化设计器首版，支持步骤增删改、JSON 导入、实例快照、模板删除与已有模板编辑 |
 | `frontend/src/views/ReportsView.vue` | 汇报中心工作台：待处理 / 我发起 / 历史三主标签；**「发起汇报」** 页头入口打开弹窗，在弹窗内选择向上汇报或向下传达并填写表单（深链 `?tab=upward|downward` 仍可自动打开对应表单）；消费消息来源 `?selected=` 高亮 |
 | `frontend/src/views/MessagesView.vue` | Step 6 升级后的消息工作台：统计卡、未读 / 未确认 / 来源筛选、我的回执状态与“回到来源”入口 |

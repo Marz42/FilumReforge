@@ -209,9 +209,9 @@ cd frontend && npx playwright test e2e/live/workflow-video-multi-account-live.sp
 
 **验收**（= 设计 §11.3）
 
-- [ ] 三视图独立组件且与 Demo §7.2 一致  
-- [ ] 统计入口可看全量事件与部门汇总  
-- [ ] 详情仅保留最近 3 条事件摘要  
+- [x] 三视图独立组件且与 Demo §7.2 一致  
+- [x] 统计入口可看全量事件与部门汇总  
+- [x] 详情仅保留最近 3 条事件摘要  
 
 ---
 

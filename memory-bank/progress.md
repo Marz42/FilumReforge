@@ -2,6 +2,18 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 — TC-P2 合并 main + 文档对齐 @ `0.88.0`
+
+**完成事项**:
+- [x] P2-6 详情迁出（v2 隐藏 BatchRunDashboard；compact run events + 统计链接）
+- [x] P2-7 `TaskDetailUiProfile` + 实例化 metadata + 前端 `ui_profile` override
+- [x] E2E 绿：login / task-center / task-center-stats / workflow-video-v1
+- [x] Playwright 本地 Chrome（`.playwright-browsers/` + config 自动检测）
+- [x] 合并 `feat/task-center-p2-views-stats` → main
+- [x] memory-bank：`VERSION` `0.88.0`、roadmap、active-task→TC-P3、设计 §11.3 勾选
+
+**分支**: `main` @ `0.88.0`
+
 ### 2026-06-18 — TC-P2 Phase 3（TaskDetailShell + TasksView 瘦身）
 
 **完成事项**:

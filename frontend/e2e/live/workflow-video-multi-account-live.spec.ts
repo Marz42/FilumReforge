@@ -276,7 +276,7 @@ async function openBatchRunDashboard(page: Page, accessToken: string): Promise<v
   await expect(rootRow).toBeVisible({ timeout: 30_000 })
   await rootRow.click()
   await page.reload()
-  await expect(page.getByTestId('batch-run-dashboard')).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 60_000 })
 }
 
 async function openTaskByTitleHint(page: Page, accessToken: string, hint: string): Promise<void> {
@@ -492,7 +492,8 @@ test.describe('Workflow Video multi-account live', () => {
     await snap(page, 'phase-c-finalize.png')
 
     await openBatchRunDashboard(page, accessToken)
-    await expect(page.locator('[data-testid="batch-run-dashboard"] tbody tr')).toHaveCount(3)
+    await page.goto(`/task-center?filter=stats&selected=${sharedRootTaskId}`)
+    await expect(page.getByTestId('task-center-stats-view')).toBeVisible({ timeout: 60_000 })
     await snap(page, 'phase-d-batch-dashboard.png')
     await logout(page)
     liveRow({

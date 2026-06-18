@@ -77,6 +77,94 @@ const VIDEO_PROFILE_DEFAULTS: Omit<TaskDetailProfile, 'id' | 'submitMode' | 'sho
   compactMetadata: true,
 }
 
+const TASK_DETAIL_PROFILE_IDS: TaskDetailProfileId[] = [
+  'video_n1_capture',
+  'video_n2_aggregate',
+  'video_batch_root',
+  'video_production_step',
+  'graph_manual',
+  'legacy_task',
+]
+
+function readUiProfileOverride(metadata: Record<string, unknown>): TaskDetailProfileId | null {
+  const value = metadata.ui_profile
+  if (typeof value !== 'string') {
+    return null
+  }
+  return TASK_DETAIL_PROFILE_IDS.includes(value as TaskDetailProfileId)
+    ? (value as TaskDetailProfileId)
+    : null
+}
+
+function profileFromOverride(
+  profileId: TaskDetailProfileId,
+  task: Task,
+  metadata: Record<string, unknown>,
+  currentUserId?: string | null,
+): TaskDetailProfile {
+  switch (profileId) {
+    case 'video_batch_root':
+      return {
+        id: 'video_batch_root',
+        submitMode: null,
+        showCaptureProgress: true,
+        ...VIDEO_PROFILE_DEFAULTS,
+      }
+    case 'video_n2_aggregate':
+      return {
+        id: 'video_n2_aggregate',
+        submitMode: null,
+        showCaptureProgress: true,
+        ...VIDEO_PROFILE_DEFAULTS,
+      }
+    case 'video_n1_capture':
+      return {
+        id: 'video_n1_capture',
+        submitMode: 'form',
+        showCaptureProgress: false,
+        ...VIDEO_PROFILE_DEFAULTS,
+      }
+    case 'video_production_step': {
+      const key = nodeKey(metadata)
+      const submitMode = inferSubmitMode(key)
+      return {
+        id: 'video_production_step',
+        submitMode,
+        showCaptureProgress: false,
+        hideDeliverable: submitMode === 'file',
+        hideHandshakeFields: true,
+        hideWatchers: false,
+        collapseComments: false,
+        compactMetadata: true,
+      }
+    }
+    case 'graph_manual':
+      return {
+        id: 'graph_manual',
+        submitMode: null,
+        hideDeliverable: false,
+        hideHandshakeFields: false,
+        hideWatchers: false,
+        collapseComments: false,
+        compactMetadata: false,
+        showCaptureProgress: false,
+      }
+    case 'legacy_task':
+      return {
+        id: 'legacy_task',
+        submitMode: null,
+        hideDeliverable: false,
+        hideHandshakeFields: false,
+        hideWatchers: false,
+        collapseComments: false,
+        compactMetadata: false,
+        showCaptureProgress: false,
+      }
+    default:
+      return profileFromOverride('legacy_task', task, metadata, currentUserId)
+  }
+}
+
 export function resolveTaskDetailProfile(
   task: Task | null | undefined,
   options: ResolveTaskDetailProfileOptions = {},
@@ -96,6 +184,10 @@ export function resolveTaskDetailProfile(
 
   const metadata = readMetadata(task)
   const currentUserId = options.currentUserId ?? null
+  const uiProfileOverride = readUiProfileOverride(metadata)
+  if (uiProfileOverride) {
+    return profileFromOverride(uiProfileOverride, task, metadata, currentUserId)
+  }
 
   if (isGraphTemplateTask(task, metadata)) {
     const isRootBatch =

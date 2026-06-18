@@ -1116,6 +1116,7 @@
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run fork）
 - `workflow_node_instances 1:1 workflow_deliverables`（按节点快照）
 - 兼容 `Task` 投影通过 `extra_metadata` / `source_id` 与 graph 锚点互链（见 `architecture.md` §6.13B）
+- **TC-P2** 模板节点 `config.ui_profile`（可选）：`video_n1_capture` \| `video_n2_aggregate` \| `video_production_step` \| `video_batch_root` \| `graph_manual` 等；实例化写入 `Task.extra_metadata.ui_profile`，前端 `profile.ts` 优先读取
 
 ## 11. 关系说明
 

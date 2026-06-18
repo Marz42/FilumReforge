@@ -277,4 +277,13 @@ class ReportRouteStatus(StrEnum):
   PENDING = "pending"
   FORWARDED = "forwarded"
   COMPLETED = "completed"
+
+
+class TaskDetailUiProfile(StrEnum):
+  VIDEO_N1_CAPTURE = "video_n1_capture"
+  VIDEO_N2_AGGREGATE = "video_n2_aggregate"
+  VIDEO_BATCH_ROOT = "video_batch_root"
+  VIDEO_PRODUCTION_STEP = "video_production_step"
+  GRAPH_MANUAL = "graph_manual"
+  LEGACY_TASK = "legacy_task"
   RETURNED = "returned"

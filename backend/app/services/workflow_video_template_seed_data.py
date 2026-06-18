@@ -105,6 +105,7 @@ def build_topic_meeting_nodes() -> list[dict[str, Any]]:
         "expand_from": "copywriters",
         "participant_policy_ref": "copywriters",
         "capture_schema": CAPTURE_SCHEMA_TOPIC,
+        "ui_profile": "video_n1_capture",
       },
     },
     {
@@ -116,6 +117,7 @@ def build_topic_meeting_nodes() -> list[dict[str, Any]]:
         "kind": "single",
         "aggregate_schema": AGGREGATE_SCHEMA_TOPIC,
         "completion_policy": "on_aggregate_confirmed",
+        "ui_profile": "video_n2_aggregate",
       },
     },
   ]
@@ -128,7 +130,7 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "title": "撰写脚本",
       "sort_order": 10,
       "assignee_rule": {"type": "context_var", "var": "script_author_id"},
-      "config": {"kind": "single", "completion_policy": "on_capture_submitted"},
+      "config": {"kind": "single", "completion_policy": "on_capture_submitted", "ui_profile": "video_production_step"},
     },
     {
       "node_key": "N4_SCRIPT_REVIEW",

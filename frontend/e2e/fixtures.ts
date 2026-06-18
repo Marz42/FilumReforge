@@ -47,6 +47,46 @@ const selectedTask = {
   updated_at: '2025-04-04T12:30:00Z',
 }
 
+const mockInboxTask = {
+  id: 'task-inbox-1',
+  title: '整理四月周报',
+  description: null,
+  creator_id: adminUser.id,
+  assignee_id: adminUser.id,
+  department_id: 'dept-content',
+  status: 'todo',
+  priority: 'high',
+  due_date: '2025-04-06T09:00:00Z',
+  started_at: null,
+  completed_at: null,
+  parent_task_id: null,
+  source_type: 'manual',
+  extra_metadata: {},
+  created_at: '2025-04-03T08:00:00Z',
+  updated_at: '2025-04-03T08:00:00Z',
+}
+
+const mockHistoryTask = {
+  id: 'task-history-1',
+  title: '归档旧公告',
+  description: null,
+  creator_id: adminUser.id,
+  assignee_id: adminUser.id,
+  department_id: 'dept-content',
+  status: 'done',
+  priority: 'low',
+  due_date: '2025-04-01T09:00:00Z',
+  started_at: null,
+  completed_at: '2025-04-01T10:00:00Z',
+  parent_task_id: null,
+  source_type: 'manual',
+  extra_metadata: {},
+  created_at: '2025-04-01T08:00:00Z',
+  updated_at: '2025-04-01T10:00:00Z',
+}
+
+const allMockTasks = [mockInboxTask, selectedTask, mockHistoryTask]
+
 const taskCenterSnapshot = {
   permissions: {
     can_manage_templates: true,
@@ -267,14 +307,15 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
     }
 
     if (request.method() === 'GET' && apiPath === '/tasks') {
-      await fulfillJson(route, [selectedTask])
+      await fulfillJson(route, allMockTasks)
       return
     }
 
     if (request.method() === 'GET' && /^\/tasks\/[^/]+$/.test(apiPath)) {
       const taskId = apiPath.slice('/tasks/'.length)
-      if (taskId === selectedTask.id) {
-        await fulfillJson(route, selectedTask)
+      const task = allMockTasks.find((item) => item.id === taskId)
+      if (task) {
+        await fulfillJson(route, task)
       } else {
         await fulfillJson(route, { detail: 'Task not found' }, 404)
       }

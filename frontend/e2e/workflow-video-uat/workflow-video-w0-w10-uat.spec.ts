@@ -127,8 +127,8 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
 
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
     await page.reload()
-    await expect(page.getByTestId('batch-run-event-timeline')).toBeVisible()
-    await expect(page.getByTestId('batch-run-event-timeline').getByText('采集已打回')).toBeVisible()
+    await expect(page.getByTestId('workflow-run-events-compact')).toBeVisible()
+    await expect(page.getByTestId('workflow-run-events-compact').getByText('采集已打回')).toBeVisible()
     await snap(page, 'w05-01-capture-rejected-event.png')
     uatRow({
       id: 'W5-1',
@@ -166,12 +166,11 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
 
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
     await page.reload()
-    await expect(page.getByTestId('batch-run-dashboard')).toBeVisible()
-    await expect(page.locator('[data-testid="batch-run-dashboard"] tbody tr')).toHaveCount(3)
-    const timeline = page.getByTestId('batch-run-event-timeline')
-    await expect(timeline).toBeVisible()
-    await expect(timeline.getByText('运行已创建')).toBeVisible()
-    await expect(timeline.getByText('汇总已确认')).toBeVisible()
+    await expect(page.getByTestId('video-tracking-panel')).toBeVisible()
+    expect(videoMockState.childRootTaskIds.length).toBe(3)
+    await page.goto(`/task-center?filter=stats&selected=${videoMockState.rootTaskId}`)
+    await expect(page.getByTestId('task-center-stats-view')).toBeVisible()
+    await expect(page.getByTestId('task-center-stats-events')).toBeVisible()
     await snap(page, 'w08-wfk-01-batch-dashboard-and-events.png')
 
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.childRootTaskIds[0]}`)
@@ -213,7 +212,8 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
 
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
     await page.reload()
-    await expect(page.locator('[data-testid="batch-run-dashboard"] tbody tr')).toHaveCount(2)
+    await expect(page.getByTestId('video-tracking-panel')).toBeVisible()
+    expect(videoMockState.childRootTaskIds.length).toBe(2)
     await snap(page, 'w10-01-two-child-fork.png')
     uatRow({
       id: 'W10-1',

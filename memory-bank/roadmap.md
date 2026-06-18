@@ -4,8 +4,8 @@
 
 | 字段 | 内容 |
 |------|------|
-| **当前版本** | `0.87.1`（根目录 `VERSION`） |
-| **版本主题** | 任务中心 v2 重做（Action Profile + 增量派发 + IA 2.0） |
+| **当前版本** | `0.88.0`（根目录 `VERSION`） |
+| **版本主题** | 任务中心 v2 IA 2.0（三视图 + 任务统计 + Shell 拆分） |
 | **阶段** | Stage 2 / 工作流深化 / 任务协同产品化 |
 
 ---
@@ -30,6 +30,7 @@
 | 任务中心 v2 设计 | done | UX 规格 v2.1 + 交互 Demo 评审通过（2026-06-18） |
 | 任务中心 v2 TC-P0 | done | Action Profile、N1 单表单、Run 列、用户态 @ `7bc242c` |
 | 任务中心 v2 TC-P1 | done | `dispatch_topic`、VideoTrackingPanel、打回/退回、participant 收口 @ `feat/task-center-p0-profile` |
+| 任务中心 v2 TC-P2 | done | 三视图 + 统计 Tab + `TaskDetailShell` + `ui_profile` @ `0.88.0` |
 
 ---
 
@@ -37,7 +38,7 @@
 
 | 优先级 | 主题 | 目标 | 计划入口 |
 |--------|------|------|----------|
-| **P0** | **任务中心 v2 · TC-P2** | 列表/看板/甘特独立组件、任务统计入口、`TasksView` 瘦身 | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) §TC-P2 |
+| **P1** | **工作流 E 与图引擎统一** | 产品级单一模板源评估与深化（TC-P3） | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) §TC-P3 |
 
 **阶段切片**
 
@@ -45,7 +46,7 @@
 |------|----------|------|
 | TC-P0 | Profile + N1 单表单 + 进度文案 + 列表 Run 列 | ✅ 完成 |
 | TC-P1 | `dispatch_topic` + 跟踪页增量派发 + submit_mode/退回 | ✅ 完成 |
-| TC-P2 | 看板/甘特/统计入口 + `TasksView` 拆分 | 🔥 下一焦点 |
+| TC-P2 | 看板/甘特/统计入口 + `TasksView` 拆分 | ✅ 完成 @ `0.88.0` |
 
 ---
 
@@ -77,7 +78,7 @@
 ## 并行工作线
 
 ```
-主线（产品）────────── 任务中心 v2（TC-P0 ✅ → P1 ✅ → P2 🔥）
+主线（产品）────────── 任务中心 v2（TC-P0 ✅ → P1 ✅ → P2 ✅ → P3 规划）
         │
         ├─ 视频 v1 ──── 选题会模板运维（dispatch/reject 已落地）
         ├─ 工作流 E ─── 模板/调度深化、与图引擎统一（P1，TC-P3 后）

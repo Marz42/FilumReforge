@@ -136,6 +136,7 @@ async def _seed_topic_meeting_batch_template(db_session):
       "expand_from": "copywriters",
       "participant_policy_ref": "copywriters",
       "capture_schema": CAPTURE_SCHEMA,
+      "ui_profile": "video_n1_capture",
     },
   )
   node_n2 = WorkflowGraphTemplateNode(
@@ -147,6 +148,7 @@ async def _seed_topic_meeting_batch_template(db_session):
     config={
       "kind": "single",
       "aggregate_schema": AGGREGATE_SCHEMA,
+      "ui_profile": "video_n2_aggregate",
     },
   )
   db_session.add_all([node_n1, node_n2])
@@ -215,6 +217,17 @@ async def test_w3_instantiate_three_copywriters_three_n1_tasks(db_session) -> No
 
   assignee_ids = {task.assignee_id for task in result.activated_tasks}
   assert assignee_ids == {editor.id for editor in editors}
+  capture_tasks = [
+    task
+    for task in result.activated_tasks
+    if str((task.extra_metadata or {}).get("template_node_key")) == "N1_PROPOSE"
+  ]
+  assert capture_tasks
+  assert all(
+    (task.extra_metadata or {}).get("ui_profile") == "video_n1_capture"
+    for task in capture_tasks
+  )
+  assert (result.root_task.extra_metadata or {}).get("ui_profile") == "video_batch_root"
 
   all_tasks = list(
     await db_session.scalars(select(Task).where(Task.source_type == TaskSourceType.TEMPLATE))

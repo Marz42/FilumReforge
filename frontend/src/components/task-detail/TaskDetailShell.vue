@@ -489,6 +489,15 @@ const showBatchRunDashboard = computed(
     && isGraphRootBatchTask.value
     && graphInstance.value !== null,
 )
+const usesCompactDetailTelemetry = computed(() => TASK_CENTER_V2_UI_ENABLED)
+const compactRunEvents = computed(() =>
+  usesCompactDetailTelemetry.value || usesVideoWorkflowLayout.value
+    ? workflowRunEvents.value.slice(0, 3)
+    : workflowRunEvents.value,
+)
+const usesCompactRunEventCards = computed(
+  () => usesCompactDetailTelemetry.value || usesVideoWorkflowLayout.value,
+)
 const graphParentInstanceId = computed(() => {
   if (graphInstance.value?.parent_instance_id) {
     return graphInstance.value.parent_instance_id
@@ -1316,40 +1325,32 @@ watch(
             />
 
             <el-card
-              v-if="workflowRunEvents.length > 0 && !usesVideoWorkflowLayout"
+              v-if="workflowRunEvents.length > 0"
               shadow="never"
               class="page__run-events"
-              data-testid="workflow-run-events"
+              :data-testid="usesCompactRunEventCards ? 'workflow-run-events-compact' : 'workflow-run-events'"
             >
-              <template #header><strong>运行事件</strong></template>
+              <template #header>
+                <div class="page__header">
+                  <strong>{{ usesCompactRunEventCards ? '最近事件' : '运行事件' }}</strong>
+                  <router-link
+                    v-if="usesCompactDetailTelemetry && selectedTask"
+                    :to="{ name: 'task-center', query: { filter: 'stats', selected: selectedTask.id } }"
+                  >
+                    在任务统计中查看
+                  </router-link>
+                </div>
+              </template>
               <el-timeline>
                 <el-timeline-item
-                  v-for="event in workflowRunEvents"
+                  v-for="event in compactRunEvents"
                   :key="event.id"
                   :timestamp="formatDateTime(event.created_at)"
                 >
                   {{ resolveRunEventLabel(event.event_type) }}
-                  <span v-if="typeof event.payload.reason === 'string'">
+                  <span v-if="!usesCompactRunEventCards && typeof event.payload.reason === 'string'">
                     — {{ event.payload.reason }}
                   </span>
-                </el-timeline-item>
-              </el-timeline>
-            </el-card>
-
-            <el-card
-              v-else-if="workflowRunEvents.length > 0 && usesVideoWorkflowLayout"
-              shadow="never"
-              class="page__run-events"
-              data-testid="workflow-run-events-compact"
-            >
-              <template #header><strong>最近事件</strong></template>
-              <el-timeline>
-                <el-timeline-item
-                  v-for="event in workflowRunEvents.slice(0, 3)"
-                  :key="event.id"
-                  :timestamp="formatDateTime(event.created_at)"
-                >
-                  {{ resolveRunEventLabel(event.event_type) }}
                 </el-timeline-item>
               </el-timeline>
             </el-card>
@@ -1540,7 +1541,45 @@ watch(
             <el-divider>活动时间线</el-divider>
 
             <!-- 图引擎节点板块（仅图任务显示） -->
-            <template v-if="graphInstance && !usesVideoWorkflowLayout">
+            <el-collapse
+              v-if="graphInstance && !usesVideoWorkflowLayout && usesCompactDetailTelemetry"
+              data-testid="task-detail-graph-collapse"
+            >
+              <el-collapse-item title="工作流节点追踪（完整日志见任务统计）" name="graph-nodes">
+                <el-space direction="vertical" fill class="page__node-timeline" data-testid="tasks-graph-panel">
+                  <el-card
+                    v-for="node in graphInstance.node_instances"
+                    :key="node.id"
+                    shadow="never"
+                    class="page__node-card"
+                  >
+                    <div class="page__node-card-header">
+                      <div class="page__node-title">
+                        <strong>{{ node.title }}</strong>
+                        <el-tag v-if="node.iteration > 1" size="small" type="warning" effect="dark">
+                          V{{ node.iteration }}
+                        </el-tag>
+                      </div>
+                      <el-tag
+                        :type="resolveNodeEngineStateTagType(node.engine_state)"
+                        effect="plain"
+                        size="small"
+                      >
+                        {{ resolveNodeEngineStateLabel(node.engine_state) }}
+                      </el-tag>
+                    </div>
+                    <p class="page__node-meta">耗时：{{ formatNodeDuration(node) }}</p>
+                    <p
+                      v-if="node.engine_state === 'terminated'"
+                      class="page__node-meta page__node-meta--terminated"
+                    >
+                      已被系统终止（or-join 撤权或深度打回）
+                    </p>
+                  </el-card>
+                </el-space>
+              </el-collapse-item>
+            </el-collapse>
+            <template v-else-if="graphInstance && !usesVideoWorkflowLayout">
               <el-divider>工作流节点追踪</el-divider>
               <el-space direction="vertical" fill class="page__node-timeline" data-testid="tasks-graph-panel">
                 <el-card

@@ -1,4 +1,18 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { defineConfig, devices } from '@playwright/test'
+
+const configDir = path.dirname(fileURLToPath(import.meta.url))
+const repoBrowsersPath = path.resolve(configDir, '..', '.playwright-browsers')
+const localChrome = path.join(repoBrowsersPath, 'chromium-1217', 'chrome-win64', 'chrome.exe')
+
+if (!process.env.PLAYWRIGHT_BROWSERS_PATH && fs.existsSync(repoBrowsersPath)) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH = repoBrowsersPath
+}
+
+const chromiumLaunchOptions = fs.existsSync(localChrome) ? { executablePath: localChrome } : {}
 
 export default defineConfig({
   testDir: './e2e',
@@ -17,11 +31,12 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    launchOptions: chromiumLaunchOptions,
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], launchOptions: chromiumLaunchOptions },
     },
   ],
   webServer: {

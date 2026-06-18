@@ -36,7 +36,7 @@ test.describe('workflow video v1 (W10)', () => {
     await page.getByTestId('template-instantiate-submit').click()
 
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
-    await expect(page.getByTestId('batch-run-dashboard')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 15_000 })
 
     for (const { taskId, email } of captureEditorAccounts) {
       await loginAs(page, email)
@@ -65,12 +65,13 @@ test.describe('workflow video v1 (W10)', () => {
     await loginAsAdmin(page)
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
     await page.reload()
-    await expect(page.getByTestId('batch-run-dashboard')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByTestId('batch-run-event-timeline')).toBeVisible()
-    await expect(page.locator('[data-testid="batch-run-dashboard"] tbody tr')).toHaveCount(3)
+    await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 15_000 })
+    expect(videoMockState.childRootTaskIds.length).toBe(3)
+    await page.goto(`/task-center?filter=stats&selected=${videoMockState.rootTaskId}`)
+    await expect(page.getByTestId('task-center-stats-view')).toBeVisible()
 
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.childRootTaskIds[0]}`)
-    await expect(page.getByText('制作 Run')).toBeVisible()
+    await expect(page.getByText('制作交付')).toBeVisible()
   })
 
   test('W10-2 two approved topics fork two child runs on dashboard', async ({ page }) => {
@@ -104,7 +105,7 @@ test.describe('workflow video v1 (W10)', () => {
     await loginAsAdmin(page)
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
     await page.reload()
-    await expect(page.getByTestId('batch-run-dashboard')).toBeVisible({ timeout: 15_000 })
-    await expect(page.locator('[data-testid="batch-run-dashboard"] tbody tr')).toHaveCount(2)
+    await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 15_000 })
+    expect(videoMockState.childRootTaskIds.length).toBe(2)
   })
 })

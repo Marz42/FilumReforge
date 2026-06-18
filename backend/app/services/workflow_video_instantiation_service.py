@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.enums import (
+  TaskDetailUiProfile,
   TaskPriority,
   TaskSourceType,
   TaskStatus,
@@ -257,6 +258,27 @@ class WorkflowVideoInstantiationService:
       raise ConflictError(f"节点 {node.node_key} 无法解析受理人。")
     return users[0].id
 
+  @staticmethod
+  def _apply_ui_profile_metadata(
+    metadata: dict[str, object],
+    *,
+    template_nodes_by_key: dict[str, WorkflowGraphTemplateNode] | None,
+    node_key: str,
+  ) -> None:
+    if not template_nodes_by_key:
+      return
+    template_node = template_nodes_by_key.get(node_key)
+    if template_node is None:
+      return
+    node_config = template_node.config if isinstance(template_node.config, dict) else {}
+    raw_profile = node_config.get("ui_profile")
+    if not isinstance(raw_profile, str) or not raw_profile.strip():
+      return
+    try:
+      metadata["ui_profile"] = TaskDetailUiProfile(raw_profile.strip()).value
+    except ValueError:
+      return
+
   async def _create_projection_task(
     self,
     *,
@@ -265,6 +287,7 @@ class WorkflowVideoInstantiationService:
     instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
     department_id: UUID | None,
+    template_nodes_by_key: dict[str, WorkflowGraphTemplateNode] | None = None,
   ) -> Task:
     title = f"{template.name} / {node_instance.title}"
     metadata: dict[str, object] = {
@@ -276,6 +299,11 @@ class WorkflowVideoInstantiationService:
       "template_node_instance_key": node_instance.instance_key,
       "run_kind": (instance.context or {}).get("run_kind"),
     }
+    self._apply_ui_profile_metadata(
+      metadata,
+      template_nodes_by_key=template_nodes_by_key,
+      node_key=node_instance.node_key,
+    )
 
     if self._task_service is not None:
       task, _assignee = await self._task_service.create_task_record(
@@ -491,6 +519,7 @@ class WorkflowVideoInstantiationService:
     validate_run_context(instance.context)
 
     activated_tasks: list[Task] = []
+    nodes_by_key = {node.node_key: node for node in nodes}
     for node_instance in node_instances:
       if node_instance.engine_state != WorkflowNodeEngineState.ACTIVATED:
         continue
@@ -500,6 +529,7 @@ class WorkflowVideoInstantiationService:
         instance=instance,
         node_instance=node_instance,
         department_id=department_id,
+        template_nodes_by_key=nodes_by_key,
       )
       node_instance.config = {
         **dict(node_instance.config or {}),
@@ -586,6 +616,8 @@ class WorkflowVideoInstantiationService:
     }
     if extra_metadata:
       metadata.update(extra_metadata)
+    if run_kind == "batch":
+      metadata["ui_profile"] = TaskDetailUiProfile.VIDEO_BATCH_ROOT.value
 
     if self._task_service is not None:
       task, _assignee = await self._task_service.create_task_record(
@@ -747,6 +779,7 @@ class WorkflowVideoInstantiationService:
     validate_run_context(instance.context)
 
     activated_tasks: list[Task] = []
+    production_nodes_by_key = {node.node_key: node for node in nodes}
     for node_instance in node_instances:
       if node_instance.engine_state != WorkflowNodeEngineState.ACTIVATED:
         continue
@@ -756,6 +789,7 @@ class WorkflowVideoInstantiationService:
         instance=instance,
         node_instance=node_instance,
         department_id=parent_instance.department_id,
+        template_nodes_by_key=production_nodes_by_key,
       )
       node_instance.config = {
         **dict(node_instance.config or {}),

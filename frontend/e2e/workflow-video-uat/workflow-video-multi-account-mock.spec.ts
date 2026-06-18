@@ -309,9 +309,10 @@ test.describe('Workflow Video multi-account mock', () => {
 
     await page.reload()
 
-    await expect(page.getByTestId('batch-run-dashboard')).toBeVisible({ timeout: 30_000 })
-
-    await expect(page.locator('[data-testid="batch-run-dashboard"] tbody tr')).toHaveCount(3)
+    await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 30_000 })
+    expect(videoMockState.childRootTaskIds.length).toBe(3)
+    await page.goto(`/task-center?filter=stats&selected=${videoMockState.rootTaskId}`)
+    await expect(page.getByTestId('task-center-stats-view')).toBeVisible()
 
     await snap(page, 'phase-d-batch-dashboard.png')
 

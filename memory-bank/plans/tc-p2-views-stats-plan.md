@@ -1,6 +1,6 @@
 # TC-P2 · 视图重做 + 任务统计 — 落地实施计划
 
-> **状态**: 已立项 · **日期**: 2026-06-18 · **分支建议**: `feat/task-center-p2-views-stats`  
+> **状态**: ✅ 已完成 · **日期**: 2026-06-18 · **分支**: `feat/task-center-p2-views-stats` → merged main @ `0.88.0`  
 > **父计划**: [`task-center-v2-implementation-plan.md`](./task-center-v2-implementation-plan.md) §TC-P2  
 > **产品规格**: [`workflow-video-v1-ui-simplification-design.md`](./workflow-video-v1-ui-simplification-design.md) §7、§11.3  
 > **交互基准**: [`../demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html) S4 示意
@@ -13,9 +13,9 @@
 
 **验收**（= 设计 §11.3）
 
-- [ ] 三视图独立组件且与 Demo §7.2 一致
-- [ ] 统计入口可看全量 run_events 与部门汇总
-- [ ] 详情仅保留最近 3 条事件摘要
+- [x] 三视图独立组件且与 Demo §7.2 一致
+- [x] 统计入口可看全量 run_events 与部门汇总
+- [x] 详情仅保留最近 3 条事件摘要
 
 ---
 
