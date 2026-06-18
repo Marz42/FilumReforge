@@ -36,6 +36,18 @@
 **说明**: `task_templates` 与 `WorkflowGraphTemplate` 两套运行时并存；任务中心读侧已 graph-first，**不等于** E 已合并为图模板。  
 **参考**: `decisions.md` ADR-005、`domains/workflow-graph-engine.md`
 
+### Legacy 工作流 E 后端（待删除）
+
+**说明**（@ `0.89.0`）:
+
+| 层 | 状态 |
+|----|------|
+| 前端模板页 | **已移除** Legacy E Tab / CRUD；唯一入口为图模板列表 + 实例化（用户可见名「任务模板」） |
+| 后端 `task_templates` API / `TaskTemplateService` | **仍保留**；运行中 E 实例与 `decideStepRun` 仍可用 |
+| 删除时机 | **待删除** — 依赖 TC-P3 产品决策与数据迁移 |
+
+**实例化路径**: `POST /api/v1/workflow-graph/templates/{id}/runs`
+
 ### 视频 v1 图模板开关默认关闭
 
 **说明**: `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED` 默认 `false`；批次/fork API 需显式开启。  

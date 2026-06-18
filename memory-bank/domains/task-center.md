@@ -15,7 +15,7 @@
 | 搜索 | `GET /api/v1/tasks/search` |
 | 多视图 | 列表 / 看板 / 甘特独立组件（**用户态 × Run**）；`filter=stats` 任务统计 Tab — TC-P2 ✅ @ `0.88.0` |
 | 个人备忘 | 全局浮窗；`task_memos` |
-| 任务模板入口 | `/task-templates`（工作流 E） |
+| 任务模板入口 | `/task-templates` — 图模板列表 + 实例化（@ `0.89.0` 统一命名；Legacy E UI 已移除） |
 
 ---
 

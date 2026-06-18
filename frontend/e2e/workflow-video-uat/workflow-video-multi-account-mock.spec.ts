@@ -148,7 +148,6 @@ test.describe('Workflow Video multi-account mock', () => {
 
     await page.goto('/task-templates')
     await expect(page.getByTestId('task-templates-page')).toBeVisible({ timeout: 30_000 })
-    await page.getByRole('tab', { name: /图模板/ }).click()
 
     await expect(page.getByText('topic_meeting_batch_v1')).toBeVisible({ timeout: 30_000 })
 

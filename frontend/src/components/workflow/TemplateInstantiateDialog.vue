@@ -276,7 +276,7 @@ watch(includeInitiator, () => {
 <template>
   <el-dialog
     v-model="visible"
-    :title="template ? `实例化：${template.name}` : '图模板实例化'"
+    :title="template ? `实例化：${template.name}` : '任务模板实例化'"
     width="640px"
     destroy-on-close
     data-testid="template-instantiate-dialog"

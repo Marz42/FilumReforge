@@ -95,8 +95,9 @@
 **决策**  
 手动任务 graph dual-write；任务中心读路径默认 graph-first（`TASK_CENTER_V2_ENABLED=true`）；E 模板实例化保持独立直至产品级统一。
 
-**后果**  
-两套入口需文档与测试双覆盖；迁移 CLI 与 feature flag 回退路径已建立。
+**后果**
+两套入口需文档与测试双覆盖；迁移 CLI 与 feature flag 回退路径已建立。  
+**2026-06-18 更新**（@ `0.89.0`）：前端 `/task-templates` 已移除 Legacy E 管理 UI，用户仅见图模板（称「任务模板」）；后端 E API **待删除**（TC-P3）。
 
 ---
 

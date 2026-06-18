@@ -628,7 +628,7 @@ onMounted(() => {
               data-testid="task-center-open-templates"
               @click="router.push({ name: 'task-templates' })"
             >
-              模板管理
+              任务模板
             </el-button>
             <el-button
               type="primary"

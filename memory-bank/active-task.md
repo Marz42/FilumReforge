@@ -10,7 +10,7 @@
 |------|------|
 | **任务标题** | 任务中心 v2 · **TC-P3**（工作流 E 与图引擎统一） |
 | **优先级** | P1 · 路线图下一焦点 |
-| **状态** | **待启动** — TC-P2 已合并 main @ `0.88.0` |
+| **状态** | **待启动** — Legacy E 前端已移除 @ `0.89.0`；TC-P2 @ `0.88.0` |
 | **关联** | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) §TC-P3、[`plans/implementation-plan.md`](./plans/implementation-plan.md)、[`decisions.md`](./decisions.md) ADR-005 |
 
 ---
@@ -22,6 +22,13 @@
 | P3-1 | 工作流 E 与图模板运行时统一评估 | 未开始 |
 | P3-2 | N2 `aggregate_mode` 产品开关（batch / streaming） | 未开始 |
 | P3-3 | 「结束采集」产品开关 | 未开始 |
+
+---
+
+## TC-P3 前置（@ `0.89.0`）
+
+- [x] 前端 `/task-templates` 移除 Legacy E Tab；统一用户可见名「任务模板」
+- [x] 后端 E API 文档标注 **待删除**（`known-issues.md` / ADR-005）
 
 ---
 

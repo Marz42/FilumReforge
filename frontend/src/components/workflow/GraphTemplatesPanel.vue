@@ -61,8 +61,8 @@ onMounted(() => {
       <template #header>
         <div class="graph-templates__header">
           <div>
-            <strong>图模板库</strong>
-            <p class="graph-templates__hint">与任务模板（E）区分；统一「选模板 → 实例化」入口。</p>
+            <strong>任务模板</strong>
+            <p class="graph-templates__hint">选模板 → 填写 launch 信息 → 实例化派发。</p>
           </div>
           <el-button @click="loadTemplates">刷新</el-button>
         </div>

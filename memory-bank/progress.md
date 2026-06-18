@@ -2,6 +2,16 @@
 
 ## 会话摘要（Paradigma 对齐）
 
+### 2026-06-18 — Legacy E 前端隐藏 · 任务模板统一命名 @ `0.89.0`
+
+**完成事项**:
+- [x] `TaskTemplatesView.vue` 瘦身为 GraphTemplatesPanel 壳层（删除 ~2000 行 Legacy CRUD）
+- [x] 文案统一：GraphTemplatesPanel / TemplateInstantiateDialog / TaskCenterView →「任务模板」
+- [x] vitest `TaskTemplatesView` + workflow-video-v1 E2E 绿；UAT W0/W9 改写
+- [x] memory-bank：ADR-005 / known-issues 标注 E 后端待删除；handbooks + changelog
+
+**分支**: `main`
+
 ### 2026-06-18 — 任务协同 UI 简化设计 · 文档验收闭环
 
 **完成事项**:

@@ -27,7 +27,6 @@ test.describe('workflow video v1 (W10)', () => {
 
   test('W10-1 graph tab instantiate, three captures, aggregate, batch dashboard', async ({ page }) => {
     await page.goto('/task-templates')
-    await page.getByRole('tab', { name: /图模板/ }).click()
     await expect(page.getByTestId('task-templates-graph-tab')).toBeVisible()
 
     await page.getByRole('row', { name: '选题会（批次）' }).getByTestId('graph-template-instantiate').click()
@@ -76,7 +75,6 @@ test.describe('workflow video v1 (W10)', () => {
 
   test('W10-2 two approved topics fork two child runs on dashboard', async ({ page }) => {
     await page.goto('/task-templates')
-    await page.getByRole('tab', { name: /图模板/ }).click()
     await page.getByRole('row', { name: '选题会（批次）' }).getByTestId('graph-template-instantiate').click()
     await page.getByTestId('template-instantiate-submit').click()
 

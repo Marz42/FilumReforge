@@ -393,7 +393,6 @@ test.describe('Workflow Video multi-account live', () => {
     const { accessToken: leadToken } = await login(page, ACCOUNTS.copyLead)
     await page.goto('/task-templates')
     await expect(page.getByTestId('task-templates-page')).toBeVisible({ timeout: 30_000 })
-    await page.getByRole('tab', { name: /图模板/ }).click()
     await expect(page.getByText('topic_meeting_batch_v1')).toBeVisible({ timeout: 30_000 })
     const candidatePreview = page.waitForResponse(
       (r) => /\/preview-participants\b/.test(r.url()) && r.request().method() === 'POST',

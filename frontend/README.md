@@ -20,7 +20,7 @@
 
 ## 当前已知边界
 
-- `TaskTemplatesView.vue` 已支持结构化步骤设计、JSON 导入与实例快照；已有实例的模板当前锁定结构编辑，建议通过新建模板版本承接结构变更
+- `TaskTemplatesView.vue` — 图模板列表 + 实例化（用户可见「任务模板」）；Legacy E 管理 UI 已于 `0.89.0` 移除
 - 模板 / 调度管理动作、更多设计器校验与更大范围回归仍在继续补齐
 - 开发 Compose 运行的是 Vite dev server；生产部署请改用 `Dockerfile.prod`、`frontend/nginx.frontend.conf` 与 `infra/docker/docker-compose.prod.yml`，或直接构建静态 `dist/` 后交给 Nginx 托管
 

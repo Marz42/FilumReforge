@@ -15,7 +15,7 @@ docker compose exec backend python -m app.scripts.seed_sample_data --password Fi
 
 - 视频相关部门：`video-copywriting`、`video-voice`、`video-post`（含 `publish_org_task` 能力）
 - Demo 账号：`demo.video.copy.lead@example.com`、`demo.video.copy.a/b/c@example.com`、`demo.video.vo.lead@example.com`、`demo.video.vo.a@example.com`、`demo.video.post.lead@example.com`、`demo.video.editor@example.com`
-- 图模板：`topic_meeting_batch_v1`、`video_production_per_topic_v1`（N1–N2 / N3–N12 + 打回边）
+- 图模板（用户可见「任务模板」）：`topic_meeting_batch_v1`、`video_production_per_topic_v1`（N1–N2 / N3–N12 + 打回边）
 
 仅重跑图模板（组织已存在时；`launch_schema` / `seed_version` 变更后也必须重跑以刷新实例化表单）：
 
@@ -29,9 +29,9 @@ docker compose exec backend python -m app.scripts.seed_workflow_video_templates
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/workflow-graph/feature-flags
 ```
 
-关键项：`workflow_graph_template_engine_enabled` 须为 `true` 才能实例化图模板。
+关键项：`workflow_graph_template_engine_enabled` 须为 `true` 才能实例化任务模板。
 
-## 3. 启用图模板引擎
+## 3. 启用图模板引擎（任务模板实例化依赖）
 
 在 API 环境变量中设置（`.env` 或 Compose）：
 
@@ -88,7 +88,7 @@ npm run test:e2e:workflow-video
 # 等价：npx playwright test e2e/workflow-video-v1.spec.ts
 ```
 
-用例覆盖：图模板 Tab 实例化 → 三次采集 → 汇总 finalize → 批次看板 3 子 Run + 子流「制作 Run」详情；仅 2 次采集并汇总时看板 2 行。
+用例覆盖：任务模板页实例化 → 三次采集 → 汇总 finalize → 批次看板 3 子 Run + 子流制作详情；仅 2 次采集并汇总时看板 2 行。
 
 ## 8. Playwright Live 多账号 E2E（A–F）
 

@@ -15,7 +15,7 @@
 
 | 角色 | 负责 | 交付物 |
 | --- | --- | --- |
-| 产品 | 口径确认、批次/子 Run 是否易混淆、Legacy 迁移说明 | 签字检查表 §3 |
+| 产品 | 口径确认、批次/子 Run 是否易混淆 | 签字检查表 §3 |
 | 测试 | 执行本指南 + Playwright UAT；整理 `report.md` | 截图目录 + 缺陷单 |
 | 后端 | `pytest` 全绿；Docker 种子；API 契约 | CI 日志 / Runbook 复现步骤 |
 | 前端 | `vitest` + `type-check`；mock/live E2E | PR 内测试命令输出 |
@@ -57,7 +57,7 @@ pytest -q tests/test_workflow_video_w0_baseline.py tests/test_workflow_video_w1_
 
 | 阶段 | 验收要点 | 自动化（Playwright UAT） | 人工补测 |
 | --- | --- | --- | --- |
-| **W0** | 图模板与 E·Legacy 分 Tab；无独立「发起选题会」入口 | W0-1 截图 | 开关默认 false 时旧实例化仍可用（Docker） |
+| **W0** | 任务模板单入口（图模板列表 + 实例化） | W0-1 截图 | Legacy E UI 已移除 @ `0.89.0` |
 | **W1** | `instance_key`、批次/子关联、`launch_schema` 字段 | W1-1 征集主题/负责人 | 迁移 `alembic upgrade head` |
 | **W2** | `preview-participants`、snapshot 不受事后改人影响 | W2-1 展开 N 人提示 | 改部门成员后重实例化对比 |
 | **WF** | 采集行表、submissions、finalize 写 context | WF-1 三次采集 + 矩阵 | API 非法 schema 422 |
@@ -68,7 +68,7 @@ pytest -q tests/test_workflow_video_w0_baseline.py tests/test_workflow_video_w1_
 | **W6** | 双模板种子编码 | W6-1 列表两模板 | Runbook 种子脚本 |
 | **W7** | Dialog / Capture / Aggregate / 看板 | W7-1 全流程截图 | 移动端窄屏 |
 | **W8** | `workflow_run_events` 时间线 | W8-1 多事件类型 | 分页 limit/offset |
-| **W9** | Outbox、模板 GET/PATCH、Legacy 文案 | W9-1 Legacy 提示 | feature-flags API |
+| **W9** | Outbox、模板 GET/PATCH（后端 pytest） | W9-1 单入口文案 | feature-flags API |
 | **W10** | 回归 + 文档基线 | W10-1 两题 fork | 全量 pytest 53+ |
 
 ---

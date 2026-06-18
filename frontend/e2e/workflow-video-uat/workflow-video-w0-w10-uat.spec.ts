@@ -17,7 +17,7 @@ async function snap(page: Page, filename: string): Promise<void> {
 
 async function openBatchInstantiateDialog(page: Page): Promise<void> {
   await page.goto('/task-templates')
-  await page.getByRole('tab', { name: /图模板/ }).click()
+  await expect(page.getByTestId('task-templates-graph-tab')).toBeVisible()
   await page.getByRole('row', { name: /选题会（批次）/ }).getByTestId('graph-template-instantiate').click()
 }
 
@@ -44,19 +44,18 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
     ])
   })
 
-  test('W0 基线：Legacy 与图模板分栏', async ({ page }) => {
+  test('W0 基线：统一任务模板页', async ({ page }) => {
     await page.goto('/task-templates')
     await expect(page.getByTestId('task-templates-page')).toBeVisible()
-    await expect(page.getByText('E · Legacy')).toBeVisible()
-    await snap(page, 'w00-01-task-templates-legacy-tab.png')
-    await page.getByRole('tab', { name: /图模板/ }).click()
     await expect(page.getByTestId('task-templates-graph-tab')).toBeVisible()
-    await snap(page, 'w00-02-task-templates-graph-tab.png')
+    await expect(page.getByText('任务模板')).toBeVisible()
+    await expect(page.getByText('E · Legacy')).toHaveCount(0)
+    await snap(page, 'w00-01-task-templates-page.png')
     uatRow({
       id: 'W0-1',
       phase: 'W0 基线',
       result: 'PASS',
-      note: '任务模板页 E·Legacy 与图模板 v1 Tab 分栏可见',
+      note: '任务模板页单入口；Legacy E Tab 已移除',
     })
   })
 
@@ -140,11 +139,10 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
 
   test('WFK/W6/W7/W8：汇总派发、双模板、看板与时间线', async ({ page }) => {
     await page.goto('/task-templates')
-    await page.getByRole('tab', { name: /图模板/ }).click()
     await expect(page.getByText('topic_meeting_batch_v1')).toBeVisible()
     await expect(page.getByText('video_production_per_topic_v1')).toBeVisible()
     await snap(page, 'w06-01-dual-templates-list.png')
-    uatRow({ id: 'W6-1', phase: 'W6 双模板', result: 'PASS', note: '图模板库含批次 + 制作模板编码' })
+    uatRow({ id: 'W6-1', phase: 'W6 双模板', result: 'PASS', note: '任务模板列表含批次 + 制作模板编码' })
 
     await page.getByRole('row', { name: /选题会（批次）/ }).getByTestId('graph-template-instantiate').click()
     await page.getByTestId('template-instantiate-submit').click()
@@ -174,7 +172,7 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
     await snap(page, 'w08-wfk-01-batch-dashboard-and-events.png')
 
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.childRootTaskIds[0]}`)
-    await expect(page.getByText('制作 Run')).toBeVisible()
+    await expect(page.getByText('制作交付')).toBeVisible()
     await snap(page, 'w07-02-child-production-run.png')
 
     uatRow({ id: 'WFK-1', phase: 'WFK fork', result: 'PASS', note: 'finalize 后看板 3 子 Run' })
@@ -182,16 +180,17 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
     uatRow({ id: 'W8-1', phase: 'W8 EventLog', result: 'PASS', note: 'batch-run-event-timeline 多事件类型' })
   })
 
-  test('W9：收口（Legacy 提示文案）', async ({ page }) => {
+  test('W9：收口（单入口任务模板）', async ({ page }) => {
     await page.goto('/task-templates')
-    await page.getByRole('tab', { name: /任务模板/ }).click()
-    await expect(page.getByText(/逐步迁移至「图模板」/)).toBeVisible()
-    await snap(page, 'w09-01-legacy-hint.png')
+    await expect(page.getByTestId('task-templates-page')).toBeVisible()
+    await expect(page.getByText('选模板 → 填写 launch 信息 → 实例化派发')).toBeVisible()
+    await expect(page.getByText(/逐步迁移至「图模板」/)).toHaveCount(0)
+    await snap(page, 'w09-01-task-templates-unified.png')
     uatRow({
       id: 'W9-1',
       phase: 'W9 收口',
       result: 'PASS',
-      note: 'E·Legacy Tab 与迁移提示；Outbox/模板 CRUD 见后端 pytest',
+      note: '任务模板单入口；Legacy E UI 已移除（后端 API 待 TC-P3 删除）',
     })
   })
 

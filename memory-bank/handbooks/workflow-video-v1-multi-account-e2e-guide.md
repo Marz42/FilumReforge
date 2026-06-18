@@ -59,7 +59,7 @@ npm run test:e2e:workflow-video-live
 
 | 阶段 | 业务 | 参与账号 | 自动化 |
 | --- | --- | --- | --- |
-| A | 图模板实例化批次 Run | 文案负责人 `demo.video.copy.lead@example.com` | 是 |
+| A | 任务模板实例化批次 Run | 文案负责人 `demo.video.copy.lead@example.com` | 是 |
 | B | 三人提交选题（N1 采集） | 文案 `demo.video.copy.a/b/c@example.com` | 是 |
 | C | 汇总派发（N2 finalize） | 文案负责人 | 是 |
 | D | 批次看板验证 fork | 文案负责人 | 是 |
@@ -142,7 +142,7 @@ npx playwright test -c playwright.workflow-video-live.config.ts
 
 ### 阶段 A — 文案负责人：发起批次
 
-1. 登录 → **任务模板** → **图模板** Tab。
+1. 登录 → **任务模板**。
 2. 「选题会（批次）」→ **实例化**。
 3. 填写：征集主题（含本次 Run 标记）、运行标题、**负责人**（下拉，所负责部门在职成员，显示「姓名（邮箱）」；默认选中当前登录用户）、**截止**（日期时间选择器，可选）。
 4. 参与人：自动化选 **指定成员** `copy.a` / `copy.b` / `copy.c`（**勿选部门全员**——全员含 lead 本人，若 lead 未完成 N1 采集则 N2 不会激活）。
@@ -245,7 +245,7 @@ npx playwright show-report verification-runs/workflow-video-live-<时间戳>/pla
 
 | 现象 | 原因 / 处理 |
 | --- | --- |
-| 图模板 Tab 无实例化 / 403 | `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`（Compose 已透传；`.env` 设为 `true` 并重启 API） |
+| 任务模板页无实例化 / 403 | `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`（Compose 已透传；`.env` 设为 `true` 并重启 API） |
 | 负责人下拉显示 UUID / 为空 | 须 `seed_version≥2` 且重跑 `seed_workflow_video_templates`；负责人来自 `managed-department-member-options`，与参与人预览合并 |
 | `LaunchSchema` 校验 `type=user` 失败 | 后端 `LaunchFieldSchema` 须含 `user`；升级 API 镜像后重跑种子 |
 | 参与人下拉为空 | 应用 `preview-participants` 填充选项；勿依赖 `listUsers` |
