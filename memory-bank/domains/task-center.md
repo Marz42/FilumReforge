@@ -1,7 +1,7 @@
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同、Inbox、多视图、统计、详情 Shell 的**全貌梳理**。  
-> **最后同步**：2026-06-21 @ **TCE Phase 5 完成** · 产品 SemVer `0.89.0`  
+> **最后同步**：2026-06-21 @ **TCE Phase 5 + 图模板设计器 D1–D3 ✅** · 产品 SemVer `0.89.0`  
 > **排期归档**：[`plans/task-center-enhance.md`](../plans/task-center-enhance.md) · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)  
 > **契约索引**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **UI 手册**：[`handbooks/user-manual.md`](../handbooks/user-manual.md)
 
@@ -15,7 +15,8 @@
 |------|------|------|
 | **TC-P0–P2**（v2 壳层 + 三视图 + 统计 + Shell） | ✅ @ `0.88.0`–`0.89.0` | 列表/看板/甘特、Master-Detail、`TaskDetailShell`、Action Profile |
 | **TCE Phase 1–5**（读模型 + 性能 + 管理端 + 多部门 + TC-P3 清理） | ✅ @ 2026-06-21 | 7 个 commit on `main`（`0bebc2b` … `ae0ce55`） |
-| **用户可见模板入口** | ✅ 单轨 | `/task-templates` 仅图模板；Legacy E UI 已移除 @ `0.89.0` |
+| **图模板设计器 D1–D3**（F-18–F-20） | ✅ @ 2026-06-21 | clone/draft/publish、边与拓扑、DAG/dry-run/导入导出/Run 统计（`dc08acc` … `9d2b6f5`） |
+| **用户可见模板入口** | ✅ 单轨 | `/task-templates` 列表 + 实例化 + `/task-templates/:id/edit` 设计器；Legacy E UI 已移除 @ `0.89.0` |
 | **Legacy E 后端** | ⏳ backlog | `task_templates` API / `TaskTemplateService` 仍存在 — **B-12** |
 | **详情 Shell 拆分** | ⏳ backlog | 仅抽出 `TaskDetailActionDialogs.vue` — **F-05** |
 
@@ -44,6 +45,9 @@
 | F-13–F-16 | 移除 TasksView 回退、aggregate UI、结束采集 | 5 | ✅ |
 | F-05 | TaskDetailShell 完整拆分 | — | ⏳ backlog |
 | F-10–F-12 | 甘特引导、PublishDialog 抽出、采集组件统一 | — | ⏳ 未排 |
+| F-18 | 图模板设计器 D1（clone/draft/publish/validate） | D1 | ✅ |
+| F-19 | 设计器 D2 边表、routing_rules、拓扑校验 | D2 | ✅ |
+| F-20 | 设计器 D3 DAG 预览、dry-run、JSON 导入导出、Run 统计 | D3 | ✅ |
 
 ### 1.3 能力成熟度（五档）
 
@@ -54,6 +58,7 @@
 | 任务统计 Tab | **生产可用** | 部门筛选 + Run 列表 + run_events |
 | 建立任务（手动） | **生产可用** | graph dual-write（`WORKFLOW_GRAPH_ENGINE_ENABLED`） |
 | 图模板实例化 | **生产可用** | 视频批次 + 多部门发起（B-16/F-17） |
+| 图模板设计器 | **生产可用** | 表单化 authoring；有实例时结构锁定 + fork version |
 | 详情（视频 v1 Profile） | **生产可用** | N1/N2/ROOT/制作链；batch/streaming 门控 |
 | 详情（graph 手动握手） | **生产可用** | 接单 / 协商 / 转办 / 交付 / 验收 |
 | 搜索 | **基本可用** | 标题搜索 + 前端用户态标签；非 snapshot 同源 |
@@ -69,7 +74,8 @@
 | 路由 | 组件 | 作用 |
 |------|------|------|
 | `/task-center` | `TaskCenterView.vue` | 主工作台 |
-| `/task-templates` | 图模板列表 + 实例化 | 批次/制作 Run 发起（非任务中心子页，但属任务协同入口） |
+| `/task-templates` | `TaskTemplatesView.vue` → `GraphTemplatesPanel` | 图模板列表、实例化、Run（30d）统计列 |
+| `/task-templates/:id/edit` | `GraphTemplateDesignerView.vue` | 图模板设计器（config/节点/边/校验/发布/导入导出/dry-run） |
 
 ### 2.2 URL Query 协议
 
@@ -184,6 +190,16 @@ TaskService.list_task_inbox / tracking / history
 | POST | `/api/v1/workflow-graph/instances/{id}/close-capture` | 结束采集（批次 ROOT） |
 | GET | `/api/v1/workflow-graph/runs?department_id=` | 部门 Run 一览（统计 Tab） |
 | GET | `/api/v1/workflow-graph/instances/{id}/events` | Run 事件时间线 |
+| GET | `/api/v1/workflow-graph/templates?scope=manage` | 管理端模板列表（含 draft + Run 统计） |
+| POST | `/api/v1/workflow-graph/templates` | clone 新建 draft |
+| GET/PUT | `/api/v1/workflow-graph/templates/{id}/designer` / `.../draft` | 设计器读模型 / 整包保存 |
+| POST | `/api/v1/workflow-graph/templates/{id}/versions` | fork 新版本 |
+| PATCH | `/api/v1/workflow-graph/templates/{id}/status` | draft → active / archived |
+| GET | `/api/v1/workflow-graph/templates/{id}/validate` | schema + 拓扑预检 |
+| GET/POST | `/api/v1/workflow-graph/templates/{id}/export` / `.../import` | JSON bundle 导入导出 |
+| POST | `/api/v1/workflow-graph/templates/import` | 从 JSON 新建 draft |
+| POST | `/api/v1/workflow-graph/templates/{id}/dry-run` | 试跑（可选 draft 载荷） |
+| GET | `/api/v1/workflow-graph/templates/{id}/stats` | Run 计数 |
 
 Legacy（仍存活，无 UI）：`/api/v1/task-templates/*`。
 
@@ -199,6 +215,8 @@ Legacy（仍存活，无 UI）：`/api/v1/task-templates/*`。
 | **WorkflowVideoInstantiationService** | `workflow_video_instantiation_service.py` | 图模板 Run 创建、schema_snapshot、aggregate_mode 写入 context |
 | **ParticipantResolutionService** | `participant_resolution_service.py` | 实例化参与人（B-16 instance department 优先） |
 | **WorkflowGraphService** | `workflow_graph_service.py` | 图实例/节点、部门 Run 聚合 |
+| **WorkflowGraphTemplateAdminService** | `workflow_graph_template_admin_service.py` | 设计器 CRUD、draft/publish、import/export、dry-run、stats |
+| **WorkflowGraphTemplateTopology** | `workflow_graph_template_topology.py` | 可达性/环路、ELSE 边、reject 路径、routing_rules 校验 |
 | **AccessControl** | `access_control.py` | `can_publish_org_tasks`、`ensure_department_stats_access` 等 |
 
 ### 4.3 Schema / 枚举
@@ -235,6 +253,11 @@ Legacy（仍存活，无 UI）：`/api/v1/task-templates/*`。
 | **TaskDetailActionDialogs** | `components/task-detail/TaskDetailActionDialogs.vue` | 协商/转办/打回等对话框（F-05 局部抽出） |
 | **TaskDetailMoreMenu** | `components/task-detail/TaskDetailMoreMenu.vue` | 更多：打回采集、打开统计等 |
 | **GlobalMemoFloat** | `components/shell/GlobalMemoFloat.vue` | 全局右下角备忘浮窗 |
+| **TaskTemplatesView** | `views/TaskTemplatesView.vue` | 图模板页壳层（列表 + 实例化 Dialog 编排） |
+| **GraphTemplateDesignerView** | `views/GraphTemplateDesignerView.vue` | 全页设计器：config/节点/边/校验/发布/导入导出/dry-run |
+| **GraphTemplatesPanel** | `components/workflow/GraphTemplatesPanel.vue` | 模板列表、「设计/复制/改名」、Run（30d）列 |
+| **GraphTemplateDagPreview** | `components/workflow/GraphTemplateDagPreview.vue` | 拓扑 SVG 预览（D3） |
+| **GraphTemplateEditDialog** | `components/workflow/GraphTemplateEditDialog.vue` | 快速改名称/说明（主编辑走设计器） |
 
 `TasksView.vue` 仍存在于仓库（路由可达），但 **不再** 嵌入任务中心；保留供独立路径或 E2E 兼容。
 
@@ -268,7 +291,7 @@ Legacy（仍存活，无 UI）：`/api/v1/task-templates/*`。
 |------|------|
 | `api/task-center.ts` | snapshot、分页、备忘 |
 | `api/tasks.ts` | 任务 CRUD、search、stats、batch ids |
-| `api/workflow-graph.ts` | 图实例、实例化、close-capture、runs、events |
+| `api/workflow-graph.ts` | 图实例、实例化、close-capture、runs、events；设计器 designer/draft/publish/validate/export/import/dry-run/stats |
 
 ---
 
@@ -392,8 +415,8 @@ flowchart LR
 
 | 层 | 范围 |
 |----|------|
-| pytest | `test_tce_phase1_*` … `test_tce_phase5_*`；`test_api` task-center；workflow-video W2–W10 |
-| vitest | `TaskCenterView.spec.ts`、`useTaskCenterPermissions.spec.ts`、Board/List 组件 |
+| pytest | `test_tce_phase1_*` … `test_tce_phase5_*`；`test_workflow_graph_template_designer_d{1,2,3}` · `test_workflow_graph_template_topology`；workflow-video W2–W10 |
+| vitest | `TaskCenterView.spec.ts`、`GraphTemplateDesignerView.spec.ts`、`useTaskCenterPermissions.spec.ts` |
 | Playwright | `e2e/task-center.spec.ts`、`task-center-stats.spec.ts`、`workflow-video-v1.spec.ts`；live `task-center-live.spec.ts` |
 | data-testid | `task-center-view`、`task-center-list-view`、`tasks-detail-panel`、`video-batch-close-capture` 等 |
 
@@ -416,6 +439,7 @@ flowchart LR
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-21 | **§12 + 全文**：图模板设计器 D1–D3 落地；路由/服务/前端地图对齐代码 |
 | 2026-06-21 | **§12 模板设计器**：D1–D3 实现计划与 API 契约 |
 | 2026-06-21 | **全文重写**：TCE Phase 5 完成度、模块地图、数据流、8 类典型场景 |
 | 2026-06-18 | 初版 domain；TCE 缺口表（已由 Phase 1–5 闭合） |
@@ -426,14 +450,15 @@ flowchart LR
 
 > **定位**：在 `/task-templates` 提供 **WorkflowGraphTemplate** 的表单化 authoring；**不恢复** Legacy E 结构化设计器。设计器是图模板唯一维护入口，与 B-12（删 E API）方向一致。
 
-### 12.1 现状 vs 目标
+### 12.1 现状（D1–D3 ✅）
 
-| 已有 | D1 目标 |
-|------|---------|
-| 列表 + 实例化（`GraphTemplatesPanel`） | + 新建/复制、draft/active、全页设计器 |
-| `GraphTemplateEditDialog`：名称/说明 | 模板 config、节点表、节点 schema 可编辑 |
-| `GET/PATCH /workflow-graph/templates/{id}` | + create / draft-save / fork / publish / validate |
-| Seed 脚本维护视频模板 | UI 可改 launch_schema、节点 capture/aggregate、aggregate_mode |
+| 能力 | 实现 |
+|------|------|
+| 列表 + 实例化 | `GraphTemplatesPanel`：设计/复制/改名、Run（30d）统计 |
+| 全页设计器 | `/task-templates/:id/edit`：config、节点表、边表、routing_rules |
+| Admin API | clone/create、designer GET、draft PUT、fork、publish、validate |
+| 产品化（D3） | DAG 预览、dry-run、JSON 导入导出、模板 Run 统计 |
+| Seed 脚本 | 仍维护 preset；UI 可改 launch_schema、节点 capture/aggregate、aggregate_mode |
 
 ### 12.2 分期
 
@@ -466,17 +491,19 @@ flowchart LR
 
 **校验**：Pydantic `validate_launch_schema` / `validate_node_config`；节点 key 唯一；batch 模板 `aggregate_node_key` 须存在。
 
-### 12.4 D1 前端结构
+### 12.4 前端结构（D1–D3）
 
 ```
 TaskTemplatesView.vue
-  └─ GraphTemplatesPanel.vue          # 列表 +「设计」→ router push
+  └─ GraphTemplatesPanel.vue          # 列表 +「设计/复制」→ router push
   └─ GraphTemplateDesignerView.vue    # /task-templates/:id/edit
        ├─ 元信息（name/description/status/code/version）
        ├─ 模板 config（launch_schema JSON、aggregate_mode、policies 摘要）
-       ├─ 节点表（node_key/title/sort_order/assignee_rule）
+       ├─ 节点表（node_key/title/sort_order/assignee_rule/assignment_mode/join_mode）
+       ├─ 边表 + routing_rules JSON（D2）
        ├─ 节点 config 抽屉（capture_schema | aggregate_schema）
-       └─ 操作：校验 / 保存草稿 / 发布 / 另存新版本
+       ├─ GraphTemplateDagPreview（D3 拓扑 SVG）
+       └─ 操作：校验 / 保存草稿 / 发布 / 另存新版本 / 导入导出 JSON / dry-run
 ```
 
 `GraphTemplateEditDialog` 保留为「快速改名称」；主编辑走设计器。

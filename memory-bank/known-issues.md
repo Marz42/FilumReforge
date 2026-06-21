@@ -66,6 +66,18 @@
 
 **仍开放**：B-12（E 后端）、F-05（Shell 拆分）、F-10–F-12（抛光）。
 
+### 图模板设计器（F-18–F-20 ✅）
+
+**说明**（@ 2026-06-21）：
+
+| 层 | 状态 |
+|----|------|
+| 前端 | `/task-templates/:id/edit` 全页设计器；列表「设计/复制」；DAG 预览、dry-run、JSON 导入导出 |
+| 后端 | `WorkflowGraphTemplateAdminService` + `workflow_graph_template_topology`；export/import/dry-run/stats API |
+| Legacy E 设计器 | **不恢复**；E 后端仍保留至 B-12 |
+
+详见 [`domains/task-center.md`](./domains/task-center.md) §12。
+
 ### 图模板实例化：发起部门（TCE Phase 4 ✅）
 
 **说明**（@ 2026-06-21）:
@@ -98,7 +110,7 @@
 | eslint | 8 errors | 非 release 阻塞，待清理未使用变量 |
 | Ubuntu 最小回滚 | **暂缓** | 原 P0，用户决定上线前再练 |
 
-**基线 ID**: `2026-06-18-main-45954eb`（见 `progress.md`「测试基线」）
+**基线 ID**: `2026-06-21-main-9d2b6f5`（见 `progress.md`「测试基线」）
 
 ---
 

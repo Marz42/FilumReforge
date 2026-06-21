@@ -345,6 +345,19 @@ flowchart TB
 | ID | 工作项 | 说明 |
 |----|--------|------|
 | **F-05** | `TaskDetailShell.vue` 拆分 | 目标 <400 行/文件；**不在 Task Center Enhance 本轮实施**。Phase 3 仅抽出 `TaskDetailActionDialogs.vue` 作为局部整理，完整拆分归入独立 refactor / Phase 5 后 backlog。 |
+| **B-12** | Legacy E 后端删除 | 与图引擎 runtime 统一；设计器不依赖 E API |
+
+---
+
+## 7A. 图模板设计器（F-18–F-20 ✅，独立 track）
+
+> 不在 TCE Phase 1–5 排期内，但与任务模板页强相关；详见 [`domains/task-center.md`](../domains/task-center.md) §12。
+
+| Phase | 交付 | 状态 |
+|-------|------|------|
+| **D1** | clone/draft/publish/validate + `/task-templates/:id/edit` | ✅ @ `dc08acc` |
+| **D2** | 边表、routing_rules、assignment/join_mode、拓扑校验 | ✅ @ `ed0bd5b` |
+| **D3** | DAG 预览、dry-run、JSON 导入导出、Run 统计 | ✅ @ `9d2b6f5` |
 
 ---
 
@@ -356,3 +369,4 @@ flowchart TB
 | 2026-06-21 | §6.2.1 确认：实例化发起部门默认填充三场景（普通只读 / 跨部可改 / Admin 必选）；F-17 验收标准更新 |
 | 2026-06-21 | memory-bank 全量对齐；`active-task` → TCE Phase 1；TC-P3 归入 Phase 5 |
 | 2026-06-21 | §7：F-05 TaskDetailShell 完整拆分移出 TCE，记入后续待办 |
+| 2026-06-21 | §7A：图模板设计器 F-18–F-20（D1–D3）完成记录 |

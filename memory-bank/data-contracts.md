@@ -4,8 +4,8 @@
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](./architecture.md)。
 
-**版本**: v3.12.2（与 [`architecture.md`](./architecture.md) 同步）  
-**最后同步**: 2026-06-21 @ TCE Phase 1 文档对齐 · 产品基线 `0.89.0`
+**版本**: v3.12.3（与 [`architecture.md`](./architecture.md) 同步）  
+**最后同步**: 2026-06-21 @ TCE Phase 5 + 图模板设计器 D1–D3 · 产品基线 `0.89.0`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -21,12 +21,13 @@
 - **图引擎 + 视频 v1 运行时**: `backend/app/api/routes/workflow_graph_engine.py`（前缀 `/api/v1/workflow-graph`）
   - 图实例/节点：`GET/POST .../instances/{id}`、`.../node-instances/{id}/complete|deep-reject|takeover`
   - 图模板管理：`GET/PATCH .../templates/{id}`、`GET .../feature-flags`
+  - **图模板设计器（F-18–F-20 @ 2026-06-21）**：`GET .../templates?scope=manage`；`POST .../templates`（clone）；`GET/PUT .../templates/{id}/designer|draft`；`POST .../templates/{id}/versions`；`PATCH .../templates/{id}/status`；`GET .../templates/{id}/validate`；`GET/POST .../templates/{id}/export|import`；`POST .../templates/import`；`POST .../templates/{id}/dry-run`；`GET .../templates/{id}/stats`
   - 视频 v1 表单/批次：`POST .../templates/{id}/runs`、`.../node-instances/{id}/submit-capture`、`.../finalize-topics`、`.../instances/{id}/dispatch-topic`（TC-P1 增量派发）、`.../instances/{id}/reject-captures`、`POST .../tasks/{task_id}/reject-production`（TC-P1-7 制作审核退回）、`.../fork-production-runs` 等
 - **视频 v1 Pydantic**: `backend/app/schemas/workflow_video.py`（`launch_schema` / `capture_schema` / `aggregate_schema` 等）
   - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409
   - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
 - **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](./domains/task-center.md)
-- **TCE 已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](./domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`stats/summary|workload?department_id=`；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context
+- **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](./domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`stats/summary|workload?department_id=`；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
 
 > §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.48 为图引擎与运行事件**摘要**（完整列定义以 ORM + Alembic 为准）。
 
@@ -1166,10 +1167,10 @@
 
 ## 12. 当前验证基线
 
-权威数字见 [`progress.md`](./progress.md)「测试基线」表（2026-06-18 @ `98ad370`）：
+权威数字见 [`progress.md`](./progress.md)「测试基线」表（2026-06-21 @ `9d2b6f5`）：
 
-- backend：`pytest` **212 passed, 1 skipped**（`test_migrations.py` 需本机 PostgreSQL + `POSTGRES_TEST_ADMIN_DSN`）；`compileall` PASS
-- frontend：vitest **39 文件 / 119 用例**；`type-check` / `build` PASS
+- backend：`pytest` **252 collected**（含设计器 **15** 项：`test_workflow_graph_template_designer_d{1,2,3}` + `test_workflow_graph_template_topology`）；`test_migrations.py` 需本机 PostgreSQL + `POSTGRES_TEST_ADMIN_DSN`（否则 1 skipped）；`compileall` PASS
+- frontend：vitest **45 文件 / 124 用例**（含 `GraphTemplateDesignerView.spec.ts`）；`type-check` / `build` PASS
 - Playwright mock：**9/9**（login + task-center + workflow-video-v1）
 - 未纳入每次刷新：`docker-gui`、`playwright_live`、Ubuntu 回滚演练
 

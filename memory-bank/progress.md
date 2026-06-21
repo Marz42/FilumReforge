@@ -1,5 +1,18 @@
 # Project Filum 进度记录
 
+## 会话摘要（Memory-Bank 对齐 · 设计器 D1–D3）
+
+### 2026-06-21 — memory-bank 与代码对齐
+
+**完成事项**:
+- [x] [`domains/task-center.md`](./domains/task-center.md)：§1–§5 路由/服务/前端地图；§12 现状改为 D1–D3 已落地
+- [x] [`data-contracts.md`](./data-contracts.md)：设计器 API 索引 + 测试基线刷新
+- [x] [`architecture.md`](./architecture.md)：`GraphTemplateDesignerView` / AdminService；TCE backlog 状态修正
+- [x] [`decisions.md`](./decisions.md) ADR-008 图模板设计器 authoring
+- [x] [`known-issues.md`](./known-issues.md)、[`README.md`](./README.md)、[`plans/task-center-enhance.md`](./plans/task-center-enhance.md)、[`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)
+
+**分支**: `main`
+
 ## 会话摘要（图模板设计器 D3）
 
 ### 2026-06-21 — 模板设计器 D3：产品化
@@ -400,20 +413,20 @@
 
 | 字段 | 值 |
 | --- | --- |
-| `baseline_id` | `2026-06-18-main-98ad370` |
-| `commit` | `98ad370`（`docs(progress): record Docker graph template setup and remote sync`） |
+| `baseline_id` | `2026-06-21-main-9d2b6f5` |
+| `commit` | `9d2b6f5`（`feat(task-templates): graph template designer D3 productization`） |
 | `runner_os` | Windows 11 + `backend/.venv`（Python 3.12.9）；前端 `npm ci` 后原生 Node |
-| `pytest` | **212 passed, 1 skipped**（`backend/.venv/Scripts/python.exe -m pytest backend/tests`，约 90–130s；skip = `test_migrations.py::test_alembic_upgrade_and_downgrade`，需 `POSTGRES_TEST_ADMIN_DSN`，默认 `postgresql://filum:filum@127.0.0.1:5432/postgres`） |
+| `pytest` | **252 collected**（`backend/.venv/Scripts/python.exe -m pytest backend/tests`，约 90–130s）；设计器子集 **15 passed**（`test_workflow_graph_template_designer_d{1,2,3}` + `test_workflow_graph_template_topology`）；skip = `test_migrations.py::test_alembic_upgrade_and_downgrade`，需 `POSTGRES_TEST_ADMIN_DSN` |
 | `compileall` | PASS（`python -m compileall -q backend/app backend/tests`） |
-| `vitest` | **39 文件 / 119 用例** 全绿（`npm run test:unit -- --run`，约 15–23s） |
+| `vitest` | **45 文件 / 124 用例**（`npm run test:unit -- --run`，约 15–23s；含 `GraphTemplateDesignerView.spec.ts`） |
 | `type-check` / `build` | PASS（`npm run type-check`、`npm run build`；Vite chunk size 为信息性警告） |
-| `playwright_mock` | **9/9** @ `e2e/login.spec.ts` + `e2e/task-center.spec.ts` + `e2e/workflow-video-v1.spec.ts` |
-| `check-release.sh` | **Windows 等价 P0 全绿**（2026-05-21 记录）；生产/Ubuntu 主机应在 Linux 原生目录执行 `bash scripts/check-release.sh` |
+| `playwright_mock` | **9/9** @ `98ad370`（未在本轮重跑） |
+| `check-release.sh` | **Windows 等价 P0**：设计器 pytest 子集全绿；全量 pytest/vitest 发布前须重跑 |
 | `eslint` | 8 errors（`npm run lint`，非阻塞；待清理） |
 | `docker-gui` | **未在本机重跑**；沿用 **2026-05-20** 基线 **18/18** @ `http://127.0.0.1:8080` |
 | `docker_manual` | Compose 配置与种子脚本已在 6/18 会话验证；**A–F 手工实测待完成** |
 | `playwright_live` | 未纳入本次基线重跑 |
-| `memory_bank_sync` | 文档已同步至 `98ad370`（2026-06-18 对齐更新） |
+| `memory_bank_sync` | 文档已同步至 `9d2b6f5`（2026-06-21 设计器 D1–D3 对齐） |
 | `notes` | 工作区误删 409 文件后已 `git restore` 恢复；mock E2E 需 `npx playwright install chromium` |
 
 ## 视频工作流 v1（workflow-video-v1）
@@ -649,7 +662,7 @@
 
 ## 当前已知问题
 
-- **测试基线**（2026-06-18 @ `98ad370`）：后端 **212 passed, 1 skipped**；前端 **119/119**；Playwright mock **9/9**。
+- **测试基线**（2026-06-21 @ `9d2b6f5`）：后端 **252 collected**（设计器 15 passed）；前端 **45 文件 / 124 用例**；Playwright mock **9/9** @ `98ad370`（未重跑）。
 - **Alembic 往返 skip**：无可用 PostgreSQL 或 `POSTGRES_TEST_ADMIN_DSN` 凭据错误时跳过；非代码失败。
 - **工作区误删风险**：若 `git status` 出现大量 `D` 文件，先 `git restore .` 再跑测试（2026-06-18 已遇一次）。
 - **Docker GUI**：本次开发机未重跑；沿用 2026-05-20 **18/18** @ `http://127.0.0.1:8080`。

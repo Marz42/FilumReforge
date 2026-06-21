@@ -33,8 +33,9 @@
 | 4–5 | 交付/验收/返工、握手 |
 | 6–7 | 多节点、条件边、Context、Notice |
 | 8–9 | Wait-Any、深度打回、迭代版本 |
-| 10 | 前端图详情、路由规则编辑器 |
+| 10 | 前端图详情；**图模板设计器**（`GraphTemplateDesignerView`） |
 | 11 | routing_rules 桥接、outbox、迁移 CLI、Playwright |
+| **D1–D3** | AdminService authoring、边/拓扑校验、DAG/dry-run/导入导出/stats（F-18–F-20 @ 2026-06-21） |
 
 ---
 
@@ -43,6 +44,8 @@
 | 路径 | 作用 |
 |------|------|
 | `WorkflowGraphService` | 实例化、推进、完成、打回、接管 |
+| `WorkflowGraphTemplateAdminService` | 设计器 CRUD、draft/publish、import/export/dry-run/stats |
+| `workflow_graph_template_topology.py` | 模板拓扑校验（可达性/环路/ELSE/reject/routing_rules） |
 | `condition_evaluator.py` | 共享条件求值（图 + E routing_rules） |
 | `workflow_graph_engine.py` | REST 入口 |
 | `workflow_outbox_worker.py` | 异步 outbox 消费 |
@@ -53,8 +56,8 @@
 ## 与 工作流 E 的边界
 
 - **E（Legacy，待删除）**: `task_templates` + `TaskTemplateService.instantiate_template` — 后端仍保留；前端管理 UI 已于 `0.89.0` 移除
-- **图（用户可见「任务模板」）**: `POST .../workflow-graph/templates/{id}/runs` 等；`/task-templates` 唯一前端入口
-- **现状**: 运行时双轨；读侧 graph-first；后端 E **待删除**（**TCE Phase 5 / TC-P3**）
+- **图（用户可见「任务模板」）**: `POST .../workflow-graph/templates/{id}/runs` 等；`/task-templates` 列表 + 实例化；**authoring** `/task-templates/:id/edit`（`WorkflowGraphTemplateAdminService`）
+- **现状**: 运行时双轨；读侧 graph-first；E 后端 **待删除**（**B-12**）；图模板 UI authoring 已完成（ADR-008）
 
 ---
 

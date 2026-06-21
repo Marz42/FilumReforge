@@ -2,7 +2,7 @@
 
 本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.89.0`）。
 
-> **当前实施焦点**：[`active-task.md`](./active-task.md) → **TCE 主体已完成** · backlog **B-12 / F-05** · 全貌 [`domains/task-center.md`](./domains/task-center.md)
+> **当前实施焦点**：[`active-task.md`](./active-task.md) → **TCE + 图模板设计器 D1–D3 ✅** · backlog **B-12 / F-05** · 全貌 [`domains/task-center.md`](./domains/task-center.md)
 
 > **`handbooks/` ≈ Paradigma `manuals/`**：路径名保留 `handbooks/`，语义为部署运维与测试操作手册。
 
@@ -30,7 +30,7 @@
 | [domains/](./domains/) | 子系统领域文档 |
 | [plans/](./plans/) | 细粒度实施计划 |
 | [plans/tc-p2-views-stats-plan.md](./plans/tc-p2-views-stats-plan.md) | TC-P2 落地计划（三视图 + 统计 + Shell） |
-| [plans/task-center-enhance.md](./plans/task-center-enhance.md) | **当前排期** — 任务中心增强 TCE（Phase 1–5 · 含多部门模板 §6） |
+| [plans/task-center-enhance.md](./plans/task-center-enhance.md) | **TCE Phase 1–5 ✅** · 图模板设计器 F-18–F-20 ✅ · backlog B-12/F-05 |
 | [plans/task-center-v2-implementation-plan.md](./plans/task-center-v2-implementation-plan.md) | TC-P0–P2 ✅；TC-P3 已并入 TCE Phase 5 |
 | [plans/workflow-video-v1-ui-simplification-design.md](./plans/workflow-video-v1-ui-simplification-design.md) | 任务协同 UI 简化规格 v2.1（P0–P2 ✅ @ `0.88.0`） |
 | [demos/workflow-task-detail-v2.html](./demos/workflow-task-detail-v2.html) | 单页 HTML 交互 Demo（浏览器直接打开） |

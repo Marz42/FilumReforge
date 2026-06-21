@@ -97,7 +97,7 @@
 
 **后果**
 两套入口需文档与测试双覆盖；迁移 CLI 与 feature flag 回退路径已建立。  
-**2026-06-21 更新**（@ TCE Phase 5）：前端单入口 + snapshot 图模板摘要已完成；后端 E API **仍保留** — 删除见 **B-12** backlog。
+**2026-06-21 更新**（@ TCE Phase 5 + 设计器 D1–D3）：前端单入口 + snapshot 图模板摘要 + **图模板设计器**（`WorkflowGraphTemplateAdminService`）已完成；后端 E API **仍保留** — 删除见 **B-12** backlog。
 
 ---
 
@@ -124,6 +124,26 @@ W1–W7 期间生产行为与开关关闭时一致；启用开关须配套 seed 
 
 - `instantiate_template` 内部转调 graph（W10 可选）
 - 单 Run 内多选题 DAG（已明确不做）
+
+---
+
+## ADR-008: 图模板设计器 authoring 路径
+
+**日期**: 2026-06-21  
+**状态**: 已采纳
+
+**背景**  
+TCE Phase 5 移除 Legacy E 前端后，图模板仍依赖 seed 脚本维护；需 UI authoring 且不恢复 E 结构化设计器。
+
+**决策**
+
+1. 图模板 authoring 走 `WorkflowGraphTemplateAdminService` + `GraphTemplateDesignerView`（表单 + 表格，非拖拽 DAG）
+2. 新建默认 **clone preset**；有实例时结构锁定，改结构须 fork version
+3. D2 起边/routing_rules/拓扑校验纳入 draft save；D3 补 DAG 预览、dry-run、JSON 导入导出、Run 统计
+4. Legacy E 设计器 **不恢复**；E 后端删除独立跟踪 **B-12**
+
+**后果**  
+与 ADR-005 互补：用户可见模板维护单轨图引擎；E runtime 仍并存至 B-12。测试覆盖 `test_workflow_graph_template_designer_d{1,2,3}` + topology。
 
 ---
 
