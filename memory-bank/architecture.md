@@ -1,8 +1,8 @@
 # Project Filum 架构基线
 
-**文档版本**: v3.12.1（工程基线修订号，与产品 SemVer [`VERSION`](../VERSION) `0.87.1` 独立）  
-**最后同步**: 2026-06-18 @ commit `98ad370`  
-**状态摘要**: Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11-G、视频工作流 v1 W0–W10、Stage 2 Phase 0–6、Paradigma memory-bank Phase 0–4 均已落地；**Ubuntu 最小回滚演练**与 **Docker A–F 手工实测**仍为待办。细节见 [`progress.md`](./progress.md) 与 [`roadmap.md`](./roadmap.md)。  
+**文档版本**: v3.12.2（工程基线修订号，与产品 SemVer [`VERSION`](../VERSION) `0.89.0` 独立）  
+**最后同步**: 2026-06-21 @ TCE Phase 1 文档对齐  
+**状态摘要**: Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11-G、视频工作流 v1 W0–W10、Stage 2 Phase 0–6、任务中心 v2 TC-P0–P2+ @ `0.89.0` 均已落地；**下一工程焦点**为 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md) Phase 1。**Ubuntu 最小回滚演练**与 **Docker A–F 手工实测**仍为待办。细节见 [`progress.md`](./progress.md) 与 [`roadmap.md`](./roadmap.md)。  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位
@@ -512,6 +512,8 @@
 11. Phase 7 补齐 `Notice Node` 触达即完成：Notice 节点被激活后会在同一事务链中自动置为 `COMPLETED` 并继续推进下游，不阻塞主链路。
 12. `backend/app/api/routes/workflow_graph_engine.py` 现提供 `GET /workflow-graph/templates/{template_id}/instances`、`GET /workflow-graph/instances/{instance_id}`、`POST /workflow-graph/node-instances/{node_instance_id}/complete`、`POST /workflow-graph/node-instances/{node_instance_id}/deep-reject`、`POST /workflow-graph/node-instances/{node_instance_id}/takeover`、`POST /workflow-graph/smart-notice-candidates` 等端点，返回图实例与节点实例快照、节点统计和 `progress_percent`；写操作由 `WorkflowGraphService` 提交事务后跨请求可见。
 13. **任务中心读路径（Phase 11-F，与代码一致）**：`TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 在 `TASK_CENTER_V2_ENABLED=true`（`Settings` 默认值，见 `backend/app/core/config.py`）下对具备图锚点的任务优先解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，再与未迁移的 legacy 任务合并排序；`TaskCenterService.get_task_center()` 仍调用上述三方法，前端 `GET /task-center` 协议保持稳定。Phase 11-E 迁移 CLI 与 Phase 11-F 默认切流已在仓库落地；深度打回等写路径见 Phase 9 / 11-D。若环境显式关闭 `TASK_CENTER_V2_ENABLED`，则回退为纯 legacy 列表语义。
+
+14. **任务中心增强 backlog（TCE，@ 2026-06-21）**：壳层与三视图已交付，但节点投影任务读模型、batch hydration、部门统计、多部门模板实例化等仍待补 — 见 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md) 与 [`domains/task-center.md`](./domains/task-center.md)「已知缺口」表。实施顺序：Phase 1 **B-01 / F-08**（正确性）→ Phase 2 **B-04 / F-01**（性能）→ Phase 4 **B-16 / F-17**（多文案部共用模板）。
 
 ### 6.13A 工作流 E 模板运行态链路（当前）
 

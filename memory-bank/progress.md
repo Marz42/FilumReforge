@@ -1,5 +1,35 @@
 # Project Filum 进度记录
 
+## 会话摘要（TCE 文档对齐 · 就绪实施）
+
+### 2026-06-21 — memory-bank 全量对齐 · TCE Phase 1 就绪
+
+**完成事项**:
+- [x] [`active-task.md`](./active-task.md) 切换为 **TCE Phase 1**（B-01/B-03/B-02 + F-02/F-03/F-08；PR-A/PR-B）
+- [x] [`roadmap.md`](./roadmap.md) P0 焦点 → task-center-enhance；TC-P3 归入 Phase 5
+- [x] [`project-brief.md`](./project-brief.md) / [`README.md`](./README.md) 版本对齐 `0.89.0`
+- [x] [`domains/task-center.md`](./domains/task-center.md) 已知缺口表 + TCE 测试锚点
+- [x] [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md) 多部门目标指向 §6
+- [x] [`architecture.md`](./architecture.md) §6.13.14 TCE backlog；[`known-issues.md`](./known-issues.md) 读模型/实例化部门
+- [x] [`task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) TC-P3 → TCE Phase 5 交叉引用
+- [x] [`glossary.md`](./glossary.md) TCE / TC-P3 / 发起部门
+
+**下一步（工程）**: 分支 `feat/tce-phase1-pr-a` → **B-01 + F-08**（或 PR-A 全包）
+
+**分支**: `main`
+
+## 会话摘要（任务中心增强排期）
+
+### 2026-06-21 — 任务中心审查清单落盘 + 多部门模板方案
+
+**完成事项**:
+- [x] 审查报告整理为 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)（后端 B-01–B-16、前端 F-01–F-17、Phase 1–5、PR-A/PR-B）
+- [x] §6 多文案部门共用同一图模板：现状根因、推荐「实例级发起部门」模型、B-16/F-17 工程项
+- [x] §6.2.1 实例化发起部门默认填充三场景（普通只读 / 跨部可改 / Admin 必选）写入 enhance 排期
+- [x] `memory-bank/README.md` 索引新增 task-center-enhance
+
+**分支**: `main`
+
 ## 会话摘要（模板主管派发 N6→N7→N8）
 
 ### 2026-06-18 — 制作流下游分配与 N7 采集 @ `0.89.0`
@@ -866,13 +896,13 @@
 
 ## 当前规划焦点
 
-Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。当前建议优先级：
+Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。**下一工程主线**为任务中心增强（TCE）：
 
-1. **本地 Docker 图模板实测**（视频工作流 v1；工作区已恢复 @ `98ad370`，自动化基线已绿；A–F 待完成）
-2. **工作流 E 与图引擎产品级统一**、模板 / 调度深化
-3. **生命周期规则化默认映射 + 前端结构化配置入口**
-4. **公开 / 审批式注册（若需要）与真实通知渠道适配**
-5. **Playwright live / docker-gui 与发布 commit 同步重跑**
+1. **TCE Phase 1**（P0）— graph 节点投影读路径、操作后 refresh、看板可读、测试服 `department_id` 迁移 — [`active-task.md`](./active-task.md) · [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)
+2. **TCE Phase 2** — batch tasks API + workspace hydration（B-04 / F-01）
+3. **TCE Phase 4** — 多文案部门共用图模板（B-16 / F-17 §6.2.1）
+4. **TCE Phase 5 / TC-P3** — 工作流 E 与图引擎统一（ADR-005）
+5. **生命周期规则化**、通知渠道深化、E2E live 基线刷新（P2）
 6. **Ubuntu 最小回滚路径演练** — 暂缓，上线前再补
 
 ## 重构执行补记
@@ -935,4 +965,4 @@ Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。
 - **Git**：`6002783`（N3–N12 改版 + Mock A–N）、`8cd4002`（生产部门 CLI）、`55b665b`（VideoProductionPanel type-check）
 - **生产部署**：Ubuntu systemd 见 [deployment-runbook §21.3.1](./handbooks/deployment-runbook-ubuntu-2404.md)；示例 `--copy-dept-code Div.Alpha --post-dept-code Div.Echo`
 - **文档同步**：implementation-plan §3.2 seed v3、domains/workflow-video-v1、multi-account / collaborative UAT、changelog Unreleased、backend README
-- **待办**：Live E2E 延伸 G–N；多文案部并行批次（每部独立实例化或组织上级部门）
+- **待办**：Live E2E 延伸 G–N；多文案部并行批次 → **TCE Phase 4**（B-16 / F-17 §6.2.1）

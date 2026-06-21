@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- memory-bank 全量对齐 **TCE Phase 1**：`active-task`、`roadmap`、`project-brief` @ `0.89.0`；TC-P3 归入 `task-center-enhance` Phase 5
+
 ### Added
 
 - 视频制作模板 **seed v3**：N5 合并配音上传、N11 排期 capture、N12 文案会签（`N12_CLOSE` + `N12_COSIGN`）；结案子 Run `archived` 且批次看板默认隐藏

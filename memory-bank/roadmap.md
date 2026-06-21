@@ -6,7 +6,7 @@
 |------|------|
 | **当前版本** | `0.89.0`（根目录 `VERSION`） |
 | **版本主题** | 任务中心 v2 IA 2.0（三视图 + 任务统计 + Shell 拆分） |
-| **阶段** | Stage 2 / 工作流深化 / 任务协同产品化 |
+| **阶段** | Stage 2 / 工作流深化 / **任务中心增强（TCE）** |
 
 ---
 
@@ -29,8 +29,9 @@
 | Memory-Bank Phase 0–4 | done | 协议层 + HOT/WARM/COLD + 对齐审查 |
 | 任务中心 v2 设计 | done | UX 规格 v2.1 + 交互 Demo 评审通过（2026-06-18） |
 | 任务中心 v2 TC-P0 | done | Action Profile、N1 单表单、Run 列、用户态 @ `7bc242c` |
-| 任务中心 v2 TC-P1 | done | `dispatch_topic`、VideoTrackingPanel、打回/退回、participant 收口 @ `feat/task-center-p0-profile` |
+| 任务中心 v2 TC-P1 | done | `dispatch_topic`、VideoTrackingPanel、打回/退回、participant 收口 |
 | 任务中心 v2 TC-P2 | done | 三视图 + 统计 Tab + `TaskDetailShell` + `ui_profile` @ `0.88.0` |
+| 任务中心 v2 TC-P2+ | done | Legacy E UI 移除、图模板单入口 @ `0.89.0` |
 
 ---
 
@@ -38,15 +39,25 @@
 
 | 优先级 | 主题 | 目标 | 计划入口 |
 |--------|------|------|----------|
-| **P1** | **工作流 E 与图引擎统一** | 产品级单一模板源评估与深化（TC-P3） | [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md) §TC-P3 |
+| **P0** | **任务中心增强（TCE）** | 读模型/性能/统计/多部门模板；Phase 1 正确性 + 测试服 | [`plans/task-center-enhance.md`](./plans/task-center-enhance.md) · [`active-task.md`](./active-task.md) |
 
-**阶段切片**
+**TCE 阶段切片**
 
 | 阶段 | 交付概要 | 状态 |
 |------|----------|------|
-| TC-P0 | Profile + N1 单表单 + 进度文案 + 列表 Run 列 | ✅ 完成 |
-| TC-P1 | `dispatch_topic` + 跟踪页增量派发 + submit_mode/退回 | ✅ 完成 |
-| TC-P2 | 看板/甘特/统计入口 + `TasksView` 拆分 | ✅ 完成 @ `0.88.0` |
+| Phase 1 | B-01/B-03/B-02 + F-02/F-03/F-08（PR-A/PR-B） | 📋 **就绪** |
+| Phase 2 | batch API、snapshot 字段、hydration（B-04–B-07, F-01, F-04, F-07） | 待启动 |
+| Phase 3 | 部门统计、Shell 拆分、分页（B-06, B-09–B-11, F-05, F-06, F-09） | 待启动 |
+| Phase 4 | 多文案部门共用模板（B-16, F-17 §6.2.1） | 待启动 |
+| Phase 5 | **TC-P3**（E 统一、aggregate_mode、结束采集）+ 清理 | 待启动 |
+
+**TC-P0–P2 切片（已完成）**
+
+| 阶段 | 交付概要 | 状态 |
+|------|----------|------|
+| TC-P0 | Profile + N1 单表单 + 进度文案 + 列表 Run 列 | ✅ |
+| TC-P1 | `dispatch_topic` + 跟踪页增量派发 + submit_mode/退回 | ✅ |
+| TC-P2 | 看板/甘特/统计入口 + `TasksView` 拆分 | ✅ @ `0.88.0` |
 
 ---
 
@@ -54,10 +65,10 @@
 
 | 优先级 | 主题 | 目标 | 计划入口 |
 |--------|------|------|----------|
-| P1 | 工作流 E 与图引擎统一 | 产品级单一模板源评估与深化 | `plans/implementation-plan.md` |
+| P1 | 工作流 E 与图引擎统一 | 产品级单一模板源（**TCE Phase 5 / TC-P3**） | `task-center-enhance.md` §2 P3 · ADR-005 |
 | P2 | 生命周期规则化 | 默认映射 + 前端结构化配置 | `plans/improvements-stage2-implementation-plan.md` §11 |
 | P2 | 通知渠道深化 | 真实 Email/WebSocket、投递观测 | 同上 |
-| P2 | Docker 图模板实测收尾 | A–F 手工 / live E2E 与 TC-P0 联调 | `handbooks/workflow-video-v1-docker-runbook.md` |
+| P2 | Docker 图模板实测收尾 | A–F 手工 / live E2E | `handbooks/workflow-video-v1-docker-runbook.md` |
 | P3 | 注册方式扩展 | 公开/审批式注册（产品决策后） | `project-brief.md` |
 | P3 | E2E 基线刷新 | Playwright live、docker-gui 与发布 commit 同步 | `handbooks/e2e-gui-verification-automation-runbook.md` |
 | 暂缓 | Ubuntu 最小回滚演练 | git 回退 + systemd ± 迁移 rollback dry-run | `deployment-runbook-ubuntu-2404.md` §21.8 |
@@ -78,12 +89,12 @@
 ## 并行工作线
 
 ```
-主线（产品）────────── 任务中心 v2（TC-P0 ✅ → P1 ✅ → P2 ✅ → P3 规划）
+主线（产品）────────── 任务中心增强 TCE（Phase 1 就绪 → PR-A/PR-B）
         │
-        ├─ 视频 v1 ──── 选题会模板运维（dispatch/reject 已落地）
-        ├─ 工作流 E ─── 模板/调度深化、与图引擎统一（P1，TC-P3 后）
-        ├─ 工程质量 ─── Docker 实测 / E2E live 基线
+        ├─ 视频 v1 ──── 选题会模板运维；Phase 4 多部门实例化（§6）
+        ├─ 工作流 E ─── 后端待删；统一评估 → TCE Phase 5（TC-P3）
+        ├─ 工程质量 ─── Docker 实测 / E2E live 基线 / B-03 迁移
         └─ memory-bank ─ Paradigma 维护
 ```
 
-细计划见 [`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md)、[`plans/implementation-plan.md`](./plans/implementation-plan.md)、[`plans/workflow-video-v1-implementation-plan.md`](./plans/workflow-video-v1-implementation-plan.md)。
+细计划见 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)、[`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md)、[`plans/implementation-plan.md`](./plans/implementation-plan.md)。

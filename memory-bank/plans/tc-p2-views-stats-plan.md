@@ -313,7 +313,7 @@ cd backend && pytest -q tests/test_workflow_video_w1_contracts.py
 ## 7. 非目标（本阶段不做）
 
 - 看板拖拽改任务状态 / 用户态
-- 合并 workflow E 与图模板运行时（TC-P3）
+- 合并 workflow E 与图模板运行时 → **TCE Phase 5 / TC-P3**（[`task-center-enhance.md`](./task-center-enhance.md)）
 - N2 `join_mode=any` 门控变更（设计 §9.3 方案 B/C）
 - 统计页复杂图表（ECharts 等）— 表格 + 时间线 MVP 即可
 - 「结束采集」产品开关

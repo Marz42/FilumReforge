@@ -1,7 +1,7 @@
 # 视频工作流 v1 · 任务协同 UI 简化设计（迭代 v2.1）
 
 > 🌡️ WARM — 产品/UX 迭代规格。实现前与 [`domains/workflow-video-v1.md`](../domains/workflow-video-v1.md)、[`domains/task-center.md`](../domains/task-center.md) 对照。  
-> **状态**: ✅ **P0–P2 已落地** @ `0.88.0`（`main`）· 设计 v2.1 · **日期**: 2026-06-18 · **实施**: [`task-center-v2-implementation-plan.md`](./task-center-v2-implementation-plan.md)（TC-P0–P2 ✅；TC-P3 规划）  
+> **状态**: ✅ **P0–P2 已落地** @ `0.88.0`（`main`）· 设计 v2.1 · **日期**: 2026-06-18 · **实施**: TC-P0–P2 ✅ @ `0.89.0`；**下一排期**: [`task-center-enhance.md`](./task-center-enhance.md)（TC-P3 → Phase 5）  
 > **交互 Demo**: [`../demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)（v2.1 全流程 · 浏览器直接打开）· 详情对照 [`../demos/workflow-task-detail-v2.html`](../demos/workflow-task-detail-v2.html)
 
 ---

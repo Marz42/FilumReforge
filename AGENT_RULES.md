@@ -21,7 +21,7 @@
 
 - **项目名称**: Project Filum（FilumReforge）
 - **定位**: 面向 50–100 人企业的模块化单体内部管理平台（人事、任务、工作流、汇报、消息、知识库、AI）
-- **当前版本**: 见根目录 `VERSION`（SemVer；memory-bank 协议自 `0.87.0` 起，当前 `0.87.1`）
+- **当前版本**: 见根目录 `VERSION`（SemVer；当前 `0.89.0`）
 - **仓库状态**: 已完成 Phase A–5、重构 Step 1–7、UI IA Phase A–F、工作流图引擎 Phase 11 主干；**不是**规划态 greenfield 项目
 - **默认主线**: `memory-bank/plans/implementation-plan.md` + `git log --oneline -n 20`
 

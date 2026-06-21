@@ -473,9 +473,10 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 下一步
 
-1. **Ubuntu 最小回滚路径演练**（补 Phase 6 遗留）
-2. 工作流 E 与图模板产品级统一、模板 / 调度管理深化
-3. 生命周期规则 UI 与默认映射
-4. **公开或审批式注册**（邀请制已可用）与通知适配器真实外发 / 投递观测
+1. **任务中心增强 TCE Phase 1** — graph 读模型、操作后 refresh、看板可读、测试服 department 迁移（[`memory-bank/plans/task-center-enhance.md`](memory-bank/plans/task-center-enhance.md) · [`active-task.md`](memory-bank/active-task.md)）
+2. TCE Phase 2–4 — batch hydration、部门统计、多文案部门共用图模板
+3. **TCE Phase 5 / TC-P3** — 工作流 E 与图引擎统一（ADR-005）
+4. 生命周期规则 UI 与默认映射；通知适配器真实外发
+5. **Ubuntu 最小回滚路径演练** — 暂缓，上线前再补
 
 进度与验测记录见 [`memory-bank/progress.md`](memory-bank/progress.md)。

@@ -13,6 +13,10 @@
 | **工作流 E** | Legacy `task_templates` / `TaskTemplateService` 模板运行时 |
 | **图引擎** | `WorkflowGraphTemplate` / `WorkflowGraphService` 多节点 DAG 运行时 |
 | **graph-first** | 任务中心列表优先解析图投影（`TASK_CENTER_V2_ENABLED`） |
+| **TC-P0–P2** | 任务中心 v2 壳层实施阶段 @ `0.88.0`–`0.89.0` |
+| **TC-P3** | E 与图引擎统一、aggregate_mode、结束采集 — 已并入 **TCE Phase 5** |
+| **TCE** | Task Center Enhance；[`plans/task-center-enhance.md`](./plans/task-center-enhance.md) |
+| **发起部门** | 图模板实例化 `WorkflowGraphInstance.department_id`；默认 Profile 部门（enhance §6.2.1） |
 | **dual-write** | 手动建任务时同时写 `Task` 与 graph node instance |
 | **工作流 E 与图引擎统一** | 产品级单一模板源目标；当前双轨并存 |
 | **Inbox-first** | 任务中心主筛选：待处理 / 跟踪 / 历史 |

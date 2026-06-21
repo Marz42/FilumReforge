@@ -54,7 +54,7 @@
 
 - **E（Legacy，待删除）**: `task_templates` + `TaskTemplateService.instantiate_template` — 后端仍保留；前端管理 UI 已于 `0.89.0` 移除
 - **图（用户可见「任务模板」）**: `POST .../workflow-graph/templates/{id}/runs` 等；`/task-templates` 唯一前端入口
-- **现状**: 运行时双轨；读侧 graph-first；后端 E **待删除**（TC-P3 决策）
+- **现状**: 运行时双轨；读侧 graph-first；后端 E **待删除**（**TCE Phase 5 / TC-P3**）
 
 ---
 

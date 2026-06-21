@@ -1,6 +1,8 @@
 # memory-bank 文档索引
 
-本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.87.1`）。
+本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.89.0`）。
+
+> **当前实施焦点**：[`active-task.md`](./active-task.md) → **TCE Phase 1** · 排期 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)
 
 > **`handbooks/` ≈ Paradigma `manuals/`**：路径名保留 `handbooks/`，语义为部署运维与测试操作手册。
 
@@ -28,6 +30,8 @@
 | [domains/](./domains/) | 子系统领域文档 |
 | [plans/](./plans/) | 细粒度实施计划 |
 | [plans/tc-p2-views-stats-plan.md](./plans/tc-p2-views-stats-plan.md) | TC-P2 落地计划（三视图 + 统计 + Shell） |
+| [plans/task-center-enhance.md](./plans/task-center-enhance.md) | **当前排期** — 任务中心增强 TCE（Phase 1–5 · 含多部门模板 §6） |
+| [plans/task-center-v2-implementation-plan.md](./plans/task-center-v2-implementation-plan.md) | TC-P0–P2 ✅；TC-P3 已并入 TCE Phase 5 |
 | [plans/workflow-video-v1-ui-simplification-design.md](./plans/workflow-video-v1-ui-simplification-design.md) | 任务协同 UI 简化规格 v2.1（P0–P2 ✅ @ `0.88.0`） |
 | [demos/workflow-task-detail-v2.html](./demos/workflow-task-detail-v2.html) | 单页 HTML 交互 Demo（浏览器直接打开） |
 | [design-document.md](./design-document.md) | 完整产品设计（摘要见 project-brief） |
@@ -94,6 +98,6 @@
 | 编码规范 | `conventions.md` |
 | 当前任务 | `active-task.md` |
 | 阶段验测、会话结束 | `progress.md` |
-| 排期与阶段出口 | `roadmap.md` + `plans/` |
+| 排期与阶段出口 | `roadmap.md` + `plans/`（**当前**: [`task-center-enhance.md`](./plans/task-center-enhance.md)） |
 | ADR / 坑位 / 术语 | `decisions.md` / `known-issues.md` / `glossary.md` |
 | 运维步骤 | `handbooks/` |

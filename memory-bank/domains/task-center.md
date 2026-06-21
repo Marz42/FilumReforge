@@ -1,6 +1,7 @@
 # 领域：任务中心 (Task Center)
 
-> 🌡️ WARM — 涉及待办/跟踪/历史、Inbox、备忘、多视图时读取。
+> 🌡️ WARM — 涉及待办/跟踪/历史、Inbox、备忘、多视图时读取。  
+> **当前排期**：[`plans/task-center-enhance.md`](../plans/task-center-enhance.md) · **聚焦**：[`active-task.md`](../active-task.md)
 
 **关联 schema**: `data-contracts.md` §10.14–10.18B、§10.23–10.25 · **UI**: `handbooks/user-manual.md`
 
@@ -24,6 +25,19 @@
 `TASK_CENTER_V2_ENABLED=true`（默认）时：
 
 `TaskCenterService` → `TaskService.list_task_inbox/tracking/history` → `_graph_task_projection_map` → 未命中则 legacy fallback
+
+**已知缺口（TCE 待补）**
+
+| 缺口 | 根因 | 计划 ID |
+|------|------|---------|
+| 节点任务列表态与详情不一致 | 仅 ROOT / 部分图锚点走投影；N1/N3/N7 仍读 `Task.status` | **B-01** |
+| 打开任务中心慢 | v2 workspace `listTasks()` 全量 hydration | **B-04 / F-01** |
+| 统计 Tab 非部门维度 | `get_task_stats_summary` 扫全量 Legacy 状态 | **B-06 / F-06** |
+| 看板显示 UUID | 未解析 assignee 展示名 | **F-02** |
+| 操作后不刷新列表 | 详情提交后未 emit refresh | **F-08** |
+| tracking 可能漏项 | inbox(limit×2) 去重 + 硬 limit=50 | **B-02 / B-07** |
+
+详见 enhance §1 体验路径映射。
 
 ---
 
@@ -67,3 +81,10 @@
 
 - `data-testid`: `TaskCenterView`、`TasksView` 等（Phase 11-G）
 - Playwright: `frontend/playwright.config.ts`、`playwright.live.config.ts`
+- **TCE Phase 1**：`test_task_service` inbox 节点投影；`TaskCenterBoardView` vitest；`task-center.spec.ts` refresh
+
+---
+
+## 实例化与多部门（TCE Phase 4）
+
+图模板实例化：`POST /workflow-graph/templates/{id}/runs`。发起部门默认规则见 enhance **§6.2.1**（Profile 自动填充 / 跨部可改 / Admin 必选）。当前 seed 仍绑定单一 `copywriters.department_id` — **B-16 / F-17**。

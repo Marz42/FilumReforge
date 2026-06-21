@@ -15,7 +15,8 @@
 
 - **无**独立「发起选题会」导航；选题会为图模板 `topic_meeting_batch_v1`
 - **无**单 Run 内多选题 DAG；改为按题 fork
-- 制作链 **10 节点**（N3–N5、N7–N12_COSIGN）；批次模板绑定 **一个**文案 `department_id`（多文案部时选主部门 seed，N2 仍可指定任意撰写人）
+- 制作链 **10 节点**（N3–N5、N7–N12_COSIGN）
+- **多文案部门**：目标为 **同一图模板、实例级发起部门**（文案 A/B 各发起 → 统一后期部）；现状 seed 仍绑单一 `--copy-dept-code` — 见 [`task-center-enhance.md` §6](../plans/task-center-enhance.md)（**B-16 / F-17**）
 
 ### 生产模板刷新
 

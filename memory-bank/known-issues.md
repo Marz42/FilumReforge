@@ -44,9 +44,30 @@
 |----|------|
 | 前端模板页 | **已移除** Legacy E Tab / CRUD；唯一入口为图模板列表 + 实例化（用户可见名「任务模板」） |
 | 后端 `task_templates` API / `TaskTemplateService` | **仍保留**；运行中 E 实例与 `decideStepRun` 仍可用 |
-| 删除时机 | **待删除** — 依赖 TC-P3 产品决策与数据迁移 |
+| 删除时机 | **待删除** — **TCE Phase 5 / TC-P3**（ADR-005 产品决策与数据迁移） |
 
 **实例化路径**: `POST /api/v1/workflow-graph/templates/{id}/runs`
+
+### 任务中心 v2 读模型缺口（TCE 进行中）
+
+**说明**（@ `0.89.0`，排期 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)）:
+
+| 现象 | 根因 | 首要修复 |
+|------|------|----------|
+| 详情「已完成」、待办仍「进行中」 | 节点任务未走 graph 投影 | **B-01** |
+| 切换 Tab 下载全部 Task | `useTaskCenterWorkspace` 全量 `listTasks()` | **B-04 / F-01** |
+| 后期任务挂在文案部 | 历史投影 `department_id` 错误 | **B-03** + 代码修复 |
+| 文案 B 用同一模板实例化仍出 A 部人 | seed policy 优先于实例部门 | **B-16 / F-17** |
+
+**参考**: [`domains/task-center.md`](./domains/task-center.md)、[`active-task.md`](./active-task.md)
+
+### 图模板实例化：发起部门（TCE Phase 4）
+
+**说明**（@ `0.89.0`）:
+
+- 提交 API 在 `department_id=null` 时会静默使用 Profile 所属部门（`resolve_actor_department_id`）。
+- 前端 Dialog **无表单项**，preview 常传 `null`；`participant_policies.copywriters.department_id`（seed）仍 **优先于** 实例部门。
+- 产品规则已确认：默认自动填充所属部门，跨部可改，Admin 必选 — 见 enhance **§6.2.1**（**F-17** + **B-16**）。
 
 ### 视频 v1 图模板开关默认关闭
 

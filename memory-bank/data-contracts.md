@@ -4,8 +4,8 @@
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](./architecture.md)。
 
-**版本**: v3.12.1（与 [`architecture.md`](./architecture.md) 同步；Paradigma Phase 2 自 architecture §8–§13 迁出）  
-**最后同步**: 2026-06-18 @ commit `98ad370`
+**版本**: v3.12.2（与 [`architecture.md`](./architecture.md) 同步）  
+**最后同步**: 2026-06-21 @ TCE Phase 1 文档对齐 · 产品基线 `0.89.0`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -25,7 +25,8 @@
 - **视频 v1 Pydantic**: `backend/app/schemas/workflow_video.py`（`launch_schema` / `capture_schema` / `aggregate_schema` 等）
   - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409
   - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
-- **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md)
+- **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](./domains/task-center.md)
+- **TCE 规划契约**（未实现，见 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)）：`GET /api/v1/tasks?ids=` batch 查询（**B-04**）；snapshot 增 `run_label` / `user_facing_state`（**B-05**）；`stats/summary?department_id=`（**B-06**）；实例化 `department_id` policy 优先级（**B-16**）
 
 > §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.48 为图引擎与运行事件**摘要**（完整列定义以 ORM + Alembic 为准）。
 

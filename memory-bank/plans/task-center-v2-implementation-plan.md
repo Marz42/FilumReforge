@@ -3,7 +3,7 @@
 > 🌡️ WARM — 可排期、可验收的工程清单。  
 > **产品规格**: [`workflow-video-v1-ui-simplification-design.md`](./workflow-video-v1-ui-simplification-design.md) v2.1  
 > **交互基准**: [`../demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)（产品已评审通过行为）  
-> **状态**: ✅ **TC-P0–P2 已完成** @ `0.88.0` · **日期**: 2026-06-18 · **路线图**: [`roadmap.md`](../roadmap.md) → **TC-P3** 规划
+> **状态**: ✅ **TC-P0–P2 已完成** @ `0.88.0`–`0.89.0` · **日期**: 2026-06-18 · **路线图**: [`roadmap.md`](../roadmap.md) → **TCE Phase 1**（[`task-center-enhance.md`](./task-center-enhance.md)）
 
 ---
 
@@ -215,13 +215,16 @@ cd frontend && npx playwright test e2e/live/workflow-video-multi-account-live.sp
 
 ---
 
-### TC-P3 · 后续（路线图 P1，本计划仅列依赖）
+### TC-P3 · 后续（已并入 TCE Phase 5）
 
-| 项 | 说明 |
-|----|------|
-| 工作流 E 与图引擎统一 | ADR-005 产品决策后执行 |
-| N2 批量模式产品开关 | 模板级 `aggregate_mode: batch \| streaming` |
-| 「结束采集」| P2 设计预留，关闭 N1 入口 |
+> 细项见 [`task-center-enhance.md`](./task-center-enhance.md) **B-12–B-15 / F-13–F-16**；路线图不再单独列为 P0。
+
+| 项 | 说明 | TCE ID |
+|----|------|--------|
+| 工作流 E 与图引擎统一 | ADR-005 产品决策后执行 | B-12 |
+| N2 批量模式产品开关 | 模板级 `aggregate_mode: batch \| streaming` | B-13 / F-14 |
+| 「结束采集」| P2 设计预留，关闭 N1 入口 | B-14 / F-15 |
+| 用户态统一模块 | 后端 `user_facing_state` 与前端 `user-state.ts` 对齐 | B-15 |
 
 ---
 
