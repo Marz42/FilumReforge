@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import {
+  listDepartmentPoolMemberOptions,
   listManagedDepartmentMemberOptions,
   submitTaskTopicCapture,
 } from '@/api/workflow-graph'
@@ -42,6 +43,20 @@ const hasUserColumn = computed(() =>
   captureSchema.value?.columns.some((column) => column.type === 'user') ?? false,
 )
 
+const userPoolKey = computed(() => {
+  const column = captureSchema.value?.columns.find((entry) => entry.type === 'user' && entry.pool_key)
+  return column?.pool_key?.trim() || ''
+})
+
+const templateId = computed(() => {
+  const metadata = props.task.extra_metadata as Record<string, unknown> | undefined
+  const fromTask = typeof metadata?.template_id === 'string' ? metadata.template_id : ''
+  if (fromTask) {
+    return fromTask
+  }
+  return props.graphInstance?.template_id ?? ''
+})
+
 const userOptions = computed(() =>
   managerCandidates.value.map((user) => ({
     value: user.id,
@@ -68,6 +83,10 @@ async function loadManagerOptions(): Promise<void> {
   }
   managerLoading.value = true
   try {
+    if (userPoolKey.value && templateId.value) {
+      managerCandidates.value = await listDepartmentPoolMemberOptions(templateId.value, userPoolKey.value)
+      return
+    }
     managerCandidates.value = await listManagedDepartmentMemberOptions()
   } catch (error) {
     ElMessage.error(getErrorMessage(error))

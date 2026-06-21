@@ -30,6 +30,7 @@ class CaptureColumnSchema(BaseModel):
   label: str = Field(min_length=1, max_length=120)
   type: CaptureColumnType = "text"
   required: bool = False
+  pool_key: str | None = Field(default=None, max_length=64)
 
 
 class CaptureSchema(BaseModel):

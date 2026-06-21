@@ -238,6 +238,17 @@ export async function listManagedDepartmentMemberOptions(): Promise<ParticipantU
   return data
 }
 
+export async function listDepartmentPoolMemberOptions(
+  templateId: string,
+  poolKey: string,
+): Promise<ParticipantUserPreview[]> {
+  const { data } = await http.get<ParticipantUserPreview[]>(
+    `/workflow-graph/templates/${templateId}/department-pool-member-options`,
+    { params: { pool_key: poolKey } },
+  )
+  return data
+}
+
 export async function previewWorkflowParticipants(
   templateId: string,
   policy: string,

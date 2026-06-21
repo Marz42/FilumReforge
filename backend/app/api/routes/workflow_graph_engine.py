@@ -149,6 +149,33 @@ async def list_managed_department_member_options(
 
 
 @router.get(
+  "/templates/{template_id}/department-pool-member-options",
+  response_model=list[ParticipantUserPreview],
+  tags=["workflow-graph"],
+)
+async def list_department_pool_member_options(
+  template_id: UUID,
+  pool_key: Annotated[str, Query(min_length=1, max_length=64)],
+  actor: Annotated[User, Depends(get_current_user)],
+  participant_service: Annotated[ParticipantResolutionService, Depends(get_participant_resolution_service)],
+) -> list[ParticipantUserPreview]:
+  template = await participant_service.get_template_or_raise(template_id)
+  users = await participant_service.list_department_pool_member_options(
+    actor=actor,
+    template=template,
+    pool_key=pool_key,
+  )
+  return [
+    ParticipantUserPreview(
+      id=user.id,
+      email=user.email,
+      display_name=_user_display_name(user),
+    )
+    for user in users
+  ]
+
+
+@router.get(
   "/templates",
   response_model=list[WorkflowGraphTemplateSummaryRead],
   tags=["workflow-graph"],

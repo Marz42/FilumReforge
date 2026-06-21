@@ -48,7 +48,7 @@ EDIT_ASSIGN_CAPTURE_SCHEMA: dict[str, Any] = {
   "min_rows": 1,
   "max_rows": 1,
   "columns": [
-    {"key": "edit_assignee_id", "label": "剪辑师", "type": "user", "required": True},
+    {"key": "edit_assignee_id", "label": "剪辑师", "type": "user", "required": True, "pool_key": "post_production"},
   ],
   "storage": "deliverable_payload",
   "completion_policy": "on_capture_submitted",

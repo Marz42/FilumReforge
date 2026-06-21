@@ -24,6 +24,7 @@ from app.core.enums import (
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.workflow_video_policy import use_graph_template_instantiation
 from app.models import (
+  Profile,
   Task,
   User,
   WorkflowGraphInstance,
@@ -129,6 +130,9 @@ class WorkflowVideoInstantiationService:
       "template_version": template.version,
       "nodes": node_snapshots,
     }
+    department_pools = template_config.get("department_pools")
+    if isinstance(department_pools, dict) and department_pools:
+      snapshot["department_pools"] = department_pools
     if launch_schema is not None:
       snapshot["launch_schema"] = launch_schema
     return snapshot
@@ -270,7 +274,6 @@ class WorkflowVideoInstantiationService:
     template: WorkflowGraphTemplate,
     instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
-    department_id: UUID | None,
     template_nodes_by_key: dict[str, WorkflowGraphTemplateNode] | None = None,
   ) -> Task:
     title = f"{template.name} / {node_instance.title}"
@@ -294,7 +297,7 @@ class WorkflowVideoInstantiationService:
         actor=actor,
         title=title,
         assignee_id=node_instance.assignee_user_id or actor.id,
-        department_id=department_id,
+        department_id=None,
         source_type=TaskSourceType.TEMPLATE,
         extra_metadata=metadata,
         commit=False,
@@ -305,11 +308,15 @@ class WorkflowVideoInstantiationService:
         task.status = TaskStatus.DOING
       return task
 
+    assignee_id = node_instance.assignee_user_id or actor.id
+    resolved_department_id = await self._session.scalar(
+      select(Profile.department_id).where(Profile.user_id == assignee_id)
+    )
     task = Task(
       title=title,
       creator_id=actor.id,
-      assignee_id=node_instance.assignee_user_id or actor.id,
-      department_id=department_id,
+      assignee_id=assignee_id,
+      department_id=resolved_department_id,
       status=TaskStatus.DOING,
       priority=TaskPriority.MEDIUM,
       source_type=TaskSourceType.TEMPLATE,
@@ -514,7 +521,6 @@ class WorkflowVideoInstantiationService:
         template=template,
         instance=instance,
         node_instance=node_instance,
-        department_id=department_id,
         template_nodes_by_key=nodes_by_key,
       )
       node_instance.config = {
@@ -610,7 +616,7 @@ class WorkflowVideoInstantiationService:
         actor=actor,
         title=title,
         assignee_id=assignee_id,
-        department_id=department_id,
+        department_id=None,
         source_type=TaskSourceType.TEMPLATE,
         extra_metadata=metadata,
         commit=False,
@@ -621,11 +627,14 @@ class WorkflowVideoInstantiationService:
         task.parent_task_id = parent_task_id
       return task
 
+    resolved_department_id = await self._session.scalar(
+      select(Profile.department_id).where(Profile.user_id == assignee_id)
+    )
     task = Task(
       title=title,
       creator_id=actor.id,
       assignee_id=assignee_id,
-      department_id=department_id,
+      department_id=resolved_department_id,
       parent_task_id=parent_task_id,
       status=TaskStatus.DOING,
       priority=TaskPriority.MEDIUM,
@@ -776,7 +785,6 @@ class WorkflowVideoInstantiationService:
         template=_template,
         instance=instance,
         node_instance=node_instance,
-        department_id=parent_instance.department_id,
         template_nodes_by_key=production_nodes_by_key,
       )
       node_instance.config = {

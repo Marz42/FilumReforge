@@ -166,6 +166,31 @@ class ParticipantResolutionService:
     )
     return users
 
+  async def list_department_pool_member_options(
+    self,
+    *,
+    actor: User,
+    template: WorkflowGraphTemplate,
+    pool_key: str,
+  ) -> list[User]:
+    """Active members of a template department pool (capture user pickers)."""
+    from app.services.workflow_assignee_resolver import parse_department_pools
+
+    ensure_active_user(actor)
+    pools = parse_department_pools(template)
+    normalized_key = pool_key.strip()
+    if normalized_key not in pools:
+      raise NotFoundError(f"模板未配置部门池：{normalized_key}")
+
+    members = await resolve_user_targets_from_rule(
+      self._session,
+      actor=actor,
+      assignee_rule={"type": "department_members", "department_id": str(pools[normalized_key])},
+      department_id=pools[normalized_key],
+      allow_multiple=True,
+    )
+    return await self._load_users_with_profiles(user_ids=[user.id for user in members])
+
   async def preview_for_template(
     self,
     *,

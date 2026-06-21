@@ -165,6 +165,7 @@ async def _seed_production_workspace(db_session):
     "editor": editor,
     "script_author": script_author,
     "template": template,
+    "copy_dept": copy_dept,
     "post_dept": post_dept,
   }
 
@@ -178,7 +179,7 @@ async def _instantiate_production_run(db_session, *, seed: dict):
   topic_id = uuid4()
   batch_stub = WorkflowGraphInstance(
     initiator_user_id=seed["admin"].id,
-    department_id=seed["post_dept"].id,
+    department_id=seed["copy_dept"].id,
     source_type="template",
     context={"run_kind": "batch"},
   )
@@ -340,7 +341,53 @@ async def test_w4p_n7_capture_assigns_n8_to_editor(db_session) -> None:
   assert n8.engine_state == WorkflowNodeEngineState.ACTIVATED
   assert n8.assignee_user_id == seed["editor"].id
   assert EDIT_ASSIGN_CAPTURE_SCHEMA["columns"][0]["type"] == "user"
+  assert EDIT_ASSIGN_CAPTURE_SCHEMA["columns"][0]["pool_key"] == "post_production"
   assert SCHEDULE_CAPTURE_SCHEMA["columns"][0]["type"] == "datetime"
+
+
+@pytest.mark.asyncio
+async def test_w4p_post_stage_tasks_use_assignee_department_not_batch_department(db_session) -> None:
+  seed = await _seed_production_workspace(db_session)
+  run = await _instantiate_production_run(db_session, seed=seed)
+  instance = run.instance
+  graph_service = WorkflowGraphService(db_session)
+  orchestration = WorkflowOrchestrationService(
+    db_session,
+    workflow_graph_service=graph_service,
+    task_service=TaskService(db_session, settings=_enabled_settings()),
+  )
+
+  n3_task = await db_session.get(Task, run.activated_tasks[0].id)
+  assert n3_task is not None
+  assert n3_task.department_id == seed["copy_dept"].id
+
+  n5 = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == instance.id,
+      WorkflowNodeInstance.node_key == "N5_VO_UPLOAD",
+    )
+  )
+  assert n5 is not None
+  n5.engine_state = WorkflowNodeEngineState.COMPLETED
+  n5.assignee_user_id = seed["script_author"].id
+  await graph_service.progress_from_completed_node(node_instance_id=n5.id)
+  await db_session.commit()
+
+  n7 = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == instance.id,
+      WorkflowNodeInstance.node_key == "N7_EDIT_ASSIGN",
+    )
+  )
+  assert n7 is not None
+  n7_tasks = await orchestration.ensure_projection_tasks(
+    actor=seed["admin"],
+    instance=instance,
+    node_instances=[n7],
+  )
+  assert len(n7_tasks) == 1
+  assert n7_tasks[0].department_id == seed["post_dept"].id
+  assert instance.department_id == seed["copy_dept"].id
 
 
 @pytest.mark.asyncio

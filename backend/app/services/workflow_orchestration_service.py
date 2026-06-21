@@ -21,6 +21,7 @@ from app.core.enums import (
 )
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models import (
+  Profile,
   Task,
   User,
   WorkflowGraphInstance,
@@ -144,7 +145,7 @@ class WorkflowOrchestrationService:
         actor=actor,
         title=title,
         assignee_id=assignee_id,
-        department_id=instance.department_id,
+        department_id=None,
         source_type=TaskSourceType.TEMPLATE,
         extra_metadata=metadata,
         commit=False,
@@ -162,11 +163,14 @@ class WorkflowOrchestrationService:
       )
       return task
 
+    resolved_department_id = await self._session.scalar(
+      select(Profile.department_id).where(Profile.user_id == assignee_id)
+    )
     task = Task(
       title=title,
       creator_id=actor.id,
       assignee_id=assignee_id,
-      department_id=instance.department_id,
+      department_id=resolved_department_id,
       status=TaskStatus.TODO if node_config.get("handshake_required") else TaskStatus.DOING,
       priority=TaskPriority.MEDIUM,
       source_type=TaskSourceType.TEMPLATE,

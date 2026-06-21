@@ -152,8 +152,9 @@ export interface LaunchSchema {
 export interface CaptureSchemaColumn {
   key: string
   label: string
-  type: 'text' | 'textarea' | string
+  type: 'text' | 'textarea' | 'user' | 'datetime' | string
   required?: boolean
+  pool_key?: string | null
 }
 
 export interface CaptureSchema {
