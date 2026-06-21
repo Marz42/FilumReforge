@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import WorkflowGraphTemplateStatus
+from app.core.enums import WorkflowGraphInstanceStatus, WorkflowGraphTemplateStatus
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import (
   User,
@@ -24,22 +26,53 @@ from app.schemas.workflow_graph import (
   WorkflowGraphTemplateDesignerRead,
   WorkflowGraphTemplateDetailRead,
   WorkflowGraphTemplateDraftSaveRequest,
+  WorkflowGraphTemplateDryRunPolicyPreview,
+  WorkflowGraphTemplateDryRunRequest,
+  WorkflowGraphTemplateDryRunResponse,
   WorkflowGraphTemplateEdgeDetailRead,
+  WorkflowGraphTemplateEdgeDraftWrite,
+  WorkflowGraphTemplateExportBody,
+  WorkflowGraphTemplateExportBundle,
+  WorkflowGraphTemplateImportRequest,
   WorkflowGraphTemplateNodeDetailRead,
+  WorkflowGraphTemplateNodeDraftWrite,
   WorkflowGraphTemplateNodeSummaryRead,
+  WorkflowGraphTemplateStatsRead,
   WorkflowGraphTemplateStatusUpdateRequest,
   WorkflowGraphTemplateUpdateRequest,
   WorkflowGraphTemplateValidateResponse,
 )
 from app.schemas.workflow_video import validate_launch_schema, validate_node_config
 from app.services.access_control import can_manage_task_templates, ensure_active_user
+from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_template_topology import (
   GraphTemplateEdgeSpec,
   GraphTemplateNodeSpec,
   validate_graph_template_topology,
 )
+from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
 
 _CODE_VERSION_SUFFIX = re.compile(r"_v(\d+)$")
+_EXPORT_FORMAT_VERSION = 1
+
+
+@dataclass(frozen=True, slots=True)
+class _DesignerState:
+  name: str
+  description: str | None
+  config: dict[str, Any]
+  nodes: list[WorkflowGraphTemplateNodeDetailRead]
+  edges: list[WorkflowGraphTemplateEdgeDetailRead]
+
+
+@dataclass(frozen=True, slots=True)
+class _TemplatePreview:
+  code: str
+  version: int
+  config: dict[str, Any]
+
+
+_NIL_UUID = UUID("00000000-0000-0000-0000-000000000000")
 
 
 class WorkflowGraphTemplateAdminService:
@@ -190,6 +223,156 @@ class WorkflowGraphTemplateAdminService:
     edges = await self._load_edge_details(template_id=template_id)
     errors = self._collect_validation_errors(template=template, nodes=nodes, edges=edges)
     return WorkflowGraphTemplateValidateResponse(valid=not errors, errors=errors)
+
+  async def export_template(self, *, actor: User, template_id: UUID) -> WorkflowGraphTemplateExportBundle:
+    await self._ensure_manage(actor)
+    designer = await self.get_designer_detail(template_id=template_id)
+    return WorkflowGraphTemplateExportBundle(
+      format_version=_EXPORT_FORMAT_VERSION,
+      template=WorkflowGraphTemplateExportBody(
+        name=designer.name,
+        description=designer.description,
+        config=dict(designer.config or {}),
+        context_schema={},
+        nodes=[
+          WorkflowGraphTemplateNodeDraftWrite(
+            node_key=node.node_key,
+            title=node.title,
+            sort_order=node.sort_order,
+            assignment_mode=node.assignment_mode,
+            join_mode=node.join_mode,
+            assignee_rule=dict(node.assignee_rule or {}),
+            config=dict(node.config or {}),
+          )
+          for node in designer.nodes
+        ],
+        edges=[
+          WorkflowGraphTemplateEdgeDraftWrite(
+            from_node_key=edge.from_node_key,
+            to_node_key=edge.to_node_key,
+            is_reject_path=edge.is_reject_path,
+            condition=dict(edge.condition or {}),
+            priority=edge.priority,
+          )
+          for edge in designer.edges
+        ],
+      ),
+    )
+
+  async def import_template_draft(
+    self,
+    *,
+    actor: User,
+    template_id: UUID,
+    payload: WorkflowGraphTemplateImportRequest,
+  ) -> WorkflowGraphTemplateDesignerRead:
+    await self._ensure_manage(actor)
+    template = await self._get_template_or_raise(template_id=template_id)
+    if template.status != WorkflowGraphTemplateStatus.DRAFT:
+      raise ConflictError("仅 draft 模板可导入 JSON。")
+    if await self._has_instances(template_id=template_id):
+      raise ConflictError("已有运行实例的模板不可导入结构。")
+    return await self._apply_import_bundle(actor=actor, template=template, bundle=payload.bundle)
+
+  async def import_template_new(
+    self,
+    *,
+    actor: User,
+    payload: WorkflowGraphTemplateImportRequest,
+    name: str | None = None,
+  ) -> WorkflowGraphTemplateDesignerRead:
+    await self._ensure_manage(actor)
+    body = payload.bundle.template
+    base_code = f"imported_{uuid4().hex[:12]}"
+    version = await self._get_next_template_version(base_code=base_code)
+    code = self._derive_template_code(base_code=base_code, version=version)
+    template = WorkflowGraphTemplate(
+      code=code,
+      base_code=base_code,
+      version=version,
+      name=(name or body.name).strip(),
+      description=body.description,
+      status=WorkflowGraphTemplateStatus.DRAFT,
+      context_schema=dict(body.context_schema or {}),
+      config=dict(body.config or {}),
+      created_by=actor.id,
+      source_template_id=None,
+    )
+    self._session.add(template)
+    await self._session.flush()
+    designer = await self._apply_import_bundle(actor=actor, template=template, bundle=payload.bundle)
+    if name:
+      template.name = name.strip()
+      await self._session.flush()
+      return await self.get_designer_detail(template_id=template.id)
+    return designer
+
+  async def dry_run_template(
+    self,
+    *,
+    actor: User,
+    template_id: UUID,
+    payload: WorkflowGraphTemplateDryRunRequest,
+  ) -> WorkflowGraphTemplateDryRunResponse:
+    await self._ensure_manage(actor)
+    template = await self._get_template_or_raise(template_id=template_id)
+    state = await self._resolve_designer_state(template=template, draft=payload.draft)
+    errors = self._collect_validation_errors(
+      template=self._template_preview(template, state.config),
+      nodes=state.nodes,
+      edges=state.edges,
+    )
+    if errors:
+      return WorkflowGraphTemplateDryRunResponse(valid=False, errors=errors)
+
+    normalized_inputs: dict[str, Any] = {}
+    try:
+      normalized_inputs = WorkflowVideoInstantiationService._validate_launch_inputs(
+        template=self._template_preview(template, state.config),
+        inputs=dict(payload.inputs or {}),
+      )
+    except ConflictError as exc:
+      return WorkflowGraphTemplateDryRunResponse(valid=False, errors=[str(exc)])
+
+    mock_template = self._template_preview(template, state.config)
+    mock_nodes = self._mock_template_nodes(state.nodes)
+    schema_snapshot = WorkflowVideoInstantiationService._build_schema_snapshot(
+      template=mock_template,
+      nodes=mock_nodes,
+    )
+    entry_node_keys = self._compute_entry_node_keys(nodes=state.nodes, edges=state.edges)
+    original_config = dict(template.config or {})
+    template.config = state.config
+    try:
+      participant_previews = await self._preview_participant_policies(
+        actor=actor,
+        template=template,
+        department_id=payload.department_id,
+      )
+    finally:
+      template.config = original_config
+    return WorkflowGraphTemplateDryRunResponse(
+      valid=True,
+      schema_snapshot=schema_snapshot,
+      normalized_inputs=normalized_inputs,
+      entry_node_keys=entry_node_keys,
+      participant_previews=participant_previews,
+    )
+
+  async def get_template_stats(self, *, template_id: UUID) -> WorkflowGraphTemplateStatsRead:
+    await self._get_template_or_raise(template_id=template_id)
+    stats_map = await self._load_template_stats_map(template_ids=[template_id])
+    return stats_map.get(
+      template_id,
+      WorkflowGraphTemplateStatsRead(template_id=template_id),
+    )
+
+  async def load_template_stats_map(
+    self,
+    *,
+    template_ids: list[UUID],
+  ) -> dict[UUID, WorkflowGraphTemplateStatsRead]:
+    return await self._load_template_stats_map(template_ids=template_ids)
 
   async def _fork_template(
     self,
@@ -535,7 +718,7 @@ class WorkflowGraphTemplateAdminService:
   @staticmethod
   def _collect_validation_errors(
     *,
-    template: WorkflowGraphTemplate,
+    template: WorkflowGraphTemplate | _TemplatePreview,
     nodes: list[WorkflowGraphTemplateNodeDetailRead],
     edges: list[WorkflowGraphTemplateEdgeDetailRead],
   ) -> list[str]:
@@ -586,3 +769,201 @@ class WorkflowGraphTemplateAdminService:
       )
     )
     return errors
+
+  async def _apply_import_bundle(
+    self,
+    *,
+    actor: User,
+    template: WorkflowGraphTemplate,
+    bundle: WorkflowGraphTemplateExportBundle,
+  ) -> WorkflowGraphTemplateDesignerRead:
+    _ = actor
+    if bundle.format_version != _EXPORT_FORMAT_VERSION:
+      raise ConflictError("不支持的导出格式版本。")
+    body = bundle.template
+    if not body.nodes:
+      raise ConflictError("导入包至少需要一个节点。")
+    template.name = body.name.strip()
+    template.description = body.description
+    template.config = dict(body.config or {})
+    template.context_schema = dict(body.context_schema or {})
+    await self._replace_structure(
+      template=template,
+      node_payloads=body.nodes,
+      edge_payloads=body.edges,
+    )
+    await self._session.flush()
+    return await self.get_designer_detail(template_id=template.id)
+
+  async def _resolve_designer_state(
+    self,
+    *,
+    template: WorkflowGraphTemplate,
+    draft: WorkflowGraphTemplateDraftSaveRequest | None,
+  ) -> _DesignerState:
+    if draft is None:
+      nodes = await self._load_node_details(template_id=template.id)
+      edges = await self._load_edge_details(template_id=template.id)
+      return _DesignerState(
+        name=template.name,
+        description=template.description,
+        config=dict(template.config or {}),
+        nodes=nodes,
+        edges=edges,
+      )
+    return _DesignerState(
+      name=draft.name,
+      description=draft.description,
+      config=dict(draft.config or {}),
+      nodes=self._draft_nodes_to_details(draft.nodes),
+      edges=self._draft_edges_to_details(draft.edges or []),
+    )
+
+  @staticmethod
+  def _draft_nodes_to_details(
+    nodes: list[WorkflowGraphTemplateNodeDraftWrite],
+  ) -> list[WorkflowGraphTemplateNodeDetailRead]:
+    return [
+      WorkflowGraphTemplateNodeDetailRead(
+        id=_NIL_UUID,
+        node_key=node.node_key,
+        title=node.title,
+        sort_order=node.sort_order,
+        assignment_mode=node.assignment_mode,
+        join_mode=node.join_mode,
+        assignee_rule=dict(node.assignee_rule or {}),
+        config=dict(node.config or {}),
+      )
+      for node in nodes
+    ]
+
+  @staticmethod
+  def _draft_edges_to_details(
+    edges: list[WorkflowGraphTemplateEdgeDraftWrite],
+  ) -> list[WorkflowGraphTemplateEdgeDetailRead]:
+    return [
+      WorkflowGraphTemplateEdgeDetailRead(
+        from_node_key=edge.from_node_key,
+        to_node_key=edge.to_node_key,
+        is_reject_path=edge.is_reject_path,
+        condition=dict(edge.condition or {}),
+        priority=edge.priority,
+      )
+      for edge in edges
+    ]
+
+  @staticmethod
+  def _template_preview(template: WorkflowGraphTemplate, config: dict[str, Any]) -> _TemplatePreview:
+    return _TemplatePreview(code=template.code, version=template.version, config=config)
+
+  @staticmethod
+  def _mock_template_nodes(nodes: list[WorkflowGraphTemplateNodeDetailRead]) -> list[WorkflowGraphTemplateNode]:
+    return [
+      WorkflowGraphTemplateNode(
+        template_id=_NIL_UUID,
+        node_key=node.node_key,
+        title=node.title,
+        config=dict(node.config or {}),
+      )
+      for node in nodes
+    ]
+
+  @staticmethod
+  def _compute_entry_node_keys(
+    *,
+    nodes: list[WorkflowGraphTemplateNodeDetailRead],
+    edges: list[WorkflowGraphTemplateEdgeDetailRead],
+  ) -> list[str]:
+    incoming: dict[str, int] = {node.node_key: 0 for node in nodes}
+    for edge in edges:
+      if edge.is_reject_path:
+        continue
+      if edge.to_node_key in incoming:
+        incoming[edge.to_node_key] += 1
+    return sorted(key for key, degree in incoming.items() if degree == 0)
+
+  async def _preview_participant_policies(
+    self,
+    *,
+    actor: User,
+    template: WorkflowGraphTemplate,
+    department_id: UUID | None,
+  ) -> list[WorkflowGraphTemplateDryRunPolicyPreview]:
+    policies = (template.config or {}).get("participant_policies")
+    if not isinstance(policies, dict) or not policies:
+      return []
+
+    resolver = ParticipantResolutionService(self._session)
+    previews: list[WorkflowGraphTemplateDryRunPolicyPreview] = []
+    for policy_ref in policies:
+      if not isinstance(policy_ref, str) or not policy_ref.strip():
+        continue
+      try:
+        entry, users = await resolver.preview_for_template(
+          actor=actor,
+          template=template,
+          policy_ref=policy_ref.strip(),
+          department_id=department_id,
+        )
+      except ConflictError:
+        continue
+      previews.append(
+        WorkflowGraphTemplateDryRunPolicyPreview(
+          policy_ref=policy_ref.strip(),
+          mode=entry.mode,
+          user_count=len(users),
+          user_ids=list(entry.user_ids),
+        )
+      )
+    return previews
+
+  @staticmethod
+  def _instance_created_after(instance: WorkflowGraphInstance, cutoff: datetime) -> bool:
+    created_at = instance.created_at
+    if created_at is None:
+      return False
+    if created_at.tzinfo is None:
+      created_at = created_at.replace(tzinfo=UTC)
+    else:
+      created_at = created_at.astimezone(UTC)
+    return created_at >= cutoff
+
+  async def _load_template_stats_map(
+    self,
+    *,
+    template_ids: list[UUID],
+  ) -> dict[UUID, WorkflowGraphTemplateStatsRead]:
+    if not template_ids:
+      return {}
+
+    cutoff = datetime.now(UTC) - timedelta(days=30)
+    instances = list(
+      await self._session.scalars(
+        select(WorkflowGraphInstance).where(WorkflowGraphInstance.template_id.in_(template_ids))
+      )
+    )
+    totals: dict[UUID, dict[str, int]] = {
+      template_id: {"total": 0, "recent": 0, "active": 0} for template_id in template_ids
+    }
+    for instance in instances:
+      if instance.template_id is None:
+        continue
+      bucket = totals.setdefault(
+        instance.template_id,
+        {"total": 0, "recent": 0, "active": 0},
+      )
+      bucket["total"] += 1
+      if self._instance_created_after(instance, cutoff):
+        bucket["recent"] += 1
+      if instance.status == WorkflowGraphInstanceStatus.ACTIVE:
+        bucket["active"] += 1
+
+    return {
+      template_id: WorkflowGraphTemplateStatsRead(
+        template_id=template_id,
+        run_count_total=counts["total"],
+        run_count_30d=counts["recent"],
+        active_run_count=counts["active"],
+      )
+      for template_id, counts in totals.items()
+    }

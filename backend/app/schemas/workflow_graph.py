@@ -45,6 +45,9 @@ class WorkflowGraphTemplateSummaryRead(BaseModel):
   version: int
   run_kind: str | None = None
   config: dict[str, object] = {}
+  run_count_total: int | None = None
+  run_count_30d: int | None = None
+  active_run_count: int | None = None
 
 
 class WorkflowGraphTemplateNodeSummaryRead(BaseModel):
@@ -124,6 +127,53 @@ class WorkflowGraphTemplateStatusUpdateRequest(BaseModel):
 class WorkflowGraphTemplateValidateResponse(BaseModel):
   valid: bool
   errors: list[str] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateExportBody(BaseModel):
+  name: str
+  description: str | None = None
+  config: dict[str, object] = Field(default_factory=dict)
+  context_schema: dict[str, object] = Field(default_factory=dict)
+  nodes: list[WorkflowGraphTemplateNodeDraftWrite] = Field(default_factory=list)
+  edges: list[WorkflowGraphTemplateEdgeDraftWrite] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateExportBundle(BaseModel):
+  format_version: int = 1
+  template: WorkflowGraphTemplateExportBody
+
+
+class WorkflowGraphTemplateImportRequest(BaseModel):
+  bundle: WorkflowGraphTemplateExportBundle
+
+
+class WorkflowGraphTemplateDryRunPolicyPreview(BaseModel):
+  policy_ref: str
+  mode: str
+  user_count: int
+  user_ids: list[UUID] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateDryRunRequest(BaseModel):
+  department_id: UUID | None = None
+  inputs: dict[str, object] = Field(default_factory=dict)
+  draft: WorkflowGraphTemplateDraftSaveRequest | None = None
+
+
+class WorkflowGraphTemplateDryRunResponse(BaseModel):
+  valid: bool
+  errors: list[str] = Field(default_factory=list)
+  schema_snapshot: dict[str, object] = Field(default_factory=dict)
+  normalized_inputs: dict[str, object] = Field(default_factory=dict)
+  entry_node_keys: list[str] = Field(default_factory=list)
+  participant_previews: list[WorkflowGraphTemplateDryRunPolicyPreview] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateStatsRead(BaseModel):
+  template_id: UUID
+  run_count_total: int = 0
+  run_count_30d: int = 0
+  active_run_count: int = 0
 
 
 class WorkflowGraphTemplateUpdateRequest(BaseModel):

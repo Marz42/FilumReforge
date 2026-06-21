@@ -4,6 +4,8 @@ import type {
   CreateGraphTemplateRunResponse,
   ForkProductionRunsResponse,
   GraphTemplateDesignerDetail,
+  GraphTemplateDryRunResult,
+  GraphTemplateExportBundle,
   GraphTemplateSummary,
   GraphTemplateValidateResult,
   RejectCapturesRequest,
@@ -189,6 +191,42 @@ export async function publishGraphTemplate(templateId: string): Promise<GraphTem
 export async function validateGraphTemplate(templateId: string): Promise<GraphTemplateValidateResult> {
   const { data } = await http.get<GraphTemplateValidateResult>(
     `/workflow-graph/templates/${templateId}/validate`,
+  )
+  return data
+}
+
+export async function exportGraphTemplate(templateId: string): Promise<GraphTemplateExportBundle> {
+  const { data } = await http.get<GraphTemplateExportBundle>(`/workflow-graph/templates/${templateId}/export`)
+  return data
+}
+
+export async function importGraphTemplateDraft(
+  templateId: string,
+  bundle: GraphTemplateExportBundle,
+): Promise<GraphTemplateDesignerDetail> {
+  const { data } = await http.post<GraphTemplateDesignerDetail>(
+    `/workflow-graph/templates/${templateId}/import`,
+    { bundle },
+  )
+  return {
+    ...data,
+    config: data.config ?? {},
+    nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
+  }
+}
+
+export async function dryRunGraphTemplate(
+  templateId: string,
+  payload: {
+    department_id?: string | null
+    inputs?: Record<string, unknown>
+    draft?: Parameters<typeof saveGraphTemplateDraft>[1]
+  } = {},
+): Promise<GraphTemplateDryRunResult> {
+  const { data } = await http.post<GraphTemplateDryRunResult>(
+    `/workflow-graph/templates/${templateId}/dry-run`,
+    payload,
   )
   return data
 }

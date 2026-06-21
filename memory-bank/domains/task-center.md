@@ -441,19 +441,24 @@ flowchart LR
 |-------|------|------|
 | **D1** | 可维护 | clone/create、config + 节点表 + 节点 config、validate、version fork、draft→active、路由 `/task-templates/:id/edit` |
 | **D2** | 可编排 | 边表、reject 路径、routing_rules、join_mode / assignment_mode、拓扑校验 ✅ |
-| **D3** | 产品化（可选） | DAG 预览、dry-run 实例化、导入/导出 JSON、Run 统计 |
+| **D3** | 产品化（可选） | DAG 预览、dry-run 实例化、导入/导出 JSON、Run 统计 ✅ |
 
-### 12.3 D1 后端 API
+### 12.3 后端 API（D1–D3）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/workflow-graph/templates?scope=manage` | 管理员可见 draft + active（实例化仍仅 active） |
-| `POST` | `/workflow-graph/templates` | `{ clone_from_id, name? }` → 新 draft、version+1 |
-| `GET` | `/workflow-graph/templates/{id}/designer` | 设计器读模型：全节点 config、structure_locked、has_instances |
-| `PUT` | `/workflow-graph/templates/{id}/draft` | 整包保存 name/description/config/nodes（无实例且 draft 时可改结构） |
-| `POST` | `/workflow-graph/templates/{id}/versions` | 从当前模板 fork 新版本（draft） |
-| `PATCH` | `/workflow-graph/templates/{id}/status` | `{ status: draft \| active \| archived }`；publish 前 validate |
-| `GET` | `/workflow-graph/templates/{id}/validate` | launch_schema + `validate_node_config` 预检 |
+| `GET` | `/workflow-graph/templates?scope=manage` | 管理员可见 draft + active + Run 统计 |
+| `POST` | `/workflow-graph/templates` | `{ clone_from_id, name? }` → 新 draft |
+| `GET` | `/workflow-graph/templates/{id}/designer` | 设计器读模型（nodes/edges/锁定态） |
+| `PUT` | `/workflow-graph/templates/{id}/draft` | 整包保存 nodes + edges + config |
+| `POST` | `/workflow-graph/templates/{id}/versions` | fork 新版本 |
+| `PATCH` | `/workflow-graph/templates/{id}/status` | draft → active / archived |
+| `GET` | `/workflow-graph/templates/{id}/validate` | schema + 拓扑预检 |
+| `GET` | `/workflow-graph/templates/{id}/export` | **D3** 导出 JSON bundle |
+| `POST` | `/workflow-graph/templates/{id}/import` | **D3** 导入到 draft |
+| `POST` | `/workflow-graph/templates/import` | **D3** 从 JSON 新建 draft |
+| `POST` | `/workflow-graph/templates/{id}/dry-run` | **D3** 试跑（可选 draft 载荷） |
+| `GET` | `/workflow-graph/templates/{id}/stats` | **D3** Run 计数 |
 
 **结构锁定**：存在 `WorkflowGraphInstance.template_id` 时禁止改 nodes/edges，仅允许 meta + config merge（与 Stage 2 E 规则一致）。
 
@@ -499,6 +504,7 @@ TaskTemplatesView.vue
 |----|------|
 | pytest D1 | `test_workflow_graph_template_designer_d1.py` |
 | pytest D2 | `test_workflow_graph_template_designer_d2.py` · `test_workflow_graph_template_topology.py` |
+| pytest D3 | `test_workflow_graph_template_designer_d3.py` |
 | vitest | `GraphTemplateDesignerView.spec.ts` |
 | 回归 | 改模板 → 实例化 → inbox/tracking 与 seed 行为一致（扩 W3/W9） |
 
@@ -508,4 +514,5 @@ TaskTemplatesView.vue
 |----|------|
 | **F-18** | 图模板设计器 D1 ✅ |
 | **F-19** | 设计器 D2 边与路由 ✅ |
+| **F-20** | 设计器 D3 产品化 ✅ |
 | **B-12** | Legacy E 删除（独立，不阻塞设计器） |

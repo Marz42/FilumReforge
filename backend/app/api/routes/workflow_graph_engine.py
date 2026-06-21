@@ -55,7 +55,12 @@ from app.schemas.workflow_graph import (
   WorkflowGraphTemplateDesignerRead,
   WorkflowGraphTemplateDetailRead,
   WorkflowGraphTemplateDraftSaveRequest,
+  WorkflowGraphTemplateDryRunRequest,
+  WorkflowGraphTemplateDryRunResponse,
+  WorkflowGraphTemplateExportBundle,
+  WorkflowGraphTemplateImportRequest,
   WorkflowGraphTemplateStatusUpdateRequest,
+  WorkflowGraphTemplateStatsRead,
   WorkflowGraphTemplateSummaryRead,
   WorkflowGraphTemplateUpdateRequest,
   WorkflowGraphTemplateValidateResponse,
@@ -199,9 +204,11 @@ async def list_graph_templates(
 ) -> list[WorkflowGraphTemplateSummaryRead]:
   if scope == "manage" and await can_manage_task_templates(session, actor):
     templates = await admin_service.list_manageable_templates()
+    stats_map = await admin_service.load_template_stats_map(template_ids=[template.id for template in templates])
   else:
     _ = actor
     templates = await workflow_graph_service.list_active_templates()
+    stats_map = {}
   return [
     WorkflowGraphTemplateSummaryRead(
       id=template.id,
@@ -212,6 +219,9 @@ async def list_graph_templates(
       version=template.version,
       run_kind=str((template.config or {}).get("run_kind") or "") or None,
       config=dict(template.config or {}),
+      run_count_total=stats_map[template.id].run_count_total if template.id in stats_map else None,
+      run_count_30d=stats_map[template.id].run_count_30d if template.id in stats_map else None,
+      active_run_count=stats_map[template.id].active_run_count if template.id in stats_map else None,
     )
     for template in templates
   ]
@@ -297,6 +307,75 @@ async def validate_graph_template(
 ) -> WorkflowGraphTemplateValidateResponse:
   _ = actor
   return await admin_service.validate_template(template_id=template_id)
+
+
+@router.get(
+  "/templates/{template_id}/export",
+  response_model=WorkflowGraphTemplateExportBundle,
+  tags=["workflow-graph"],
+)
+async def export_graph_template(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateExportBundle:
+  return await admin_service.export_template(actor=actor, template_id=template_id)
+
+
+@router.post(
+  "/templates/import",
+  response_model=WorkflowGraphTemplateDesignerRead,
+  tags=["workflow-graph"],
+)
+async def import_graph_template_new(
+  payload: WorkflowGraphTemplateImportRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+  name: Annotated[str | None, Query(max_length=120)] = None,
+) -> WorkflowGraphTemplateDesignerRead:
+  return await admin_service.import_template_new(actor=actor, payload=payload, name=name)
+
+
+@router.post(
+  "/templates/{template_id}/import",
+  response_model=WorkflowGraphTemplateDesignerRead,
+  tags=["workflow-graph"],
+)
+async def import_graph_template_draft(
+  template_id: UUID,
+  payload: WorkflowGraphTemplateImportRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDesignerRead:
+  return await admin_service.import_template_draft(actor=actor, template_id=template_id, payload=payload)
+
+
+@router.post(
+  "/templates/{template_id}/dry-run",
+  response_model=WorkflowGraphTemplateDryRunResponse,
+  tags=["workflow-graph"],
+)
+async def dry_run_graph_template(
+  template_id: UUID,
+  payload: WorkflowGraphTemplateDryRunRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDryRunResponse:
+  return await admin_service.dry_run_template(actor=actor, template_id=template_id, payload=payload)
+
+
+@router.get(
+  "/templates/{template_id}/stats",
+  response_model=WorkflowGraphTemplateStatsRead,
+  tags=["workflow-graph"],
+)
+async def get_graph_template_stats(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateStatsRead:
+  _ = actor
+  return await admin_service.get_template_stats(template_id=template_id)
 
 
 @router.get(

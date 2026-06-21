@@ -165,6 +165,14 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column label="版本" width="72" prop="version" />
+        <el-table-column v-if="canManage" label="Run（30d）" width="96">
+          <template #default="{ row }: { row: GraphTemplateSummary }">
+            {{ row.run_count_30d ?? 0 }}
+            <span v-if="row.active_run_count" class="graph-templates__active-runs">
+              / {{ row.active_run_count }} 进行中
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="88">
           <template #default="{ row }: { row: GraphTemplateSummary }">
             <el-tag size="small" effect="plain" :type="row.status === 'active' ? 'success' : 'info'">
@@ -254,5 +262,10 @@ onMounted(() => {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.graph-templates__active-runs {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 </style>

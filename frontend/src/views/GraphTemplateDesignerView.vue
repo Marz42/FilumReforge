@@ -4,14 +4,22 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 import {
+  dryRunGraphTemplate,
+  exportGraphTemplate,
   forkGraphTemplateVersion,
   getGraphTemplateDesigner,
+  importGraphTemplateDraft,
   publishGraphTemplate,
   saveGraphTemplateDraft,
   validateGraphTemplate,
 } from '@/api/workflow-graph'
+import GraphTemplateDagPreview from '@/components/workflow/GraphTemplateDagPreview.vue'
 import { useTaskCenterPermissions } from '@/composables/useTaskCenterPermissions'
-import type { GraphTemplateDesignerDetail, GraphTemplateNodeDetail } from '@/types/workflowVideo'
+import type {
+  GraphTemplateDesignerDetail,
+  GraphTemplateDryRunResult,
+  GraphTemplateNodeDetail,
+} from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
 
 type DesignerNodeRow = GraphTemplateNodeDetail & {
@@ -34,6 +42,10 @@ const saving = ref(false)
 const validating = ref(false)
 const publishing = ref(false)
 const forking = ref(false)
+const dryRunning = ref(false)
+const dryRunVisible = ref(false)
+const dryRunResult = ref<GraphTemplateDryRunResult | null>(null)
+const importInputRef = ref<HTMLInputElement | null>(null)
 const detail = ref<GraphTemplateDesignerDetail | null>(null)
 const validationErrors = ref<string[]>([])
 
@@ -58,6 +70,16 @@ const selectedNode = computed(() =>
 )
 const nodeKeyOptions = computed(() =>
   nodeRows.value.map((node) => ({ value: node.node_key, label: `${node.node_key} · ${node.title}` })),
+)
+const dagNodes = computed(() =>
+  nodeRows.value.map((node) => ({ node_key: node.node_key, title: node.title })),
+)
+const dagEdges = computed(() =>
+  edgeRows.value.map((edge) => ({
+    from_node_key: edge.from_node_key,
+    to_node_key: edge.to_node_key,
+    is_reject_path: edge.is_reject_path,
+  })),
 )
 
 function applyDetail(next: GraphTemplateDesignerDetail): void {
@@ -287,6 +309,75 @@ function goBack(): void {
   void router.push({ name: 'task-templates' })
 }
 
+async function handleExportJson(): Promise<void> {
+  if (!templateId.value) {
+    return
+  }
+  try {
+    const bundle = await exportGraphTemplate(templateId.value)
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${detail.value?.code ?? 'template'}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('模板 JSON 已导出')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  }
+}
+
+function openImportPicker(): void {
+  importInputRef.value?.click()
+}
+
+async function handleImportFile(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !templateId.value) {
+    return
+  }
+  if (!isDraft.value || structureLocked.value) {
+    ElMessage.warning('仅可编辑的 draft 模板支持导入 JSON')
+    return
+  }
+  try {
+    const text = await file.text()
+    const bundle = JSON.parse(text) as Parameters<typeof importGraphTemplateDraft>[1]
+    applyDetail(await importGraphTemplateDraft(templateId.value, bundle))
+    ElMessage.success('模板 JSON 已导入')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  }
+}
+
+async function handleDryRun(): Promise<void> {
+  if (!templateId.value) {
+    return
+  }
+  dryRunning.value = true
+  try {
+    const payload = buildDraftPayload()
+    const result = await dryRunGraphTemplate(templateId.value, {
+      draft: payload ?? undefined,
+      inputs: {},
+    })
+    dryRunResult.value = result
+    dryRunVisible.value = true
+    if (result.valid) {
+      ElMessage.success('试跑通过')
+    } else {
+      ElMessage.warning(`试跑发现 ${result.errors.length} 项问题`)
+    }
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    dryRunning.value = false
+  }
+}
+
 function addEdgeRow(): void {
   const first = nodeRows.value[0]?.node_key ?? ''
   const second = nodeRows.value[1]?.node_key ?? first
@@ -340,6 +431,16 @@ onMounted(async () => {
       </div>
       <div class="designer__actions">
         <el-button :loading="validating" data-testid="designer-validate" @click="handleValidate">校验</el-button>
+        <el-button :loading="dryRunning" data-testid="designer-dry-run" @click="handleDryRun">试跑</el-button>
+        <el-button data-testid="designer-export" @click="handleExportJson">导出 JSON</el-button>
+        <el-button
+          v-if="isDraft && !structureLocked"
+          data-testid="designer-import"
+          @click="openImportPicker"
+        >
+          导入 JSON
+        </el-button>
+        <input ref="importInputRef" type="file" accept="application/json,.json" hidden @change="handleImportFile" />
         <el-button
           v-if="isDraft"
           type="primary"
@@ -402,6 +503,11 @@ onMounted(async () => {
             />
           </el-form-item>
         </el-form>
+      </el-card>
+
+      <el-card shadow="never" class="designer__panel designer__panel--wide">
+        <template #header><strong>拓扑预览</strong></template>
+        <GraphTemplateDagPreview :nodes="dagNodes" :edges="dagEdges" />
       </el-card>
 
       <el-card shadow="never" class="designer__panel designer__panel--wide">
@@ -538,6 +644,39 @@ onMounted(async () => {
         </el-table>
       </el-card>
     </div>
+
+    <el-dialog v-model="dryRunVisible" title="试跑结果" width="720px" data-testid="designer-dry-run-dialog">
+      <template v-if="dryRunResult">
+        <el-alert
+          :type="dryRunResult.valid ? 'success' : 'warning'"
+          :closable="false"
+          show-icon
+          :title="dryRunResult.valid ? '结构校验通过' : '试跑发现问题'"
+        />
+        <div v-if="dryRunResult.errors.length" class="designer__dry-run-block">
+          <h4>问题</h4>
+          <ul class="designer__errors">
+            <li v-for="item in dryRunResult.errors" :key="item">{{ item }}</li>
+          </ul>
+        </div>
+        <div v-if="dryRunResult.entry_node_keys.length" class="designer__dry-run-block">
+          <h4>起始节点</h4>
+          <p>{{ dryRunResult.entry_node_keys.join(' · ') }}</p>
+        </div>
+        <div v-if="dryRunResult.participant_previews.length" class="designer__dry-run-block">
+          <h4>参与人策略预览</h4>
+          <el-table :data="dryRunResult.participant_previews" size="small">
+            <el-table-column prop="policy_ref" label="策略" width="120" />
+            <el-table-column prop="mode" label="模式" width="88" />
+            <el-table-column prop="user_count" label="人数" width="72" />
+          </el-table>
+        </div>
+        <div class="designer__dry-run-block">
+          <h4>schema_snapshot</h4>
+          <pre class="designer__json-preview">{{ JSON.stringify(dryRunResult.schema_snapshot, null, 2) }}</pre>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -601,6 +740,26 @@ onMounted(async () => {
 
 .designer__hint code {
   font-size: 11px;
+}
+
+.designer__dry-run-block {
+  margin-top: 16px;
+}
+
+.designer__dry-run-block h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.designer__json-preview {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  max-height: 240px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
 }
 
 .designer__panel--wide {

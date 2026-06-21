@@ -1,5 +1,18 @@
 # Project Filum 进度记录
 
+## 会话摘要（图模板设计器 D3）
+
+### 2026-06-21 — 模板设计器 D3：产品化
+
+**完成事项**:
+- [x] export/import JSON bundle API
+- [x] dry-run（schema_snapshot + entry nodes + participant preview）
+- [x] 模板 Run 统计（列表 scope=manage + `/stats`）
+- [x] 前端 DAG 预览、试跑对话框、JSON 导入导出
+- [x] pytest D3
+
+**分支**: `main`
+
 ## 会话摘要（图模板设计器 D2）
 
 ### 2026-06-21 — 模板设计器 D2：边与拓扑

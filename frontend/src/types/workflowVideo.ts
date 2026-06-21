@@ -181,6 +181,9 @@ export interface GraphTemplateSummary {
   version: number
   run_kind?: string | null
   config?: Record<string, unknown>
+  run_count_total?: number | null
+  run_count_30d?: number | null
+  active_run_count?: number | null
 }
 
 export interface GraphTemplateNodeDetail {
@@ -216,6 +219,34 @@ export interface GraphTemplateDesignerDetail extends GraphTemplateSummary {
 export interface GraphTemplateValidateResult {
   valid: boolean
   errors: string[]
+}
+
+export interface GraphTemplateExportBundle {
+  format_version: number
+  template: {
+    name: string
+    description?: string | null
+    config?: Record<string, unknown>
+    context_schema?: Record<string, unknown>
+    nodes: GraphTemplateNodeDetail[]
+    edges?: GraphTemplateEdgeDetail[]
+  }
+}
+
+export interface GraphTemplateDryRunPolicyPreview {
+  policy_ref: string
+  mode: string
+  user_count: number
+  user_ids: string[]
+}
+
+export interface GraphTemplateDryRunResult {
+  valid: boolean
+  errors: string[]
+  schema_snapshot: Record<string, unknown>
+  normalized_inputs: Record<string, unknown>
+  entry_node_keys: string[]
+  participant_previews: GraphTemplateDryRunPolicyPreview[]
 }
 
 export interface WorkflowGraphInstanceSummary {
