@@ -11,6 +11,7 @@ import type {
   TaskWatcher,
   TaskWorkloadRow,
 } from '@/types/api'
+import type { TaskUserFacingState } from '@/domain/task-detail/user-state'
 import { http } from './http'
 
 export interface CreateTaskPayload {
@@ -56,6 +57,16 @@ export async function listTasks(): Promise<Task[]> {
   return data
 }
 
+export async function listTasksByIds(taskIds: string[]): Promise<Task[]> {
+  if (taskIds.length === 0) {
+    return []
+  }
+  const { data } = await http.get<Task[]>('/tasks', {
+    params: { ids: taskIds },
+  })
+  return data
+}
+
 export async function getTask(taskId: string): Promise<Task> {
   const { data } = await http.get<Task>(`/tasks/${taskId}`)
   return data
@@ -71,6 +82,7 @@ export interface TaskSearchResult {
   department_name: string | null
   assignee_id: string
   updated_at: string
+  user_facing_state?: TaskUserFacingState | null
 }
 
 export async function searchTasks(query: string, limit = 30): Promise<TaskSearchResult[]> {

@@ -1,6 +1,6 @@
 import { ref, watch, type Ref } from 'vue'
 
-import { listTasks } from '@/api/tasks'
+import { listTasksByIds } from '@/api/tasks'
 import type { Task, TaskCenterSnapshot } from '@/types/api'
 import type { TaskCenterFilter } from '@/constants/task-center'
 
@@ -8,6 +8,11 @@ import {
   projectTasksForWorkspace,
   type TaskCenterWorkspaceRow,
 } from './useTaskUserFacingProjection'
+import {
+  TASK_USER_FACING_STATE_LABELS,
+  userFacingStateTagType,
+  type TaskUserFacingState,
+} from '@/domain/task-detail/user-state'
 
 export function extractTaskIdsFromSnapshot(
   snapshot: TaskCenterSnapshot | null,
@@ -40,7 +45,12 @@ function enrichRowsFromSnapshot(
 
   const snapshotById = new Map<
     string,
-    { relationTypes: string[]; handlerLabel: string | null }
+    {
+      relationTypes: string[]
+      handlerLabel: string | null
+      runLabel: string | null
+      userFacingState: TaskUserFacingState | null
+    }
   >()
   const source =
     filter === 'inbox'
@@ -54,6 +64,8 @@ function enrichRowsFromSnapshot(
       relationTypes: 'relation_types' in item ? item.relation_types : [],
       handlerLabel:
         'current_handler_label' in item ? item.current_handler_label : null,
+      runLabel: item.run_label ?? null,
+      userFacingState: (item.user_facing_state as TaskUserFacingState | null | undefined) ?? null,
     })
   }
 
@@ -68,10 +80,24 @@ function enrichRowsFromSnapshot(
         assigneeLabel,
       }
     }
+
+    let userState = row.userState
+    let userStateLabel = row.userStateLabel
+    let userStateTagTypeValue = row.userStateTagType
+    if (meta.userFacingState) {
+      userState = meta.userFacingState
+      userStateLabel = TASK_USER_FACING_STATE_LABELS[userState]
+      userStateTagTypeValue = userFacingStateTagType(userState)
+    }
+
     return {
       ...row,
       relationTypes: meta.relationTypes,
       assigneeLabel,
+      runLabel: meta.runLabel ?? row.runLabel,
+      userState,
+      userStateLabel,
+      userStateTagType: userStateTagTypeValue,
     }
   })
 }
@@ -105,7 +131,7 @@ export function useTaskCenterWorkspace(options: {
 
     loading.value = true
     try {
-      const allTasks = await listTasks()
+      const allTasks = await listTasksByIds(ids)
       const taskById = new Map(allTasks.map((task) => [task.id, task]))
       const orderedTasks = ids
         .map((id) => taskById.get(id))

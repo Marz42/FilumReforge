@@ -35,6 +35,10 @@ import type {
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 import { resolveTaskRunLabel } from '@/domain/task-detail/run-label'
+import {
+  TASK_USER_FACING_STATE_LABELS,
+  userFacingStateTagType,
+} from '@/domain/task-detail/user-state'
 
 const LEGACY_TAB_TO_FILTER: Record<string, TaskCenterFilter> = {
   inbox: 'inbox',
@@ -306,8 +310,29 @@ function resolveSourceTypeLabel(sourceType: TaskSourceType): string {
   return SOURCE_TYPE_LABELS[sourceType]
 }
 
-function resolveMasterRunLabel(title: string): string {
-  return resolveTaskRunLabel(title)
+function resolveMasterRunLabel(
+  row: { title: string; run_label?: string | null },
+): string {
+  if (row.run_label?.trim()) {
+    return row.run_label.trim()
+  }
+  return resolveTaskRunLabel(row.title)
+}
+
+function resolveSearchUserStateLabel(row: TaskSearchResult): string {
+  if (row.user_facing_state) {
+    return TASK_USER_FACING_STATE_LABELS[row.user_facing_state]
+  }
+  return STATUS_LABELS[row.status]
+}
+
+function resolveSearchUserStateTagType(
+  row: TaskSearchResult,
+): '' | 'info' | 'warning' | 'success' | 'danger' {
+  if (row.user_facing_state) {
+    return userFacingStateTagType(row.user_facing_state)
+  }
+  return STATUS_TAG_TYPES[row.status]
 }
 
 function resetPublishForm(): void {
@@ -717,8 +742,8 @@ onMounted(() => {
               <el-table-column prop="title" label="任务标题" min-width="220" />
               <el-table-column label="状态" width="120">
                 <template #default="{ row }: { row: TaskSearchResult }">
-                  <el-tag :type="STATUS_TAG_TYPES[row.status]" effect="plain">
-                    {{ resolveStatusLabel(row.status) }}
+                  <el-tag :type="resolveSearchUserStateTagType(row)" effect="plain">
+                    {{ resolveSearchUserStateLabel(row) }}
                   </el-tag>
                 </template>
               </el-table-column>
@@ -736,7 +761,7 @@ onMounted(() => {
               <el-table-column prop="title" label="任务标题" min-width="200" />
               <el-table-column label="Run" min-width="140">
                 <template #default="{ row }: { row: TaskCenterInboxItem }">
-                  {{ resolveMasterRunLabel(row.title) }}
+                  {{ resolveMasterRunLabel(row) }}
                 </template>
               </el-table-column>
               <el-table-column label="优先级" width="120">
@@ -774,7 +799,7 @@ onMounted(() => {
               </el-table-column>
               <el-table-column label="Run" min-width="140">
                 <template #default="{ row }: { row: TaskCenterTrackingItem }">
-                  {{ resolveMasterRunLabel(row.title) }}
+                  {{ resolveMasterRunLabel(row) }}
                 </template>
               </el-table-column>
               <el-table-column prop="department_name" label="部门" min-width="160" />
@@ -811,7 +836,7 @@ onMounted(() => {
               <el-table-column prop="title" label="任务标题" min-width="200" />
               <el-table-column label="Run" min-width="140">
                 <template #default="{ row }: { row: TaskCenterHistoryItem }">
-                  {{ resolveMasterRunLabel(row.title) }}
+                  {{ resolveMasterRunLabel(row) }}
                 </template>
               </el-table-column>
               <el-table-column label="来源" width="120">

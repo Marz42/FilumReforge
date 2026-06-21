@@ -6,6 +6,7 @@
 
 ### Changed
 
+- **TCE Phase 2**（B-04/B-05/B-07, F-01/F-04/F-07）：batch tasks API、snapshot 读模型 `run_label`/`user_facing_state`、tracking inbox 去重、workspace batch hydration、搜索用户态、Run 标签对齐 graph context
 - **TCE Phase 1**（B-01/B-02/B-03, F-02/F-03/F-08）：节点投影 inbox 读路径、列表 SQL limit、department 迁移脚本、看板姓名、实例化发起部门、详情操作后 refresh
 - memory-bank 全量对齐 **TCE Phase 1**：`active-task`、`roadmap`、`project-brief` @ `0.89.0`；TC-P3 归入 `task-center-enhance` Phase 5
 

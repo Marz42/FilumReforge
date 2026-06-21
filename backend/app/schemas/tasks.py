@@ -21,6 +21,7 @@ class TaskSearchResultRead(BaseModel):
   department_name: str | None = None
   assignee_id: UUID
   updated_at: datetime
+  user_facing_state: str | None = None
 
 
 class TaskRead(BaseModel):

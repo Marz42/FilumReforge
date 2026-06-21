@@ -20,6 +20,7 @@ vi.mock('@/api/tasks', () => ({
   createTaskComment: vi.fn(),
   searchTasks: vi.fn(),
   listTasks: vi.fn(),
+  listTasksByIds: vi.fn(),
   getTask: vi.fn(),
   listTaskActivity: vi.fn().mockResolvedValue([]),
   listTaskWatchers: vi.fn().mockResolvedValue([]),
@@ -41,7 +42,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
-import { createTask, createTaskComment, getTask, listTasks } from '@/api/tasks'
+import { createTask, createTaskComment, getTask, listTasksByIds } from '@/api/tasks'
 import { useAuthStore } from '@/stores/auth'
 import TaskCenterView from '@/views/TaskCenterView.vue'
 
@@ -215,7 +216,11 @@ function buildTasksFromSnapshot(snapshot: TaskCenterSnapshot): Task[] {
 
 function syncListTasksFromSnapshot(snapshot: TaskCenterSnapshot): void {
   const tasks = buildTasksFromSnapshot(snapshot)
-  vi.mocked(listTasks).mockResolvedValue(tasks)
+  vi.mocked(listTasksByIds).mockImplementation(async (ids: string[]) =>
+    ids
+      .map((id) => tasks.find((item) => item.id === id))
+      .filter((task): task is Task => task !== undefined),
+  )
   vi.mocked(getTask).mockImplementation(async (taskId: string) => {
     const task = tasks.find((item) => item.id === taskId)
     if (!task) {

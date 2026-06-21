@@ -35,6 +35,7 @@ from app.schemas.tasks import (
 )
 from app.services.object_storage_service import ObjectStorageService
 from app.services.task_service import CommentAttachmentInput, TaskActivityEntry, TaskService
+from app.services.task_user_facing_state import resolve_task_user_facing_state
 from app.services.user_display import user_display_label
 
 router = APIRouter(prefix="/tasks")
@@ -128,8 +129,12 @@ async def _build_task_activity_read(
 async def list_tasks(
   actor: Annotated[User, Depends(get_current_user)],
   task_service: Annotated[TaskService, Depends(get_task_service)],
+  ids: Annotated[list[UUID] | None, Query()] = None,
 ) -> list[TaskRead]:
-  tasks = await task_service.list_tasks(actor=actor)
+  if ids:
+    tasks = await task_service.list_tasks_by_ids(actor=actor, task_ids=ids)
+  else:
+    tasks = await task_service.list_tasks(actor=actor)
   return [TaskRead.model_validate(task) for task in tasks]
 
 
@@ -152,6 +157,7 @@ async def search_tasks(
       department_name=task.department.name if task.department is not None else None,
       assignee_id=task.assignee_id,
       updated_at=task.updated_at,
+      user_facing_state=resolve_task_user_facing_state(task=task, status=task.status),
     )
     for task in tasks
   ]

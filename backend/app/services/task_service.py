@@ -63,6 +63,9 @@ from app.services.access_control import (
 )
 from app.services.notification_service import NotificationService
 from app.services.condition_evaluator import evaluate_routing_rules
+from app.services.task_user_facing_state import resolve_task_run_label, resolve_task_user_facing_state
+
+MAX_BATCH_TASK_IDS = 100
 
 
 @dataclass(slots=True)
@@ -126,6 +129,8 @@ class TaskInboxEntry:
   department_name: str | None
   current_stage_label: str
   current_handler_label: str | None
+  run_label: str | None = None
+  user_facing_state: str | None = None
 
 
 @dataclass(slots=True)
@@ -143,6 +148,8 @@ class TaskTrackingEntry:
   rework_count: int = 0
   review_quality_score: int | None = None
   is_pending_review: bool = False
+  run_label: str | None = None
+  user_facing_state: str | None = None
 
 
 @dataclass(slots=True)
@@ -155,6 +162,9 @@ class TaskHistoryEntry:
   department_name: str | None
   relation_types: list[str]
   source_type: TaskSourceType
+  status: TaskStatus | None = None
+  run_label: str | None = None
+  user_facing_state: str | None = None
 
 
 @dataclass(slots=True)
@@ -483,7 +493,65 @@ class TaskService:
   def _list_scan_limit(*, limit: int, multiplier: int = 10, ceiling: int = 500) -> int:
     return min(max(limit * multiplier, limit), ceiling)
 
-  def _build_graph_inbox_entry(self, *, task: Task, projection: GraphTaskProjection) -> TaskInboxEntry:
+  async def _load_graph_run_label_by_task_id(self, *, tasks: list[Task]) -> dict[UUID, str | None]:
+    task_instance_ids: dict[UUID, UUID] = {}
+    for task in tasks:
+      metadata = self._copy_task_metadata(task)
+      instance_id = self._read_uuid_metadata(metadata, "workflow_graph_instance_id")
+      if instance_id is not None:
+        task_instance_ids[task.id] = instance_id
+    if not task_instance_ids:
+      return {}
+
+    instances = list(
+      await self._session.scalars(
+        select(WorkflowGraphInstance).where(
+          WorkflowGraphInstance.id.in_(set(task_instance_ids.values()))
+        )
+      )
+    )
+    run_label_by_instance_id: dict[UUID, str | None] = {}
+    for instance in instances:
+      label = instance.run_label
+      if (not label or not str(label).strip()) and isinstance(instance.context, dict):
+        raw = instance.context.get("run_label")
+        if raw is not None:
+          label = str(raw)
+      run_label_by_instance_id[instance.id] = str(label).strip() if label else None
+
+    return {
+      task_id: run_label_by_instance_id.get(instance_id)
+      for task_id, instance_id in task_instance_ids.items()
+    }
+
+  def _list_item_extras(
+    self,
+    *,
+    task: Task,
+    status: TaskStatus,
+    graph_run_labels: dict[UUID, str | None],
+  ) -> tuple[str | None, str]:
+    metadata = self._copy_task_metadata(task)
+    run_label = resolve_task_run_label(
+      title=task.title,
+      metadata=metadata,
+      graph_run_label=graph_run_labels.get(task.id),
+    )
+    user_facing_state = resolve_task_user_facing_state(task=task, status=status)
+    return run_label, user_facing_state
+
+  def _build_graph_inbox_entry(
+    self,
+    *,
+    task: Task,
+    projection: GraphTaskProjection,
+    graph_run_labels: dict[UUID, str | None],
+  ) -> TaskInboxEntry:
+    run_label, user_facing_state = self._list_item_extras(
+      task=task,
+      status=projection.status,
+      graph_run_labels=graph_run_labels,
+    )
     return TaskInboxEntry(
       task_id=task.id,
       title=task.title,
@@ -493,6 +561,8 @@ class TaskService:
       department_name=task.department.name if task.department is not None else None,
       current_stage_label=projection.current_stage_label,
       current_handler_label=projection.current_handler_label,
+      run_label=run_label,
+      user_facing_state=user_facing_state,
     )
 
   def _build_graph_tracking_entry(
@@ -501,7 +571,13 @@ class TaskService:
     task: Task,
     relation_types: list[str],
     projection: GraphTaskProjection,
+    graph_run_labels: dict[UUID, str | None],
   ) -> TaskTrackingEntry:
+    run_label, user_facing_state = self._list_item_extras(
+      task=task,
+      status=projection.status,
+      graph_run_labels=graph_run_labels,
+    )
     return TaskTrackingEntry(
       task_id=task.id,
       title=task.title,
@@ -516,6 +592,8 @@ class TaskService:
       rework_count=projection.rework_count,
       review_quality_score=projection.review_quality_score,
       is_pending_review=projection.status == TaskStatus.REVIEW,
+      run_label=run_label,
+      user_facing_state=user_facing_state,
     )
 
   def _build_graph_history_entry(
@@ -524,7 +602,13 @@ class TaskService:
     task: Task,
     relation_types: list[str],
     projection: GraphTaskProjection,
+    graph_run_labels: dict[UUID, str | None],
   ) -> TaskHistoryEntry:
+    run_label, user_facing_state = self._list_item_extras(
+      task=task,
+      status=projection.status,
+      graph_run_labels=graph_run_labels,
+    )
     return TaskHistoryEntry(
       task_id=task.id,
       title=task.title,
@@ -534,6 +618,9 @@ class TaskService:
       department_name=task.department.name if task.department is not None else None,
       relation_types=relation_types,
       source_type=task.source_type,
+      status=projection.status,
+      run_label=run_label,
+      user_facing_state=user_facing_state,
     )
 
   async def _create_single_node_workflow_projection(
@@ -1236,6 +1323,7 @@ class TaskService:
     *,
     task: Task,
     step_context_map: dict[UUID, tuple[str, str | None]],
+    graph_run_labels: dict[UUID, str | None],
   ) -> TaskInboxEntry:
     current_stage_label, current_handler_label = step_context_map.get(
       task.id,
@@ -1244,6 +1332,11 @@ class TaskService:
         f"任务：{_task_status_label(task.status)}",
         _user_display_label(task.assignee),
       ),
+    )
+    run_label, user_facing_state = self._list_item_extras(
+      task=task,
+      status=task.status,
+      graph_run_labels=graph_run_labels,
     )
     return TaskInboxEntry(
       task_id=task.id,
@@ -1254,6 +1347,8 @@ class TaskService:
       department_name=task.department.name if task.department is not None else None,
       current_stage_label=current_stage_label,
       current_handler_label=current_handler_label,
+      run_label=run_label,
+      user_facing_state=user_facing_state,
     )
 
   def _build_tracking_entry(
@@ -1262,6 +1357,7 @@ class TaskService:
     task: Task,
     relation_types: list[str],
     step_context_map: dict[UUID, tuple[str, str | None]],
+    graph_run_labels: dict[UUID, str | None],
   ) -> TaskTrackingEntry:
     metadata = self._copy_task_metadata(task)
     review_quality_score = None
@@ -1275,6 +1371,11 @@ class TaskService:
         f"任务：{_task_status_label(task.status)}",
         _user_display_label(task.assignee),
       ),
+    )
+    run_label, user_facing_state = self._list_item_extras(
+      task=task,
+      status=task.status,
+      graph_run_labels=graph_run_labels,
     )
     return TaskTrackingEntry(
       task_id=task.id,
@@ -1290,14 +1391,23 @@ class TaskService:
       rework_count=self._read_int_metadata(metadata, "rework_count"),
       review_quality_score=review_quality_score,
       is_pending_review=task.status == TaskStatus.REVIEW,
+      run_label=run_label,
+      user_facing_state=user_facing_state,
     )
 
-  @staticmethod
   def _build_history_entry(
+    self,
     *,
     task: Task,
     relation_types: list[str],
+    graph_run_labels: dict[UUID, str | None],
+    status: TaskStatus,
   ) -> TaskHistoryEntry:
+    run_label, user_facing_state = self._list_item_extras(
+      task=task,
+      status=status,
+      graph_run_labels=graph_run_labels,
+    )
     return TaskHistoryEntry(
       task_id=task.id,
       title=task.title,
@@ -1307,6 +1417,9 @@ class TaskService:
       department_name=task.department.name if task.department is not None else None,
       relation_types=relation_types,
       source_type=task.source_type,
+      status=status,
+      run_label=run_label,
+      user_facing_state=user_facing_state,
     )
 
   async def _create_task_log(
@@ -1859,6 +1972,21 @@ class TaskService:
     result = await self._session.scalars(statement)
     return list(result)
 
+  async def list_tasks_by_ids(self, *, actor: User, task_ids: list[UUID]) -> list[Task]:
+    ensure_active_user(actor)
+    if not task_ids:
+      return []
+    if len(task_ids) > MAX_BATCH_TASK_IDS:
+      raise ConflictError(f"单次最多查询 {MAX_BATCH_TASK_IDS} 个任务。")
+
+    unique_task_ids = list(dict.fromkeys(task_ids))
+    statement = (await self._build_visible_task_statement(actor=actor)).where(
+      Task.id.in_(unique_task_ids)
+    )
+    tasks = list(await self._session.scalars(statement))
+    task_map = {task.id: task for task in tasks}
+    return [task_map[task_id] for task_id in unique_task_ids if task_id in task_map]
+
   async def search_tasks(self, *, actor: User, query: str, limit: int = 30) -> list[Task]:
     ensure_active_user(actor)
     normalized = query.strip()
@@ -1920,6 +2048,7 @@ class TaskService:
       if self._task_center_v2_enabled()
       else {}
     )
+    graph_run_labels = await self._load_graph_run_label_by_task_id(tasks=tasks)
     step_context_map = await self._task_step_context_map(
       task_ids=[task.id for task in tasks if task.id not in graph_projection_map]
     )
@@ -1930,7 +2059,16 @@ class TaskService:
       projection = graph_projection_map.get(task.id)
       if projection is not None:
         if projection.status != TaskStatus.DONE and projection.current_handler_id == actor.id:
-          graph_entries.append((task, self._build_graph_inbox_entry(task=task, projection=projection)))
+          graph_entries.append(
+            (
+              task,
+              self._build_graph_inbox_entry(
+                task=task,
+                projection=projection,
+                graph_run_labels=graph_run_labels,
+              ),
+            )
+          )
         continue
       if task.status == TaskStatus.DONE:
         continue
@@ -1963,12 +2101,22 @@ class TaskService:
     )
     entries = [entry for _, entry in sorted_graph_entries]
     entries.extend(
-      self._build_inbox_entry(task=task, step_context_map=step_context_map)
+      self._build_inbox_entry(
+        task=task,
+        step_context_map=step_context_map,
+        graph_run_labels=graph_run_labels,
+      )
       for task in sorted_legacy_tasks
     )
     return entries[:limit]
 
-  async def list_task_tracking(self, *, actor: User, limit: int = 10) -> list[TaskTrackingEntry]:
+  async def list_task_tracking(
+    self,
+    *,
+    actor: User,
+    limit: int = 10,
+    exclude_inbox_task_ids: set[UUID] | None = None,
+  ) -> list[TaskTrackingEntry]:
     ensure_active_user(actor)
 
     workflow_related_task_ids = {
@@ -2017,11 +2165,15 @@ class TaskService:
       if self._task_center_v2_enabled()
       else {}
     )
+    graph_run_labels = await self._load_graph_run_label_by_task_id(tasks=tasks)
     step_context_map = await self._task_step_context_map(
       task_ids=[task.id for task in tasks if task.id not in graph_projection_map]
     )
     tracking_entries: list[TaskTrackingEntry] = []
-    inbox_task_ids = {entry.task_id for entry in await self.list_task_inbox(actor=actor, limit=limit * 2)}
+    if exclude_inbox_task_ids is None:
+      inbox_task_ids = {entry.task_id for entry in await self.list_task_inbox(actor=actor, limit=limit)}
+    else:
+      inbox_task_ids = set(exclude_inbox_task_ids)
     for task in tasks:
       if task.id in inbox_task_ids:
         continue
@@ -2047,6 +2199,7 @@ class TaskService:
             task=task,
             relation_types=relation_types or ["流程"],
             projection=projection,
+            graph_run_labels=graph_run_labels,
           )
         )
       elif task.status != TaskStatus.DONE:
@@ -2055,6 +2208,7 @@ class TaskService:
             task=task,
             relation_types=relation_types or ["流程"],
             step_context_map=step_context_map,
+            graph_run_labels=graph_run_labels,
           )
         )
 
@@ -2117,6 +2271,7 @@ class TaskService:
       if self._task_center_v2_enabled()
       else {}
     )
+    graph_run_labels = await self._load_graph_run_label_by_task_id(tasks=tasks)
 
     entries: list[TaskHistoryEntry] = []
     for task in tasks:
@@ -2138,10 +2293,18 @@ class TaskService:
             task=task,
             relation_types=relation_types or ["相关"],
             projection=projection,
+            graph_run_labels=graph_run_labels,
           )
         )
       elif task.status == TaskStatus.DONE:
-        entries.append(self._build_history_entry(task=task, relation_types=relation_types or ["相关"]))
+        entries.append(
+          self._build_history_entry(
+            task=task,
+            relation_types=relation_types or ["相关"],
+            graph_run_labels=graph_run_labels,
+            status=task.status,
+          )
+        )
 
     sorted_entries = sorted(
       entries,

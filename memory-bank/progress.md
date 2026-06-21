@@ -1,5 +1,20 @@
 # Project Filum 进度记录
 
+## 会话摘要（TCE Phase 2 实施）
+
+### 2026-06-21 — TCE Phase 2：性能 + 读模型一致
+
+**完成事项**:
+- [x] **B-04** `list_tasks_by_ids` + `GET /tasks?ids=`（上限 100，可见性过滤）
+- [x] **B-05** `task_user_facing_state.py`；snapshot inbox/tracking/history + search 填充 `run_label` / `user_facing_state`
+- [x] **B-07** `get_task_center` inbox → tracking 传 `exclude_inbox_task_ids`
+- [x] **F-01** `useTaskCenterWorkspace` 改 `listTasksByIds`
+- [x] **F-04** 搜索列用户态标签（fallback 任务 status）
+- [x] **F-07** workspace / legacy 主表 Run 优先 snapshot `run_label`
+- [x] pytest `test_tce_phase2_batch_and_snapshot.py` + Phase 1 回归；vitest TaskCenter 13/13
+
+**分支**: `main`
+
 ## 会话摘要（TCE Phase 1 实施）
 
 ### 2026-06-21 — TCE Phase 1：正确性 + 测试服工具

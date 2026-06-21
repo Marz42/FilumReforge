@@ -188,6 +188,8 @@ class TaskCenterService:
       department_options=publish_department_options,
     )
 
+    task_inbox = await self._task_service.list_task_inbox(actor=actor, limit=50)
+
     return TaskCenterSnapshot(
       permissions={
         "can_manage_templates": can_manage_templates,
@@ -196,8 +198,12 @@ class TaskCenterService:
       template_summaries=await self._build_template_summaries(actor=actor),
       publish_department_options=publish_department_options,
       publish_user_options=publish_user_options,
-      task_inbox=await self._task_service.list_task_inbox(actor=actor, limit=50),
-      task_tracking=await self._task_service.list_task_tracking(actor=actor, limit=50),
+      task_inbox=task_inbox,
+      task_tracking=await self._task_service.list_task_tracking(
+        actor=actor,
+        limit=50,
+        exclude_inbox_task_ids={item.task_id for item in task_inbox},
+      ),
       task_history=await self._task_service.list_task_history(actor=actor, limit=50),
       task_memos=await self._task_memo_service.list_memos(actor=actor),
     )

@@ -498,6 +498,8 @@ export interface TaskCenterInboxItem {
   department_name: string | null
   current_stage_label: string
   current_handler_label: string | null
+  run_label?: string | null
+  user_facing_state?: string | null
 }
 
 export interface TaskCenterTrackingItem {
@@ -514,6 +516,8 @@ export interface TaskCenterTrackingItem {
   rework_count?: number
   review_quality_score?: number | null
   is_pending_review?: boolean
+  run_label?: string | null
+  user_facing_state?: string | null
 }
 
 export interface TaskCenterHistoryItem {
@@ -525,6 +529,8 @@ export interface TaskCenterHistoryItem {
   department_name: string | null
   relation_types: string[]
   source_type: TaskSourceType
+  run_label?: string | null
+  user_facing_state?: string | null
 }
 
 export interface TaskCenterTaskReference {

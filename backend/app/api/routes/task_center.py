@@ -99,6 +99,8 @@ async def read_task_center(
         department_name=item.department_name,
         current_stage_label=item.current_stage_label,
         current_handler_label=item.current_handler_label,
+        run_label=item.run_label,
+        user_facing_state=item.user_facing_state,
       )
       for item in snapshot.task_inbox
     ],
@@ -117,6 +119,8 @@ async def read_task_center(
         rework_count=item.rework_count,
         review_quality_score=item.review_quality_score,
         is_pending_review=item.is_pending_review,
+        run_label=item.run_label,
+        user_facing_state=item.user_facing_state,
       )
       for item in snapshot.task_tracking
     ],
@@ -130,6 +134,8 @@ async def read_task_center(
         department_name=item.department_name,
         relation_types=item.relation_types,
         source_type=item.source_type,
+        run_label=item.run_label,
+        user_facing_state=item.user_facing_state,
       )
       for item in snapshot.task_history
     ],

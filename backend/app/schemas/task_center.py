@@ -40,6 +40,8 @@ class TaskCenterInboxItemRead(BaseModel):
   department_name: str | None
   current_stage_label: str
   current_handler_label: str | None
+  run_label: str | None = None
+  user_facing_state: str | None = None
 
 
 class TaskCenterTrackingItemRead(BaseModel):
@@ -56,6 +58,8 @@ class TaskCenterTrackingItemRead(BaseModel):
   rework_count: int = 0
   review_quality_score: int | None = None
   is_pending_review: bool = False
+  run_label: str | None = None
+  user_facing_state: str | None = None
 
 
 class TaskCenterHistoryItemRead(BaseModel):
@@ -67,6 +71,8 @@ class TaskCenterHistoryItemRead(BaseModel):
   department_name: str | None
   relation_types: list[str] = Field(default_factory=list)
   source_type: TaskSourceType
+  run_label: str | None = None
+  user_facing_state: str | None = None
 
 
 class TaskCenterTaskReferenceRead(BaseModel):
