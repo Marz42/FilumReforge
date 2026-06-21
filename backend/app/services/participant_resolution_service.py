@@ -77,7 +77,10 @@ class ParticipantResolutionService:
     if policy.type != "department_members":
       raise ConflictError(f"暂不支持的参与者策略类型：{policy.type}")
 
-    resolved_department_id = policy.department_id or department_id
+    if policy.scope == "template_department":
+      resolved_department_id = policy.department_id or department_id
+    else:
+      resolved_department_id = department_id or policy.department_id
     if resolved_department_id is None:
       resolved_department_id = await resolve_actor_department_id(
         self._session,

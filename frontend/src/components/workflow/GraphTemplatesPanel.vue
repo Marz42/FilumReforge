@@ -55,7 +55,11 @@ async function loadInstantiateDepartmentContext(): Promise<void> {
         return
       }
     }
-    defaultDepartmentId.value = departmentOptions.value[0]?.id ?? ''
+    if (departmentOptions.value.length === 1) {
+      defaultDepartmentId.value = departmentOptions.value[0]!.id
+      return
+    }
+    defaultDepartmentId.value = ''
   } catch {
     departmentOptions.value = []
     defaultDepartmentId.value = ''

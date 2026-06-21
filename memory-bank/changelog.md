@@ -6,7 +6,8 @@
 
 ### Changed
 
-- **TCE Phase 3**（B-06/B-09/B-11, F-05/F-06/F-09）：部门统计 API、snapshot 分页、Run 聚合 API、统计页部门/Run、看板 Run 筛选、Shell 对话框拆分
+- **TCE Phase 4**（B-16, F-17）：多部门实例化 policy 实例部门优先、实例化发起部门 UI/校验
+- **TCE Phase 3**（B-06/B-09/B-11, F-06/F-09）：部门统计 API、snapshot 分页、Run 聚合 API、统计页部门/Run、看板 Run 筛选
 - **TCE Phase 2**（B-04/B-05/B-07, F-01/F-04/F-07）：batch tasks API、snapshot 读模型 `run_label`/`user_facing_state`、tracking inbox 去重、workspace batch hydration、搜索用户态、Run 标签对齐 graph context
 - **TCE Phase 1**（B-01/B-02/B-03, F-02/F-03/F-08）：节点投影 inbox 读路径、列表 SQL limit、department 迁移脚本、看板姓名、实例化发起部门、详情操作后 refresh
 - memory-bank 全量对齐 **TCE Phase 1**：`active-task`、`roadmap`、`project-brief` @ `0.89.0`；TC-P3 归入 `task-center-enhance` Phase 5

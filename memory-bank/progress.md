@@ -1,5 +1,17 @@
 # Project Filum 进度记录
 
+## 会话摘要（TCE Phase 4 实施）
+
+### 2026-06-21 — TCE Phase 4：多文案部门共用模板
+
+**完成事项**:
+- [x] **B-16** `ParticipantPolicyDefinition.scope`（默认 `instance_department`）；`resolve_policy` 实例部门优先
+- [x] **F-17** 实例化 Dialog 发起部门必选校验；GraphTemplatesPanel 多部门时不自动选首项
+- [x] enhance §7：**F-05 TaskDetailShell 完整拆分移出 TCE**
+- [x] pytest `test_tce_phase4_multi_department_instantiation.py` + W2 回归
+
+**分支**: `main`
+
 ## 会话摘要（TCE Phase 3 实施）
 
 ### 2026-06-21 — TCE Phase 3：管理端 + 可维护

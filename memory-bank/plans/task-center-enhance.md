@@ -164,7 +164,7 @@
 | ID | 做什么 | 为什么（举例） | 改动面 | 依赖 |
 |----|--------|----------------|--------|------|
 | **F-04** | 搜索接入用户态投影 | 搜索与列表两套标签 | `TaskCenterView.vue` | B-10 可选 |
-| **F-05** | `TaskDetailShell` 拆分（<400 行） | 1900 行巨石难维护 | `task-detail/*` | 无 |
+| **F-05** | `TaskDetailShell` 拆分（<400 行） | 1900 行巨石难维护 | `task-detail/*` | **移出 TCE**，见 §8 后续待办 |
 | **F-06** | 统计页部门筛选 + Run 列表 | 现猜 ROOT 任务 title | `TaskCenterStatsView.vue` | B-06、B-11 |
 | **F-07** | Run 标签读 `context.run_label` | title 无 ` / ` 时 Run 列为空 | `run-label.ts` | B-05 可替代 |
 | **F-08** | 工作流操作后 refresh snapshot | N1 提交后待办不更新需 F5 | `TaskDetailShell` → `TaskCenterView` | 无 |
@@ -197,7 +197,7 @@
 |------|------|------|------|
 | **Phase 1** | 正确性 + 测试服 | B-01, B-03, B-02 | F-02, F-03, F-08 |
 | **Phase 2** | 性能 + 一致 | B-04, B-05, B-07 | F-01, F-04, F-07 |
-| **Phase 3** | 管理端 + 可维护 | B-06, B-11, B-09 | F-06, F-05, F-09 |
+| **Phase 3** | 管理端 + 可维护 | B-06, B-11, B-09 | F-06, ~~F-05~~, F-09 |
 | **Phase 4** | 多部门模板（§6） | B-16 | F-03 深化, F-17 |
 | **Phase 5** | TC-P3 + 清理 | B-12–B-15 | F-13–F-16 |
 
@@ -340,10 +340,19 @@ flowchart TB
 
 ---
 
-## 7. 修订记录
+## 7. 后续待办（移出 TCE 范围）
+
+| ID | 工作项 | 说明 |
+|----|--------|------|
+| **F-05** | `TaskDetailShell.vue` 拆分 | 目标 <400 行/文件；**不在 Task Center Enhance 本轮实施**。Phase 3 仅抽出 `TaskDetailActionDialogs.vue` 作为局部整理，完整拆分归入独立 refactor / Phase 5 后 backlog。 |
+
+---
+
+## 8. 修订记录
 
 | 日期 | 说明 |
 |------|------|
 | 2026-06-21 | 初稿：审查清单落盘；新增 §6 多文案部门共用模板方案与 B-16/F-17 |
 | 2026-06-21 | §6.2.1 确认：实例化发起部门默认填充三场景（普通只读 / 跨部可改 / Admin 必选）；F-17 验收标准更新 |
 | 2026-06-21 | memory-bank 全量对齐；`active-task` → TCE Phase 1；TC-P3 归入 Phase 5 |
+| 2026-06-21 | §7：F-05 TaskDetailShell 完整拆分移出 TCE，记入后续待办 |

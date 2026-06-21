@@ -90,6 +90,7 @@ class AggregateSchema(BaseModel):
 class ParticipantPolicyDefinition(BaseModel):
   type: Literal["department_members"] = "department_members"
   department_id: UUID | None = None
+  scope: Literal["instance_department", "template_department"] = "instance_department"
   exclude_initiator_by_default: bool = True
 
 

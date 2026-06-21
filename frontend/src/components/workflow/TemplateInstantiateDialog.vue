@@ -236,6 +236,10 @@ async function handleSubmit(): Promise<void> {
     }
   }
   if (hasParticipantPolicy.value) {
+    if (showDepartmentField.value && !departmentId.value.trim()) {
+      ElMessage.warning('请选择发起部门')
+      return
+    }
     if (participantMode.value === 'subset' && selectedParticipantIds.value.length === 0) {
       ElMessage.warning('请至少选择一名参与人')
       return
