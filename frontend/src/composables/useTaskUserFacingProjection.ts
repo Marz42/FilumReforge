@@ -17,6 +17,7 @@ export interface TaskCenterWorkspaceRow {
   userStateTagType: ReturnType<typeof userFacingStateTagType>
   dueDate: string | null
   assigneeId: string | null
+  assigneeLabel: string | null
   departmentId: string | null
   relationTypes: string[]
   completedAt: string | null
@@ -45,6 +46,7 @@ export function projectTaskForWorkspace(
     userStateTagType: userFacingStateTagType(userState),
     dueDate,
     assigneeId: task.assignee_id,
+    assigneeLabel: null,
     departmentId: task.department_id,
     relationTypes: [],
     completedAt: task.completed_at,

@@ -21,6 +21,7 @@ const props = defineProps<{
   modelValue: boolean
   template: GraphTemplateSummary | null
   defaultDepartmentId?: string
+  departmentOptions?: Array<{ id: string; label: string }>
 }>()
 
 const emit = defineEmits<{
@@ -54,6 +55,29 @@ const participantPolicyRefs = computed(() =>
 )
 const hasParticipantPolicy = computed(() => participantPolicyRefs.value.length > 0)
 const policyRef = computed(() => participantPolicyRefs.value[0] ?? '')
+const departmentOptions = computed(() => props.departmentOptions ?? [])
+const showDepartmentField = computed(
+  () => hasParticipantPolicy.value && departmentOptions.value.length > 0,
+)
+const departmentFieldReadonly = computed(() => departmentOptions.value.length <= 1)
+const selectedDepartmentLabel = computed(() => {
+  const match = departmentOptions.value.find((option) => option.id === departmentId.value)
+  return match?.label ?? '—'
+})
+
+function resolveInitialDepartmentId(): string {
+  const options = departmentOptions.value
+  if (
+    props.defaultDepartmentId
+    && options.some((option) => option.id === props.defaultDepartmentId)
+  ) {
+    return props.defaultDepartmentId
+  }
+  if (options.length === 1) {
+    return options[0]!.id
+  }
+  return props.defaultDepartmentId ?? ''
+}
 
 const userOptions = computed(() => [] as Array<{ value: string; label: string }>)
 
@@ -100,7 +124,7 @@ function setLaunchDateTime(key: string, value: Date | null): void {
 
 function resetForm(): void {
   runLabel.value = ''
-  departmentId.value = props.defaultDepartmentId ?? ''
+  departmentId.value = resolveInitialDepartmentId()
   participantMode.value = 'subset'
   includeInitiator.value = false
   selectedParticipantIds.value = []
@@ -268,6 +292,14 @@ watch(participantMode, () => {
   }
 })
 
+watch(departmentId, () => {
+  if (!props.modelValue || !hasParticipantPolicy.value || !policyRef.value) {
+    return
+  }
+  void loadCandidateUsers()
+  void loadParticipantPreview()
+})
+
 watch(includeInitiator, () => {
   if (props.modelValue && hasParticipantPolicy.value) {
     void loadParticipantPreview()
@@ -294,6 +326,23 @@ watch(includeInitiator, () => {
       <el-form label-position="top" @submit.prevent>
         <el-form-item label="运行标题（可选）">
           <el-input v-model="runLabel" placeholder="例如：第 12 周选题会" />
+        </el-form-item>
+        <el-form-item v-if="showDepartmentField" label="发起部门" data-testid="instantiate-launch-department">
+          <el-select
+            v-if="!departmentFieldReadonly"
+            v-model="departmentId"
+            filterable
+            placeholder="选择发起部门"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="option in departmentOptions"
+              :key="option.id"
+              :label="option.label"
+              :value="option.id"
+            />
+          </el-select>
+          <el-input v-else :model-value="selectedDepartmentLabel" readonly />
         </el-form-item>
         <el-form-item
           v-for="field in launchSchema?.fields ?? []"

@@ -22,7 +22,7 @@ const emit = defineEmits<{
 const grouped = computed(() => groupRowsByUserState(props.rows))
 
 function resolveAssigneeLabel(row: TaskCenterWorkspaceRow): string {
-  return row.assigneeId ?? '—'
+  return row.assigneeLabel ?? '—'
 }
 </script>
 

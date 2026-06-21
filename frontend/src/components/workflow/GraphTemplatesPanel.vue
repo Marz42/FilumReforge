@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
+import { getTaskCenterSnapshot } from '@/api/task-center'
+import { getProfile } from '@/api/profiles'
 import { listGraphTemplates } from '@/api/workflow-graph'
 import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
+import { useAuthStore } from '@/stores/auth'
 import type { GraphTemplateSummary } from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
 import { templateSupportsDirectInstantiation } from '@/utils/workflowVideoSchema'
@@ -23,9 +26,40 @@ const templates = ref<GraphTemplateSummary[]>([])
 const selectedTemplate = ref<GraphTemplateSummary | null>(null)
 const dialogVisible = ref(false)
 const editDialogVisible = ref(false)
+const departmentOptions = ref<Array<{ id: string; label: string }>>([])
+const defaultDepartmentId = ref('')
+
+const authStore = useAuthStore()
+
+const instantiateDepartmentOptions = computed(() => departmentOptions.value)
 
 function canInstantiateTemplate(template: GraphTemplateSummary): boolean {
   return props.canPublish && templateSupportsDirectInstantiation(template)
+}
+
+async function loadInstantiateDepartmentContext(): Promise<void> {
+  try {
+    const snapshot = await getTaskCenterSnapshot()
+    departmentOptions.value = snapshot.publish_department_options.map((option) => ({
+      id: option.id,
+      label: option.label,
+    }))
+    const userId = authStore.user?.id
+    if (userId) {
+      const profile = await getProfile(userId)
+      if (
+        profile.department_id
+        && departmentOptions.value.some((option) => option.id === profile.department_id)
+      ) {
+        defaultDepartmentId.value = profile.department_id
+        return
+      }
+    }
+    defaultDepartmentId.value = departmentOptions.value[0]?.id ?? ''
+  } catch {
+    departmentOptions.value = []
+    defaultDepartmentId.value = ''
+  }
 }
 
 async function loadTemplates(): Promise<void> {
@@ -71,6 +105,7 @@ function handleCreated(payload: { instanceId: string; rootTaskId: string }): voi
 
 onMounted(() => {
   void loadTemplates()
+  void loadInstantiateDepartmentContext()
 })
 </script>
 
@@ -142,6 +177,8 @@ onMounted(() => {
     <TemplateInstantiateDialog
       v-model="dialogVisible"
       :template="selectedTemplate"
+      :default-department-id="defaultDepartmentId"
+      :department-options="instantiateDepartmentOptions"
       @created="handleCreated"
     />
 

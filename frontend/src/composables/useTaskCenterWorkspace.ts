@@ -34,7 +34,14 @@ function enrichRowsFromSnapshot(
     return rows
   }
 
-  const snapshotById = new Map<string, { relationTypes: string[] }>()
+  const assigneeLabelByUserId = new Map(
+    snapshot.publish_user_options.map((user) => [user.user_id, user.label]),
+  )
+
+  const snapshotById = new Map<
+    string,
+    { relationTypes: string[]; handlerLabel: string | null }
+  >()
   const source =
     filter === 'inbox'
       ? snapshot.task_inbox
@@ -45,17 +52,26 @@ function enrichRowsFromSnapshot(
   for (const item of source) {
     snapshotById.set(item.task_id, {
       relationTypes: 'relation_types' in item ? item.relation_types : [],
+      handlerLabel:
+        'current_handler_label' in item ? item.current_handler_label : null,
     })
   }
 
   return rows.map((row) => {
     const meta = snapshotById.get(row.taskId)
+    const assigneeLabel =
+      meta?.handlerLabel
+      ?? (row.assigneeId ? assigneeLabelByUserId.get(row.assigneeId) ?? null : null)
     if (!meta) {
-      return row
+      return {
+        ...row,
+        assigneeLabel,
+      }
     }
     return {
       ...row,
       relationTypes: meta.relationTypes,
+      assigneeLabel,
     }
   })
 }

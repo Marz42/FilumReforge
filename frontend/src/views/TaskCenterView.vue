@@ -203,7 +203,7 @@ const displayListItems = computed(() => {
 
 const isSearchMode = computed(() => taskSearchQuery.value.trim().length > 0)
 
-const { rows: workspaceRows, loading: workspaceLoading } = useTaskCenterWorkspace({
+const { rows: workspaceRows, loading: workspaceLoading, refresh: refreshWorkspace } = useTaskCenterWorkspace({
   filter: activeFilter,
   snapshot,
   currentUserId: computed(() => authStore.user?.id),
@@ -429,6 +429,11 @@ async function loadSnapshot(): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+async function handleDetailActionDone(): Promise<void> {
+  await loadSnapshot()
+  await refreshWorkspace()
 }
 
 function handleFilterChange(value: TaskCenterFilter): void {
@@ -841,6 +846,7 @@ onMounted(() => {
             :initial-selected-task-id="effectiveSelectedTaskId"
             :delegate-user-options="publishUserOptions"
             @select-task="handleMasterRowClick"
+            @action-done="handleDetailActionDone"
           />
         </div>
       </div>
@@ -882,6 +888,7 @@ onMounted(() => {
             :initial-selected-task-id="effectiveSelectedTaskId"
             :delegate-user-options="publishUserOptions"
             @select-task="handleMasterRowClick"
+            @action-done="handleDetailActionDone"
           />
         </div>
       </div>

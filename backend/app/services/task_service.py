@@ -418,6 +418,8 @@ class TaskService:
       return {}
 
     task_map = {task.id: task for task in tasks}
+    projections: dict[UUID, GraphTaskProjection] = {}
+
     instances = list(
       await self._session.scalars(
         select(WorkflowGraphInstance)
@@ -427,7 +429,6 @@ class TaskService:
         .where(WorkflowGraphInstance.source_id.in_(list(task_map.keys())))
       )
     )
-    projections: dict[UUID, GraphTaskProjection] = {}
     for instance in instances:
       if instance.source_id is None:
         continue
@@ -442,7 +443,45 @@ class TaskService:
         instance=instance,
         node_instance=node_instance,
       )
+
+    node_instance_ids: list[UUID] = []
+    node_id_to_task: dict[UUID, Task] = {}
+    for task in tasks:
+      if task.id in projections:
+        continue
+      metadata = self._copy_task_metadata(task)
+      node_instance_id = self._read_uuid_metadata(metadata, "workflow_node_instance_id")
+      if node_instance_id is None:
+        continue
+      node_instance_ids.append(node_instance_id)
+      node_id_to_task[node_instance_id] = task
+
+    if node_instance_ids:
+      node_instances = list(
+        await self._session.scalars(
+          select(WorkflowNodeInstance)
+          .options(
+            selectinload(WorkflowNodeInstance.instance),
+            selectinload(WorkflowNodeInstance.deliverables),
+          )
+          .where(WorkflowNodeInstance.id.in_(node_instance_ids))
+        )
+      )
+      for node_instance in node_instances:
+        task = node_id_to_task.get(node_instance.id)
+        if task is None or node_instance.instance is None:
+          continue
+        projections[task.id] = self._build_graph_projection(
+          task=task,
+          instance=node_instance.instance,
+          node_instance=node_instance,
+        )
+
     return projections
+
+  @staticmethod
+  def _list_scan_limit(*, limit: int, multiplier: int = 10, ceiling: int = 500) -> int:
+    return min(max(limit * multiplier, limit), ceiling)
 
   def _build_graph_inbox_entry(self, *, task: Task, projection: GraphTaskProjection) -> TaskInboxEntry:
     return TaskInboxEntry(
@@ -1869,7 +1908,13 @@ class TaskService:
       for task_id in pending_workflow_task_ids
       if task_id is not None
     }
-    tasks = list(await self._session.scalars(await self._build_visible_task_statement(actor=actor)))
+    tasks = list(
+      await self._session.scalars(
+        (await self._build_visible_task_statement(actor=actor)).limit(
+          self._list_scan_limit(limit=limit)
+        )
+      )
+    )
     graph_projection_map = (
       await self._graph_task_projection_map(tasks=tasks)
       if self._task_center_v2_enabled()
@@ -1963,6 +2008,7 @@ class TaskService:
         )
         .where(or_(*tracking_filters))
         .order_by(Task.updated_at.desc())
+        .limit(self._list_scan_limit(limit=limit))
       )
     )
 

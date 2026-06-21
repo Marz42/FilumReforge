@@ -1,5 +1,20 @@
 # Project Filum 进度记录
 
+## 会话摘要（TCE Phase 1 实施）
+
+### 2026-06-21 — TCE Phase 1：正确性 + 测试服工具
+
+**完成事项**:
+- [x] **B-01** `_graph_task_projection_map` 支持 `workflow_node_instance_id` 投影任务
+- [x] **B-02** inbox/tracking 候选集 SQL `LIMIT`（`_list_scan_limit`）
+- [x] **B-03** `migrate_graph_projection_task_departments.py`（dry-run / limit）
+- [x] **F-08** `TaskDetailShell` `@action-done` → refresh snapshot + workspace
+- [x] **F-02** 看板 `assigneeLabel`（snapshot handler / publish_user_options）
+- [x] **F-03** 实例化 Dialog 发起部门（自动默认 + 多部门可改）
+- [x] pytest `test_tce_phase1_graph_projection_inbox.py` + W4 回归；vitest TaskCenter 13/13
+
+**分支**: `main`
+
 ## 会话摘要（TCE 文档对齐 · 就绪实施）
 
 ### 2026-06-21 — memory-bank 全量对齐 · TCE Phase 1 就绪
