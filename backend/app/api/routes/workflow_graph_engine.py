@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import (
   get_current_user,
+  get_db_session,
   get_organization_relation_service,
   get_participant_resolution_service,
   get_workflow_graph_service,
@@ -22,6 +23,8 @@ from app.core.config import Settings
 from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
+from app.services.access_control import ensure_department_stats_access
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.workflow_video import (
   CreateGraphTemplateRunRequest,
   CreateGraphTemplateRunResponse,
@@ -29,6 +32,7 @@ from app.schemas.workflow_video import (
   FinalizeTopicsResponse,
   DispatchTopicRequest,
   DispatchTopicResponse,
+  DepartmentRunSummaryRead,
   RejectCapturesRequest,
   RejectCapturesResponse,
   RejectProductionStepRequest,
@@ -445,6 +449,38 @@ async def dispatch_instance_topic(
     script_writer_user_id=payload.script_writer_user_id,
     source_node_instance_id=payload.source_node_instance_id,
   )
+
+
+@router.get(
+  "/runs",
+  response_model=list[DepartmentRunSummaryRead],
+  tags=["workflow-graph"],
+)
+async def list_department_runs(
+  department_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+  limit: Annotated[int, Query(ge=1, le=100)] = 50,
+  include_completed: Annotated[bool, Query()] = True,
+) -> list[DepartmentRunSummaryRead]:
+  await ensure_department_stats_access(session, actor, department_id)
+  runs = await workflow_graph_service.list_department_runs(
+    department_id=department_id,
+    limit=limit,
+    include_completed=include_completed,
+  )
+  return [
+    DepartmentRunSummaryRead(
+      instance_id=run.instance_id,
+      run_label=run.run_label,
+      status=run.status.value,
+      created_at=run.created_at,
+      event_count=run.event_count,
+      department_id=run.department_id,
+    )
+    for run in runs
+  ]
 
 
 @router.get(

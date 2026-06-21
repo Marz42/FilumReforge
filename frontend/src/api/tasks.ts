@@ -187,13 +187,17 @@ export async function listTaskActivity(taskId: string): Promise<TaskActivityEntr
   return data
 }
 
-export async function getTaskStatsSummary(): Promise<TaskStatsSummary> {
-  const { data } = await http.get<TaskStatsSummary>('/tasks/stats/summary')
+export async function getTaskStatsSummary(departmentId?: string | null): Promise<TaskStatsSummary> {
+  const { data } = await http.get<TaskStatsSummary>('/tasks/stats/summary', {
+    params: departmentId ? { department_id: departmentId } : undefined,
+  })
   return data
 }
 
-export async function getTaskWorkload(): Promise<TaskWorkloadRow[]> {
-  const { data } = await http.get<TaskWorkloadRow[]>('/tasks/stats/workload')
+export async function getTaskWorkload(departmentId?: string | null): Promise<TaskWorkloadRow[]> {
+  const { data } = await http.get<TaskWorkloadRow[]>('/tasks/stats/workload', {
+    params: departmentId ? { department_id: departmentId } : undefined,
+  })
   return data
 }
 

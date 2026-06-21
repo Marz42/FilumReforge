@@ -1,4 +1,11 @@
-import type { TaskCenterSnapshot, TaskMemo } from '@/types/api'
+import type {
+  TaskCenterHistoryItem,
+  TaskCenterInboxItem,
+  TaskCenterPagination,
+  TaskCenterSnapshot,
+  TaskCenterTrackingItem,
+  TaskMemo,
+} from '@/types/api'
 
 import { http } from './http'
 
@@ -16,8 +23,62 @@ export interface UpdateTaskMemoPayload {
   is_pinned?: boolean
 }
 
+export interface TaskCenterInboxPage {
+  items: TaskCenterInboxItem[]
+  pagination: TaskCenterPagination
+}
+
+export interface TaskCenterTrackingPage {
+  items: TaskCenterTrackingItem[]
+  pagination: TaskCenterPagination
+}
+
+export interface TaskCenterHistoryPage {
+  items: TaskCenterHistoryItem[]
+  pagination: TaskCenterPagination
+}
+
 export async function getTaskCenterSnapshot(): Promise<TaskCenterSnapshot> {
   const { data } = await http.get<TaskCenterSnapshot>('/task-center')
+  return data
+}
+
+export async function fetchTaskCenterInboxPage(options?: {
+  limit?: number
+  cursor?: string | null
+}): Promise<TaskCenterInboxPage> {
+  const { data } = await http.get<TaskCenterInboxPage>('/task-center/inbox', {
+    params: {
+      limit: options?.limit,
+      cursor: options?.cursor ?? undefined,
+    },
+  })
+  return data
+}
+
+export async function fetchTaskCenterTrackingPage(options?: {
+  limit?: number
+  cursor?: string | null
+}): Promise<TaskCenterTrackingPage> {
+  const { data } = await http.get<TaskCenterTrackingPage>('/task-center/tracking', {
+    params: {
+      limit: options?.limit,
+      cursor: options?.cursor ?? undefined,
+    },
+  })
+  return data
+}
+
+export async function fetchTaskCenterHistoryPage(options?: {
+  limit?: number
+  cursor?: string | null
+}): Promise<TaskCenterHistoryPage> {
+  const { data } = await http.get<TaskCenterHistoryPage>('/task-center/history', {
+    params: {
+      limit: options?.limit,
+      cursor: options?.cursor ?? undefined,
+    },
+  })
   return data
 }
 

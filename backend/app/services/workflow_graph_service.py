@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import (
@@ -38,8 +38,19 @@ from app.models import (
   WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
   WorkflowNodeInstance,
+  WorkflowRunEvent,
 )
 from app.models.workflow_graph import WorkflowOutboxEvent
+
+
+@dataclass(slots=True)
+class DepartmentRunSummary:
+  instance_id: UUID
+  run_label: str | None
+  status: WorkflowGraphInstanceStatus
+  created_at: datetime
+  event_count: int
+  department_id: UUID | None
 
 
 @dataclass(slots=True)
@@ -1221,3 +1232,53 @@ class WorkflowGraphService:
         .order_by(WorkflowNodeInstance.created_at.asc())
       )
     )
+
+  async def list_department_runs(
+    self,
+    *,
+    department_id: UUID,
+    limit: int = 50,
+    include_completed: bool = True,
+  ) -> list[DepartmentRunSummary]:
+    normalized_limit = max(1, min(limit, 100))
+    query = (
+      select(WorkflowGraphInstance)
+      .where(
+        WorkflowGraphInstance.department_id == department_id,
+        WorkflowGraphInstance.parent_instance_id.is_(None),
+      )
+      .order_by(WorkflowGraphInstance.created_at.desc())
+      .limit(normalized_limit)
+    )
+    if not include_completed:
+      query = query.where(WorkflowGraphInstance.status != WorkflowGraphInstanceStatus.COMPLETED)
+    instances = list(await self._session.scalars(query))
+    if not instances:
+      return []
+
+    instance_ids = [instance.id for instance in instances]
+    counts_raw = await self._session.execute(
+      select(WorkflowRunEvent.instance_id, func.count())
+      .where(WorkflowRunEvent.instance_id.in_(instance_ids))
+      .group_by(WorkflowRunEvent.instance_id)
+    )
+    event_counts = {row[0]: int(row[1]) for row in counts_raw}
+
+    summaries: list[DepartmentRunSummary] = []
+    for instance in instances:
+      run_label = instance.run_label
+      if (not run_label or not str(run_label).strip()) and isinstance(instance.context, dict):
+        raw = instance.context.get("run_label")
+        if raw is not None:
+          run_label = str(raw)
+      summaries.append(
+        DepartmentRunSummary(
+          instance_id=instance.id,
+          run_label=str(run_label).strip() if run_label else None,
+          status=instance.status,
+          created_at=instance.created_at,
+          event_count=event_counts.get(instance.id, 0),
+          department_id=instance.department_id,
+        )
+      )
+    return summaries

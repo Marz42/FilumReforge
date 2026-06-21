@@ -88,5 +88,5 @@ async def test_tce_b01_inbox_uses_node_projection_task_graph_state(db_session) -
   await db_session.commit()
 
   task_service = TaskService(db_session, settings=settings)
-  inbox = await task_service.list_task_inbox(actor=assignee, limit=20)
-  assert all(entry.task_id != projection_task.id for entry in inbox)
+  inbox_page = await task_service.list_task_inbox(actor=assignee, limit=20)
+  assert all(entry.task_id != projection_task.id for entry in inbox_page.items)

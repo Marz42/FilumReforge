@@ -320,6 +320,20 @@ async def get_visible_department_ids(session: AsyncSession, actor: User) -> set[
   return visible
 
 
+async def ensure_department_stats_access(
+  session: AsyncSession,
+  actor: User,
+  department_id: UUID,
+) -> None:
+  ensure_active_user(actor)
+  if is_management_role(actor):
+    return
+
+  visible = await get_visible_department_ids(session, actor)
+  if visible is not None and department_id not in visible:
+    raise AuthorizationError("无权查看该部门统计。")
+
+
 async def can_manage_assignee(session: AsyncSession, actor: User, assignee_id: UUID) -> bool:
   if is_management_role(actor):
     return True

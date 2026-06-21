@@ -197,8 +197,9 @@ async def create_task(
 async def read_task_stats_summary(
   actor: Annotated[User, Depends(get_current_user)],
   task_service: Annotated[TaskService, Depends(get_task_service)],
+  department_id: UUID | None = None,
 ) -> TaskStatsSummaryRead:
-  summary = await task_service.get_task_stats_summary(actor=actor)
+  summary = await task_service.get_task_stats_summary(actor=actor, department_id=department_id)
   return TaskStatsSummaryRead(
     total_tasks=summary.total_tasks,
     completed_tasks=summary.completed_tasks,
@@ -213,8 +214,9 @@ async def read_task_stats_summary(
 async def read_task_workload(
   actor: Annotated[User, Depends(get_current_user)],
   task_service: Annotated[TaskService, Depends(get_task_service)],
+  department_id: UUID | None = None,
 ) -> list[TaskWorkloadEntryRead]:
-  workload = await task_service.get_task_workload(actor=actor)
+  workload = await task_service.get_task_workload(actor=actor, department_id=department_id)
   return [TaskWorkloadEntryRead.model_validate(row) for row in workload]
 
 

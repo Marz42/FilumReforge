@@ -19,7 +19,13 @@ from app.services.access_control import (
   is_management_role,
 )
 from app.services.task_memo_service import TaskMemoService
-from app.services.task_service import TaskHistoryEntry, TaskInboxEntry, TaskService, TaskTrackingEntry
+from app.services.task_service import (
+  TaskCenterListPage,
+  TaskHistoryEntry,
+  TaskInboxEntry,
+  TaskService,
+  TaskTrackingEntry,
+)
 from app.services.task_template_service import TaskTemplateService
 
 
@@ -58,6 +64,12 @@ class TaskCenterSnapshot:
   task_tracking: list[TaskTrackingEntry]
   task_history: list[TaskHistoryEntry]
   task_memos: list
+  inbox_next_cursor: UUID | None = None
+  inbox_has_more: bool = False
+  tracking_next_cursor: UUID | None = None
+  tracking_has_more: bool = False
+  history_next_cursor: UUID | None = None
+  history_has_more: bool = False
 
 
 class TaskCenterService:
@@ -188,7 +200,7 @@ class TaskCenterService:
       department_options=publish_department_options,
     )
 
-    task_inbox = await self._task_service.list_task_inbox(actor=actor, limit=50)
+    task_inbox_page = await self._task_service.list_task_inbox(actor=actor, limit=50)
 
     return TaskCenterSnapshot(
       permissions={
@@ -198,12 +210,62 @@ class TaskCenterService:
       template_summaries=await self._build_template_summaries(actor=actor),
       publish_department_options=publish_department_options,
       publish_user_options=publish_user_options,
-      task_inbox=task_inbox,
-      task_tracking=await self._task_service.list_task_tracking(
+      task_inbox=task_inbox_page.items,
+      inbox_next_cursor=task_inbox_page.next_cursor,
+      inbox_has_more=task_inbox_page.has_more,
+      task_tracking=(tracking_page := await self._task_service.list_task_tracking(
         actor=actor,
         limit=50,
-        exclude_inbox_task_ids={item.task_id for item in task_inbox},
-      ),
-      task_history=await self._task_service.list_task_history(actor=actor, limit=50),
+        exclude_inbox_task_ids={item.task_id for item in task_inbox_page.items},
+      )).items,
+      tracking_next_cursor=tracking_page.next_cursor,
+      tracking_has_more=tracking_page.has_more,
+      task_history=(history_page := await self._task_service.list_task_history(actor=actor, limit=50)).items,
+      history_next_cursor=history_page.next_cursor,
+      history_has_more=history_page.has_more,
       task_memos=await self._task_memo_service.list_memos(actor=actor),
+    )
+
+  async def list_task_inbox_page(
+    self,
+    *,
+    actor: User,
+    limit: int = 50,
+    cursor: UUID | None = None,
+  ) -> TaskCenterListPage[TaskInboxEntry]:
+    ensure_active_user(actor)
+    return await self._task_service.list_task_inbox(
+      actor=actor,
+      limit=limit,
+      after_task_id=cursor,
+    )
+
+  async def list_task_tracking_page(
+    self,
+    *,
+    actor: User,
+    limit: int = 50,
+    cursor: UUID | None = None,
+  ) -> TaskCenterListPage[TaskTrackingEntry]:
+    ensure_active_user(actor)
+    inbox_page = await self._task_service.list_task_inbox(actor=actor, limit=limit)
+    return await self._task_service.list_task_tracking(
+      actor=actor,
+      limit=limit,
+      exclude_inbox_task_ids={item.task_id for item in inbox_page.items},
+      after_task_id=cursor,
+    )
+
+  async def list_task_history_page(
+    self,
+    *,
+    actor: User,
+    limit: int = 50,
+    cursor: UUID | None = None,
+  ) -> TaskCenterListPage[TaskHistoryEntry]:
+    ensure_active_user(actor)
+    return await self._task_service.list_task_history(
+      actor=actor,
+      limit=limit,
+      after_task_id=cursor,
     )

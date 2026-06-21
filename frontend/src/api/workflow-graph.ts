@@ -16,6 +16,7 @@ import type {
   TopicCaptureSubmitResponse,
   WorkflowGraphInstanceSummary,
   WorkflowRunEventListResponse,
+  DepartmentRunSummary,
 } from '@/types/workflowVideo'
 import { http } from './http'
 
@@ -121,6 +122,20 @@ export async function listInstanceEvents(
     `/workflow-graph/instances/${instanceId}/events`,
     { params },
   )
+  return data
+}
+
+export async function listDepartmentRuns(
+  departmentId: string,
+  options?: { limit?: number; include_completed?: boolean },
+): Promise<DepartmentRunSummary[]> {
+  const { data } = await http.get<DepartmentRunSummary[]>('/workflow-graph/runs', {
+    params: {
+      department_id: departmentId,
+      limit: options?.limit,
+      include_completed: options?.include_completed,
+    },
+  })
   return data
 }
 

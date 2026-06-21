@@ -114,6 +114,11 @@ class TaskCenterPermissionsRead(BaseModel):
   can_publish_task: bool
 
 
+class TaskCenterPaginationRead(BaseModel):
+  next_cursor: UUID | None = None
+  has_more: bool = False
+
+
 class TaskCenterRead(BaseModel):
   permissions: TaskCenterPermissionsRead
   template_summaries: list[TaskCenterTemplateSummaryRead] = Field(default_factory=list)
@@ -123,3 +128,21 @@ class TaskCenterRead(BaseModel):
   task_tracking: list[TaskCenterTrackingItemRead] = Field(default_factory=list)
   task_history: list[TaskCenterHistoryItemRead] = Field(default_factory=list)
   task_memos: list[TaskMemoRead] = Field(default_factory=list)
+  inbox_pagination: TaskCenterPaginationRead = Field(default_factory=TaskCenterPaginationRead)
+  tracking_pagination: TaskCenterPaginationRead = Field(default_factory=TaskCenterPaginationRead)
+  history_pagination: TaskCenterPaginationRead = Field(default_factory=TaskCenterPaginationRead)
+
+
+class TaskCenterInboxPageRead(BaseModel):
+  items: list[TaskCenterInboxItemRead] = Field(default_factory=list)
+  pagination: TaskCenterPaginationRead = Field(default_factory=TaskCenterPaginationRead)
+
+
+class TaskCenterTrackingPageRead(BaseModel):
+  items: list[TaskCenterTrackingItemRead] = Field(default_factory=list)
+  pagination: TaskCenterPaginationRead = Field(default_factory=TaskCenterPaginationRead)
+
+
+class TaskCenterHistoryPageRead(BaseModel):
+  items: list[TaskCenterHistoryItemRead] = Field(default_factory=list)
+  pagination: TaskCenterPaginationRead = Field(default_factory=TaskCenterPaginationRead)

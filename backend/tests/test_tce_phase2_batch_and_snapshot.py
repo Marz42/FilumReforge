@@ -137,8 +137,8 @@ async def test_tce_b05_inbox_includes_run_label_and_user_facing_state(db_session
   await db_session.commit()
 
   task_service = TaskService(db_session, settings=settings)
-  inbox = await task_service.list_task_inbox(actor=assignee, limit=20)
-  entry = next(item for item in inbox if item.task_id == projection_task.id)
+  inbox_page = await task_service.list_task_inbox(actor=assignee, limit=20)
+  entry = next(item for item in inbox_page.items if item.task_id == projection_task.id)
   assert entry.run_label == "第 12 周选题会"
   assert entry.user_facing_state == "pending"
 
@@ -181,11 +181,12 @@ async def test_tce_b07_tracking_uses_provided_inbox_exclusion(db_session) -> Non
   await db_session.commit()
 
   task_service = TaskService(db_session, settings=settings)
-  tracking = await task_service.list_task_tracking(
+  tracking_page = await task_service.list_task_tracking(
     actor=assignee,
     limit=20,
     exclude_inbox_task_ids={inbox_task.id},
   )
+  tracking = tracking_page.items
   assert any(item.task_id == tracking_task.id for item in tracking)
   assert all(item.task_id != inbox_task.id for item in tracking)
 

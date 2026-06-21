@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRoute } from 'vue-router'
 
-import { getTask, getTaskStatsSummary, getTaskWorkload } from '@/api/tasks'
-import { listInstanceEvents } from '@/api/workflow-graph'
+import { getTaskStatsSummary, getTaskWorkload } from '@/api/tasks'
+import { listDepartmentRuns, listInstanceEvents } from '@/api/workflow-graph'
 import type { TaskCenterSnapshot, TaskStatsSummary, TaskWorkloadRow } from '@/types/api'
-import type { WorkflowRunEventItem } from '@/types/workflowVideo'
+import type { DepartmentRunSummary, WorkflowRunEventItem } from '@/types/workflowVideo'
 import { useAuthStore } from '@/stores/auth'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
@@ -15,14 +14,15 @@ const props = defineProps<{
   snapshot: TaskCenterSnapshot | null
 }>()
 
-const route = useRoute()
 const authStore = useAuthStore()
 
 const loading = ref(false)
 const statsSummary = ref<TaskStatsSummary | null>(null)
 const workloadRows = ref<TaskWorkloadRow[]>([])
 const runEvents = ref<WorkflowRunEventItem[]>([])
-const selectedTaskId = ref('')
+const departmentRuns = ref<DepartmentRunSummary[]>([])
+const selectedDepartmentId = ref('')
+const selectedInstanceId = ref('')
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
   run_instantiated: '运行已创建',
@@ -34,10 +34,12 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   node_completed: '节点已完成',
 }
 
+const departmentOptions = computed(() => props.snapshot?.publish_department_options ?? [])
+
 const runOptions = computed(() =>
-  (props.snapshot?.task_tracking ?? []).map((item) => ({
-    value: item.task_id,
-    label: item.title,
+  departmentRuns.value.map((run) => ({
+    value: run.instance_id,
+    label: run.run_label?.trim() || `Run ${run.instance_id.slice(0, 8)}`,
   })),
 )
 
@@ -58,7 +60,11 @@ function resolveRunEventLabel(eventType: string): string {
 async function loadStats(): Promise<void> {
   loading.value = true
   try {
-    const [summary, workload] = await Promise.all([getTaskStatsSummary(), getTaskWorkload()])
+    const departmentId = selectedDepartmentId.value || null
+    const [summary, workload] = await Promise.all([
+      getTaskStatsSummary(departmentId),
+      getTaskWorkload(departmentId),
+    ])
     statsSummary.value = summary
     workloadRows.value = workload
   } catch (error) {
@@ -68,23 +74,47 @@ async function loadStats(): Promise<void> {
   }
 }
 
-async function loadEventsForTask(taskId: string): Promise<void> {
-  if (!taskId) {
+async function loadDepartmentRuns(): Promise<void> {
+  if (!selectedDepartmentId.value) {
+    departmentRuns.value = []
+    selectedInstanceId.value = ''
     runEvents.value = []
     return
   }
-  selectedTaskId.value = taskId
+
   loading.value = true
   try {
-    const task = await getTask(taskId)
-    const metadata = (task.extra_metadata as Record<string, unknown> | undefined) ?? {}
-    const instanceId = typeof metadata.workflow_graph_instance_id === 'string'
-      ? metadata.workflow_graph_instance_id
-      : ''
-    if (!instanceId) {
-      runEvents.value = []
-      return
+    departmentRuns.value = await listDepartmentRuns(selectedDepartmentId.value)
+    if (
+      selectedInstanceId.value
+      && !departmentRuns.value.some((run) => run.instance_id === selectedInstanceId.value)
+    ) {
+      selectedInstanceId.value = departmentRuns.value[0]?.instance_id ?? ''
+    } else if (!selectedInstanceId.value) {
+      selectedInstanceId.value = departmentRuns.value[0]?.instance_id ?? ''
     }
+    if (selectedInstanceId.value) {
+      await loadEventsForInstance(selectedInstanceId.value)
+    } else {
+      runEvents.value = []
+    }
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+    departmentRuns.value = []
+    runEvents.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadEventsForInstance(instanceId: string): Promise<void> {
+  if (!instanceId) {
+    runEvents.value = []
+    return
+  }
+  selectedInstanceId.value = instanceId
+  loading.value = true
+  try {
     const eventsPage = await listInstanceEvents(instanceId, { limit: 100 })
     runEvents.value = eventsPage.items
   } catch (error) {
@@ -95,29 +125,59 @@ async function loadEventsForTask(taskId: string): Promise<void> {
   }
 }
 
-onMounted(() => {
-  void loadStats()
-  const preferredTaskId =
-    (typeof route.query.selected === 'string' && route.query.selected)
-    || runOptions.value[0]?.value
-    || ''
-  if (preferredTaskId) {
-    void loadEventsForTask(preferredTaskId)
+function syncDepartmentDefault(): void {
+  if (selectedDepartmentId.value) {
+    return
   }
-})
+  selectedDepartmentId.value = departmentOptions.value[0]?.id ?? ''
+}
 
 watch(
-  () => route.query.selected,
-  (taskId) => {
-    if (typeof taskId === 'string' && taskId) {
-      void loadEventsForTask(taskId)
-    }
+  () => props.snapshot?.publish_department_options,
+  () => {
+    syncDepartmentDefault()
+    void loadStats()
+    void loadDepartmentRuns()
   },
+  { immediate: true, deep: true },
 )
+
+watch(selectedDepartmentId, () => {
+  void loadStats()
+  void loadDepartmentRuns()
+})
+
+onMounted(() => {
+  syncDepartmentDefault()
+})
 </script>
 
 <template>
   <div v-loading="loading" class="task-center-stats-view" data-testid="task-center-stats-view">
+    <el-card shadow="never" class="task-center-stats-view__panel">
+      <template #header>
+        <div class="task-center-stats-view__panel-header">
+          <strong>统计范围</strong>
+          <el-select
+            v-model="selectedDepartmentId"
+            placeholder="选择部门"
+            style="min-width: 240px"
+            data-testid="task-center-stats-department"
+          >
+            <el-option
+              v-for="option in departmentOptions"
+              :key="option.id"
+              :label="option.label"
+              :value="option.id"
+            />
+          </el-select>
+        </div>
+      </template>
+      <p v-if="departmentOptions.length === 0" class="task-center-stats-view__hint">
+        当前账号暂无可筛选的部门范围。
+      </p>
+    </el-card>
+
     <el-row :gutter="16" class="task-center-stats-view__summary">
       <el-col :xs="12" :lg="6">
         <el-card shadow="never">
@@ -149,12 +209,13 @@ watch(
     <el-card shadow="never" class="task-center-stats-view__panel">
       <template #header>
         <div class="task-center-stats-view__panel-header">
-          <strong>运行事件</strong>
+          <strong>部门 Run 一览</strong>
           <el-select
-            v-model="selectedTaskId"
-            placeholder="选择跟踪任务查看事件"
+            v-model="selectedInstanceId"
+            placeholder="选择 Run 查看事件"
             style="min-width: 280px"
-            @change="(value: string) => void loadEventsForTask(value)"
+            data-testid="task-center-stats-run-select"
+            @change="(value: string) => void loadEventsForInstance(value)"
           >
             <el-option
               v-for="option in runOptions"
@@ -166,7 +227,31 @@ watch(
         </div>
       </template>
 
-      <el-empty v-if="runEvents.length === 0" description="请选择带图实例的任务以查看运行事件" />
+      <el-table
+        v-if="departmentRuns.length > 0"
+        :data="departmentRuns"
+        stripe
+        data-testid="task-center-stats-runs"
+        @row-click="(row: DepartmentRunSummary) => void loadEventsForInstance(row.instance_id)"
+      >
+        <el-table-column prop="run_label" label="Run" min-width="180">
+          <template #default="{ row }: { row: DepartmentRunSummary }">
+            {{ row.run_label?.trim() || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="120" />
+        <el-table-column label="事件数" width="100" prop="event_count" />
+        <el-table-column label="创建时间" min-width="180">
+          <template #default="{ row }: { row: DepartmentRunSummary }">
+            {{ formatDateTime(row.created_at) }}
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-else description="所选部门暂无 Run 记录" />
+
+      <el-divider v-if="runEvents.length > 0" />
+
+      <el-empty v-if="runEvents.length === 0" description="选择 Run 查看运行事件" />
       <el-timeline v-else data-testid="task-center-stats-events">
         <el-timeline-item
           v-for="event in runEvents"
@@ -192,7 +277,7 @@ watch(
     </el-card>
 
     <p v-if="!authStore.isManagementRole" class="task-center-stats-view__hint">
-      当前账号可见本部门相关汇总；管理员可见全量统计。
+      当前账号仅可查看有权限部门的统计与 Run 汇总。
     </p>
   </div>
 </template>

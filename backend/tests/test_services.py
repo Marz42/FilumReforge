@@ -1070,7 +1070,7 @@ async def test_phase5_graph_task_supports_deliverable_review_and_rework_cycle(db
     summary="第二版交付说明",
   )
   assert second_review_task.status == TaskStatus.REVIEW
-  tracking_before_approve = await task_service.list_task_tracking(actor=employee)
+  tracking_before_approve = (await task_service.list_task_tracking(actor=employee)).items
   approved_task = await task_service.review_task_deliverable(
     actor=admin,
     task_id=task.id,
@@ -1162,7 +1162,7 @@ async def test_phase4_graph_task_requires_accept_before_start_and_updates_inbox_
     assignee_id=employee.id,
   )
 
-  inbox_before_accept = await task_service.list_task_inbox(actor=employee)
+  inbox_before_accept = (await task_service.list_task_inbox(actor=employee)).items
   assert any(entry.task_id == task.id and entry.current_stage_label == "任务：待确认" for entry in inbox_before_accept)
 
   with pytest.raises(ConflictError, match="先由执行人接受任务"):
@@ -1176,7 +1176,7 @@ async def test_phase4_graph_task_requires_accept_before_start_and_updates_inbox_
     actor=employee,
     task_id=task.id,
   )
-  accepted_inbox = await task_service.list_task_inbox(actor=employee)
+  accepted_inbox = (await task_service.list_task_inbox(actor=employee)).items
   stored_instance = await db_session.scalar(
     select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
   )
@@ -1262,8 +1262,8 @@ async def test_phase4_graph_task_reject_and_delegate_refresh_runtime_projection(
     reason="请由更熟悉客户的人处理",
   )
 
-  delegate_inbox = await task_service.list_task_inbox(actor=delegate_target)
-  creator_tracking = await task_service.list_task_tracking(actor=admin)
+  delegate_inbox = (await task_service.list_task_inbox(actor=delegate_target)).items
+  creator_tracking = (await task_service.list_task_tracking(actor=admin)).items
 
   assert delegated_task.assignee_id == delegate_target.id
   assert delegated_task.extra_metadata["workflow_handshake_state"] == "assigned"
@@ -1286,8 +1286,8 @@ async def test_phase4_graph_task_reject_and_delegate_refresh_runtime_projection(
     reason="目标和截止时间都需要重谈",
   )
 
-  creator_inbox = await task_service.list_task_inbox(actor=admin)
-  employee_inbox = await task_service.list_task_inbox(actor=employee)
+  creator_inbox = (await task_service.list_task_inbox(actor=admin)).items
+  employee_inbox = (await task_service.list_task_inbox(actor=employee)).items
   stored_instance = await db_session.scalar(
     select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == rejected_task.id)
   )
@@ -1548,8 +1548,8 @@ async def test_task_service_builds_overview_inbox_and_tracking(db_session) -> No
     watcher_user_ids=[employee.id],
   )
 
-  inbox = await task_service.list_task_inbox(actor=employee)
-  tracking = await task_service.list_task_tracking(actor=employee)
+  inbox = (await task_service.list_task_inbox(actor=employee)).items
+  tracking = (await task_service.list_task_tracking(actor=employee)).items
 
   assert [item.task_id for item in inbox] == [inbox_task.id]
   assert tracking[0].task_id == tracking_task.id
@@ -1660,7 +1660,7 @@ async def test_step3_task_center_permissions_history_and_memos(db_session) -> No
     target_status=TaskStatus.DONE,
   )
 
-  history = await task_service.list_task_history(actor=employee)
+  history = (await task_service.list_task_history(actor=employee)).items
   assert history[0].task_id == created_task.id
   assert "执行" in history[0].relation_types
 
@@ -5854,8 +5854,8 @@ async def test_phase11d_takeover_syncs_manual_task_projection_for_new_assignee(d
   )
   await db_session.refresh(task)
 
-  previous_inbox = await task_service.list_task_inbox(actor=previous_assignee)
-  next_inbox = await task_service.list_task_inbox(actor=next_assignee)
+  previous_inbox = (await task_service.list_task_inbox(actor=previous_assignee)).items
+  next_inbox = (await task_service.list_task_inbox(actor=next_assignee)).items
 
   assert task.assignee_id == next_assignee.id
   assert task.status == TaskStatus.TODO
@@ -6368,11 +6368,11 @@ async def test_phase11f_task_center_v2_routes_migrated_review_task_to_creator_in
     settings=Settings(jwt_secret_key=TEST_JWT_SECRET, task_center_v2_enabled=True),
   )
 
-  creator_inbox_legacy = await legacy_task_service.list_task_inbox(actor=admin)
-  assignee_inbox_legacy = await legacy_task_service.list_task_inbox(actor=assignee)
-  creator_inbox_graph = await graph_first_task_service.list_task_inbox(actor=admin)
-  assignee_inbox_graph = await graph_first_task_service.list_task_inbox(actor=assignee)
-  assignee_tracking_graph = await graph_first_task_service.list_task_tracking(actor=assignee)
+  creator_inbox_legacy = (await legacy_task_service.list_task_inbox(actor=admin)).items
+  assignee_inbox_legacy = (await legacy_task_service.list_task_inbox(actor=assignee)).items
+  creator_inbox_graph = (await graph_first_task_service.list_task_inbox(actor=admin)).items
+  assignee_inbox_graph = (await graph_first_task_service.list_task_inbox(actor=assignee)).items
+  assignee_tracking_graph = (await graph_first_task_service.list_task_tracking(actor=assignee)).items
 
   assert all(entry.task_id != task.id for entry in creator_inbox_legacy)
   assert any(entry.task_id == task.id for entry in assignee_inbox_legacy)
@@ -6445,8 +6445,8 @@ async def test_phase11f_task_center_v2_history_prefers_graph_completed_state(db_
     settings=Settings(jwt_secret_key=TEST_JWT_SECRET, task_center_v2_enabled=True),
   )
 
-  legacy_history = await legacy_task_service.list_task_history(actor=admin)
-  graph_history = await graph_first_task_service.list_task_history(actor=admin)
+  legacy_history = (await legacy_task_service.list_task_history(actor=admin)).items
+  graph_history = (await graph_first_task_service.list_task_history(actor=admin)).items
 
   assert all(entry.task_id != task.id for entry in legacy_history)
   migrated_entry = next(entry for entry in graph_history if entry.task_id == task.id)

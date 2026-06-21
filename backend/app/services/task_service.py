@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Callable, Generic, TypeVar
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -59,6 +59,7 @@ from app.services.access_control import (
   can_publish_org_tasks,
   can_manage_assignee,
   ensure_active_user,
+  ensure_department_stats_access,
   get_managed_department_ids,
 )
 from app.services.notification_service import NotificationService
@@ -66,6 +67,36 @@ from app.services.condition_evaluator import evaluate_routing_rules
 from app.services.task_user_facing_state import resolve_task_run_label, resolve_task_user_facing_state
 
 MAX_BATCH_TASK_IDS = 100
+
+TTaskCenterEntry = TypeVar("TTaskCenterEntry")
+
+
+@dataclass(slots=True)
+class TaskCenterListPage(Generic[TTaskCenterEntry]):
+  items: list[TTaskCenterEntry]
+  next_cursor: UUID | None = None
+  has_more: bool = False
+
+
+def _paginate_task_center_list(
+  entries: list[TTaskCenterEntry],
+  *,
+  limit: int,
+  after_task_id: UUID | None,
+  task_id_getter: Callable[[TTaskCenterEntry], UUID],
+) -> TaskCenterListPage[TTaskCenterEntry]:
+  sliced = entries
+  if after_task_id is not None:
+    start_index = 0
+    for index, entry in enumerate(entries):
+      if task_id_getter(entry) == after_task_id:
+        start_index = index + 1
+        break
+    sliced = entries[start_index:]
+  page_items = sliced[:limit]
+  has_more = len(sliced) > limit
+  next_cursor = task_id_getter(page_items[-1]) if has_more and page_items else None
+  return TaskCenterListPage(items=page_items, next_cursor=next_cursor, has_more=has_more)
 
 
 @dataclass(slots=True)
@@ -2016,7 +2047,13 @@ class TaskService:
       raise NotFoundError("任务不存在。")
     return task
 
-  async def list_task_inbox(self, *, actor: User, limit: int = 10) -> list[TaskInboxEntry]:
+  async def list_task_inbox(
+    self,
+    *,
+    actor: User,
+    limit: int = 10,
+    after_task_id: UUID | None = None,
+  ) -> TaskCenterListPage[TaskInboxEntry]:
     ensure_active_user(actor)
 
     pending_workflow_task_ids = list(
@@ -2108,7 +2145,12 @@ class TaskService:
       )
       for task in sorted_legacy_tasks
     )
-    return entries[:limit]
+    return _paginate_task_center_list(
+      entries,
+      limit=limit,
+      after_task_id=after_task_id,
+      task_id_getter=lambda entry: entry.task_id,
+    )
 
   async def list_task_tracking(
     self,
@@ -2116,7 +2158,8 @@ class TaskService:
     actor: User,
     limit: int = 10,
     exclude_inbox_task_ids: set[UUID] | None = None,
-  ) -> list[TaskTrackingEntry]:
+    after_task_id: UUID | None = None,
+  ) -> TaskCenterListPage[TaskTrackingEntry]:
     ensure_active_user(actor)
 
     workflow_related_task_ids = {
@@ -2171,7 +2214,8 @@ class TaskService:
     )
     tracking_entries: list[TaskTrackingEntry] = []
     if exclude_inbox_task_ids is None:
-      inbox_task_ids = {entry.task_id for entry in await self.list_task_inbox(actor=actor, limit=limit)}
+      inbox_page = await self.list_task_inbox(actor=actor, limit=limit)
+      inbox_task_ids = {entry.task_id for entry in inbox_page.items}
     else:
       inbox_task_ids = set(exclude_inbox_task_ids)
     for task in tasks:
@@ -2221,9 +2265,20 @@ class TaskService:
         _task_priority_sort_value(item.priority),
       ),
     )
-    return sorted_entries[:limit]
+    return _paginate_task_center_list(
+      sorted_entries,
+      limit=limit,
+      after_task_id=after_task_id,
+      task_id_getter=lambda entry: entry.task_id,
+    )
 
-  async def list_task_history(self, *, actor: User, limit: int = 20) -> list[TaskHistoryEntry]:
+  async def list_task_history(
+    self,
+    *,
+    actor: User,
+    limit: int = 20,
+    after_task_id: UUID | None = None,
+  ) -> TaskCenterListPage[TaskHistoryEntry]:
     ensure_active_user(actor)
 
     workflow_related_task_ids = {
@@ -2314,7 +2369,12 @@ class TaskService:
       ),
       reverse=True,
     )
-    return sorted_entries[:limit]
+    return _paginate_task_center_list(
+      sorted_entries,
+      limit=limit,
+      after_task_id=after_task_id,
+      task_id_getter=lambda entry: entry.task_id,
+    )
 
   async def update_task(
     self,
@@ -3119,8 +3179,17 @@ class TaskService:
     )
     return list(result)
 
-  async def get_task_stats_summary(self, *, actor: User) -> TaskStatsSummary:
+  async def get_task_stats_summary(
+    self,
+    *,
+    actor: User,
+    department_id: UUID | None = None,
+  ) -> TaskStatsSummary:
+    if department_id is not None:
+      await ensure_department_stats_access(self._session, actor, department_id)
     tasks = await self.list_tasks(actor=actor)
+    if department_id is not None:
+      tasks = [task for task in tasks if task.department_id == department_id]
     now = datetime.now(UTC)
     total_tasks = len(tasks)
     completed_tasks = sum(task.status == TaskStatus.DONE for task in tasks)
@@ -3143,8 +3212,17 @@ class TaskService:
       tasks_by_status=tasks_by_status,
     )
 
-  async def get_task_workload(self, *, actor: User) -> list[TaskWorkloadEntry]:
+  async def get_task_workload(
+    self,
+    *,
+    actor: User,
+    department_id: UUID | None = None,
+  ) -> list[TaskWorkloadEntry]:
+    if department_id is not None:
+      await ensure_department_stats_access(self._session, actor, department_id)
     tasks = await self.list_tasks(actor=actor)
+    if department_id is not None:
+      tasks = [task for task in tasks if task.department_id == department_id]
     now = datetime.now(UTC)
 
     workload_map: dict[tuple[UUID, UUID | None], TaskWorkloadEntry] = {}

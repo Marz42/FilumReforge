@@ -26,6 +26,7 @@ import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgres
 import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue'
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
 import TaskDetailMoreMenu from '@/components/task-detail/TaskDetailMoreMenu.vue'
+import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
 import {
   isVideoWorkflowProfile,
   resolveTaskDetailProfile,
@@ -1689,92 +1690,24 @@ watch(
           </template>
         </el-card>
 
-    <!-- 驳回审核对话框 -->
-    <el-dialog v-model="rejectCommentDialogVisible" title="驳回说明" width="480px">
-      <el-form label-position="top">
-        <el-form-item label="驳回原因（可选）">
-          <el-input
-            v-model="rejectCommentText"
-            type="textarea"
-            :rows="3"
-            placeholder="说明本次驳回的原因，便于执行人修改"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="rejectCommentDialogVisible = false">取消</el-button>
-        <el-button type="danger" :loading="approvalSubmitting" @click="handleApprovalDecide('rejected')">
-          确认驳回
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="reworkDialogVisible" title="返工说明" width="480px">
-      <el-form label-position="top">
-        <el-form-item label="返工原因（必填）">
-          <el-input
-            v-model="reworkCommentText"
-            type="textarea"
-            :rows="3"
-            placeholder="请填写需要补充或修改的内容"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="reworkDialogVisible = false">取消</el-button>
-        <el-button type="danger" :loading="approvalSubmitting" @click="handleDeliverableReview('return_for_rework', reworkCommentText)">
-          确认打回
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="handshakeRejectDialogVisible" title="退回协商" width="480px">
-      <el-form label-position="top">
-        <el-form-item label="协商原因（必填）">
-          <el-input
-            v-model="handshakeRejectReason"
-            type="textarea"
-            :rows="3"
-            placeholder="请说明当前不能接单的原因，便于发起人调整"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="handshakeRejectDialogVisible = false">取消</el-button>
-        <el-button type="danger" :loading="handshakeSubmitting" @click="handleRejectAssignment">
-          确认退回
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="delegateDialogVisible" title="转办任务" width="520px">
-      <el-form label-position="top">
-        <el-form-item label="转办给">
-          <el-select v-model="delegateForm.assignee_id" placeholder="请选择转办目标">
-            <el-option
-              v-for="option in delegateCandidateOptions"
-              :key="option.user_id"
-              :label="option.label"
-              :value="option.user_id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="转办原因（必填）">
-          <el-input
-            v-model="delegateForm.reason"
-            type="textarea"
-            :rows="3"
-            placeholder="说明转办原因，便于新执行人理解背景"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="delegateDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="handshakeSubmitting" @click="handleDelegateAssignment">
-          确认转办
-        </el-button>
-      </template>
-    </el-dialog>
+    <TaskDetailActionDialogs
+      v-model:reject-comment-dialog-visible="rejectCommentDialogVisible"
+      v-model:reject-comment-text="rejectCommentText"
+      v-model:rework-dialog-visible="reworkDialogVisible"
+      v-model:rework-comment-text="reworkCommentText"
+      v-model:handshake-reject-dialog-visible="handshakeRejectDialogVisible"
+      v-model:handshake-reject-reason="handshakeRejectReason"
+      v-model:delegate-dialog-visible="delegateDialogVisible"
+      v-model:delegate-assignee-id="delegateForm.assignee_id"
+      v-model:delegate-reason="delegateForm.reason"
+      :approval-submitting="approvalSubmitting"
+      :handshake-submitting="handshakeSubmitting"
+      :delegate-candidate-options="delegateCandidateOptions"
+      @confirm-reject="handleApprovalDecide('rejected')"
+      @confirm-rework="handleDeliverableReview('return_for_rework', reworkCommentText)"
+      @confirm-handshake-reject="handleRejectAssignment"
+      @confirm-delegate="handleDelegateAssignment"
+    />
   </div>
 </template>
 

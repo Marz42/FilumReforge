@@ -558,6 +558,11 @@ export interface TaskCenterPermissions {
   can_publish_task: boolean
 }
 
+export interface TaskCenterPagination {
+  next_cursor: string | null
+  has_more: boolean
+}
+
 export interface TaskCenterSnapshot {
   permissions: TaskCenterPermissions
   template_summaries: TaskCenterTemplateSummary[]
@@ -567,6 +572,9 @@ export interface TaskCenterSnapshot {
   task_tracking: TaskCenterTrackingItem[]
   task_history: TaskCenterHistoryItem[]
   task_memos: TaskMemo[]
+  inbox_pagination?: TaskCenterPagination
+  tracking_pagination?: TaskCenterPagination
+  history_pagination?: TaskCenterPagination
 }
 
 export interface TaskTemplateStep {

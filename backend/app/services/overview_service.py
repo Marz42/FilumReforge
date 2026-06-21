@@ -38,8 +38,8 @@ class OverviewService:
 
     board_cards = await board_service.list_active_cards(actor=actor)
     announcements = await announcement_service.list_active_announcements(actor=actor)
-    task_inbox = await task_service.list_task_inbox(actor=actor)
-    task_tracking = await task_service.list_task_tracking(actor=actor)
+    task_inbox = (await task_service.list_task_inbox(actor=actor)).items
+    task_tracking = (await task_service.list_task_tracking(actor=actor)).items
     board_scope_options = await board_service.list_publish_scope_options(actor=actor)
     announcement_scope_options = await announcement_service.list_publish_scope_options(actor=actor)
 

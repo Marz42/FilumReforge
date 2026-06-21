@@ -205,6 +205,15 @@ export interface WorkflowRunEventListResponse {
   offset: number
 }
 
+export interface DepartmentRunSummary {
+  instance_id: string
+  run_label: string | null
+  status: string
+  created_at: string
+  event_count: number
+  department_id: string | null
+}
+
 export interface VideoRunContext {
   run_kind?: VideoRunKind
   run_label?: string | null

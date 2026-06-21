@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { uploadAttachment } from '@/api/attachments'
 import { createTask, createTaskComment, searchTasks, type TaskSearchResult } from '@/api/tasks'
-import { getTaskCenterSnapshot } from '@/api/task-center'
+import { getTaskCenterSnapshot, fetchTaskCenterHistoryPage, fetchTaskCenterInboxPage, fetchTaskCenterTrackingPage } from '@/api/task-center'
 import TaskCenterBoardView from '@/components/task-center/TaskCenterBoardView.vue'
 import TaskCenterFilterCards from '@/components/task-center/TaskCenterFilterCards.vue'
 import TaskCenterGanttView from '@/components/task-center/TaskCenterGanttView.vue'
@@ -212,6 +212,40 @@ const { rows: workspaceRows, loading: workspaceLoading, refresh: refreshWorkspac
   snapshot,
   currentUserId: computed(() => authStore.user?.id),
   enabled: computed(() => usesV2Workspace.value && !isSearchMode.value),
+})
+
+const listLoadMoreLoading = ref(false)
+const boardRunFilter = ref('__all__')
+
+const activeListPagination = computed(() => {
+  if (!snapshot.value || activeFilter.value === 'stats') {
+    return { has_more: false, next_cursor: null as string | null }
+  }
+  if (activeFilter.value === 'inbox') {
+    return snapshot.value.inbox_pagination ?? { has_more: false, next_cursor: null }
+  }
+  if (activeFilter.value === 'history') {
+    return snapshot.value.history_pagination ?? { has_more: false, next_cursor: null }
+  }
+  return snapshot.value.tracking_pagination ?? { has_more: false, next_cursor: null }
+})
+
+const boardRunOptions = computed(() => {
+  const labels = new Set<string>()
+  for (const row of workspaceRows.value) {
+    const label = row.runLabel?.trim()
+    if (label) {
+      labels.add(label)
+    }
+  }
+  return [...labels].sort()
+})
+
+const filteredBoardRows = computed(() => {
+  if (boardRunFilter.value === '__all__') {
+    return workspaceRows.value
+  }
+  return workspaceRows.value.filter((row) => row.runLabel === boardRunFilter.value)
 })
 
 const masterListTaskIds = computed(() => new Set(displayListItems.value.map((item) => item.task_id)))
@@ -459,6 +493,47 @@ async function loadSnapshot(): Promise<void> {
 async function handleDetailActionDone(): Promise<void> {
   await loadSnapshot()
   await refreshWorkspace()
+}
+
+async function handleLoadMoreListItems(): Promise<void> {
+  if (!snapshot.value || !activeListPagination.value.has_more) {
+    return
+  }
+  const cursor = activeListPagination.value.next_cursor
+  if (!cursor) {
+    return
+  }
+
+  listLoadMoreLoading.value = true
+  try {
+    if (activeFilter.value === 'inbox') {
+      const page = await fetchTaskCenterInboxPage({ cursor })
+      snapshot.value = {
+        ...snapshot.value,
+        task_inbox: [...snapshot.value.task_inbox, ...page.items],
+        inbox_pagination: page.pagination,
+      }
+    } else if (activeFilter.value === 'history') {
+      const page = await fetchTaskCenterHistoryPage({ cursor })
+      snapshot.value = {
+        ...snapshot.value,
+        task_history: [...snapshot.value.task_history, ...page.items],
+        history_pagination: page.pagination,
+      }
+    } else {
+      const page = await fetchTaskCenterTrackingPage({ cursor })
+      snapshot.value = {
+        ...snapshot.value,
+        task_tracking: [...snapshot.value.task_tracking, ...page.items],
+        tracking_pagination: page.pagination,
+      }
+    }
+    await refreshWorkspace()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    listLoadMoreLoading.value = false
+  }
 }
 
 function handleFilterChange(value: TaskCenterFilter): void {
@@ -722,6 +797,19 @@ onMounted(() => {
             @nudge="handleNudge"
           />
 
+          <div
+            v-if="usesV2Workspace && !isSearchMode && activeListPagination.has_more"
+            class="task-center-view__load-more"
+          >
+            <el-button
+              :loading="listLoadMoreLoading"
+              data-testid="task-center-load-more"
+              @click="handleLoadMoreListItems"
+            >
+              加载更多
+            </el-button>
+          </div>
+
           <el-empty
             v-else-if="!usesV2Workspace && displayListItems.length === 0"
             :description="isSearchMode ? '未找到匹配任务' : '暂无任务'"
@@ -864,6 +952,19 @@ onMounted(() => {
               </el-table-column>
             </template>
           </el-table>
+
+          <div
+            v-if="(!usesV2Workspace || isSearchMode) && !isSearchMode && activeListPagination.has_more"
+            class="task-center-view__load-more"
+          >
+            <el-button
+              :loading="listLoadMoreLoading"
+              data-testid="task-center-load-more-legacy"
+              @click="handleLoadMoreListItems"
+            >
+              加载更多
+            </el-button>
+          </div>
         </el-card>
 
         <div class="task-center-view__detail">
@@ -886,15 +987,32 @@ onMounted(() => {
         >
           <template #header>
             <div class="task-center-view__section-header">
-              <span v-if="workspaceViewMode === 'board'">看板视图</span>
-              <span v-else>甘特视图</span>
-              <small>按用户态与 Run 展示当前筛选下的任务</small>
+              <div>
+                <span v-if="workspaceViewMode === 'board'">看板视图</span>
+                <span v-else>甘特视图</span>
+                <small>按用户态与 Run 展示当前筛选下的任务</small>
+              </div>
+              <el-select
+                v-if="workspaceViewMode === 'board' && boardRunOptions.length > 0"
+                v-model="boardRunFilter"
+                placeholder="筛选 Run"
+                style="min-width: 200px"
+                data-testid="task-center-board-run-filter"
+              >
+                <el-option label="全部 Run" value="__all__" />
+                <el-option
+                  v-for="runLabel in boardRunOptions"
+                  :key="runLabel"
+                  :label="runLabel"
+                  :value="runLabel"
+                />
+              </el-select>
             </div>
           </template>
 
           <TaskCenterBoardView
             v-if="workspaceViewMode === 'board'"
-            :rows="workspaceRows"
+            :rows="filteredBoardRows"
             :selected-task-id="effectiveSelectedTaskId"
             :loading="workspaceLoading"
             @select="handleMasterRowClick"
@@ -1109,6 +1227,15 @@ onMounted(() => {
 
 .task-center-view__section-header {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.task-center-view__section-header > div {
+  display: flex;
   flex-direction: column;
   gap: 4px;
 }
@@ -1116,6 +1243,12 @@ onMounted(() => {
 .task-center-view__section-header small {
   color: var(--filum-text-secondary);
   font-size: 12px;
+}
+
+.task-center-view__load-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
 }
 
 .task-center-view__form {

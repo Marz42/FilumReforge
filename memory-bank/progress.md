@@ -1,5 +1,20 @@
 # Project Filum 进度记录
 
+## 会话摘要（TCE Phase 3 实施）
+
+### 2026-06-21 — TCE Phase 3：管理端 + 可维护
+
+**完成事项**:
+- [x] **B-06** stats/workload `department_id` + `ensure_department_stats_access`
+- [x] **B-09** inbox/tracking/history cursor 分页；`GET /task-center/{inbox,tracking,history}`
+- [x] **B-11** `GET /workflow-graph/runs?department_id=` 部门 Run 聚合
+- [x] **F-05** 抽出 `TaskDetailActionDialogs.vue`（Shell 对话框）
+- [x] **F-06** `TaskCenterStatsView` 部门筛选 + Run 列表/事件
+- [x] **F-09** 看板 Run 筛选；列表「加载更多」
+- [x] pytest Phase 3 + Phase 1–2 回归 8/8；vitest TaskCenter 13/13
+
+**分支**: `main`
+
 ## 会话摘要（TCE Phase 2 实施）
 
 ### 2026-06-21 — TCE Phase 2：性能 + 读模型一致

@@ -3,19 +3,23 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.dependencies import get_current_user, get_task_center_service, get_task_memo_service
 from app.models import TaskMemo, User
 from app.schemas.task_center import (
   TaskCenterDepartmentOptionRead,
   TaskCenterHistoryItemRead,
+  TaskCenterHistoryPageRead,
   TaskCenterInboxItemRead,
+  TaskCenterInboxPageRead,
+  TaskCenterPaginationRead,
   TaskCenterPermissionsRead,
   TaskCenterRead,
   TaskCenterTaskReferenceRead,
   TaskCenterTemplateSummaryRead,
   TaskCenterTrackingItemRead,
+  TaskCenterTrackingPageRead,
   TaskCenterUserOptionRead,
   TaskMemoCreateRequest,
   TaskMemoRead,
@@ -23,6 +27,7 @@ from app.schemas.task_center import (
 )
 from app.services.task_center_service import TaskCenterService
 from app.services.task_memo_service import TaskMemoService, UNSET
+from app.services.task_service import TaskHistoryEntry, TaskInboxEntry, TaskTrackingEntry
 
 router = APIRouter(prefix="/task-center")
 
@@ -51,6 +56,60 @@ def _build_task_memo_read(memo: TaskMemo) -> TaskMemoRead:
     updated_at=memo.updated_at,
     related_task=_build_task_reference(memo.related_task),
   )
+
+
+def _build_inbox_item_read(item: TaskInboxEntry) -> TaskCenterInboxItemRead:
+  return TaskCenterInboxItemRead(
+    task_id=item.task_id,
+    title=item.title,
+    priority=item.priority,
+    status=item.status,
+    due_date=item.due_date,
+    department_name=item.department_name,
+    current_stage_label=item.current_stage_label,
+    current_handler_label=item.current_handler_label,
+    run_label=item.run_label,
+    user_facing_state=item.user_facing_state,
+  )
+
+
+def _build_tracking_item_read(item: TaskTrackingEntry) -> TaskCenterTrackingItemRead:
+  return TaskCenterTrackingItemRead(
+    task_id=item.task_id,
+    title=item.title,
+    priority=item.priority,
+    status=item.status,
+    due_date=item.due_date,
+    department_name=item.department_name,
+    relation_types=item.relation_types,
+    current_stage_label=item.current_stage_label,
+    current_handler_label=item.current_handler_label,
+    latest_deliverable_submitted_at=item.latest_deliverable_submitted_at,
+    rework_count=item.rework_count,
+    review_quality_score=item.review_quality_score,
+    is_pending_review=item.is_pending_review,
+    run_label=item.run_label,
+    user_facing_state=item.user_facing_state,
+  )
+
+
+def _build_history_item_read(item: TaskHistoryEntry) -> TaskCenterHistoryItemRead:
+  return TaskCenterHistoryItemRead(
+    task_id=item.task_id,
+    title=item.title,
+    priority=item.priority,
+    due_date=item.due_date,
+    completed_at=item.completed_at,
+    department_name=item.department_name,
+    relation_types=item.relation_types,
+    source_type=item.source_type,
+    run_label=item.run_label,
+    user_facing_state=item.user_facing_state,
+  )
+
+
+def _build_pagination_read(*, next_cursor: UUID | None, has_more: bool) -> TaskCenterPaginationRead:
+  return TaskCenterPaginationRead(next_cursor=next_cursor, has_more=has_more)
 
 
 @router.get("", response_model=TaskCenterRead)
@@ -89,57 +148,64 @@ async def read_task_center(
       )
       for item in snapshot.publish_user_options
     ],
-    task_inbox=[
-      TaskCenterInboxItemRead(
-        task_id=item.task_id,
-        title=item.title,
-        priority=item.priority,
-        status=item.status,
-        due_date=item.due_date,
-        department_name=item.department_name,
-        current_stage_label=item.current_stage_label,
-        current_handler_label=item.current_handler_label,
-        run_label=item.run_label,
-        user_facing_state=item.user_facing_state,
-      )
-      for item in snapshot.task_inbox
-    ],
-    task_tracking=[
-      TaskCenterTrackingItemRead(
-        task_id=item.task_id,
-        title=item.title,
-        priority=item.priority,
-        status=item.status,
-        due_date=item.due_date,
-        department_name=item.department_name,
-        relation_types=item.relation_types,
-        current_stage_label=item.current_stage_label,
-        current_handler_label=item.current_handler_label,
-        latest_deliverable_submitted_at=item.latest_deliverable_submitted_at,
-        rework_count=item.rework_count,
-        review_quality_score=item.review_quality_score,
-        is_pending_review=item.is_pending_review,
-        run_label=item.run_label,
-        user_facing_state=item.user_facing_state,
-      )
-      for item in snapshot.task_tracking
-    ],
-    task_history=[
-      TaskCenterHistoryItemRead(
-        task_id=item.task_id,
-        title=item.title,
-        priority=item.priority,
-        due_date=item.due_date,
-        completed_at=item.completed_at,
-        department_name=item.department_name,
-        relation_types=item.relation_types,
-        source_type=item.source_type,
-        run_label=item.run_label,
-        user_facing_state=item.user_facing_state,
-      )
-      for item in snapshot.task_history
-    ],
+    task_inbox=[_build_inbox_item_read(item) for item in snapshot.task_inbox],
+    task_tracking=[_build_tracking_item_read(item) for item in snapshot.task_tracking],
+    task_history=[_build_history_item_read(item) for item in snapshot.task_history],
     task_memos=[_build_task_memo_read(memo) for memo in snapshot.task_memos],
+    inbox_pagination=_build_pagination_read(
+      next_cursor=snapshot.inbox_next_cursor,
+      has_more=snapshot.inbox_has_more,
+    ),
+    tracking_pagination=_build_pagination_read(
+      next_cursor=snapshot.tracking_next_cursor,
+      has_more=snapshot.tracking_has_more,
+    ),
+    history_pagination=_build_pagination_read(
+      next_cursor=snapshot.history_next_cursor,
+      has_more=snapshot.history_has_more,
+    ),
+  )
+
+
+@router.get("/inbox", response_model=TaskCenterInboxPageRead)
+async def read_task_center_inbox_page(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_center_service: Annotated[TaskCenterService, Depends(get_task_center_service)],
+  limit: Annotated[int, Query(ge=1, le=100)] = 50,
+  cursor: UUID | None = None,
+) -> TaskCenterInboxPageRead:
+  page = await task_center_service.list_task_inbox_page(actor=actor, limit=limit, cursor=cursor)
+  return TaskCenterInboxPageRead(
+    items=[_build_inbox_item_read(item) for item in page.items],
+    pagination=_build_pagination_read(next_cursor=page.next_cursor, has_more=page.has_more),
+  )
+
+
+@router.get("/tracking", response_model=TaskCenterTrackingPageRead)
+async def read_task_center_tracking_page(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_center_service: Annotated[TaskCenterService, Depends(get_task_center_service)],
+  limit: Annotated[int, Query(ge=1, le=100)] = 50,
+  cursor: UUID | None = None,
+) -> TaskCenterTrackingPageRead:
+  page = await task_center_service.list_task_tracking_page(actor=actor, limit=limit, cursor=cursor)
+  return TaskCenterTrackingPageRead(
+    items=[_build_tracking_item_read(item) for item in page.items],
+    pagination=_build_pagination_read(next_cursor=page.next_cursor, has_more=page.has_more),
+  )
+
+
+@router.get("/history", response_model=TaskCenterHistoryPageRead)
+async def read_task_center_history_page(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_center_service: Annotated[TaskCenterService, Depends(get_task_center_service)],
+  limit: Annotated[int, Query(ge=1, le=100)] = 50,
+  cursor: UUID | None = None,
+) -> TaskCenterHistoryPageRead:
+  page = await task_center_service.list_task_history_page(actor=actor, limit=limit, cursor=cursor)
+  return TaskCenterHistoryPageRead(
+    items=[_build_history_item_read(item) for item in page.items],
+    pagination=_build_pagination_read(next_cursor=page.next_cursor, has_more=page.has_more),
   )
 
 

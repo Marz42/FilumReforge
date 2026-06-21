@@ -287,6 +287,15 @@ class WorkflowRunEventListResponse(BaseModel):
   offset: int
 
 
+class DepartmentRunSummaryRead(BaseModel):
+  instance_id: UUID
+  run_label: str | None = None
+  status: str
+  created_at: datetime
+  event_count: int = 0
+  department_id: UUID | None = None
+
+
 class WorkflowRunContextSchema(BaseModel):
   """Validated subset of graph instance context for video v1."""
 
@@ -365,6 +374,7 @@ __all__ = [
   "CaptureSchema",
   "CreateGraphTemplateRunRequest",
   "CreateGraphTemplateRunResponse",
+  "DepartmentRunSummaryRead",
   "LaunchSchema",
   "ParticipantPolicyDefinition",
   "ParticipantUserPreview",
