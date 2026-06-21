@@ -1,5 +1,19 @@
 # Project Filum 进度记录
 
+## 会话摘要（TCE Phase 5 实施）
+
+### 2026-06-21 — TCE Phase 5：TC-P3 + 清理
+
+**完成事项**:
+- [x] **B-08 + F-16** snapshot `template_summaries` 改为 `WorkflowGraphTemplate` 摘要
+- [x] **F-13** 移除 `TaskCenterView` 内 `TasksView` Legacy 嵌入；v2 UI 恒开
+- [x] **B-13 + F-14** 模板/实例 `aggregate_mode`（batch|streaming）；ROOT/N2 UI 门控
+- [x] **B-14 + F-15** `POST .../close-capture` + ROOT「结束采集」按钮
+- [x] **B-15** `user_facing_state` 接入图 `business_state`/`node_key`
+- [ ] **B-12** Legacy E 统一 — **移出本 phase**（独立 backlog）
+
+**分支**: `main`
+
 ## 会话摘要（TCE Phase 4 实施）
 
 ### 2026-06-21 — TCE Phase 4：多文案部门共用模板

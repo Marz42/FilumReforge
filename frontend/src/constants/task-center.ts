@@ -1,6 +1,5 @@
-/** Task center v2 UI (P2 views, stats tab). Set to `false` to fall back to legacy TasksView board/gantt. */
-export const TASK_CENTER_V2_UI_ENABLED =
-  import.meta.env.VITE_TASK_CENTER_V2_UI_ENABLED !== 'false'
+/** Task center v2 UI is always enabled; legacy TasksView embedding was removed in TCE Phase 5. */
+export const TASK_CENTER_V2_UI_ENABLED = true
 
 export type TaskCenterFilter = 'inbox' | 'tracking' | 'history' | 'stats'
 

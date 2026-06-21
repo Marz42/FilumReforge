@@ -5,7 +5,6 @@ import { ElMessage, type UploadFile } from 'element-plus'
 import { listAttachments, uploadAttachment } from '@/api/attachments'
 import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
-import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import { acceptTaskAssignment,
   addTaskWatchers,
   createTaskComment,
@@ -18,8 +17,7 @@ import { acceptTaskAssignment,
   submitTaskDeliverable,
   updateTaskStatus,
 } from '@/api/tasks'
-import { getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
-import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
+import { closeInstanceCapture, getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import TemplateCapturePanel from '@/components/workflow/TemplateCapturePanel.vue'
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
@@ -56,6 +54,7 @@ import type {
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
+import { isCaptureClosed, resolveAggregateMode } from '@/utils/workflowVideoSchema'
 
 interface Props {
   initialSelectedTaskId?: string
@@ -459,11 +458,27 @@ const selectedTaskUserFacingTagType = computed(() => {
   return state ? userFacingStateTagType(state) : 'info'
 })
 const usesVideoWorkflowLayout = computed(() => isVideoWorkflowProfile(selectedTaskProfile.value))
+const batchAggregateMode = computed(() => resolveAggregateMode(graphInstance.value?.context))
+const captureClosed = computed(() => isCaptureClosed(graphInstance.value?.context))
 const showCaptureProgressPanel = computed(
-  () => selectedTaskProfile.value.id === 'video_n2_aggregate' && graphInstance.value !== null,
+  () =>
+    selectedTaskProfile.value.id === 'video_n2_aggregate'
+    && graphInstance.value !== null
+    && batchAggregateMode.value === 'batch',
 )
 const showVideoTrackingPanel = computed(
-  () => selectedTaskProfile.value.id === 'video_batch_root' && graphInstance.value !== null,
+  () =>
+    selectedTaskProfile.value.id === 'video_batch_root'
+    && graphInstance.value !== null
+    && batchAggregateMode.value === 'streaming',
+)
+const showCloseCaptureButton = computed(
+  () =>
+    isGraphRootBatchTask.value
+    && graphInstance.value !== null
+    && batchAggregateMode.value === 'batch'
+    && !captureClosed.value
+    && canManageCaptureReject.value,
 )
 const showDetailHeaderActions = computed(() => {
   const profileId = selectedTaskProfile.value.id
@@ -481,7 +496,9 @@ const showVideoCapturePanel = computed(
     && selectedTask.value !== null,
 )
 const showVideoAggregatePanel = computed(
-  () => selectedTaskProfile.value.id === 'video_n2_aggregate',
+  () =>
+    selectedTaskProfile.value.id === 'video_n2_aggregate'
+    && batchAggregateMode.value === 'batch',
 )
 const videoProductionMode = computed((): 'single' | 'multi' | 'platform' => {
   const profileId = selectedTaskProfile.value.id
@@ -502,12 +519,7 @@ const showVideoProductionPanel = computed(
     && selectedTask.value !== null,
 )
 const videoProductionPanelRef = ref<InstanceType<typeof VideoProductionPanel> | null>(null)
-const showBatchRunDashboard = computed(
-  () =>
-    !TASK_CENTER_V2_UI_ENABLED
-    && isGraphRootBatchTask.value
-    && graphInstance.value !== null,
-)
+const closeCaptureSubmitting = ref(false)
 const usesCompactDetailTelemetry = computed(() => TASK_CENTER_V2_UI_ENABLED)
 const compactRunEvents = computed(() =>
   usesCompactDetailTelemetry.value || usesVideoWorkflowLayout.value
@@ -772,6 +784,23 @@ async function reloadAfterAction(): Promise<void> {
   }
   await loadSelectedTaskDetails(selectedTask.value.id)
   emit('actionDone')
+}
+
+async function handleCloseCapture(): Promise<void> {
+  const instanceId = graphInstance.value?.id
+  if (!instanceId) {
+    return
+  }
+  closeCaptureSubmitting.value = true
+  try {
+    const result = await closeInstanceCapture(instanceId)
+    ElMessage.success(result.message)
+    await reloadAfterAction()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    closeCaptureSubmitting.value = false
+  }
 }
 
 async function handleAddWatcher(): Promise<void> {
@@ -1106,7 +1135,17 @@ watch(
           <template #header>
             <div class="page__header">
               <span>任务协同详情</span>
-              <div v-if="showDetailHeaderActions" style="display: flex; gap: 8px; align-items: center">
+              <div v-if="showCloseCaptureButton" style="display: flex; gap: 8px; align-items: center">
+                <el-button
+                  type="warning"
+                  :loading="closeCaptureSubmitting"
+                  data-testid="video-batch-close-capture"
+                  @click="handleCloseCapture"
+                >
+                  结束采集
+                </el-button>
+              </div>
+              <div v-else-if="showDetailHeaderActions" style="display: flex; gap: 8px; align-items: center">
                 <template v-if="canDecideApproval">
                   <el-button
                     type="success"
@@ -1315,11 +1354,6 @@ watch(
             <VideoCaptureProgressPanel
               v-if="showCaptureProgressPanel && graphInstance"
               :graph-instance="graphInstance"
-            />
-            <BatchRunDashboard
-              v-if="showBatchRunDashboard"
-              :graph-instance="graphInstance"
-              @open-task="(taskId: string) => emit('selectTask', taskId)"
             />
             <TemplateCapturePanel
               v-if="showVideoCapturePanel && selectedTask"

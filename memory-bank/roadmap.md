@@ -46,10 +46,10 @@
 | 阶段 | 交付概要 | 状态 |
 |------|----------|------|
 | Phase 1 | B-01/B-03/B-02 + F-02/F-03/F-08（PR-A/PR-B） | ✅ **完成** |
-| Phase 2 | batch API、snapshot 字段、hydration（B-04–B-07, F-01, F-04, F-07） | 📋 **下一焦点** |
-| Phase 3 | 部门统计、Shell 拆分、分页（B-06, B-09–B-11, F-05, F-06, F-09） | 待启动 |
-| Phase 4 | 多文案部门共用模板（B-16, F-17 §6.2.1） | 待启动 |
-| Phase 5 | **TC-P3**（E 统一、aggregate_mode、结束采集）+ 清理 | 待启动 |
+| Phase 2 | batch API、snapshot 字段、hydration（B-04–B-07, F-01, F-04, F-07） | ✅ **完成** |
+| Phase 3 | 部门统计、Shell 拆分、分页（B-06, B-09–B-11, F-06, F-09） | ✅ **完成** |
+| Phase 4 | 多文案部门共用模板（B-16, F-17 §6.2.1） | ✅ **完成** |
+| Phase 5 | **TC-P3**（aggregate_mode、结束采集）+ 清理 | ✅ **完成**（B-12 另立项） |
 
 **TC-P0–P2 切片（已完成）**
 

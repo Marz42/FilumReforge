@@ -209,6 +209,8 @@ class GraphTaskProjection:
   rework_count: int
   review_quality_score: int | None
   completed_at: datetime | None
+  business_state: WorkflowNodeBusinessState | None = None
+  node_key: str | None = None
 
 
 ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
@@ -408,6 +410,8 @@ class TaskService:
       rework_count=rework_count,
       review_quality_score=review_quality_score,
       completed_at=node_instance.completed_at or instance.completed_at or task.completed_at,
+      business_state=node_instance.business_state,
+      node_key=node_instance.node_key,
     )
 
   def _select_graph_task_node(
@@ -561,6 +565,8 @@ class TaskService:
     task: Task,
     status: TaskStatus,
     graph_run_labels: dict[UUID, str | None],
+    graph_business_state: WorkflowNodeBusinessState | None = None,
+    graph_node_key: str | None = None,
   ) -> tuple[str | None, str]:
     metadata = self._copy_task_metadata(task)
     run_label = resolve_task_run_label(
@@ -568,7 +574,12 @@ class TaskService:
       metadata=metadata,
       graph_run_label=graph_run_labels.get(task.id),
     )
-    user_facing_state = resolve_task_user_facing_state(task=task, status=status)
+    user_facing_state = resolve_task_user_facing_state(
+      task=task,
+      status=status,
+      graph_business_state=graph_business_state,
+      graph_node_key=graph_node_key,
+    )
     return run_label, user_facing_state
 
   def _build_graph_inbox_entry(
@@ -582,6 +593,8 @@ class TaskService:
       task=task,
       status=projection.status,
       graph_run_labels=graph_run_labels,
+      graph_business_state=projection.business_state,
+      graph_node_key=projection.node_key,
     )
     return TaskInboxEntry(
       task_id=task.id,
@@ -608,6 +621,8 @@ class TaskService:
       task=task,
       status=projection.status,
       graph_run_labels=graph_run_labels,
+      graph_business_state=projection.business_state,
+      graph_node_key=projection.node_key,
     )
     return TaskTrackingEntry(
       task_id=task.id,
@@ -639,6 +654,8 @@ class TaskService:
       task=task,
       status=projection.status,
       graph_run_labels=graph_run_labels,
+      graph_business_state=projection.business_state,
+      graph_node_key=projection.node_key,
     )
     return TaskHistoryEntry(
       task_id=task.id,

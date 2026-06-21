@@ -38,6 +38,22 @@ export function resolveAggregateSchema(
   return raw as Record<string, unknown>
 }
 
+export function resolveAggregateMode(
+  context: Record<string, unknown> | undefined,
+): 'batch' | 'streaming' {
+  const snapshot = context?.schema_snapshot
+  const fromSnapshot =
+    snapshot && typeof snapshot === 'object'
+      ? (snapshot as Record<string, unknown>).aggregate_mode
+      : undefined
+  const raw = context?.aggregate_mode ?? fromSnapshot
+  return raw === 'streaming' ? 'streaming' : 'batch'
+}
+
+export function isCaptureClosed(context: Record<string, unknown> | undefined): boolean {
+  return context?.capture_closed === true
+}
+
 export function resolveLaunchSchema(
   templateConfig: Record<string, unknown> | undefined,
 ): LaunchSchema | null {

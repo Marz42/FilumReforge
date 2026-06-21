@@ -75,6 +75,7 @@ def build_topic_meeting_batch_config(
   return {
     "seed_version": SEED_VERSION,
     "run_kind": "batch",
+    "aggregate_mode": "batch",
     "aggregate_node_key": "N2_AGGREGATE",
     "child_template_code": VIDEO_PRODUCTION_CODE,
     "launch_schema": LAUNCH_SCHEMA_TOPIC,

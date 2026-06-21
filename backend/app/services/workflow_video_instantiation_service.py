@@ -133,6 +133,9 @@ class WorkflowVideoInstantiationService:
     department_pools = template_config.get("department_pools")
     if isinstance(department_pools, dict) and department_pools:
       snapshot["department_pools"] = department_pools
+    aggregate_mode = template_config.get("aggregate_mode")
+    if aggregate_mode is not None:
+      snapshot["aggregate_mode"] = aggregate_mode
     if launch_schema is not None:
       snapshot["launch_schema"] = launch_schema
     return snapshot
@@ -376,6 +379,7 @@ class WorkflowVideoInstantiationService:
     )
 
     resolved_run_label = run_label or normalized_inputs.get("theme") or template.name
+    aggregate_mode = template_config.get("aggregate_mode", "batch")
     context: dict[str, Any] = {
       "run_kind": run_kind,
       "run_label": resolved_run_label,
@@ -386,6 +390,7 @@ class WorkflowVideoInstantiationService:
       "fork_status": None,
       "approved_topics": [],
       "forked_child_instance_ids": [],
+      "aggregate_mode": aggregate_mode,
     }
     for key, value in normalized_inputs.items():
       context[key] = value

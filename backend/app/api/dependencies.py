@@ -354,10 +354,9 @@ def get_people_management_service(
 def get_task_center_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
   task_service: Annotated[TaskService, Depends(get_task_service)],
-  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
   task_memo_service: Annotated[TaskMemoService, Depends(get_task_memo_service)],
 ) -> TaskCenterService:
-  return TaskCenterService(session, task_service, task_template_service, task_memo_service)
+  return TaskCenterService(session, task_service, task_memo_service)
 
 
 def get_report_service(

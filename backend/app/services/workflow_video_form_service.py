@@ -31,6 +31,7 @@ from app.models import (
 from app.schemas.workflow_video import (
   ApprovedTopic,
   CaptureSchema,
+  CloseCaptureResponse,
   RejectedCaptureItem,
   FinalizeTopicsResponse,
   DispatchTopicResponse,
@@ -247,6 +248,12 @@ class WorkflowVideoFormService:
       raise AuthorizationError("当前账号不能提交该采集表。")
     if node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
       raise ConflictError("该节点采集已提交。")
+
+    context = instance.context if isinstance(instance.context, dict) else {}
+    if context.get("capture_closed"):
+      source_node_key = await self._resolve_capture_source_node_key(instance=instance)
+      if node_instance.node_key == source_node_key:
+        raise ConflictError("采集已结束，无法提交。")
 
     schema = self._resolve_capture_schema(node_instance)
     normalized_topics = self._normalize_topics(schema=schema, raw_topics=topics)
@@ -488,6 +495,73 @@ class WorkflowVideoFormService:
     if isinstance(configured, str) and configured.strip():
       return configured.strip()
     return "N1_PROPOSE"
+
+  async def close_capture(
+    self,
+    *,
+    actor: User,
+    instance_id: UUID,
+  ) -> CloseCaptureResponse:
+    ensure_active_user(actor)
+    instance = await self._session.get(WorkflowGraphInstance, instance_id)
+    if instance is None:
+      raise NotFoundError("图实例不存在。")
+
+    context = dict(instance.context or {})
+    if context.get("run_kind") != "batch":
+      raise ConflictError("仅批次 Run 支持结束采集。")
+    if context.get("capture_closed"):
+      raise ConflictError("采集已结束。")
+
+    await self._ensure_finalize_actor(actor=actor, instance=instance)
+
+    source_node_key = await self._resolve_capture_source_node_key(instance=instance)
+    pending_nodes = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance).where(
+          WorkflowNodeInstance.instance_id == instance_id,
+          WorkflowNodeInstance.node_key == source_node_key,
+          WorkflowNodeInstance.engine_state.in_(
+            {
+              WorkflowNodeEngineState.PENDING,
+              WorkflowNodeEngineState.ACTIVATED,
+              WorkflowNodeEngineState.ACKNOWLEDGED,
+            }
+          ),
+        )
+      )
+    )
+
+    now = datetime.now(UTC)
+    for node in pending_nodes:
+      node.engine_state = WorkflowNodeEngineState.TERMINATED
+      node.business_state = WorkflowNodeBusinessState.CANCELLED
+      node.terminated_at = now
+      node.node_instance_version += 1
+
+    context["capture_closed"] = True
+    context["capture_closed_at"] = now.isoformat()
+    instance.context = validate_run_context(context).model_dump(mode="json")
+
+    await WorkflowRunEventService(self._session).append(
+      instance_id=instance.id,
+      event_type="capture_closed",
+      actor_user_id=actor.id,
+      payload={
+        "skipped_capture_count": len(pending_nodes),
+        "source_node_key": source_node_key,
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(instance)
+
+    return CloseCaptureResponse(
+      instance_id=instance_id,
+      capture_closed=True,
+      capture_closed_at=now,
+      skipped_capture_count=len(pending_nodes),
+      message=f"采集已结束，关闭 {len(pending_nodes)} 个未提交入口。",
+    )
 
   async def dispatch_topic(
     self,

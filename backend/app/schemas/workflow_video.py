@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 RunKind = Literal["batch", "production"]
+AggregateMode = Literal["batch", "streaming"]
 CaptureColumnType = Literal["text", "textarea", "number", "datetime", "user"]
 AggregateOnConfirmAction = Literal["finalize_topics_and_fork", "advance_only"]
 
@@ -215,8 +216,16 @@ class FinalizeTopicsResponse(BaseModel):
   approved_count: int
   fork_status: str
   fork_deferred: bool = False
-  child_instance_ids: list[UUID] = Field(default_factory=list)
   message: str | None = None
+  child_instance_ids: list[UUID] = Field(default_factory=list)
+
+
+class CloseCaptureResponse(BaseModel):
+  instance_id: UUID
+  capture_closed: bool
+  capture_closed_at: datetime
+  skipped_capture_count: int = 0
+  message: str
 
 
 class DispatchTopicRequest(BaseModel):
@@ -322,6 +331,9 @@ class WorkflowRunContextSchema(BaseModel):
   archived: bool | None = None
   archived_at: str | None = None
   forked_child_instance_ids: list[UUID] = Field(default_factory=list)
+  aggregate_mode: AggregateMode | None = None
+  capture_closed: bool | None = None
+  capture_closed_at: str | None = None
 
 
 class WorkflowGraphTemplateNodeConfigSchema(BaseModel):
@@ -382,6 +394,8 @@ __all__ = [
   "ParticipantsSnapshotEntry",
   "PreviewParticipantsRequest",
   "PreviewParticipantsResponse",
+  "AggregateMode",
+  "CloseCaptureResponse",
   "RunKind",
   "WorkflowGraphTemplateNodeConfigSchema",
   "WorkflowRunContextSchema",

@@ -6,6 +6,7 @@
 
 ### Changed
 
+- **TCE Phase 5**（B-08/B-13/B-14/B-15, F-13–F-16）：图模板 snapshot 摘要、aggregate_mode、结束采集、user_facing_state 图对齐、移除 TasksView 回退
 - **TCE Phase 4**（B-16, F-17）：多部门实例化 policy 实例部门优先、实例化发起部门 UI/校验
 - **TCE Phase 3**（B-06/B-09/B-11, F-06/F-09）：部门统计 API、snapshot 分页、Run 聚合 API、统计页部门/Run、看板 Run 筛选
 - **TCE Phase 2**（B-04/B-05/B-07, F-01/F-04/F-07）：batch tasks API、snapshot 读模型 `run_label`/`user_facing_state`、tracking inbox 去重、workspace batch hydration、搜索用户态、Run 标签对齐 graph context

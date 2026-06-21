@@ -26,6 +26,7 @@ from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
 from app.services.access_control import ensure_department_stats_access
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.workflow_video import (
+  CloseCaptureResponse,
   CreateGraphTemplateRunRequest,
   CreateGraphTemplateRunResponse,
   FinalizeTopicsRequest,
@@ -409,6 +410,19 @@ async def reject_production_task_step(
     reason=payload.reason,
     target_node_key=payload.target_node_key,
   )
+
+
+@router.post(
+  "/instances/{instance_id}/close-capture",
+  response_model=CloseCaptureResponse,
+  tags=["workflow-graph"],
+)
+async def close_instance_capture(
+  instance_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  form_service: Annotated[WorkflowVideoFormService, Depends(get_workflow_video_form_service)],
+) -> CloseCaptureResponse:
+  return await form_service.close_capture(actor=actor, instance_id=instance_id)
 
 
 @router.post(

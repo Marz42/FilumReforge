@@ -14,7 +14,6 @@ import TaskCenterStatsView from '@/components/task-center/TaskCenterStatsView.vu
 import { useTaskCenterWorkspace } from '@/composables/useTaskCenterWorkspace'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import {
-  TASK_CENTER_V2_UI_ENABLED,
   type TaskCenterFilter,
   type TaskCenterViewMode,
 } from '@/constants/task-center'
@@ -22,7 +21,6 @@ import { useGlobalMemoPanel } from '@/composables/useGlobalMemoPanel'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import { useAuthStore } from '@/stores/auth'
 import TaskDetailShell from '@/components/task-detail/TaskDetailShell.vue'
-import TasksView from '@/views/TasksView.vue'
 import type {
   TaskCenterHistoryItem,
   TaskCenterInboxItem,
@@ -117,11 +115,9 @@ const publishForm = reactive({
 const activeFilter = computed<TaskCenterFilter>(() => normalizeFilter(route.query.filter ?? route.query.tab))
 const workspaceViewMode = computed<TaskCenterViewMode>(() => normalizeViewMode(route.query.view))
 const selectedTaskId = computed(() => (typeof route.query.selected === 'string' ? route.query.selected : ''))
-const isStatsLayout = computed(() => TASK_CENTER_V2_UI_ENABLED && activeFilter.value === 'stats')
+const isStatsLayout = computed(() => activeFilter.value === 'stats')
 const isListLayout = computed(() => workspaceViewMode.value === 'list' && !isStatsLayout.value)
-const usesV2Workspace = computed(
-  () => TASK_CENTER_V2_UI_ENABLED && !isStatsLayout.value && activeFilter.value !== 'stats',
-)
+const usesWorkspace = computed(() => activeFilter.value !== 'stats')
 const viewToggleDisabled = computed(() => isStatsLayout.value)
 
 const permissions = computed(() => {
@@ -211,7 +207,7 @@ const { rows: workspaceRows, loading: workspaceLoading, refresh: refreshWorkspac
   filter: activeFilter,
   snapshot,
   currentUserId: computed(() => authStore.user?.id),
-  enabled: computed(() => usesV2Workspace.value && !isSearchMode.value),
+  enabled: computed(() => usesWorkspace.value && !isSearchMode.value),
 })
 
 const listLoadMoreLoading = ref(false)
@@ -759,7 +755,7 @@ onMounted(() => {
       <TaskCenterFilterCards
         :active-filter="activeFilter"
         :counts="filterCounts"
-        :show-stats="TASK_CENTER_V2_UI_ENABLED"
+        :show-stats="true"
         @change="handleFilterChange"
       />
     </el-card>
@@ -783,12 +779,12 @@ onMounted(() => {
           </template>
 
           <el-empty
-            v-if="usesV2Workspace && !isSearchMode && workspaceRows.length === 0 && !workspaceLoading"
+            v-if="!isSearchMode && workspaceRows.length === 0 && !workspaceLoading"
             description="暂无任务"
           />
 
           <TaskCenterListView
-            v-else-if="usesV2Workspace && !isSearchMode"
+            v-else-if="!isSearchMode"
             :filter="activeFilter"
             :rows="workspaceRows"
             :selected-task-id="effectiveSelectedTaskId"
@@ -798,7 +794,7 @@ onMounted(() => {
           />
 
           <div
-            v-if="usesV2Workspace && !isSearchMode && activeListPagination.has_more"
+            v-if="!isSearchMode && activeListPagination.has_more"
             class="task-center-view__load-more"
           >
             <el-button
@@ -811,12 +807,12 @@ onMounted(() => {
           </div>
 
           <el-empty
-            v-else-if="!usesV2Workspace && displayListItems.length === 0"
-            :description="isSearchMode ? '未找到匹配任务' : '暂无任务'"
+            v-else-if="isSearchMode && displayListItems.length === 0"
+            description="未找到匹配任务"
           />
 
           <el-table
-            v-else-if="!usesV2Workspace || isSearchMode"
+            v-else-if="isSearchMode"
             v-loading="taskSearchLoading && isSearchMode"
             :data="displayListItems"
             :row-key="rowKey"
@@ -826,145 +822,23 @@ onMounted(() => {
             data-testid="task-center-master-table"
             @row-click="(row: TaskCenterInboxItem | TaskCenterTrackingItem | TaskCenterHistoryItem) => handleMasterRowClick(row.task_id)"
           >
-            <template v-if="isSearchMode">
-              <el-table-column prop="title" label="任务标题" min-width="220" />
-              <el-table-column label="状态" width="120">
-                <template #default="{ row }: { row: TaskSearchResult }">
-                  <el-tag :type="resolveSearchUserStateTagType(row)" effect="plain">
-                    {{ resolveSearchUserStateLabel(row) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="优先级" width="120">
-                <template #default="{ row }: { row: TaskSearchResult }">
-                  <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
-                    {{ resolvePriorityLabel(row.priority) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="department_name" label="部门" min-width="160" />
-            </template>
-
-            <template v-else-if="activeFilter === 'inbox'">
-              <el-table-column prop="title" label="任务标题" min-width="200" />
-              <el-table-column label="Run" min-width="140">
-                <template #default="{ row }: { row: TaskCenterInboxItem }">
-                  {{ resolveMasterRunLabel(row) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="优先级" width="120">
-                <template #default="{ row }: { row: TaskCenterInboxItem }">
-                  <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
-                    {{ resolvePriorityLabel(row.priority) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="状态" width="120">
-                <template #default="{ row }: { row: TaskCenterInboxItem }">
-                  <el-tag :type="STATUS_TAG_TYPES[row.status]" effect="plain">
-                    {{ resolveStatusLabel(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="department_name" label="部门" min-width="160" />
-              <el-table-column prop="current_stage_label" label="当前阶段" min-width="160" />
-              <el-table-column prop="current_handler_label" label="当前处理人" min-width="160" />
-              <el-table-column label="截止时间" min-width="180">
-                <template #default="{ row }: { row: TaskCenterInboxItem }">
-                  {{ formatDateTime(row.due_date) }}
-                </template>
-              </el-table-column>
-            </template>
-
-            <template v-else-if="activeFilter === 'tracking'">
-              <el-table-column label="任务标题" min-width="200">
-                <template #default="{ row }: { row: TaskCenterTrackingItem }">
-                  <el-space wrap>
-                    <span>{{ row.title }}</span>
-                    <el-tag v-if="isOverdue(row)" type="danger" size="small" effect="plain">已逾期</el-tag>
-                  </el-space>
-                </template>
-              </el-table-column>
-              <el-table-column label="Run" min-width="140">
-                <template #default="{ row }: { row: TaskCenterTrackingItem }">
-                  {{ resolveMasterRunLabel(row) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="department_name" label="部门" min-width="160" />
-              <el-table-column label="关联方式" min-width="160">
-                <template #default="{ row }: { row: TaskCenterTrackingItem }">
-                  {{ renderRelationTypes(row) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="current_stage_label" label="当前阶段" min-width="160" />
-              <el-table-column label="交付信号" min-width="160">
-                <template #default="{ row }: { row: TaskCenterTrackingItem }">
-                  {{ renderTrackingSignals(row) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="截止时间" min-width="180">
-                <template #default="{ row }: { row: TaskCenterTrackingItem }">
-                  {{ formatDateTime(row.due_date) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="100" fixed="right">
-                <template #default="{ row }: { row: TaskCenterTrackingItem }">
-                  <el-button
-                    size="small"
-                    :loading="nudgingTaskIds.has(row.task_id)"
-                    @click.stop="handleNudge(row.task_id)"
-                  >
-                    催办
-                  </el-button>
-                </template>
-              </el-table-column>
-            </template>
-
-            <template v-else>
-              <el-table-column prop="title" label="任务标题" min-width="200" />
-              <el-table-column label="Run" min-width="140">
-                <template #default="{ row }: { row: TaskCenterHistoryItem }">
-                  {{ resolveMasterRunLabel(row) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="来源" width="120">
-                <template #default="{ row }: { row: TaskCenterHistoryItem }">
-                  {{ resolveSourceTypeLabel(row.source_type) }}
-                </template>
-              </el-table-column>
-              <el-table-column prop="department_name" label="部门" min-width="160" />
-              <el-table-column label="关联方式" min-width="160">
-                <template #default="{ row }: { row: TaskCenterHistoryItem }">
-                  {{ renderRelationTypes(row) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="优先级" width="120">
-                <template #default="{ row }: { row: TaskCenterHistoryItem }">
-                  <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
-                    {{ resolvePriorityLabel(row.priority) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="完成时间" min-width="180">
-                <template #default="{ row }: { row: TaskCenterHistoryItem }">
-                  {{ formatDateTime(row.completed_at) }}
-                </template>
-              </el-table-column>
-            </template>
+            <el-table-column prop="title" label="任务标题" min-width="220" />
+            <el-table-column label="状态" width="120">
+              <template #default="{ row }: { row: TaskSearchResult }">
+                <el-tag :type="resolveSearchUserStateTagType(row)" effect="plain">
+                  {{ resolveSearchUserStateLabel(row) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="优先级" width="120">
+              <template #default="{ row }: { row: TaskSearchResult }">
+                <el-tag :type="PRIORITY_TAG_TYPES[row.priority]" effect="plain">
+                  {{ resolvePriorityLabel(row.priority) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="department_name" label="部门" min-width="160" />
           </el-table>
-
-          <div
-            v-if="(!usesV2Workspace || isSearchMode) && !isSearchMode && activeListPagination.has_more"
-            class="task-center-view__load-more"
-          >
-            <el-button
-              :loading="listLoadMoreLoading"
-              data-testid="task-center-load-more-legacy"
-              @click="handleLoadMoreListItems"
-            >
-              加载更多
-            </el-button>
-          </div>
         </el-card>
 
         <div class="task-center-view__detail">
@@ -978,7 +852,7 @@ onMounted(() => {
       </div>
     </template>
 
-    <template v-else-if="usesV2Workspace">
+    <template v-else>
       <div class="task-center-view__master-detail">
         <el-card
           shadow="never"
@@ -1036,16 +910,6 @@ onMounted(() => {
         </div>
       </div>
     </template>
-
-    <TasksView
-      v-else
-      :show-create-task-composer="false"
-      :initial-selected-task-id="effectiveSelectedTaskId"
-      :delegate-user-options="publishUserOptions"
-      hide-stats
-      hide-view-toggle
-      :external-view-mode="workspaceViewMode"
-    />
 
     <el-dialog
       v-model="taskDialogVisible"

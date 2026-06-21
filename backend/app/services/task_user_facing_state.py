@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.core.enums import TaskStatus
+from app.core.enums import TaskStatus, WorkflowNodeBusinessState
 from app.models import Task
 
 TaskUserFacingState = str
@@ -80,8 +80,19 @@ def _map_status_fallback(status: TaskStatus) -> TaskUserFacingState:
   return "pending"
 
 
-def resolve_task_user_facing_state(*, task: Task, status: TaskStatus) -> TaskUserFacingState:
+def resolve_task_user_facing_state(
+  *,
+  task: Task,
+  status: TaskStatus,
+  graph_business_state: WorkflowNodeBusinessState | None = None,
+  graph_node_key: str | None = None,
+) -> TaskUserFacingState:
   metadata = task.extra_metadata if isinstance(task.extra_metadata, dict) else {}
+
+  if graph_business_state == WorkflowNodeBusinessState.RETURNED_FOR_REWORK and status != TaskStatus.DONE:
+    return "returned"
+  if graph_business_state == WorkflowNodeBusinessState.REJECTED and status != TaskStatus.DONE:
+    return "returned"
 
   if _has_rework_signal(metadata) and status != TaskStatus.DONE:
     return "returned"
@@ -89,6 +100,25 @@ def resolve_task_user_facing_state(*, task: Task, status: TaskStatus) -> TaskUse
     return "completed"
 
   profile_id = _resolve_profile_id(task, metadata)
+  if graph_node_key:
+    node_key_text = graph_node_key
+    if node_key_text.startswith("N1_") or "PROPOSE" in node_key_text:
+      profile_id = "video_n1_capture"
+    elif node_key_text.startswith("N2_") or "AGGREGATE" in node_key_text:
+      profile_id = "video_n2_aggregate"
+
+  if graph_business_state == WorkflowNodeBusinessState.PENDING_REVIEW:
+    if profile_id == "video_production_step":
+      return "awaiting_confirm"
+    if profile_id in {"video_n1_capture", "video_n2_aggregate"}:
+      return "pending" if profile_id == "video_n2_aggregate" else "completed"
+
+  if graph_business_state in {
+    WorkflowNodeBusinessState.ASSIGNED,
+    WorkflowNodeBusinessState.ACCEPTED,
+  }:
+    if profile_id == "graph_manual":
+      return "pending"
 
   if profile_id == "video_batch_root":
     return "in_progress"

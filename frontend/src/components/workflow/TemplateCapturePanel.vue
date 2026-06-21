@@ -11,7 +11,7 @@ import type { Task, WorkflowGraphInstanceDetail } from '@/types/api'
 import type { CaptureSchema, ParticipantUserPreview } from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
-import { resolveCaptureSchema } from '@/utils/workflowVideoSchema'
+import { resolveCaptureSchema, isCaptureClosed } from '@/utils/workflowVideoSchema'
 
 const props = defineProps<{
   task: Task
@@ -35,6 +35,8 @@ const nodeKey = computed(() => {
 const captureSchema = computed(() =>
   resolveCaptureSchema(props.graphInstance?.context, nodeKey.value),
 )
+
+const captureClosed = computed(() => isCaptureClosed(props.graphInstance?.context))
 
 const maxRows = computed(() => captureSchema.value?.max_rows ?? 20)
 const minRows = computed(() => captureSchema.value?.min_rows ?? 1)
@@ -117,6 +119,10 @@ function removeRow(index: number): void {
 }
 
 async function handleSubmit(): Promise<void> {
+  if (captureClosed.value) {
+    ElMessage.warning('采集已结束，无法提交')
+    return
+  }
   const schema = captureSchema.value
   if (!schema) {
     ElMessage.error('当前节点未配置采集表单')

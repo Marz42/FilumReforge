@@ -2948,7 +2948,7 @@ async def test_task_center_api_supports_snapshot_and_memos(api_client) -> None:
   payload = snapshot_response.json()
   assert payload["permissions"]["can_publish_task"] is True
   assert payload["permissions"]["can_manage_templates"] is False
-  assert len(payload["template_summaries"]) == 1
+  assert len(payload["template_summaries"]) == 0
   assert len(payload["task_history"]) == 1
   assert len(payload["task_memos"]) == 1
 

@@ -9,6 +9,7 @@ import type {
   RejectProductionStepRequest,
   RejectProductionStepResponse,
   FinalizeTopicsResponse,
+  CloseCaptureResponse,
   DispatchTopicResponse,
   InstanceSubmissionsResponse,
   ParticipantUserPreview,
@@ -184,6 +185,13 @@ export async function finalizeInstanceTopics(
   const { data } = await http.post<FinalizeTopicsResponse>(
     `/workflow-graph/instances/${instanceId}/finalize-topics`,
     { approved_topics: approvedTopics, rejected_topics: rejectedTopics },
+  )
+  return data
+}
+
+export async function closeInstanceCapture(instanceId: string): Promise<CloseCaptureResponse> {
+  const { data } = await http.post<CloseCaptureResponse>(
+    `/workflow-graph/instances/${instanceId}/close-capture`,
   )
   return data
 }

@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import DepartmentCapability, UserStatus
-from app.models import Department, Profile, User
+from app.core.enums import DepartmentCapability, UserStatus, WorkflowGraphTemplateStatus
+from app.models import Department, Profile, User, WorkflowGraphTemplate, WorkflowGraphTemplateNode
 from app.services.access_control import (
   TASK_SCOPE_TYPES,
   can_manage_task_templates,
@@ -26,7 +26,6 @@ from app.services.task_service import (
   TaskService,
   TaskTrackingEntry,
 )
-from app.services.task_template_service import TaskTemplateService
 
 
 @dataclass(slots=True)
@@ -77,12 +76,10 @@ class TaskCenterService:
     self,
     session: AsyncSession,
     task_service: TaskService,
-    task_template_service: TaskTemplateService,
     task_memo_service: TaskMemoService,
   ) -> None:
     self._session = session
     self._task_service = task_service
-    self._task_template_service = task_template_service
     self._task_memo_service = task_memo_service
 
   async def _list_publish_department_options(self, *, actor: User) -> list[TaskCenterDepartmentOption]:
@@ -178,17 +175,38 @@ class TaskCenterService:
     return options
 
   async def _build_template_summaries(self, *, actor: User) -> list[TaskTemplateSummary]:
-    templates = await self._task_template_service.list_templates(actor=actor)
-    return [
-      TaskTemplateSummary(
-        id=template.id,
-        name=template.name,
-        category=template.category,
-        is_active=template.is_active,
-        step_count=len(template.steps),
+    can_manage = await can_manage_task_templates(self._session, actor)
+    statement = (
+      select(
+        WorkflowGraphTemplate,
+        func.count(WorkflowGraphTemplateNode.id).label("node_count"),
       )
-      for template in templates
-    ]
+      .outerjoin(
+        WorkflowGraphTemplateNode,
+        WorkflowGraphTemplateNode.template_id == WorkflowGraphTemplate.id,
+      )
+      .group_by(WorkflowGraphTemplate.id)
+      .order_by(WorkflowGraphTemplate.name.asc())
+    )
+    if not can_manage:
+      statement = statement.where(WorkflowGraphTemplate.status == WorkflowGraphTemplateStatus.ACTIVE)
+
+    rows = await self._session.execute(statement)
+    summaries: list[TaskTemplateSummary] = []
+    for template, node_count in rows.all():
+      template_config = template.config if isinstance(template.config, dict) else {}
+      run_kind = template_config.get("run_kind")
+      category = str(run_kind) if run_kind else template.base_code
+      summaries.append(
+        TaskTemplateSummary(
+          id=template.id,
+          name=template.name,
+          category=category,
+          is_active=template.status == WorkflowGraphTemplateStatus.ACTIVE,
+          step_count=int(node_count or 0),
+        )
+      )
+    return summaries
 
   async def get_task_center(self, *, actor: User) -> TaskCenterSnapshot:
     ensure_active_user(actor)

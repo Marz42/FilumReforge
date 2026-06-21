@@ -56,6 +56,14 @@ export interface FinalizeTopicsResponse {
   message?: string | null
 }
 
+export interface CloseCaptureResponse {
+  instance_id: string
+  capture_closed: boolean
+  capture_closed_at: string
+  skipped_capture_count: number
+  message: string
+}
+
 export interface DispatchTopicRequest {
   topic_id: string
   title: string
