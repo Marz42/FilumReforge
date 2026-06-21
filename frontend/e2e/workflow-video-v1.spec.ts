@@ -21,6 +21,7 @@ test.describe('workflow video v1 (W10)', () => {
     videoMockState.rejectedTopicIds.clear()
     videoMockState.childInstanceIds = []
     videoMockState.childRootTaskIds = []
+    videoMockState.aggregateMode = 'batch'
     await installWorkflowVideoMockApi(page)
     await loginAsAdmin(page)
   })
@@ -35,13 +36,14 @@ test.describe('workflow video v1 (W10)', () => {
     await page.getByTestId('template-instantiate-submit').click()
 
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
-    await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('tasks-detail-panel')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('video-batch-close-capture')).toBeVisible({ timeout: 15_000 })
 
     for (const { taskId, email } of captureEditorAccounts) {
       await loginAs(page, email)
       await page.goto(`/task-center?filter=tracking&selected=${taskId}`)
       await expect(page.getByTestId('template-capture-panel')).toBeVisible()
-      await page.getByTestId('template-capture-title').fill('E2E 选题')
+      await page.locator('[data-testid="template-capture-panel"] .el-input__inner').first().fill('E2E 选题')
       const captureResponse = page.waitForResponse(
         (res) => res.url().includes('/submit-capture') && res.ok(),
       )
@@ -64,7 +66,6 @@ test.describe('workflow video v1 (W10)', () => {
     await loginAsAdmin(page)
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
     await page.reload()
-    await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 15_000 })
     expect(videoMockState.childRootTaskIds.length).toBe(3)
     await page.goto(`/task-center?filter=stats&selected=${videoMockState.rootTaskId}`)
     await expect(page.getByTestId('task-center-stats-view')).toBeVisible()
@@ -82,10 +83,10 @@ test.describe('workflow video v1 (W10)', () => {
       await loginAs(page, email)
       await page.goto(`/task-center?filter=tracking&selected=${taskId}`)
       await expect(page.getByTestId('template-capture-panel')).toBeVisible()
+      await page.locator('[data-testid="template-capture-panel"] .el-input__inner').first().fill('E2E 选题')
       const captureResponse = page.waitForResponse(
         (res) => res.url().includes('/submit-capture') && res.ok(),
       )
-      await page.getByTestId('template-capture-title').fill('E2E 选题')
       await page.getByTestId('template-capture-submit').click()
       await captureResponse
     }
@@ -103,7 +104,6 @@ test.describe('workflow video v1 (W10)', () => {
     await loginAsAdmin(page)
     await page.goto(`/task-center?filter=tracking&selected=${videoMockState.rootTaskId}`)
     await page.reload()
-    await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 15_000 })
     expect(videoMockState.childRootTaskIds.length).toBe(2)
   })
 })

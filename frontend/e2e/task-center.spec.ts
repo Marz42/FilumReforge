@@ -9,7 +9,6 @@ test('switches to tracking and renders graph-backed task details', async ({ mock
   await expect(page.getByTestId('tasks-detail-panel')).toBeVisible()
   await expect(page.getByTestId('task-center-list-view').getByText('完善工作流看板验收流')).toBeVisible()
   await expect(page.getByTestId('tasks-detail-panel').getByText('完善工作流看板验收流')).toBeVisible()
-  await page.getByTestId('task-detail-graph-collapse').getByRole('button').click()
   await expect(page.getByTestId('tasks-graph-panel')).toContainText('需求澄清')
   await expect(page.getByTestId('tasks-graph-panel')).toContainText('验收确认')
   await expect(page.getByTestId('task-attachment-download')).toBeVisible()

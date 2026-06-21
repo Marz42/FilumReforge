@@ -1,5 +1,15 @@
 import { expect, type Page, type Route } from '@playwright/test'
 
+import {
+  defaultTaskCenterPagination,
+  fulfillJson,
+  fulfillTaskCenterListPage,
+  fulfillTasksListGet,
+  getApiPath,
+  getApiPathname,
+  isExactApiPath,
+} from './mock-api-helpers.ts'
+
 const adminUser = {
   id: 'user-admin',
   email: 'admin@example.com',
@@ -111,6 +121,7 @@ export const videoMockState = {
   rejectedCaptureTaskIds: new Set<string>(),
   currentUserId: copyLeadUser.id,
   runLabel: 'E2E多账号批次',
+  aggregateMode: 'batch' as 'batch' | 'streaming',
   productionTasks: [] as Array<{
     childInstanceId: string
     scriptTaskId: string
@@ -150,6 +161,7 @@ export function resetVideoMockForMultiAccount(runLabel: string): void {
   videoMockState.childRootTaskIds = []
   videoMockState.productionTasks = []
   videoMockState.runLabel = runLabel
+  videoMockState.aggregateMode = 'batch'
   videoMockState.sessionActive = false
   videoMockState.currentUserId = copyLeadUser.id
 }
@@ -795,6 +807,7 @@ function buildBatchGraphInstance() {
     parent_instance_id: null,
     context: {
       run_kind: 'batch',
+      aggregate_mode: videoMockState.aggregateMode,
       run_label: videoMockState.runLabel,
       manager_user_id: copyLeadUser.id,
       inputs: { theme: 'W10 E2E', manager_user_id: copyLeadUser.id },
@@ -803,6 +816,7 @@ function buildBatchGraphInstance() {
       forked_child_instance_ids: videoMockState.childInstanceIds,
       forked_topics: { ...videoMockState.forkedTopics },
       schema_snapshot: {
+        aggregate_mode: videoMockState.aggregateMode,
         nodes: {
           N1_PROPOSE: {
             capture_schema: {
@@ -977,26 +991,42 @@ function buildChildGraphInstance(childId: string, topicTitle: string, rootTask: 
   }
 }
 
-async function fulfillJson(route: Route, data: unknown, status = 200): Promise<void> {
-  await route.fulfill({
-    status,
-    contentType: 'application/json',
-    body: JSON.stringify(data),
-  })
-}
-
-function getApiPath(url: string): string {
-  const parsed = new URL(url)
-  const apiPrefix = '/api/v1'
-  const prefixIndex = parsed.pathname.indexOf(apiPrefix)
-  const path = prefixIndex >= 0 ? parsed.pathname.slice(prefixIndex + apiPrefix.length) : parsed.pathname
-  return path
+async function buildAllMockTasks() {
+  const allTasks = [buildRootTask(), buildAggregateTask(), ...getCaptureTasks()]
+  if (videoMockState.childRootTaskIds.length > 0) {
+    for (const [index, childTaskId] of videoMockState.childRootTaskIds.entries()) {
+      allTasks.push({
+        id: childTaskId,
+        title: `单题制作 / 选题 ${String.fromCharCode(65 + index)}`,
+        description: null,
+        creator_id: adminUser.id,
+        assignee_id: adminUser.id,
+        department_id: 'dept-video-copy',
+        status: 'doing',
+        priority: 'medium',
+        due_date: null,
+        started_at: null,
+        completed_at: null,
+        parent_task_id: null,
+        source_type: 'template',
+        extra_metadata: {
+          workflow_graph_instance_id: videoMockState.childInstanceIds[index],
+          template_node_key: 'N3_SCRIPT_WRITE',
+          run_kind: 'production',
+        },
+        created_at: '2025-05-01T11:00:00Z',
+        updated_at: '2025-05-01T11:00:00Z',
+      })
+    }
+  }
+  return allTasks
 }
 
 export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const apiPath = getApiPath(request.url())
+    const pathname = getApiPathname(apiPath)
 
     if (request.method() === 'GET' && apiPath === '/auth/bootstrap-status') {
       await fulfillJson(route, { bootstrap_required: false })
@@ -1055,7 +1085,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'GET' && apiPath === '/workflow-graph/templates') {
+    if (request.method() === 'GET' && isExactApiPath(apiPath, '/workflow-graph/templates')) {
       await fulfillJson(route, [
         {
           id: batchTemplateId,
@@ -1277,7 +1307,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'GET' && apiPath === `/workflow-graph/instances/${batchInstanceId}/events`) {
+    if (request.method() === 'GET' && isExactApiPath(apiPath, `/workflow-graph/instances/${batchInstanceId}/events`)) {
       const items: Array<Record<string, unknown>> = [
         {
           id: 'evt-1',
@@ -1337,8 +1367,8 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+$/.test(apiPath)) {
-      const instanceId = apiPath.split('/')[2]
+    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+$/.test(pathname)) {
+      const instanceId = pathname.split('/').filter(Boolean).pop()
       if (instanceId?.startsWith('child-inst-')) {
         const index = videoMockState.childInstanceIds.indexOf(instanceId)
         await fulfillJson(
@@ -1355,8 +1385,8 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'POST' && /^\/workflow-graph\/tasks\/[^/]+\/submit-capture$/.test(apiPath)) {
-      const taskId = apiPath.split('/').filter(Boolean)[2] ?? ''
+    if (request.method() === 'POST' && /^\/workflow-graph\/tasks\/[^/]+\/submit-capture$/.test(pathname)) {
+      const taskId = pathname.split('/').filter(Boolean)[2] ?? ''
       const production = findProductionByTaskId(taskId)
       if (production && production.editAssignTaskId === taskId) {
         const body = request.postDataJSON() as { topics?: Array<{ edit_assignee_id?: string }> }
@@ -1393,39 +1423,30 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
     }
 
     if (request.method() === 'GET' && apiPath === '/task-center') {
-      await fulfillJson(route, buildTaskCenterSnapshot())
+      const snapshot = buildTaskCenterSnapshot()
+      await fulfillJson(route, {
+        ...snapshot,
+        inbox_pagination: defaultTaskCenterPagination,
+        tracking_pagination: defaultTaskCenterPagination,
+        history_pagination: defaultTaskCenterPagination,
+      })
       return
     }
 
-    if (request.method() === 'GET' && apiPath === '/tasks') {
-      const allTasks = [buildRootTask(), buildAggregateTask(), ...getCaptureTasks()]
-      if (videoMockState.childRootTaskIds.length > 0) {
-        for (const [index, childTaskId] of videoMockState.childRootTaskIds.entries()) {
-          allTasks.push({
-            id: childTaskId,
-            title: `单题制作 / 选题 ${String.fromCharCode(65 + index)}`,
-            description: null,
-            creator_id: adminUser.id,
-            assignee_id: adminUser.id,
-            department_id: 'dept-video-copy',
-            status: 'doing',
-            priority: 'medium',
-            due_date: null,
-            started_at: null,
-            completed_at: null,
-            parent_task_id: null,
-            source_type: 'template',
-            extra_metadata: {
-              workflow_graph_instance_id: videoMockState.childInstanceIds[index],
-              template_node_key: 'N3_SCRIPT_WRITE',
-              run_kind: 'production',
-            },
-            created_at: '2025-05-01T11:00:00Z',
-            updated_at: '2025-05-01T11:00:00Z',
-          })
-        }
+    if (request.method() === 'GET') {
+      const snapshot = buildTaskCenterSnapshot()
+      if (await fulfillTaskCenterListPage(route, apiPath, '/task-center/inbox', snapshot.task_inbox)) {
+        return
       }
-      await fulfillJson(route, allTasks)
+      if (await fulfillTaskCenterListPage(route, apiPath, '/task-center/tracking', snapshot.task_tracking)) {
+        return
+      }
+      if (await fulfillTaskCenterListPage(route, apiPath, '/task-center/history', snapshot.task_history)) {
+        return
+      }
+    }
+
+    if (request.method() === 'GET' && (await fulfillTasksListGet(route, apiPath, await buildAllMockTasks()))) {
       return
     }
 
@@ -1498,12 +1519,12 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'GET' && /^\/tasks\/[^/]+\/activity$/.test(apiPath)) {
+    if (request.method() === 'GET' && /^\/tasks\/[^/]+\/activity$/.test(pathname)) {
       await fulfillJson(route, [])
       return
     }
 
-    if (request.method() === 'GET' && /^\/tasks\/[^/]+\/watchers$/.test(apiPath)) {
+    if (request.method() === 'GET' && /^\/tasks\/[^/]+\/watchers$/.test(pathname)) {
       await fulfillJson(route, [])
       return
     }
@@ -1528,7 +1549,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'POST' && /^\/tasks\/[^/]+\/deliverable$/.test(apiPath)) {
+    if (request.method() === 'POST' && /^\/tasks\/[^/]+\/deliverable$/.test(pathname)) {
       const taskId = apiPath.split('/').filter(Boolean)[1] ?? ''
       const production = findProductionByTaskId(taskId)
       if (production) {
@@ -1548,7 +1569,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
 
     if (
       request.method() === 'POST'
-      && (/^\/tasks\/[^/]+\/review$/.test(apiPath) || /^\/tasks\/[^/]+\/deliverable\/review$/.test(apiPath))
+      && (/^\/tasks\/[^/]+\/review$/.test(pathname) || /^\/tasks\/[^/]+\/deliverable\/review$/.test(pathname))
     ) {
       const taskId = apiPath.split('/').filter(Boolean)[1] ?? ''
       const production = findProductionByTaskId(taskId)
@@ -1568,8 +1589,8 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'GET' && /^\/tasks\/[^/]+$/.test(apiPath)) {
-      const segments = apiPath.split('/').filter(Boolean)
+    if (request.method() === 'GET' && /^\/tasks\/[^/]+$/.test(pathname)) {
+      const segments = pathname.split('/').filter(Boolean)
       const taskId = segments[1]
       let task = [buildRootTask(), buildAggregateTask(), ...getCaptureTasks()].find((item) => item.id === taskId)
       const production = findProductionByTaskId(taskId ?? '')

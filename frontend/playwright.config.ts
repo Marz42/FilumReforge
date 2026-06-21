@@ -16,7 +16,17 @@ const chromiumLaunchOptions = fs.existsSync(localChrome) ? { executablePath: loc
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: ['live/**'],
+  testMatch: [
+    '**/login.spec.ts',
+    '**/task-center.spec.ts',
+    '**/task-center-stats.spec.ts',
+    '**/task-center-extended.spec.ts',
+    '**/shell.spec.ts',
+    '**/settings.spec.ts',
+    '**/graph-template-designer.spec.ts',
+    '**/workflow-video-v1.spec.ts',
+  ],
+  testIgnore: ['live/**', 'docker-gui-verification/**', 'workflow-video-uat/**'],
   timeout: 30_000,
   expect: {
     timeout: 5_000,

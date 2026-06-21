@@ -1,5 +1,16 @@
 import { expect, test as base, type Page, type Route } from '@playwright/test'
 
+import {
+  defaultTaskCenterPagination,
+  fulfillJson,
+  fulfillTaskCenterListPage,
+  fulfillTasksListGet,
+  getApiPath,
+  getApiPathname,
+  isExactApiPath,
+  parseQueryParam,
+} from './mock-api-helpers'
+
 type MockApiOptions = {
   authenticated?: boolean
 }
@@ -86,79 +97,103 @@ const mockHistoryTask = {
 }
 
 const allMockTasks = [mockInboxTask, selectedTask, mockHistoryTask]
+const dynamicCreatedTasks: typeof allMockTasks = []
 
-const taskCenterSnapshot = {
-  permissions: {
-    can_manage_templates: true,
-    can_publish_task: true,
-  },
-  template_summaries: [
-    {
-      id: 'template-1',
-      name: '内容发布模板',
-      category: 'ops',
-      is_active: true,
-      step_count: 3,
+function getAllMockTasks() {
+  return [...allMockTasks, ...dynamicCreatedTasks]
+}
+
+function buildTaskCenterSnapshot() {
+  return {
+    permissions: {
+      can_manage_templates: true,
+      can_publish_task: true,
     },
-  ],
-  publish_department_options: [
-    {
-      id: 'dept-content',
-      label: '内容部',
-    },
-  ],
-  publish_user_options: [
-    {
-      user_id: adminUser.id,
-      email: adminUser.email,
-      real_name: '系统管理员',
-      department_id: 'dept-content',
-      department_name: '内容部',
-      label: '系统管理员（admin@example.com）',
-    },
-  ],
-  task_inbox: [
-    {
-      task_id: 'task-inbox-1',
-      title: '整理四月周报',
-      priority: 'high',
-      status: 'todo',
-      due_date: '2025-04-06T09:00:00Z',
-      department_name: '内容部',
-      current_stage_label: '待处理',
-      current_handler_label: '系统管理员',
-    },
-  ],
-  task_tracking: [
-    {
-      task_id: selectedTask.id,
-      title: selectedTask.title,
-      priority: selectedTask.priority,
-      status: selectedTask.status,
-      due_date: selectedTask.due_date,
-      department_name: '内容部',
-      relation_types: ['发布人'],
-      current_stage_label: '验收中',
-      current_handler_label: '系统管理员',
-      latest_deliverable_submitted_at: '2025-04-04T12:00:00Z',
-      rework_count: 1,
-      review_quality_score: 4,
-      is_pending_review: true,
-    },
-  ],
-  task_history: [
-    {
-      task_id: 'task-history-1',
-      title: '归档旧公告',
-      priority: 'low',
-      due_date: '2025-04-01T09:00:00Z',
-      completed_at: '2025-04-01T10:00:00Z',
-      department_name: '内容部',
-      relation_types: ['执行'],
-      source_type: 'manual',
-    },
-  ],
-  task_memos: [],
+    template_summaries: [
+      {
+        id: 'template-1',
+        name: '内容发布模板',
+        category: 'ops',
+        is_active: true,
+        step_count: 3,
+      },
+    ],
+    publish_department_options: [
+      {
+        id: 'dept-content',
+        label: '内容部',
+      },
+    ],
+    publish_user_options: [
+      {
+        user_id: adminUser.id,
+        email: adminUser.email,
+        real_name: '系统管理员',
+        department_id: 'dept-content',
+        department_name: '内容部',
+        label: '系统管理员（admin@example.com）',
+      },
+    ],
+    task_inbox: [
+      {
+        task_id: 'task-inbox-1',
+        title: '整理四月周报',
+        priority: 'high',
+        status: 'todo',
+        due_date: '2025-04-06T09:00:00Z',
+        department_name: '内容部',
+        current_stage_label: '待处理',
+        current_handler_label: '系统管理员',
+        user_facing_state: 'pending',
+      },
+      ...dynamicCreatedTasks.map((task) => ({
+        task_id: task.id,
+        title: task.title,
+        priority: task.priority,
+        status: task.status,
+        due_date: task.due_date,
+        department_name: '内容部',
+        current_stage_label: '待处理',
+        current_handler_label: '系统管理员',
+        user_facing_state: 'pending',
+      })),
+    ],
+    task_tracking: [
+      {
+        task_id: selectedTask.id,
+        title: selectedTask.title,
+        priority: selectedTask.priority,
+        status: selectedTask.status,
+        due_date: selectedTask.due_date,
+        department_name: '内容部',
+        relation_types: ['发布人'],
+        current_stage_label: '验收中',
+        current_handler_label: '系统管理员',
+        latest_deliverable_submitted_at: '2025-04-04T12:00:00Z',
+        rework_count: 1,
+        review_quality_score: 4,
+        is_pending_review: true,
+        user_facing_state: 'awaiting_confirm',
+      },
+    ],
+    task_history: [
+      {
+        task_id: 'task-history-1',
+        title: '归档旧公告',
+        priority: 'low',
+        due_date: '2025-04-01T09:00:00Z',
+        completed_at: '2025-04-01T10:00:00Z',
+        department_name: '内容部',
+        relation_types: ['执行'],
+        source_type: 'manual',
+        user_facing_state: 'completed',
+      },
+    ],
+    task_memos: [],
+    inbox_pagination: defaultTaskCenterPagination,
+    tracking_pagination: defaultTaskCenterPagination,
+    history_pagination: defaultTaskCenterPagination,
+  }
 }
 
 const taskStatsSummary = {
@@ -250,32 +285,20 @@ const graphInstance = {
   ],
 }
 
-async function fulfillJson(route: Route, data: unknown, status = 200): Promise<void> {
-  await route.fulfill({
-    status,
-    contentType: 'application/json',
-    body: JSON.stringify(data),
-  })
-}
-
 async function fulfillUnauthorized(route: Route): Promise<void> {
   await fulfillJson(route, { detail: 'unauthorized' }, 401)
 }
 
-function getApiPath(url: string): string {
-  const parsed = new URL(url)
-  const apiPrefix = '/api/v1'
-  const prefixIndex = parsed.pathname.indexOf(apiPrefix)
-  const path = prefixIndex >= 0 ? parsed.pathname.slice(prefixIndex + apiPrefix.length) : parsed.pathname
-  return `${path}${parsed.search}`
-}
-
 async function installMockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
   const authenticated = options.authenticated ?? true
+  dynamicCreatedTasks.length = 0
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
     const apiPath = getApiPath(request.url())
+    const pathname = getApiPathname(apiPath)
+    const snapshot = buildTaskCenterSnapshot()
+    const tasks = getAllMockTasks()
 
     if (request.method() === 'GET' && apiPath === '/auth/bootstrap-status') {
       await fulfillJson(route, { bootstrap_required: false })
@@ -302,18 +325,78 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
     }
 
     if (request.method() === 'GET' && apiPath === '/task-center') {
-      await fulfillJson(route, taskCenterSnapshot)
+      await fulfillJson(route, snapshot)
       return
     }
 
-    if (request.method() === 'GET' && apiPath === '/tasks') {
-      await fulfillJson(route, allMockTasks)
+    if (await fulfillTaskCenterListPage(route, apiPath, '/task-center/inbox', snapshot.task_inbox)) {
       return
     }
 
-    if (request.method() === 'GET' && /^\/tasks\/[^/]+$/.test(apiPath)) {
-      const taskId = apiPath.slice('/tasks/'.length)
-      const task = allMockTasks.find((item) => item.id === taskId)
+    if (await fulfillTaskCenterListPage(route, apiPath, '/task-center/tracking', snapshot.task_tracking)) {
+      return
+    }
+
+    if (await fulfillTaskCenterListPage(route, apiPath, '/task-center/history', snapshot.task_history)) {
+      return
+    }
+
+    if (request.method() === 'GET' && isExactApiPath(apiPath, '/tasks/search')) {
+      const query = parseQueryParam(apiPath, 'q')?.trim().toLowerCase() ?? ''
+      const results = tasks
+        .filter((task) => task.title.toLowerCase().includes(query))
+        .map((task) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          status: task.status,
+          priority: task.priority,
+          due_date: task.due_date,
+          user_facing_state: task.id === selectedTask.id ? 'awaiting_confirm' : 'pending',
+        }))
+      await fulfillJson(route, results)
+      return
+    }
+
+    if (request.method() === 'POST' && apiPath === '/tasks') {
+      const body = request.postDataJSON() as {
+        title?: string
+        description?: string | null
+        assignee_id?: string
+        department_id?: string | null
+        priority?: string
+        due_date?: string | null
+      }
+      const createdTask = {
+        id: 'task-created-e2e',
+        title: body.title?.trim() || '未命名任务',
+        description: body.description ?? null,
+        creator_id: adminUser.id,
+        assignee_id: body.assignee_id ?? adminUser.id,
+        department_id: body.department_id ?? 'dept-content',
+        status: 'todo',
+        priority: body.priority ?? 'medium',
+        due_date: body.due_date ?? null,
+        started_at: null,
+        completed_at: null,
+        parent_task_id: null,
+        source_type: 'manual',
+        extra_metadata: {},
+        created_at: '2025-04-04T08:00:00Z',
+        updated_at: '2025-04-04T08:00:00Z',
+      }
+      dynamicCreatedTasks.push(createdTask)
+      await fulfillJson(route, createdTask, 201)
+      return
+    }
+
+    if (await fulfillTasksListGet(route, apiPath, tasks)) {
+      return
+    }
+
+    if (request.method() === 'GET' && /^\/tasks\/[^/?]+$/.test(pathname)) {
+      const taskId = pathname.slice('/tasks/'.length)
+      const task = tasks.find((item) => item.id === taskId)
       if (task) {
         await fulfillJson(route, task)
       } else {
@@ -385,7 +468,7 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
       return
     }
 
-    if (request.method() === 'GET' && /^\/tasks\/[^/]+\/activity$/.test(apiPath)) {
+    if (request.method() === 'GET' && /^\/tasks\/[^/]+\/activity$/.test(pathname)) {
       await fulfillJson(route, [
         {
           entry_type: 'log',
@@ -406,7 +489,7 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
       return
     }
 
-    if (request.method() === 'GET' && /^\/tasks\/[^/]+\/watchers$/.test(apiPath)) {
+    if (request.method() === 'GET' && /^\/tasks\/[^/]+\/watchers$/.test(pathname)) {
       await fulfillJson(route, [])
       return
     }
@@ -430,13 +513,13 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
       return
     }
 
-    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+\/events/.test(apiPath)) {
-      await fulfillJson(route, { items: [], total: 0, limit: 50, offset: 0 })
+    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+$/.test(pathname)) {
+      await fulfillJson(route, graphInstance)
       return
     }
 
-    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+$/.test(apiPath)) {
-      await fulfillJson(route, graphInstance)
+    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+\/events/.test(pathname)) {
+      await fulfillJson(route, { items: [], total: 0, limit: 50, offset: 0 })
       return
     }
 

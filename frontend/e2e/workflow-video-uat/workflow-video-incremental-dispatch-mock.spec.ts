@@ -22,6 +22,7 @@ test.beforeEach(async ({ page }) => {
 
 test('2/3 capture: copy lead dispatches one topic and author receives script task', async ({ page }) => {
   resetVideoMockForMultiAccount(RUN_LABEL)
+  videoMockState.aggregateMode = 'streaming'
   videoMockState.captureSubmitted.add('task-capture-a')
   videoMockState.captureSubmitted.add('task-capture-b')
 

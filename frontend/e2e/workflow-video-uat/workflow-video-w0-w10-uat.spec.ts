@@ -48,7 +48,7 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
     await page.goto('/task-templates')
     await expect(page.getByTestId('task-templates-page')).toBeVisible()
     await expect(page.getByTestId('task-templates-graph-tab')).toBeVisible()
-    await expect(page.getByText('任务模板')).toBeVisible()
+    await expect(page.getByTestId('task-templates-graph-tab').getByText('任务模板')).toBeVisible()
     await expect(page.getByText('E · Legacy')).toHaveCount(0)
     await snap(page, 'w00-01-task-templates-page.png')
     uatRow({
