@@ -7,7 +7,8 @@
 **完成事项**:
 - [x] [`domains/task-center.md`](./domains/task-center.md) §12：D1–D3 计划、API、前端结构、决策
 - [x] `active-task.md` 切换为 F-18 D1
-- [ ] D1 后端 + 前端实现（进行中）
+- [x] **D1 后端**：AdminService CRUD/validate/publish + API 路由 + pytest
+- [x] **D1 前端**：`/task-templates/:id/edit` 设计器、列表「设计/复制」入口 + vitest
 
 **分支**: `main`
 

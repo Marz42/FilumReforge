@@ -60,6 +60,51 @@ class WorkflowGraphTemplateDetailRead(WorkflowGraphTemplateSummaryRead):
   nodes: list[WorkflowGraphTemplateNodeSummaryRead] = Field(default_factory=list)
 
 
+class WorkflowGraphTemplateNodeDetailRead(WorkflowGraphTemplateNodeSummaryRead):
+  node_type: WorkflowGraphNodeType = WorkflowGraphNodeType.TASK
+  assignment_mode: str = "single"
+  join_mode: str = "all"
+  assignee_rule: dict[str, object] = Field(default_factory=dict)
+  config: dict[str, object] = Field(default_factory=dict)
+
+
+class WorkflowGraphTemplateDesignerRead(WorkflowGraphTemplateDetailRead):
+  base_code: str
+  source_template_id: UUID | None = None
+  has_instances: bool = False
+  structure_locked: bool = False
+  nodes: list[WorkflowGraphTemplateNodeDetailRead] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateCreateRequest(BaseModel):
+  clone_from_id: UUID
+  name: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+class WorkflowGraphTemplateNodeDraftWrite(BaseModel):
+  node_key: str = Field(min_length=1, max_length=64)
+  title: str = Field(min_length=1, max_length=255)
+  sort_order: int = Field(default=0, ge=0)
+  assignee_rule: dict[str, object] = Field(default_factory=dict)
+  config: dict[str, object] = Field(default_factory=dict)
+
+
+class WorkflowGraphTemplateDraftSaveRequest(BaseModel):
+  name: str = Field(min_length=1, max_length=120)
+  description: str | None = Field(default=None, max_length=2000)
+  config: dict[str, object] = Field(default_factory=dict)
+  nodes: list[WorkflowGraphTemplateNodeDraftWrite] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateStatusUpdateRequest(BaseModel):
+  status: WorkflowGraphTemplateStatus
+
+
+class WorkflowGraphTemplateValidateResponse(BaseModel):
+  valid: bool
+  errors: list[str] = Field(default_factory=list)
+
+
 class WorkflowGraphTemplateUpdateRequest(BaseModel):
   name: str | None = Field(default=None, min_length=1, max_length=120)
   description: str | None = Field(default=None, max_length=2000)

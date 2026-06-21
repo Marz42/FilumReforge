@@ -23,7 +23,7 @@ from app.core.config import Settings
 from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
-from app.services.access_control import ensure_department_stats_access
+from app.services.access_control import ensure_department_stats_access, can_manage_task_templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.workflow_video import (
   CloseCaptureResponse,
@@ -51,9 +51,14 @@ from app.schemas.workflow_graph import (
   WorkflowNodeDeepRejectRequest,
   WorkflowGraphInstanceDetailRead,
   WorkflowGraphInstanceRead,
+  WorkflowGraphTemplateCreateRequest,
+  WorkflowGraphTemplateDesignerRead,
   WorkflowGraphTemplateDetailRead,
+  WorkflowGraphTemplateDraftSaveRequest,
+  WorkflowGraphTemplateStatusUpdateRequest,
   WorkflowGraphTemplateSummaryRead,
   WorkflowGraphTemplateUpdateRequest,
+  WorkflowGraphTemplateValidateResponse,
   WorkflowNodeCompleteRequest,
   WorkflowNodeInstanceRead,
   WorkflowNodeTakeoverRequest,
@@ -187,10 +192,16 @@ async def list_department_pool_member_options(
 )
 async def list_graph_templates(
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+  scope: Annotated[str | None, Query()] = None,
 ) -> list[WorkflowGraphTemplateSummaryRead]:
-  _ = actor
-  templates = await workflow_graph_service.list_active_templates()
+  if scope == "manage" and await can_manage_task_templates(session, actor):
+    templates = await admin_service.list_manageable_templates()
+  else:
+    _ = actor
+    templates = await workflow_graph_service.list_active_templates()
   return [
     WorkflowGraphTemplateSummaryRead(
       id=template.id,
@@ -204,6 +215,88 @@ async def list_graph_templates(
     )
     for template in templates
   ]
+
+
+@router.post(
+  "/templates",
+  response_model=WorkflowGraphTemplateDesignerRead,
+  tags=["workflow-graph"],
+)
+async def create_graph_template(
+  payload: WorkflowGraphTemplateCreateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDesignerRead:
+  return await admin_service.create_template(actor=actor, payload=payload)
+
+
+@router.get(
+  "/templates/{template_id}/designer",
+  response_model=WorkflowGraphTemplateDesignerRead,
+  tags=["workflow-graph"],
+)
+async def get_graph_template_designer(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDesignerRead:
+  _ = actor
+  return await admin_service.get_designer_detail(template_id=template_id)
+
+
+@router.put(
+  "/templates/{template_id}/draft",
+  response_model=WorkflowGraphTemplateDesignerRead,
+  tags=["workflow-graph"],
+)
+async def save_graph_template_draft(
+  template_id: UUID,
+  payload: WorkflowGraphTemplateDraftSaveRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDesignerRead:
+  return await admin_service.save_draft(actor=actor, template_id=template_id, payload=payload)
+
+
+@router.post(
+  "/templates/{template_id}/versions",
+  response_model=WorkflowGraphTemplateDesignerRead,
+  tags=["workflow-graph"],
+)
+async def fork_graph_template_version(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDesignerRead:
+  return await admin_service.fork_template_version(actor=actor, template_id=template_id)
+
+
+@router.patch(
+  "/templates/{template_id}/status",
+  response_model=WorkflowGraphTemplateDesignerRead,
+  tags=["workflow-graph"],
+)
+async def update_graph_template_status(
+  template_id: UUID,
+  payload: WorkflowGraphTemplateStatusUpdateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDesignerRead:
+  return await admin_service.update_status(actor=actor, template_id=template_id, payload=payload)
+
+
+@router.get(
+  "/templates/{template_id}/validate",
+  response_model=WorkflowGraphTemplateValidateResponse,
+  tags=["workflow-graph"],
+)
+async def validate_graph_template(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateValidateResponse:
+  _ = actor
+  return await admin_service.validate_template(template_id=template_id)
 
 
 @router.get(

@@ -16,6 +16,7 @@ import PeopleManagementView from '@/views/PeopleManagementView.vue'
 import ReportsView from '@/views/ReportsView.vue'
 import TaskCenterView from '@/views/TaskCenterView.vue'
 import TaskTemplatesView from '@/views/TaskTemplatesView.vue'
+import GraphTemplateDesignerView from '@/views/GraphTemplateDesignerView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -124,6 +125,11 @@ const router = createRouter({
           path: 'task-templates',
           name: 'task-templates',
           component: TaskTemplatesView,
+        },
+        {
+          path: 'task-templates/:id/edit',
+          name: 'task-template-designer',
+          component: GraphTemplateDesignerView,
         },
         {
           path: 'reports',

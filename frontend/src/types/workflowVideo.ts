@@ -183,6 +183,31 @@ export interface GraphTemplateSummary {
   config?: Record<string, unknown>
 }
 
+export interface GraphTemplateNodeDetail {
+  id: string
+  node_key: string
+  title: string
+  sort_order: number
+  node_type?: string
+  assignment_mode?: string
+  join_mode?: string
+  assignee_rule?: Record<string, unknown>
+  config?: Record<string, unknown>
+}
+
+export interface GraphTemplateDesignerDetail extends GraphTemplateSummary {
+  base_code: string
+  source_template_id?: string | null
+  has_instances: boolean
+  structure_locked: boolean
+  nodes: GraphTemplateNodeDetail[]
+}
+
+export interface GraphTemplateValidateResult {
+  valid: boolean
+  errors: string[]
+}
+
 export interface WorkflowGraphInstanceSummary {
   id: string
   template_id: string | null

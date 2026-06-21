@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
 import { getProfile } from '@/api/profiles'
-import { listGraphTemplates } from '@/api/workflow-graph'
+import { cloneGraphTemplate, listGraphTemplates } from '@/api/workflow-graph'
 import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -30,6 +31,7 @@ const departmentOptions = ref<Array<{ id: string; label: string }>>([])
 const defaultDepartmentId = ref('')
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 const instantiateDepartmentOptions = computed(() => departmentOptions.value)
 
@@ -69,7 +71,7 @@ async function loadInstantiateDepartmentContext(): Promise<void> {
 async function loadTemplates(): Promise<void> {
   loading.value = true
   try {
-    templates.value = await listGraphTemplates()
+    templates.value = await listGraphTemplates({ manage: props.canManage })
     if (!selectedTemplate.value && templates.value.length > 0) {
       selectedTemplate.value = templates.value[0] ?? null
     }
@@ -101,6 +103,28 @@ function openEdit(template: GraphTemplateSummary): void {
   }
   selectedTemplate.value = template
   editDialogVisible.value = true
+}
+
+function openDesigner(template: GraphTemplateSummary): void {
+  if (!props.canManage) {
+    ElMessage.warning('当前账号无权编辑任务模板')
+    return
+  }
+  void router.push({ name: 'task-template-designer', params: { id: template.id } })
+}
+
+async function handleClone(template: GraphTemplateSummary): Promise<void> {
+  if (!props.canManage) {
+    ElMessage.warning('当前账号无权编辑任务模板')
+    return
+  }
+  try {
+    const forked = await cloneGraphTemplate(template.id, `${template.name}（副本）`)
+    ElMessage.success('已创建草稿副本')
+    void router.push({ name: 'task-template-designer', params: { id: forked.id } })
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  }
 }
 
 function handleCreated(payload: { instanceId: string; rootTaskId: string }): void {
@@ -141,16 +165,40 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column label="版本" width="72" prop="version" />
-        <el-table-column label="操作" width="168" fixed="right">
+        <el-table-column label="状态" width="88">
+          <template #default="{ row }: { row: GraphTemplateSummary }">
+            <el-tag size="small" effect="plain" :type="row.status === 'active' ? 'success' : 'info'">
+              {{ row.status }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="248" fixed="right">
           <template #default="{ row }: { row: GraphTemplateSummary }">
             <el-button
               v-if="canManage"
               type="primary"
               link
+              data-testid="graph-template-design"
+              @click.stop="openDesigner(row)"
+            >
+              设计
+            </el-button>
+            <el-button
+              v-if="canManage"
+              type="primary"
+              link
+              data-testid="graph-template-clone"
+              @click.stop="handleClone(row)"
+            >
+              复制
+            </el-button>
+            <el-button
+              v-if="canManage"
+              link
               data-testid="graph-template-edit"
               @click.stop="openEdit(row)"
             >
-              编辑
+              改名
             </el-button>
             <el-tooltip
               v-if="row.run_kind === 'production'"

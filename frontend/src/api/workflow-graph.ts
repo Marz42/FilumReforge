@@ -3,7 +3,9 @@ import type {
   CreateGraphTemplateRunRequest,
   CreateGraphTemplateRunResponse,
   ForkProductionRunsResponse,
+  GraphTemplateDesignerDetail,
   GraphTemplateSummary,
+  GraphTemplateValidateResult,
   RejectCapturesRequest,
   RejectCapturesResponse,
   RejectProductionStepRequest,
@@ -55,10 +57,12 @@ function mapGraphInstanceSummary(item: GraphInstanceListItem): WorkflowGraphInst
   }
 }
 
-export async function listGraphTemplates(): Promise<GraphTemplateSummary[]> {
+export async function listGraphTemplates(options?: { manage?: boolean }): Promise<GraphTemplateSummary[]> {
   const { data } = await http.get<
     Array<Omit<GraphTemplateSummary, 'config'> & { config?: Record<string, unknown> }>
-  >('/workflow-graph/templates')
+  >('/workflow-graph/templates', {
+    params: options?.manage ? { scope: 'manage' } : undefined,
+  })
   return data.map((item) => ({
     ...item,
     config: item.config ?? {},
@@ -84,13 +88,95 @@ export async function getGraphTemplateDetail(templateId: string): Promise<GraphT
 
 export async function updateGraphTemplate(
   templateId: string,
-  payload: { name?: string; description?: string | null },
+  payload: { name?: string; description?: string | null; config?: Record<string, unknown> },
 ): Promise<GraphTemplateDetail> {
   const { data } = await http.patch<GraphTemplateDetail>(`/workflow-graph/templates/${templateId}`, payload)
   return {
     ...data,
     config: data.config ?? {},
   }
+}
+
+export async function getGraphTemplateDesigner(templateId: string): Promise<GraphTemplateDesignerDetail> {
+  const { data } = await http.get<GraphTemplateDesignerDetail>(
+    `/workflow-graph/templates/${templateId}/designer`,
+  )
+  return {
+    ...data,
+    config: data.config ?? {},
+    nodes: data.nodes ?? [],
+  }
+}
+
+export async function cloneGraphTemplate(
+  cloneFromId: string,
+  name?: string,
+): Promise<GraphTemplateDesignerDetail> {
+  const { data } = await http.post<GraphTemplateDesignerDetail>('/workflow-graph/templates', {
+    clone_from_id: cloneFromId,
+    name,
+  })
+  return {
+    ...data,
+    config: data.config ?? {},
+    nodes: data.nodes ?? [],
+  }
+}
+
+export async function saveGraphTemplateDraft(
+  templateId: string,
+  payload: {
+    name: string
+    description?: string | null
+    config: Record<string, unknown>
+    nodes: Array<{
+      node_key: string
+      title: string
+      sort_order: number
+      assignee_rule?: Record<string, unknown>
+      config?: Record<string, unknown>
+    }>
+  },
+): Promise<GraphTemplateDesignerDetail> {
+  const { data } = await http.put<GraphTemplateDesignerDetail>(
+    `/workflow-graph/templates/${templateId}/draft`,
+    payload,
+  )
+  return {
+    ...data,
+    config: data.config ?? {},
+    nodes: data.nodes ?? [],
+  }
+}
+
+export async function forkGraphTemplateVersion(templateId: string): Promise<GraphTemplateDesignerDetail> {
+  const { data } = await http.post<GraphTemplateDesignerDetail>(
+    `/workflow-graph/templates/${templateId}/versions`,
+  )
+  return {
+    ...data,
+    config: data.config ?? {},
+    nodes: data.nodes ?? [],
+  }
+}
+
+export async function publishGraphTemplate(templateId: string): Promise<GraphTemplateDesignerDetail> {
+  const { data } = await http.patch<GraphTemplateDesignerDetail>(
+    `/workflow-graph/templates/${templateId}/status`,
+    { status: 'active' },
+  )
+  return {
+    ...data,
+    config: data.config ?? {},
+    nodes: data.nodes ?? [],
+  }
+}
+
+export async function validateGraphTemplate(templateId: string): Promise<GraphTemplateValidateResult> {
+  const { data } = await http.get<GraphTemplateValidateResult>(
+    `/workflow-graph/templates/${templateId}/validate`,
+  )
+  return data
 }
 
 export async function listInstanceChildren(
