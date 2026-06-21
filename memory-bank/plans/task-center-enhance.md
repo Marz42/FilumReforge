@@ -2,7 +2,7 @@
 
 > 🌡️ WARM — TC-P0–P2 完成后的下一工程排期。  
 > **标尺**：当前版本内能做到的较好用户体验（含 TC-P3 backlog → **Phase 5**）。  
-> **状态**：✅ **就绪 · Phase 1 待开 PR** · **日期**：2026-06-21  
+> **状态**：✅ **Phase 1–5 已完成** · **日期**：2026-06-21  
 > **实施入口**：[`active-task.md`](../active-task.md) · [`roadmap.md`](../roadmap.md)  
 > **前置**：[`task-center-v2-implementation-plan.md`](./task-center-v2-implementation-plan.md) TC-P0–P2 ✅ @ `0.88.0`–`0.89.0`  
 > **关联**：[`domains/task-center.md`](../domains/task-center.md)、[`workflow-video-v1-ui-simplification-design.md`](./workflow-video-v1-ui-simplification-design.md) v2.1

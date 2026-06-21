@@ -1,5 +1,27 @@
 # Project Filum 进度记录
 
+## 会话摘要（图模板设计器 D1）
+
+### 2026-06-21 — 模板设计器计划 + D1 实施
+
+**完成事项**:
+- [x] [`domains/task-center.md`](./domains/task-center.md) §12：D1–D3 计划、API、前端结构、决策
+- [x] `active-task.md` 切换为 F-18 D1
+- [ ] D1 后端 + 前端实现（进行中）
+
+**分支**: `main`
+
+## 会话摘要（任务中心全貌梳理）
+
+### 2026-06-21 — 任务中心 domain 文档重写
+
+**完成事项**:
+- [x] 对照代码与 TCE Phase 1–5 重梳完成度矩阵
+- [x] 写入 [`domains/task-center.md`](./domains/task-center.md)：IA、数据流、前后端模块地图、8 类典型场景
+- [x] 同步 `known-issues.md`（闭合 TCE 缺口表）、`data-contracts.md`、`README.md`
+
+**分支**: `main`
+
 ## 会话摘要（TCE Phase 5 实施）
 
 ### 2026-06-21 — TCE Phase 5：TC-P3 + 清理

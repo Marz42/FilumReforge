@@ -2,7 +2,7 @@
 
 本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.89.0`）。
 
-> **当前实施焦点**：[`active-task.md`](./active-task.md) → **TCE Phase 1** · 排期 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)
+> **当前实施焦点**：[`active-task.md`](./active-task.md) → **TCE 主体已完成** · backlog **B-12 / F-05** · 全貌 [`domains/task-center.md`](./domains/task-center.md)
 
 > **`handbooks/` ≈ Paradigma `manuals/`**：路径名保留 `handbooks/`，语义为部署运维与测试操作手册。
 
@@ -43,7 +43,7 @@
 | 文件 | 子系统 |
 | --- | --- |
 | [hr-org.md](./domains/hr-org.md) | 组织、档案、权限、生命周期 |
-| [task-center.md](./domains/task-center.md) | 任务中心、Inbox、多视图 |
+| [task-center.md](./domains/task-center.md) | 任务中心全貌：完成度、模块地图、典型场景（**主文档**） |
 | [workflow-graph-engine.md](./domains/workflow-graph-engine.md) | 图引擎 Phase 3–11 |
 | [workflow-video-v1.md](./domains/workflow-video-v1.md) | 视频工作流 v1 |
 | [messaging.md](./domains/messaging.md) | 消息、通知、回执 |

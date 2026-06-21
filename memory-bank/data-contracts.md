@@ -26,7 +26,7 @@
   - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409
   - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
 - **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](./domains/task-center.md)
-- **TCE 规划契约**（未实现，见 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)）：`GET /api/v1/tasks?ids=` batch 查询（**B-04**）；snapshot 增 `run_label` / `user_facing_state`（**B-05**）；`stats/summary?department_id=`（**B-06**）；实例化 `department_id` policy 优先级（**B-16**）
+- **TCE 已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](./domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`stats/summary|workload?department_id=`；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context
 
 > §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.48 为图引擎与运行事件**摘要**（完整列定义以 ORM + Alembic 为准）。
 

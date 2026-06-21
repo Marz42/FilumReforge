@@ -8,52 +8,32 @@
 
 | 字段 | 内容 |
 |------|------|
-| **任务标题** | 任务中心增强 **TCE 主体收尾** |
-| **优先级** | P1 · 架构债 |
-| **状态** | **Phase 5 ✅** @ 2026-06-21 — **B-12（E 统一）** 仍为独立 backlog |
-| **关联** | [`plans/task-center-enhance.md`](./plans/task-center-enhance.md) §7 |
-| **后置** | B-12 / F-05 完整 Shell 拆分 |
+| **任务标题** | **图任务模板设计器 D1**（F-18） |
+| **优先级** | P1 · 产品缺口 |
+| **状态** | **进行中** @ 2026-06-21 |
+| **关联** | [`domains/task-center.md`](./domains/task-center.md) §12 |
+| **后置** | F-19（D2 边/路由）· B-12 · F-05 |
+
+---
+
+## D1 工作项
+
+| # | 工作项 | 说明 |
+|---|--------|------|
+| 1 | 后端 API | create / designer GET / draft PUT / fork / status / validate |
+| 2 | `WorkflowGraphTemplateAdminService` | 结构锁定、版本 fork、发布归档同族 active |
+| 3 | 前端设计器 | 路由 `/task-templates/:id/edit`，config + 节点表 + 保存/发布 |
+| 4 | 列表入口 | `GraphTemplatesPanel`「设计」跳转设计器 |
+| 5 | 测试 | pytest D1 + vitest smoke |
 
 ---
 
 ## TCE Phase 5 完成 ✅
 
-| # | ID | 工作项 |
-|---|-----|--------|
-| 1 | B-08 + F-16 | snapshot `template_summaries` → 图模板摘要 |
-| 2 | F-13 | 移除 `TasksView` v2 Legacy 嵌入 |
-| 3 | B-13 + F-14 | `aggregate_mode: batch \| streaming` + UI 门控 |
-| 4 | B-14 + F-15 | 「结束采集」API + ROOT 按钮 |
-| 5 | B-15 | `user_facing_state` 图投影 business_state 对齐 |
+Phase 1–5 已闭合；详见 [`domains/task-center.md`](./domains/task-center.md) §1。
 
-**未纳入本 commit**：**B-12** Legacy E 与图引擎完全统一（ADR-005，多 PR）。
+**未纳入 TCE**：**B-12** Legacy E 统一 · **F-05** Shell 拆分 · **F-10–F-12** 抛光。
 
 ---
-
-## 移出 TCE 范围（后续待办）
-
-| ID | 工作项 | 说明 |
-|----|--------|------|
-| **B-12** | E 与图引擎统一 | ADR-005；Legacy 实例化仍可用 |
-| **F-05** | `TaskDetailShell.vue` 完整拆分 | 见 enhance §7 |
-
----
-
-## Phase 4 完成摘要 ✅
-
-| # | ID | 工作项 |
-|---|-----|--------|
-| 1 | B-16 | `ParticipantPolicyDefinition.scope`；实例 `department_id` 优先于 seed policy |
-| 2 | F-17 | 实例化发起部门默认/必选/预览联动（§6.2.1） |
-
----
-
-## Phase 5 验收 ✅
-
-- [x] snapshot 无 Legacy E 模板摘要（B-08）
-- [x] `TaskCenterView` 无 `TasksView` 回退（F-13）
-- [x] 批次模板默认 `aggregate_mode=batch`；streaming 显示 ROOT 增量跟踪（B-13/F-14）
-- [x] `POST .../close-capture` + ROOT「结束采集」（B-14/F-15）
-- [x] pytest `test_tce_phase5_tc_p3_cleanup.py` + vitest TaskCenter 13/13
 
 选定子任务后：更新本文件 → 执行 → 测试 → commit → 追加 `progress.md`。
