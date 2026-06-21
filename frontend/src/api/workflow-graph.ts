@@ -105,6 +105,7 @@ export async function getGraphTemplateDesigner(templateId: string): Promise<Grap
     ...data,
     config: data.config ?? {},
     nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
   }
 }
 
@@ -120,6 +121,7 @@ export async function cloneGraphTemplate(
     ...data,
     config: data.config ?? {},
     nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
   }
 }
 
@@ -133,8 +135,17 @@ export async function saveGraphTemplateDraft(
       node_key: string
       title: string
       sort_order: number
+      assignment_mode?: string
+      join_mode?: string
       assignee_rule?: Record<string, unknown>
       config?: Record<string, unknown>
+    }>
+    edges?: Array<{
+      from_node_key: string
+      to_node_key: string
+      is_reject_path?: boolean
+      condition?: Record<string, unknown>
+      priority?: number
     }>
   },
 ): Promise<GraphTemplateDesignerDetail> {
@@ -146,6 +157,7 @@ export async function saveGraphTemplateDraft(
     ...data,
     config: data.config ?? {},
     nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
   }
 }
 
@@ -157,6 +169,7 @@ export async function forkGraphTemplateVersion(templateId: string): Promise<Grap
     ...data,
     config: data.config ?? {},
     nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
   }
 }
 
@@ -169,6 +182,7 @@ export async function publishGraphTemplate(templateId: string): Promise<GraphTem
     ...data,
     config: data.config ?? {},
     nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
   }
 }
 

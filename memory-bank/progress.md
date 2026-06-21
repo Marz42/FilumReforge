@@ -1,5 +1,17 @@
 # Project Filum 进度记录
 
+## 会话摘要（图模板设计器 D2）
+
+### 2026-06-21 — 模板设计器 D2：边与拓扑
+
+**完成事项**:
+- [x] `workflow_graph_template_topology.py`：forward 可达/环路、条件边 ELSE、reject 边、routing_rules
+- [x] Designer API：edges 读写、节点 assignment/join_mode
+- [x] 前端设计器：边表、routing_rules JSON、节点派发/汇聚
+- [x] pytest D2 + topology；vitest 更新
+
+**分支**: `main`
+
 ## 会话摘要（图模板设计器 D1）
 
 ### 2026-06-21 — 模板设计器计划 + D1 实施

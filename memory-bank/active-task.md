@@ -8,33 +8,30 @@
 
 | 字段 | 内容 |
 |------|------|
-| **任务标题** | **图任务模板设计器 D1**（F-18） |
-| **优先级** | P1 · 产品缺口 |
-| **状态** | **D1 ✅** @ 2026-06-21 — D2 边/路由待做 |
+| **任务标题** | 任务中心 backlog（B-12 / F-05 / D3） |
+| **优先级** | P1 · 架构债 / 产品化 |
+| **状态** | **F-19 D2 ✅** @ 2026-06-21 |
 | **关联** | [`domains/task-center.md`](./domains/task-center.md) §12 |
-| **后置** | F-19（D2 边/路由）· B-12 · F-05 |
+| **后置** | D3 画布/dry-run · B-12 · F-05 |
 
 ---
 
-## D1 工作项
+## 模板设计器 D1 + D2 完成 ✅
 
-| # | 工作项 | 说明 |
-|---|--------|------|
-| 1 | 后端 API | create / designer GET / draft PUT / fork / status / validate |
-| 2 | `WorkflowGraphTemplateAdminService` | 结构锁定、版本 fork、发布归档同族 active |
-| 3 | 前端设计器 | 路由 `/task-templates/:id/edit`，config + 节点表 + 保存/发布 |
-| 4 | 列表入口 | `GraphTemplatesPanel`「设计」跳转设计器 |
-| 5 | 测试 | pytest D1 + vitest smoke |
-
-**D1 已交付**；下一步 **F-19 D2**（边、routing_rules、拓扑校验）。
+| Phase | 交付 |
+|-------|------|
+| **D1** | clone/draft/publish/validate + 全页设计器 |
+| **D2** | 边表编辑、assignment/join_mode、routing_rules、拓扑校验 |
 
 ---
 
-## TCE Phase 5 完成 ✅
+## 移出 TCE 范围（后续待办）
 
-Phase 1–5 已闭合；详见 [`domains/task-center.md`](./domains/task-center.md) §1。
-
-**未纳入 TCE**：**B-12** Legacy E 统一 · **F-05** Shell 拆分 · **F-10–F-12** 抛光。
+| ID | 工作项 | 说明 |
+|----|--------|------|
+| **B-12** | E 与图引擎统一 | ADR-005 |
+| **F-05** | `TaskDetailShell.vue` 完整拆分 | enhance §7 |
+| **D3** | DAG 预览 / dry-run / JSON 导入导出 | 可选 |
 
 ---
 

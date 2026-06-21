@@ -14,6 +14,19 @@ import { useTaskCenterPermissions } from '@/composables/useTaskCenterPermissions
 import type { GraphTemplateDesignerDetail, GraphTemplateNodeDetail } from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
 
+type DesignerNodeRow = GraphTemplateNodeDetail & {
+  configJson: string
+  routingRulesJson: string
+}
+
+type DesignerEdgeRow = {
+  from_node_key: string
+  to_node_key: string
+  is_reject_path: boolean
+  conditionJson: string
+  priority: number
+}
+
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
@@ -31,7 +44,8 @@ const form = reactive({
   launchSchemaJson: '{}',
 })
 
-const nodeRows = ref<Array<GraphTemplateNodeDetail & { configJson: string }>>([])
+const nodeRows = ref<DesignerNodeRow[]>([])
+const edgeRows = ref<DesignerEdgeRow[]>([])
 const selectedNodeKey = ref<string | null>(null)
 
 const { ensureLoaded, canAdministerTaskTemplates } = useTaskCenterPermissions()
@@ -41,6 +55,9 @@ const isDraft = computed(() => detail.value?.status === 'draft')
 const structureLocked = computed(() => detail.value?.structure_locked ?? false)
 const selectedNode = computed(() =>
   nodeRows.value.find((node) => node.node_key === selectedNodeKey.value) ?? null,
+)
+const nodeKeyOptions = computed(() =>
+  nodeRows.value.map((node) => ({ value: node.node_key, label: `${node.node_key} · ${node.title}` })),
 )
 
 function applyDetail(next: GraphTemplateDesignerDetail): void {
@@ -52,7 +69,17 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
   form.launchSchemaJson = JSON.stringify(launchSchema ?? {}, null, 2)
   nodeRows.value = next.nodes.map((node) => ({
     ...node,
+    assignment_mode: node.assignment_mode ?? 'single',
+    join_mode: node.join_mode ?? 'all',
     configJson: JSON.stringify(node.config ?? {}, null, 2),
+    routingRulesJson: JSON.stringify((node.config?.routing_rules as unknown) ?? [], null, 2),
+  }))
+  edgeRows.value = (next.edges ?? []).map((edge) => ({
+    from_node_key: edge.from_node_key,
+    to_node_key: edge.to_node_key,
+    is_reject_path: Boolean(edge.is_reject_path),
+    conditionJson: JSON.stringify(edge.condition ?? {}, null, 2),
+    priority: edge.priority ?? 0,
   }))
   if (!selectedNodeKey.value && nodeRows.value.length > 0) {
     selectedNodeKey.value = nodeRows.value[0]!.node_key
@@ -100,18 +127,54 @@ function buildDraftPayload() {
     aggregate_mode: form.aggregateMode,
   }
   const nodes = nodeRows.value.map((node, index) => {
-    let config: Record<string, unknown>
+    let nodeConfig: Record<string, unknown>
     try {
-      config = JSON.parse(node.configJson || '{}') as Record<string, unknown>
+      nodeConfig = JSON.parse(node.configJson || '{}') as Record<string, unknown>
     } catch {
       throw new Error(`节点 ${node.node_key} 的 config JSON 无效`)
     }
+    try {
+      const routingRules = JSON.parse(node.routingRulesJson || '[]') as unknown
+      if (routingRules !== undefined) {
+        if (!Array.isArray(routingRules)) {
+          throw new Error(`节点 ${node.node_key} 的 routing_rules 必须是数组`)
+        }
+        if (routingRules.length > 0) {
+          nodeConfig.routing_rules = routingRules
+        } else {
+          delete nodeConfig.routing_rules
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('routing_rules')) {
+        throw error
+      }
+      throw new Error(`节点 ${node.node_key} 的 routing_rules JSON 无效`)
+    }
+    const assignmentMode = node.assignment_mode === 'fan_out' ? 'fan_out' : 'single'
     return {
       node_key: node.node_key,
       title: node.title.trim(),
       sort_order: node.sort_order || index + 1,
+      assignment_mode: assignmentMode,
+      join_mode: assignmentMode === 'single' ? 'all' : (node.join_mode === 'any' ? 'any' : 'all'),
       assignee_rule: node.assignee_rule ?? {},
-      config,
+      config: nodeConfig,
+    }
+  })
+  const edges = edgeRows.value.map((edge) => {
+    let condition: Record<string, unknown>
+    try {
+      condition = JSON.parse(edge.conditionJson || '{}') as Record<string, unknown>
+    } catch {
+      throw new Error(`边 ${edge.from_node_key} → ${edge.to_node_key} 的 condition JSON 无效`)
+    }
+    return {
+      from_node_key: edge.from_node_key,
+      to_node_key: edge.to_node_key,
+      is_reject_path: edge.is_reject_path,
+      condition,
+      priority: edge.priority ?? 0,
     }
   })
   return {
@@ -119,6 +182,7 @@ function buildDraftPayload() {
     description: form.description.trim() || null,
     config,
     nodes,
+    edges,
   }
 }
 
@@ -223,6 +287,28 @@ function goBack(): void {
   void router.push({ name: 'task-templates' })
 }
 
+function addEdgeRow(): void {
+  const first = nodeRows.value[0]?.node_key ?? ''
+  const second = nodeRows.value[1]?.node_key ?? first
+  edgeRows.value.push({
+    from_node_key: first,
+    to_node_key: second,
+    is_reject_path: false,
+    conditionJson: '{}',
+    priority: 0,
+  })
+}
+
+function removeEdgeRow(index: number): void {
+  edgeRows.value.splice(index, 1)
+}
+
+function handleAssignmentModeChange(row: DesignerNodeRow): void {
+  if (row.assignment_mode === 'single') {
+    row.join_mode = 'all'
+  }
+}
+
 onMounted(async () => {
   await ensureLoaded()
   if (!canAdministerTaskTemplates.value) {
@@ -321,13 +407,38 @@ onMounted(async () => {
       <el-card shadow="never" class="designer__panel designer__panel--wide">
         <template #header><strong>节点</strong></template>
         <el-table :data="nodeRows" highlight-current-row @row-click="(row) => { selectedNodeKey = row.node_key }">
-          <el-table-column prop="node_key" label="节点键" min-width="140" />
-          <el-table-column label="标题" min-width="160">
+          <el-table-column prop="node_key" label="节点键" min-width="120" />
+          <el-table-column label="标题" min-width="140">
             <template #default="{ row }">
               <el-input v-model="row.title" :disabled="structureLocked" size="small" />
             </template>
           </el-table-column>
-          <el-table-column label="顺序" width="88">
+          <el-table-column label="派发" width="96">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.assignment_mode"
+                :disabled="structureLocked"
+                size="small"
+                @change="handleAssignmentModeChange(row)"
+              >
+                <el-option label="single" value="single" />
+                <el-option label="fan_out" value="fan_out" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="汇聚" width="88">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.join_mode"
+                :disabled="structureLocked || row.assignment_mode === 'single'"
+                size="small"
+              >
+                <el-option label="all" value="all" />
+                <el-option label="any" value="any" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="顺序" width="80">
             <template #default="{ row }">
               <el-input-number v-model="row.sort_order" :disabled="structureLocked" size="small" :min="0" />
             </template>
@@ -339,12 +450,92 @@ onMounted(async () => {
           <el-input
             v-model="selectedNode.configJson"
             type="textarea"
-            :rows="16"
+            :rows="12"
+            class="designer__json"
+            :disabled="structureLocked"
+            spellcheck="false"
+          />
+          <h3 class="designer__subheading">routing_rules（JSON 数组）</h3>
+          <p class="designer__hint">
+            示例 IF：<code>{"condition":{"field":"amount","operator":"gt","value":1},"target_node_key":"STEP_B"}</code>
+            · ELSE：<code>{"else":true,"target_node_key":"STEP_C"}</code>
+          </p>
+          <el-input
+            v-model="selectedNode.routingRulesJson"
+            type="textarea"
+            :rows="8"
             class="designer__json"
             :disabled="structureLocked"
             spellcheck="false"
           />
         </div>
+      </el-card>
+
+      <el-card shadow="never" class="designer__panel designer__panel--wide">
+        <template #header>
+          <div class="designer__card-header">
+            <strong>边与路由</strong>
+            <el-button
+              v-if="!structureLocked"
+              size="small"
+              data-testid="designer-add-edge"
+              @click="addEdgeRow"
+            >
+              添加边
+            </el-button>
+          </div>
+        </template>
+        <el-table :data="edgeRows" empty-text="暂无边">
+          <el-table-column label="起点" min-width="140">
+            <template #default="{ row }">
+              <el-select v-model="row.from_node_key" :disabled="structureLocked" size="small" filterable>
+                <el-option
+                  v-for="option in nodeKeyOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="终点" min-width="140">
+            <template #default="{ row }">
+              <el-select v-model="row.to_node_key" :disabled="structureLocked" size="small" filterable>
+                <el-option
+                  v-for="option in nodeKeyOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="reject" width="72">
+            <template #default="{ row }">
+              <el-checkbox v-model="row.is_reject_path" :disabled="structureLocked" />
+            </template>
+          </el-table-column>
+          <el-table-column label="priority" width="88">
+            <template #default="{ row }">
+              <el-input-number v-model="row.priority" :disabled="structureLocked" size="small" :min="0" />
+            </template>
+          </el-table-column>
+          <el-table-column label="condition JSON" min-width="220">
+            <template #default="{ row }">
+              <el-input
+                v-model="row.conditionJson"
+                :disabled="structureLocked"
+                size="small"
+                spellcheck="false"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column v-if="!structureLocked" label="" width="64">
+            <template #default="{ $index }">
+              <el-button link type="danger" @click="removeEdgeRow($index)">删</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </el-card>
     </div>
   </div>
@@ -384,6 +575,32 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: minmax(280px, 360px) 1fr;
   gap: 16px;
+}
+
+.designer__grid > .designer__panel--wide:last-child {
+  grid-column: 1 / -1;
+}
+
+.designer__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.designer__subheading {
+  margin: 16px 0 8px;
+  font-size: 14px;
+}
+
+.designer__hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.designer__hint code {
+  font-size: 11px;
 }
 
 .designer__panel--wide {

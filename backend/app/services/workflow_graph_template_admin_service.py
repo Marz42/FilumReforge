@@ -24,6 +24,7 @@ from app.schemas.workflow_graph import (
   WorkflowGraphTemplateDesignerRead,
   WorkflowGraphTemplateDetailRead,
   WorkflowGraphTemplateDraftSaveRequest,
+  WorkflowGraphTemplateEdgeDetailRead,
   WorkflowGraphTemplateNodeDetailRead,
   WorkflowGraphTemplateNodeSummaryRead,
   WorkflowGraphTemplateStatusUpdateRequest,
@@ -32,6 +33,11 @@ from app.schemas.workflow_graph import (
 )
 from app.schemas.workflow_video import validate_launch_schema, validate_node_config
 from app.services.access_control import can_manage_task_templates, ensure_active_user
+from app.services.workflow_graph_template_topology import (
+  GraphTemplateEdgeSpec,
+  GraphTemplateNodeSpec,
+  validate_graph_template_topology,
+)
 
 _CODE_VERSION_SUFFIX = re.compile(r"_v(\d+)$")
 
@@ -61,8 +67,14 @@ class WorkflowGraphTemplateAdminService:
   async def get_designer_detail(self, *, template_id: UUID) -> WorkflowGraphTemplateDesignerRead:
     template = await self._get_template_or_raise(template_id=template_id)
     nodes = await self._load_node_details(template_id=template_id)
+    edges = await self._load_edge_details(template_id=template_id)
     has_instances = await self._has_instances(template_id=template_id)
-    return self._build_designer_read(template=template, nodes=nodes, has_instances=has_instances)
+    return self._build_designer_read(
+      template=template,
+      nodes=nodes,
+      edges=edges,
+      has_instances=has_instances,
+    )
 
   async def create_template(
     self,
@@ -110,8 +122,12 @@ class WorkflowGraphTemplateAdminService:
     if not structure_locked:
       if not payload.nodes:
         raise ConflictError("模板至少需要一个节点。")
-      await self._replace_nodes_preserving_edges(template=template, node_payloads=payload.nodes)
-    elif payload.nodes:
+      await self._replace_structure(
+        template=template,
+        node_payloads=payload.nodes,
+        edge_payloads=payload.edges,
+      )
+    elif payload.nodes or payload.edges:
       raise ConflictError("已有运行实例的模板不可修改节点结构。")
 
     await self._session.flush()
@@ -171,7 +187,8 @@ class WorkflowGraphTemplateAdminService:
   async def validate_template(self, *, template_id: UUID) -> WorkflowGraphTemplateValidateResponse:
     template = await self._get_template_or_raise(template_id=template_id)
     nodes = await self._load_node_details(template_id=template_id)
-    errors = self._collect_validation_errors(template=template, nodes=nodes)
+    edges = await self._load_edge_details(template_id=template_id)
+    errors = self._collect_validation_errors(template=template, nodes=nodes, edges=edges)
     return WorkflowGraphTemplateValidateResponse(valid=not errors, errors=errors)
 
   async def _fork_template(
@@ -248,35 +265,57 @@ class WorkflowGraphTemplateAdminService:
           from_node_id=from_node.id,
           to_node_id=to_node.id,
           is_reject_path=edge.is_reject_path,
-          condition=edge.condition,
+          condition=dict(edge.condition or {}),
+          priority=int(edge.priority or 0),
         )
       )
     await self._session.flush()
     return await self.get_designer_detail(template_id=template.id)
 
-  async def _replace_nodes_preserving_edges(
+  async def _replace_structure(
     self,
     *,
     template: WorkflowGraphTemplate,
     node_payloads: list[Any],
+    edge_payloads: list[Any] | None,
   ) -> None:
-    existing_edges = list(
-      await self._session.scalars(
-        select(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template.id)
+    preserved_edge_specs: list[tuple[str, str, bool, dict[str, Any], int]] = []
+    if edge_payloads is None:
+      existing_edges = list(
+        await self._session.scalars(
+          select(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template.id)
+        )
       )
-    )
-    existing_nodes = list(
-      await self._session.scalars(
-        select(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.template_id == template.id)
+      existing_nodes = list(
+        await self._session.scalars(
+          select(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.template_id == template.id)
+        )
       )
-    )
-    old_id_to_key = {node.id: node.node_key for node in existing_nodes}
-    edge_specs: list[tuple[str, str, bool]] = []
-    for edge in existing_edges:
-      from_key = old_id_to_key.get(edge.from_node_id)
-      to_key = old_id_to_key.get(edge.to_node_id)
-      if from_key and to_key:
-        edge_specs.append((from_key, to_key, bool(edge.is_reject_path)))
+      old_id_to_key = {node.id: node.node_key for node in existing_nodes}
+      for edge in existing_edges:
+        from_key = old_id_to_key.get(edge.from_node_id)
+        to_key = old_id_to_key.get(edge.to_node_id)
+        if from_key and to_key:
+          preserved_edge_specs.append(
+            (
+              from_key,
+              to_key,
+              bool(edge.is_reject_path),
+              dict(edge.condition or {}),
+              int(edge.priority or 0),
+            )
+          )
+    else:
+      for edge_payload in edge_payloads:
+        preserved_edge_specs.append(
+          (
+            edge_payload.from_node_key.strip(),
+            edge_payload.to_node_key.strip(),
+            bool(edge_payload.is_reject_path),
+            dict(edge_payload.condition or {}),
+            int(edge_payload.priority or 0),
+          )
+        )
 
     await self._session.execute(
       delete(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template.id)
@@ -293,10 +332,22 @@ class WorkflowGraphTemplateAdminService:
       if node_key in seen_keys:
         raise ConflictError(f"节点键重复：{node_key}")
       seen_keys.add(node_key)
+
+      assignment_mode = str(node_payload.assignment_mode or "single").strip().lower()
+      join_mode = str(node_payload.join_mode or "all").strip().lower()
+      if assignment_mode not in {"single", "fan_out"}:
+        raise ConflictError(f"节点 {node_key} 的 assignment_mode 无效。")
+      if join_mode not in {"all", "any"}:
+        raise ConflictError(f"节点 {node_key} 的 join_mode 无效。")
+      if assignment_mode == "single":
+        join_mode = "all"
+
       node = WorkflowGraphTemplateNode(
         template_id=template.id,
         node_key=node_key,
         title=node_payload.title.strip(),
+        assignment_mode=assignment_mode,
+        join_mode=join_mode,
         assignee_rule=dict(node_payload.assignee_rule or {}),
         config=dict(node_payload.config or {}),
         sort_order=int(node_payload.sort_order if node_payload.sort_order else index),
@@ -305,17 +356,21 @@ class WorkflowGraphTemplateAdminService:
       node_by_key[node_key] = node
     await self._session.flush()
 
-    for from_key, to_key, is_reject in edge_specs:
+    for from_key, to_key, is_reject, condition, priority in preserved_edge_specs:
       from_node = node_by_key.get(from_key)
       to_node = node_by_key.get(to_key)
       if from_node is None or to_node is None:
         continue
+      if from_node.id == to_node.id:
+        raise ConflictError(f"边 {from_key} → {to_key} 不能指向自身。")
       self._session.add(
         WorkflowGraphTemplateEdge(
           template_id=template.id,
           from_node_id=from_node.id,
           to_node_id=to_node.id,
           is_reject_path=is_reject,
+          condition=condition,
+          priority=priority,
         )
       )
     await self._session.flush()
@@ -407,6 +462,31 @@ class WorkflowGraphTemplateAdminService:
       for node in nodes
     ]
 
+  async def _load_edge_details(self, *, template_id: UUID) -> list[WorkflowGraphTemplateEdgeDetailRead]:
+    nodes = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.template_id == template_id)
+      )
+    )
+    id_to_key = {node.id: node.node_key for node in nodes}
+    edges = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template_id)
+      )
+    )
+    return [
+      WorkflowGraphTemplateEdgeDetailRead(
+        id=edge.id,
+        from_node_key=id_to_key[edge.from_node_id],
+        to_node_key=id_to_key[edge.to_node_id],
+        is_reject_path=bool(edge.is_reject_path),
+        condition=dict(edge.condition or {}),
+        priority=int(edge.priority or 0),
+      )
+      for edge in edges
+      if edge.from_node_id in id_to_key and edge.to_node_id in id_to_key
+    ]
+
   @staticmethod
   def _build_detail_read(
     *,
@@ -431,6 +511,7 @@ class WorkflowGraphTemplateAdminService:
     *,
     template: WorkflowGraphTemplate,
     nodes: list[WorkflowGraphTemplateNodeDetailRead],
+    edges: list[WorkflowGraphTemplateEdgeDetailRead],
     has_instances: bool,
   ) -> WorkflowGraphTemplateDesignerRead:
     config = dict(template.config or {})
@@ -448,6 +529,7 @@ class WorkflowGraphTemplateAdminService:
       has_instances=has_instances,
       structure_locked=has_instances,
       nodes=nodes,
+      edges=edges,
     )
 
   @staticmethod
@@ -455,6 +537,7 @@ class WorkflowGraphTemplateAdminService:
     *,
     template: WorkflowGraphTemplate,
     nodes: list[WorkflowGraphTemplateNodeDetailRead],
+    edges: list[WorkflowGraphTemplateEdgeDetailRead],
   ) -> list[str]:
     errors: list[str] = []
     config = dict(template.config or {})
@@ -465,9 +548,6 @@ class WorkflowGraphTemplateAdminService:
         validate_launch_schema(launch_schema_raw)
       except PydanticValidationError as exc:
         errors.append(f"launch_schema: {exc.errors()[0]['msg']}")
-
-    if not nodes:
-      errors.append("模板至少需要一个节点。")
 
     node_keys = {node.node_key for node in nodes}
     aggregate_node_key = config.get("aggregate_node_key")
@@ -482,4 +562,27 @@ class WorkflowGraphTemplateAdminService:
       except ValueError as exc:
         errors.append(f"{node.node_key}: {exc}")
 
+    errors.extend(
+      validate_graph_template_topology(
+        nodes=[
+          GraphTemplateNodeSpec(
+            node_key=node.node_key,
+            assignment_mode=node.assignment_mode,
+            join_mode=node.join_mode,
+            config=dict(node.config or {}),
+          )
+          for node in nodes
+        ],
+        edges=[
+          GraphTemplateEdgeSpec(
+            from_node_key=edge.from_node_key,
+            to_node_key=edge.to_node_key,
+            is_reject_path=edge.is_reject_path,
+            condition=dict(edge.condition or {}),
+            priority=edge.priority,
+          )
+          for edge in edges
+        ],
+      )
+    )
     return errors

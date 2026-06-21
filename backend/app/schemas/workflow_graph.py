@@ -68,12 +68,22 @@ class WorkflowGraphTemplateNodeDetailRead(WorkflowGraphTemplateNodeSummaryRead):
   config: dict[str, object] = Field(default_factory=dict)
 
 
+class WorkflowGraphTemplateEdgeDetailRead(BaseModel):
+  id: UUID | None = None
+  from_node_key: str
+  to_node_key: str
+  is_reject_path: bool = False
+  condition: dict[str, object] = Field(default_factory=dict)
+  priority: int = 0
+
+
 class WorkflowGraphTemplateDesignerRead(WorkflowGraphTemplateDetailRead):
   base_code: str
   source_template_id: UUID | None = None
   has_instances: bool = False
   structure_locked: bool = False
   nodes: list[WorkflowGraphTemplateNodeDetailRead] = Field(default_factory=list)
+  edges: list[WorkflowGraphTemplateEdgeDetailRead] = Field(default_factory=list)
 
 
 class WorkflowGraphTemplateCreateRequest(BaseModel):
@@ -85,8 +95,18 @@ class WorkflowGraphTemplateNodeDraftWrite(BaseModel):
   node_key: str = Field(min_length=1, max_length=64)
   title: str = Field(min_length=1, max_length=255)
   sort_order: int = Field(default=0, ge=0)
+  assignment_mode: str = Field(default="single", max_length=32)
+  join_mode: str = Field(default="all", max_length=32)
   assignee_rule: dict[str, object] = Field(default_factory=dict)
   config: dict[str, object] = Field(default_factory=dict)
+
+
+class WorkflowGraphTemplateEdgeDraftWrite(BaseModel):
+  from_node_key: str = Field(min_length=1, max_length=64)
+  to_node_key: str = Field(min_length=1, max_length=64)
+  is_reject_path: bool = False
+  condition: dict[str, object] = Field(default_factory=dict)
+  priority: int = 0
 
 
 class WorkflowGraphTemplateDraftSaveRequest(BaseModel):
@@ -94,6 +114,7 @@ class WorkflowGraphTemplateDraftSaveRequest(BaseModel):
   description: str | None = Field(default=None, max_length=2000)
   config: dict[str, object] = Field(default_factory=dict)
   nodes: list[WorkflowGraphTemplateNodeDraftWrite] = Field(default_factory=list)
+  edges: list[WorkflowGraphTemplateEdgeDraftWrite] | None = None
 
 
 class WorkflowGraphTemplateStatusUpdateRequest(BaseModel):

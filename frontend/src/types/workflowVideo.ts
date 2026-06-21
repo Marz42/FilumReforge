@@ -195,12 +195,22 @@ export interface GraphTemplateNodeDetail {
   config?: Record<string, unknown>
 }
 
+export interface GraphTemplateEdgeDetail {
+  id?: string | null
+  from_node_key: string
+  to_node_key: string
+  is_reject_path: boolean
+  condition?: Record<string, unknown>
+  priority?: number
+}
+
 export interface GraphTemplateDesignerDetail extends GraphTemplateSummary {
   base_code: string
   source_template_id?: string | null
   has_instances: boolean
   structure_locked: boolean
   nodes: GraphTemplateNodeDetail[]
+  edges?: GraphTemplateEdgeDetail[]
 }
 
 export interface GraphTemplateValidateResult {

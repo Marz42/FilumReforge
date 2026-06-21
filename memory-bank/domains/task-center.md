@@ -440,7 +440,7 @@ flowchart LR
 | Phase | 范围 | 交付 |
 |-------|------|------|
 | **D1** | 可维护 | clone/create、config + 节点表 + 节点 config、validate、version fork、draft→active、路由 `/task-templates/:id/edit` |
-| **D2** | 可编排 | 边表、reject 路径、routing_rules、join_mode / assignment_mode、拓扑校验 |
+| **D2** | 可编排 | 边表、reject 路径、routing_rules、join_mode / assignment_mode、拓扑校验 ✅ |
 | **D3** | 产品化（可选） | DAG 预览、dry-run 实例化、导入/导出 JSON、Run 统计 |
 
 ### 12.3 D1 后端 API
@@ -493,18 +493,19 @@ TaskTemplatesView.vue
 3. **aggregate_mode 切换**：config `batch` ↔ `streaming` → 与 Phase 5 ROOT/N2 门控联动。
 4. **有 Run 的模板**：结构只读 →「另存新版本」→ 改节点 → publish → 新实例化走新版。
 
-### 12.7 测试锚点（D1）
+### 12.7 测试锚点
 
 | 层 | 文件 |
 |----|------|
-| pytest | `test_workflow_graph_template_designer_d1.py`（clone / draft-save / validate / publish / structure lock） |
-| vitest | `GraphTemplateDesignerView.spec.ts` 或扩 `TaskCenterView` 路由 smoke |
+| pytest D1 | `test_workflow_graph_template_designer_d1.py` |
+| pytest D2 | `test_workflow_graph_template_designer_d2.py` · `test_workflow_graph_template_topology.py` |
+| vitest | `GraphTemplateDesignerView.spec.ts` |
 | 回归 | 改模板 → 实例化 → inbox/tracking 与 seed 行为一致（扩 W3/W9） |
 
 ### 12.8 跟踪 ID
 
 | ID | 说明 |
 |----|------|
-| **F-18** | 图模板设计器 D1（本节） |
-| **F-19** | 设计器 D2 边与路由 |
+| **F-18** | 图模板设计器 D1 ✅ |
+| **F-19** | 设计器 D2 边与路由 ✅ |
 | **B-12** | Legacy E 删除（独立，不阻塞设计器） |
