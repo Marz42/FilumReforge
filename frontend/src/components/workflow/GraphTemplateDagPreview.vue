@@ -177,6 +177,52 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
+function roundedOrthogonalPath(points: Array<{ x: number; y: number }>, radius: number): string {
+  if (points.length === 0) {
+    return ''
+  }
+  if (points.length === 1) {
+    return `M ${points[0].x} ${points[0].y}`
+  }
+
+  let path = `M ${points[0].x} ${points[0].y}`
+
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1]
+    const curr = points[i]
+    const next = points[i + 1]
+
+    if (!next) {
+      path += ` L ${curr.x} ${curr.y}`
+      break
+    }
+
+    const dx1 = curr.x - prev.x
+    const dy1 = curr.y - prev.y
+    const dx2 = next.x - curr.x
+    const dy2 = next.y - curr.y
+    const len1 = Math.hypot(dx1, dy1)
+    const len2 = Math.hypot(dx2, dy2)
+    if (len1 === 0 || len2 === 0) {
+      path += ` L ${curr.x} ${curr.y}`
+      continue
+    }
+
+    const cornerR = Math.min(radius, len1 / 2, len2 / 2)
+    const n1x = dx1 / len1
+    const n1y = dy1 / len1
+    const n2x = dx2 / len2
+    const n2y = dy2 / len2
+
+    path += [
+      ` L ${curr.x - n1x * cornerR} ${curr.y - n1y * cornerR}`,
+      ` Q ${curr.x} ${curr.y} ${curr.x + n2x * cornerR} ${curr.y + n2y * cornerR}`,
+    ].join('')
+  }
+
+  return path
+}
+
 function forwardEdgePath(fromKey: string, toKey: string): string {
   const from = nodeBox(fromKey)
   const to = nodeBox(toKey)
@@ -187,7 +233,7 @@ function forwardEdgePath(fromKey: string, toKey: string): string {
   if (direction.value === 'horizontal') {
     const startX = from.right
     const startY = from.cy
-    const endX = to.left
+    const endX = to.left - 1
     const endY = to.cy
     const midX = (startX + endX) / 2
     return `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`
@@ -196,7 +242,7 @@ function forwardEdgePath(fromKey: string, toKey: string): string {
   const startX = from.cx
   const startY = from.bottom
   const endX = to.cx
-  const endY = to.top
+  const endY = to.top - 1
   const midY = (startY + endY) / 2
   return `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`
 }
@@ -216,72 +262,40 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
     const exit = borderPoint(from, 'bottom')
     const entryAlign = clamp((exit.x - to.left) / (to.right - to.left), 0.15, 0.85)
     const entry = borderPoint(to, 'bottom', entryAlign)
-    const dropX = exit.x
-    const dropY = exit.y
-    const riseX = entry.x
-    const riseY = entry.y
 
-    if (Math.abs(dropX - riseX) < 1) {
-      return `M ${dropX} ${dropY} L ${riseX} ${riseY}`
+    if (Math.abs(exit.x - entry.x) < 1) {
+      return `M ${exit.x} ${exit.y} L ${entry.x} ${entry.y}`
     }
 
-    const turnY = laneY
-    const r = Math.min(cornerRadius, Math.abs(turnY - dropY) / 2, Math.abs(riseX - dropX) / 4)
-    const dropTurnY = turnY - r
-    const riseTurnY = turnY + r
-    const turnTowardRise = riseX > dropX ? 1 : -1
-
-    return [
-      `M ${dropX} ${dropY}`,
-      `L ${dropX} ${dropTurnY}`,
-      `Q ${dropX} ${turnY} ${dropX + turnTowardRise * r} ${turnY}`,
-      `L ${riseX - turnTowardRise * r} ${turnY}`,
-      `Q ${riseX} ${turnY} ${riseX} ${riseTurnY}`,
-      `L ${riseX} ${riseY}`,
-    ].join(' ')
+    return roundedOrthogonalPath(
+      [
+        { x: exit.x, y: exit.y },
+        { x: exit.x, y: laneY },
+        { x: entry.x, y: laneY },
+        { x: entry.x, y: entry.y },
+      ],
+      cornerRadius,
+    )
   }
 
   const laneX = layout.value.maxX + laneOffset
-  const targetIsAbove = to.cy < from.cy
   const exit = borderPoint(from, 'right')
-  const entry = targetIsAbove
-    ? borderPoint(to, 'bottom', clamp((exit.y - to.top) / (to.bottom - to.top), 0.15, 0.85))
-    : borderPoint(to, 'right', clamp((exit.y - to.top) / (to.bottom - to.top), 0.15, 0.85))
+  const entryAlign = clamp((exit.y - to.top) / (to.bottom - to.top), 0.15, 0.85)
+  const entry = borderPoint(to, 'right', entryAlign)
 
-  const dropX = exit.x
-  const dropY = exit.y
-  const riseX = entry.x
-  const riseY = entry.y
-
-  if (targetIsAbove) {
-    const turnX = laneX
-    const r = Math.min(cornerRadius, Math.abs(turnX - dropX) / 2, Math.abs(riseY - dropY) / 4)
-    const dropTurnX = turnX - r
-    const riseTurnX = turnX + r
-    const turnTowardRise = riseY > dropY ? 1 : -1
-
-    return [
-      `M ${dropX} ${dropY}`,
-      `L ${dropTurnX} ${dropY}`,
-      `Q ${turnX} ${dropY} ${turnX} ${dropY + turnTowardRise * r}`,
-      `L ${turnX} ${riseY - turnTowardRise * r}`,
-      `Q ${turnX} ${riseY} ${riseTurnX} ${riseY}`,
-      `L ${riseX} ${riseY}`,
-    ].join(' ')
+  if (Math.abs(exit.y - entry.y) < 1) {
+    return `M ${exit.x} ${exit.y} L ${entry.x} ${entry.y}`
   }
 
-  const turnX = laneX
-  const r = Math.min(cornerRadius, Math.abs(turnX - dropX) / 2, Math.abs(riseY - dropY) / 4)
-  const turnTowardRise = riseY > dropY ? 1 : -1
-
-  return [
-    `M ${dropX} ${dropY}`,
-    `L ${turnX - r} ${dropY}`,
-    `Q ${turnX} ${dropY} ${turnX} ${dropY + turnTowardRise * r}`,
-    `L ${turnX} ${riseY - turnTowardRise * r}`,
-    `Q ${turnX} ${riseY} ${turnX - r} ${riseY}`,
-    `L ${riseX} ${riseY}`,
-  ].join(' ')
+  return roundedOrthogonalPath(
+    [
+      { x: exit.x, y: exit.y },
+      { x: laneX, y: exit.y },
+      { x: laneX, y: entry.y },
+      { x: entry.x, y: entry.y },
+    ],
+    cornerRadius,
+  )
 }
 </script>
 
@@ -325,9 +339,10 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
               id="dag-forward-arrow"
               markerWidth="8"
               markerHeight="8"
-              refX="7"
+              refX="8"
               refY="4"
               orient="auto"
+              markerUnits="userSpaceOnUse"
             >
               <path d="M0,0 L8,4 L0,8 Z" class="dag-preview__marker--forward" />
             </marker>
@@ -476,6 +491,7 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 2;
   pointer-events: none;
   overflow: visible;
 }
