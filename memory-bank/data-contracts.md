@@ -1167,11 +1167,12 @@
 
 ## 12. 当前验证基线
 
-权威数字见 [`progress.md`](./progress.md)「测试基线」表（2026-06-21 @ `9d2b6f5`）：
+权威数字见 [`progress.md`](./progress.md)「测试基线」表（2026-06-22 @ E2E 扩面）：
 
 - backend：`pytest` **252 collected**（含设计器 **15** 项：`test_workflow_graph_template_designer_d{1,2,3}` + `test_workflow_graph_template_topology`）；`test_migrations.py` 需本机 PostgreSQL + `POSTGRES_TEST_ADMIN_DSN`（否则 1 skipped）；`compileall` PASS
 - frontend：vitest **45 文件 / 124 用例**（含 `GraphTemplateDesignerView.spec.ts`）；`type-check` / `build` PASS
-- Playwright core mock：**23/23**（`npm run test:e2e`：login / task-center* / designer / workflow-video-v1 等）
+- Playwright core mock：**33/33**（`npm run test:e2e`：login / task-center* / task-center-interactions / designer / workflow-video-v1 等）
+- Playwright task-center 全集：**48/48**（`npm run test:e2e:task-center` = core 33 + multi-account mock 15）
 - 未纳入每次刷新：`test:e2e:all`（UAT + docker-gui）、`playwright_live`、Ubuntu 回滚演练；**待办清单**见 [`progress.md`](./progress.md)「E2E 待办（Backlog）」
 
 ## 13. 维护规则

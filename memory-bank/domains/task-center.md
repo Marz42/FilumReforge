@@ -417,7 +417,7 @@ flowchart LR
 |----|------|
 | pytest | `test_tce_phase1_*` … `test_tce_phase5_*`；`test_workflow_graph_template_designer_d{1,2,3}` · `test_workflow_graph_template_topology`；workflow-video W2–W10 |
 | vitest | `TaskCenterView.spec.ts`、`GraphTemplateDesignerView.spec.ts`、`useTaskCenterPermissions.spec.ts` |
-| Playwright | **core 23** @ `npm run test:e2e`：`task-center.spec.ts`、`task-center-stats.spec.ts`、`task-center-extended.spec.ts`、`graph-template-designer.spec.ts`、`workflow-video-v1.spec.ts`；扩展见 `progress.md`「E2E 待办」 |
+| Playwright | **core 33** @ `npm run test:e2e`：`task-center.spec.ts`、`task-center-stats.spec.ts`（4）、`task-center-extended.spec.ts`、`task-center-interactions.spec.ts`（8）、`graph-template-designer.spec.ts`、`workflow-video-v1.spec.ts`；**全集 48** @ `npm run test:e2e:task-center`（+ multi-account mock 15）；扩展见 `progress.md`「E2E 待办」 |
 | data-testid | `task-center-view`、`task-center-list-view`、`tasks-detail-panel`、`video-batch-close-capture` 等 |
 
 ---

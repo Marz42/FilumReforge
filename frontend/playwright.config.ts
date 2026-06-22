@@ -13,6 +13,13 @@ if (!process.env.PLAYWRIGHT_BROWSERS_PATH && fs.existsSync(repoBrowsersPath)) {
 }
 
 const chromiumLaunchOptions = fs.existsSync(localChrome) ? { executablePath: localChrome } : {}
+const useSystemChromeChannel =
+  !fs.existsSync(localChrome) && process.platform === 'win32' && !process.env.CI
+const chromiumUseOptions = useSystemChromeChannel
+  ? { channel: 'chrome' as const }
+  : { launchOptions: chromiumLaunchOptions }
+
+const devPort = Number(process.env.PLAYWRIGHT_DEV_PORT ?? 4173)
 
 export default defineConfig({
   testDir: './e2e',
@@ -21,6 +28,7 @@ export default defineConfig({
     '**/task-center.spec.ts',
     '**/task-center-stats.spec.ts',
     '**/task-center-extended.spec.ts',
+    '**/task-center-interactions.spec.ts',
     '**/shell.spec.ts',
     '**/settings.spec.ts',
     '**/graph-template-designer.spec.ts',
@@ -37,21 +45,21 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: `http://127.0.0.1:${devPort}`,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-    launchOptions: chromiumLaunchOptions,
+    video: 'off',
+    ...chromiumUseOptions,
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'], launchOptions: chromiumLaunchOptions },
+      use: { ...devices['Desktop Chrome'], ...chromiumUseOptions },
     },
   ],
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4173',
-    port: 4173,
+    command: `npm run dev -- --host 127.0.0.1 --port ${devPort}`,
+    port: devPort,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

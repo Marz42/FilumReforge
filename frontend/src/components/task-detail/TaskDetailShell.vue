@@ -25,6 +25,7 @@ import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
 import TaskDetailMoreMenu from '@/components/task-detail/TaskDetailMoreMenu.vue'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
+import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
   isVideoWorkflowProfile,
   resolveTaskDetailProfile,

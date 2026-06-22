@@ -4,8 +4,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- **E2E 任务中心扩面**：`task-center-interactions.spec.ts`（8 条：握手 accept/协商/转办、验收、结束采集、统计 deep-link、模板入口）；`task-center-interaction-mock.ts`；`npm run test:e2e:task-center` + `playwright.task-center.config.ts`（core 33 + multi-account 15 = 48）
+- **E2E 统计 Tab**：`task-center-stats.spec.ts` +2（部门筛选、看板 Run 筛选）
+- **E2E multi-account mock**：Phase A–N 全绿（15/15）；mock 补齐 `preview-participants?policy=`、模板 GET config、`user_facing_state`
+
+### Fixed
+
+- **TaskCenterView** deep-link `selected=` 在 non-search 模式下不再被 sanitize 清除
+- **TaskDetailShell** 补 `TASK_CENTER_V2_UI_ENABLED` import
+
 ### Changed
 
+- Playwright：`PLAYWRIGHT_DEV_PORT` 可配置；4173 不可用时默认 5173；系统 Chrome channel 回退；`video: off`
+- 测试基线：**33/33** core mock · **15/15** multi-account mock（`2026-06-22-main-e2e-core-33`）
 - **TCE Phase 5**（B-08/B-13/B-14/B-15, F-13–F-16）：图模板 snapshot 摘要、aggregate_mode、结束采集、user_facing_state 图对齐、移除 TasksView 回退
 - **TCE Phase 4**（B-16, F-17）：多部门实例化 policy 实例部门优先、实例化发起部门 UI/校验
 - **TCE Phase 3**（B-06/B-09/B-11, F-06/F-09）：部门统计 API、snapshot 分页、Run 聚合 API、统计页部门/Run、看板 Run 筛选

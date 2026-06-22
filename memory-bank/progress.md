@@ -1,5 +1,19 @@
 # Project Filum 进度记录
 
+## 会话摘要（任务中心 E2E 扩面）
+
+### 2026-06-22 — 任务中心 E2E 全覆盖 + 多账号 mock 15/15
+
+**完成事项**:
+- [x] 新增 `task-center-interaction-mock.ts` + `task-center-interactions.spec.ts`（握手 accept/协商/转办、验收、结束采集、统计 deep-link、模板入口）
+- [x] 扩展 `task-center-stats.spec.ts`（部门筛选、Run 事件、看板 Run 筛选）
+- [x] `npm run test:e2e:task-center` + `playwright.task-center.config.ts`（含 multi-account mock）
+- [x] 修复 `TaskCenterView` deep-link `selected` 被 sanitize 清除；`TaskDetailShell` 补 `TASK_CENTER_V2_UI_ENABLED` import
+- [x] 修复 `workflow-video-mock`：preview-participants query、模板 GET config、multi-account Phase C-D/H/L
+- [x] **基线**: core `npm run test:e2e` → **33 passed**；multi-account → **15 passed**
+
+**分支**: `main`
+
 ## 会话摘要（E2E mock 修复与扩面）
 
 ### 2026-06-21 — Playwright 核心套件 23/23 + 待办登记
@@ -429,23 +443,24 @@
 
 | 字段 | 值 |
 | --- | --- |
-| `baseline_id` | `2026-06-21-main-e2e-core-23` |
-| `commit` | `9d2b6f5`（`feat(task-templates): graph template designer D3 productization`） |
+| `baseline_id` | `2026-06-22-main-e2e-core-33` |
+| `commit` | （本 commit）· 基线建立在 `74e34d7` 之上 |
 | `runner_os` | Windows 11 + `backend/.venv`（Python 3.12.9）；前端 `npm ci` 后原生 Node |
 | `pytest` | **252 collected**（`backend/.venv/Scripts/python.exe -m pytest backend/tests`，约 90–130s）；设计器子集 **15 passed**（`test_workflow_graph_template_designer_d{1,2,3}` + `test_workflow_graph_template_topology`）；skip = `test_migrations.py::test_alembic_upgrade_and_downgrade`，需 `POSTGRES_TEST_ADMIN_DSN` |
 | `compileall` | PASS（`python -m compileall -q backend/app backend/tests`） |
 | `vitest` | **45 文件 / 124 用例**（`npm run test:unit -- --run`，约 15–23s；含 `GraphTemplateDesignerView.spec.ts`） |
 | `type-check` / `build` | PASS（`npm run type-check`、`npm run build`；Vite chunk size 为信息性警告） |
-| `playwright_mock` | **23/23** @ core suite（`npm run test:e2e`，2026-06-21）；login / task-center* / shell / settings / graph-template-designer / workflow-video-v1 |
+| `playwright_mock` | **33/33** @ core suite（`npm run test:e2e`，2026-06-22）；含 `task-center-interactions.spec.ts`（+10）；`PLAYWRIGHT_DEV_PORT=5173` 若 4173 不可用 |
+| `playwright_task_center` | **48/48** @ `npm run test:e2e:task-center`（core 33 + multi-account mock 15） |
 | `playwright_uat` | **未在本轮重跑** — `npm run test:e2e:workflow-video-uat`（7 条 + 截图报告） |
-| `playwright_multi_account` | **未在本轮重跑** — `npm run test:e2e:workflow-video-multi-account-mock`（A–N 14 条；mock 已修，待验证） |
+| `playwright_multi_account` | **15/15** @ `npm run test:e2e:workflow-video-multi-account-mock`（A–N，2026-06-22） |
 | `check-release.sh` | **Windows 等价 P0**：设计器 pytest 子集全绿；全量 pytest/vitest 发布前须重跑 |
 | `eslint` | 8 errors（`npm run lint`，非阻塞；待清理） |
 | `docker-gui` | **未在本机重跑**；沿用 **2026-05-20** 基线 **18/18** @ `http://127.0.0.1:8080` |
 | `docker_manual` | Compose 配置与种子脚本已在 6/18 会话验证；**A–F 手工实测待完成** |
 | `playwright_live` | 未纳入本次基线重跑 |
-| `memory_bank_sync` | 文档已同步至 E2E 修复会话（2026-06-21） |
-| `notes` | 工作区误删 409 文件后已 `git restore` 恢复；mock E2E 需 `npx playwright install chromium` |
+| `memory_bank_sync` | 文档已同步至 E2E 扩面会话（2026-06-22） |
+| `notes` | Playwright 未装 repo 浏览器时回退系统 Chrome；`npx playwright install chromium` 可选（`.playwright-browsers/`） |
 
 ### E2E 待办（Backlog）
 
@@ -453,18 +468,19 @@
 
 | 优先级 | 项 | 说明 |
 |--------|-----|------|
-| **P0** | 重跑 UAT / 多账号 mock | `test:e2e:workflow-video-uat`、`test:e2e:workflow-video-multi-account-mock` — mock 已对齐 TCE/aggregate_mode，需确认全绿 |
-| **P1** | 设计器深度流 | import/export JSON、publish、fork version、structure_locked 只读 + 新版本 |
-| **P1** | 任务中心交互 | graph 握手（接单/转办/验收）、`close-capture` 点击、多部门实例化 Dialog（F-17） |
-| **P1** | 统计 Tab | 部门筛选、Run 事件时间线、deep-link 回详情 |
+| **P0** | 重跑 UAT | `test:e2e:workflow-video-uat` — mock 已对齐 TCE/aggregate_mode，待确认全绿 |
+| **P1** | 设计器深度流 | publish、fork version、structure_locked 只读 + 新版本（import/export JSON 已有 E2E） |
+| **P1** | 多部门实例化 Dialog | F-17 专用 spec（握手/验收/close-capture 已有 `task-center-interactions`） |
 | **P2** | 全局备忘 | `GlobalMemoFloat` CRUD smoke |
 | **P2** | 其它业务页 | 汇报中心、人员/部门、知识库、总览 widget（当前 **0** E2E） |
 | **P2** | 消息中心 | 仅 drawer 有测；`/messages` 全页无专门 spec |
 | **P3** | Live 栈 | `test:e2e:live`、`task-center-live.spec.ts` — 需 Compose + seed |
 | **P3** | Docker GUI | `test:e2e:docker-gui`（18 条 @ `:8080`）；沿用 2026-05-20 基线，未重跑 |
-| **P3** | CI 纳入 | 默认 release 闸门仍不含 UAT/docker/live；可选加 core 23 条到 `check-release.sh` |
+| **P3** | CI 纳入 | 默认 release 闸门仍不含 UAT/docker/live；可选加 core 33 条或 `test:e2e:task-center` 到 `check-release.sh` |
 
-**已覆盖（core 23）**: login(4) · task-center(5) · task-center-stats(2) · task-center-extended(3) · shell(3) · settings(2) · graph-template-designer(2) · workflow-video-v1(2)
+**已覆盖（core 33）**: login(4) · task-center(5) · task-center-stats(4) · task-center-extended(3) · task-center-interactions(8) · shell(3) · settings(2) · graph-template-designer(2) · workflow-video-v1(2)
+
+**已覆盖（task-center 全集 48）**: 上列 core 33 + multi-account mock(15)
 
 ## 视频工作流 v1（workflow-video-v1）
 
@@ -699,7 +715,7 @@
 
 ## 当前已知问题
 
-- **测试基线**（2026-06-21 @ E2E 修复）：Playwright core **23/23**；pytest/vitest 见上表；UAT/multi-account/docker-gui/live **待重跑**。
+- **测试基线**（2026-06-22 @ E2E 扩面）：Playwright core **33/33**；multi-account mock **15/15**；pytest/vitest 见上表；UAT/docker-gui/live **待重跑**。
 - **Alembic 往返 skip**：无可用 PostgreSQL 或 `POSTGRES_TEST_ADMIN_DSN` 凭据错误时跳过；非代码失败。
 - **工作区误删风险**：若 `git status` 出现大量 `D` 文件，先 `git restore .` 再跑测试（2026-06-18 已遇一次）。
 - **Docker GUI**：本次开发机未重跑；沿用 2026-05-20 **18/18** @ `http://127.0.0.1:8080`。

@@ -10,6 +10,19 @@ import {
   isExactApiPath,
   parseQueryParam,
 } from './mock-api-helpers'
+import {
+  buildGraphInstances,
+  buildInteractionInboxItems,
+  buildInteractionTasks,
+  buildInteractionTrackingItems,
+  createTaskCenterInteractionMockState,
+  delegateUser,
+  extendPublishDepartmentOptions,
+  extendPublishUserOptions,
+  handleTaskCenterInteractionRoute,
+  mergeTasksWithInteractions,
+  type TaskCenterInteractionMockState,
+} from './task-center-interaction-mock'
 
 type MockApiOptions = {
   authenticated?: boolean
@@ -96,11 +109,18 @@ const mockHistoryTask = {
   updated_at: '2025-04-01T10:00:00Z',
 }
 
-const allMockTasks = [mockInboxTask, selectedTask, mockHistoryTask]
-const dynamicCreatedTasks: typeof allMockTasks = []
+const baseMockTasks = [mockInboxTask, selectedTask, mockHistoryTask]
+const interactionTasks = buildInteractionTasks(adminUser)
+const graphInstances = buildGraphInstances(adminUser)
+const dynamicCreatedTasks: typeof baseMockTasks = []
+let interactionMockState: TaskCenterInteractionMockState = createTaskCenterInteractionMockState()
 
 function getAllMockTasks() {
-  return [...allMockTasks, ...dynamicCreatedTasks]
+  return mergeTasksWithInteractions(
+    [...baseMockTasks, ...dynamicCreatedTasks],
+    interactionTasks,
+    interactionMockState,
+  )
 }
 
 function buildTaskCenterSnapshot() {
@@ -118,22 +138,8 @@ function buildTaskCenterSnapshot() {
         step_count: 3,
       },
     ],
-    publish_department_options: [
-      {
-        id: 'dept-content',
-        label: '内容部',
-      },
-    ],
-    publish_user_options: [
-      {
-        user_id: adminUser.id,
-        email: adminUser.email,
-        real_name: '系统管理员',
-        department_id: 'dept-content',
-        department_name: '内容部',
-        label: '系统管理员（admin@example.com）',
-      },
-    ],
+    publish_department_options: extendPublishDepartmentOptions(),
+    publish_user_options: extendPublishUserOptions(adminUser),
     task_inbox: [
       {
         task_id: 'task-inbox-1',
@@ -146,6 +152,7 @@ function buildTaskCenterSnapshot() {
         current_handler_label: '系统管理员',
         user_facing_state: 'pending',
       },
+      ...buildInteractionInboxItems(adminUser),
       ...dynamicCreatedTasks.map((task) => ({
         task_id: task.id,
         title: task.title,
@@ -174,7 +181,9 @@ function buildTaskCenterSnapshot() {
         review_quality_score: 4,
         is_pending_review: true,
         user_facing_state: 'awaiting_confirm',
+        run_label: '验收 Run A',
       },
+      ...buildInteractionTrackingItems(),
     ],
     task_history: [
       {
@@ -194,20 +203,6 @@ function buildTaskCenterSnapshot() {
     tracking_pagination: defaultTaskCenterPagination,
     history_pagination: defaultTaskCenterPagination,
   }
-}
-
-const taskStatsSummary = {
-  total_tasks: 4,
-  completed_tasks: 2,
-  completion_rate: 0.5,
-  overdue_tasks: 1,
-  overdue_rate: 0.25,
-  tasks_by_status: {
-    todo: 1,
-    doing: 1,
-    review: 1,
-    done: 1,
-  },
 }
 
 const messageCenterSnapshot = {
@@ -259,32 +254,6 @@ const messageCenterSnapshot = {
   source_counts: [{ source_type: 'task', label: '任务中心', count: 1 }],
 }
 
-const graphInstance = {
-  id: 'graph-instance-1',
-  workflow_definition_id: 'workflow-def-1',
-  status: 'in_progress',
-  node_instances: [
-    {
-      id: 'graph-node-start',
-      title: '需求澄清',
-      iteration: 1,
-      engine_state: 'completed',
-      activated_at: '2025-04-04T08:00:00Z',
-      completed_at: '2025-04-04T08:20:00Z',
-      terminated_at: null,
-    },
-    {
-      id: 'graph-node-review',
-      title: '验收确认',
-      iteration: 1,
-      engine_state: 'activated',
-      activated_at: '2025-04-04T12:00:00Z',
-      completed_at: null,
-      terminated_at: null,
-    },
-  ],
-}
-
 async function fulfillUnauthorized(route: Route): Promise<void> {
   await fulfillJson(route, { detail: 'unauthorized' }, 401)
 }
@@ -292,6 +261,7 @@ async function fulfillUnauthorized(route: Route): Promise<void> {
 async function installMockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
   const authenticated = options.authenticated ?? true
   dynamicCreatedTasks.length = 0
+  interactionMockState = createTaskCenterInteractionMockState()
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request()
@@ -438,7 +408,7 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
     }
 
     if (request.method() === 'GET' && apiPath === '/users') {
-      await fulfillJson(route, [adminUser])
+      await fulfillJson(route, [adminUser, delegateUser])
       return
     }
 
@@ -447,24 +417,14 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
       return
     }
 
-    if (request.method() === 'GET' && apiPath === '/tasks/stats/summary') {
-      await fulfillJson(route, taskStatsSummary)
-      return
-    }
-
-    if (request.method() === 'GET' && apiPath === '/tasks/stats/workload') {
-      await fulfillJson(route, [
-        {
-          assignee_id: adminUser.id,
-          assignee_email: adminUser.email,
-          department_id: 'dept-content',
-          department_name: '内容部',
-          total_tasks: 4,
-          open_tasks: 2,
-          completed_tasks: 2,
-          overdue_tasks: 1,
-        },
-      ])
+    if (
+      await handleTaskCenterInteractionRoute(route, {
+        adminUser,
+        state: interactionMockState,
+        graphInstances,
+        allTasks: tasks,
+      })
+    ) {
       return
     }
 
@@ -510,16 +470,6 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
           download_url: 'https://example.com/mock.pdf',
         },
       ])
-      return
-    }
-
-    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+$/.test(pathname)) {
-      await fulfillJson(route, graphInstance)
-      return
-    }
-
-    if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+\/events/.test(pathname)) {
-      await fulfillJson(route, { items: [], total: 0, limit: 50, offset: 0 })
       return
     }
 

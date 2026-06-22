@@ -70,7 +70,7 @@
 | P2 | 通知渠道深化 | 真实 Email/WebSocket、投递观测 | 同上 |
 | P2 | Docker 图模板实测收尾 | A–F 手工 / live E2E | `handbooks/workflow-video-v1-docker-runbook.md` |
 | P3 | 注册方式扩展 | 公开/审批式注册（产品决策后） | `project-brief.md` |
-| P3 | E2E 基线刷新 | Playwright live、docker-gui 与发布 commit 同步 | `handbooks/e2e-gui-verification-automation-runbook.md` |
+| P3 | E2E 基线刷新 | Playwright live、docker-gui、UAT 与发布 commit 同步 | `handbooks/e2e-gui-verification-automation-runbook.md` |
 | 暂缓 | Ubuntu 最小回滚演练 | git 回退 + systemd ± 迁移 rollback dry-run | `deployment-runbook-ubuntu-2404.md` §21.8 |
 
 ---

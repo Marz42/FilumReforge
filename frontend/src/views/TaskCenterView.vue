@@ -254,18 +254,18 @@ const effectiveSelectedTaskId = computed(() => {
   if (isSearchMode.value) {
     return taskSearchResults.value.some((item) => item.id === id) ? id : ''
   }
-  return masterListTaskIds.value.has(id) ? id : ''
+  return id
 })
 
 function sanitizeSelectedQuery(): void {
+  if (!isSearchMode.value) {
+    return
+  }
   const id = selectedTaskId.value.trim()
   if (!id) {
     return
   }
-  const isValid = isSearchMode.value
-    ? taskSearchResults.value.some((item) => item.id === id)
-    : masterListTaskIds.value.has(id)
-  if (isValid) {
+  if (taskSearchResults.value.some((item) => item.id === id)) {
     return
   }
   void router.replace({

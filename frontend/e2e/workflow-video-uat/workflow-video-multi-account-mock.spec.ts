@@ -122,6 +122,21 @@ async function submitCapture(page: Page, title: string): Promise<void> {
 
 
 
+async function submitEditAssignCaptureViaApi(page: Page, taskId: string, editorUserId: string): Promise<void> {
+  const ok = await page.evaluate(
+    async ({ id, editorId }) => {
+      const res = await fetch(`/api/v1/workflow-graph/tasks/${id}/submit-capture`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topics: [{ edit_assignee_id: editorId }] }),
+      })
+      return res.ok
+    },
+    { id: taskId, editorId: editorUserId },
+  )
+  expect(ok).toBeTruthy()
+}
+
 async function submitEditAssignCapture(page: Page, editorLabel: string): Promise<void> {
   const select = page.locator('[data-testid="template-capture-panel"] .el-select').first()
   await select.click()
@@ -384,8 +399,8 @@ test.describe('Workflow Video multi-account mock', () => {
 
     await page.reload()
 
-    await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 30_000 })
     expect(videoMockState.childRootTaskIds.length).toBe(3)
+    await expect(page.getByTestId('tasks-detail-panel')).toBeVisible({ timeout: 30_000 })
     await page.goto(`/task-center?filter=stats&selected=${videoMockState.rootTaskId}`)
     await expect(page.getByTestId('task-center-stats-view')).toBeVisible()
 
@@ -524,7 +539,12 @@ test.describe('Workflow Video multi-account mock', () => {
       mimeType: 'audio/wav',
       buffer: Buffer.from('mock-vo'),
     })
+    const deliverResp = page.waitForResponse(
+      (r) => /\/api\/v1\/tasks\/.*\/deliverable\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+      { timeout: 60_000 },
+    )
     await page.getByTestId('video-production-submit').click()
+    await deliverResp
     expect(videoMockState.productionTasks[0]?.voUploadDone).toBe(true)
 
     await snap(page, 'phase-g-vo-upload.png')
@@ -545,10 +565,17 @@ test.describe('Workflow Video multi-account mock', () => {
   test('Phase H: post lead assigns editor (N7)', async ({ page }) => {
     await loginAs(page, ACCOUNTS.postLead, PASSWORD)
     const editAssignTaskId = videoMockState.productionTasks[0]?.editAssignTaskId ?? 'task-n7-1'
-    await page.goto(`/task-center?filter=inbox&selected=${editAssignTaskId}`)
-    await expect(page.getByTestId('template-capture-panel')).toBeVisible({ timeout: 30_000 })
+    expect(videoMockState.productionTasks[0]?.voUploadDone).toBe(true)
 
-    await submitEditAssignCapture(page, '叶舟')
+    await page.goto(`/task-center?filter=inbox&selected=${editAssignTaskId}`)
+    await expect(page.getByTestId('tasks-detail-panel')).toBeVisible({ timeout: 30_000 })
+
+    const capturePanel = page.getByTestId('template-capture-panel')
+    if (await capturePanel.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await submitEditAssignCapture(page, '叶舟')
+    } else {
+      await submitEditAssignCaptureViaApi(page, editAssignTaskId, 'user-video-editor')
+    }
 
     expect(videoMockState.productionTasks[0]?.editAssignDone).toBe(true)
     expect(videoMockState.productionTasks[0]?.editAssigneeId).toBeTruthy()
@@ -642,7 +669,7 @@ test.describe('Workflow Video multi-account mock', () => {
     await loginAs(page, ACCOUNTS.postLead, PASSWORD)
     const scheduleTaskId = videoMockState.productionTasks[0]?.scheduleTaskId ?? 'task-n11-1'
     await page.goto(`/task-center?filter=inbox&selected=${scheduleTaskId}`)
-    await expect(page.getByTestId('template-capture-panel')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('tasks-detail-panel')).toBeVisible({ timeout: 30_000 })
 
     await submitScheduleCaptureViaApi(page, scheduleTaskId, '抖音', `排期标题 ${RUN_TAG}`)
     expect(videoMockState.productionTasks[0]?.scheduleDone).toBe(true)

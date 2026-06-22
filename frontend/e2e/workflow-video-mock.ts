@@ -226,6 +226,7 @@ function toTaskCenterInboxItem(task: VideoMockTask) {
     department_name: '视频文案部',
     current_stage_label: '待处理',
     current_handler_label: handler.email,
+    user_facing_state: task.status === 'done' ? 'completed' : 'pending',
   }
 }
 
@@ -1127,7 +1128,17 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
         status: 'active',
         version: 1,
         run_kind: 'batch',
-        config: {},
+        config: {
+          run_kind: 'batch',
+          launch_schema: {
+            fields: [
+              { key: 'theme', label: '征集主题', type: 'text', required: true },
+              { key: 'manager_user_id', label: '负责人', type: 'user', required: true },
+              { key: 'due_at', label: '截止', type: 'datetime' },
+            ],
+          },
+          participant_policies: { copywriters: { type: 'department_members' } },
+        },
         nodes: [
           { id: 'tn-n1', node_key: 'N1_PROPOSE', title: '提交选题', sort_order: 1 },
           { id: 'tn-n2', node_key: 'N2_AGGREGATE', title: '汇总派发', sort_order: 2 },
@@ -1136,17 +1147,21 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'POST' && apiPath === `/workflow-graph/templates/${batchTemplateId}/preview-participants`) {
+    if (
+      request.method() === 'POST'
+      && isExactApiPath(apiPath, `/workflow-graph/templates/${batchTemplateId}/preview-participants`)
+    ) {
+      const body = (request.postDataJSON() ?? {}) as { mode?: string }
       await fulfillJson(route, {
         policy_ref: 'copywriters',
-        mode: 'subset',
+        mode: body.mode ?? 'subset',
         user_ids: editorUsers.map((user) => user.id),
         users: editorUsers.map((user) => ({
           id: user.id,
           email: user.email,
           display_name: user.email,
         })),
-        snapshot: { mode: 'subset', user_ids: editorUsers.map((user) => user.id) },
+        snapshot: { mode: body.mode ?? 'subset', user_ids: editorUsers.map((user) => user.id) },
       })
       return
     }
