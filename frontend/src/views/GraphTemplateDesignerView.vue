@@ -510,7 +510,7 @@ onMounted(async () => {
         <GraphTemplateDagPreview :nodes="dagNodes" :edges="dagEdges" />
       </el-card>
 
-      <el-card shadow="never" class="designer__panel designer__panel--wide">
+      <el-card shadow="never" class="designer__panel designer__panel--full">
         <template #header><strong>节点</strong></template>
         <el-table :data="nodeRows" highlight-current-row @row-click="(row) => { selectedNodeKey = row.node_key }">
           <el-table-column prop="node_key" label="节点键" min-width="120" />
@@ -577,7 +577,7 @@ onMounted(async () => {
         </div>
       </el-card>
 
-      <el-card shadow="never" class="designer__panel designer__panel--wide">
+      <el-card shadow="never" class="designer__panel designer__panel--full">
         <template #header>
           <div class="designer__card-header">
             <strong>边与路由</strong>
@@ -716,10 +716,6 @@ onMounted(async () => {
   gap: 16px;
 }
 
-.designer__grid > .designer__panel--wide:last-child {
-  grid-column: 1 / -1;
-}
-
 .designer__card-header {
   display: flex;
   align-items: center;
@@ -763,6 +759,11 @@ onMounted(async () => {
 }
 
 .designer__panel--wide {
+  min-width: 0;
+}
+
+.designer__panel--full {
+  grid-column: 1 / -1;
   min-width: 0;
 }
 

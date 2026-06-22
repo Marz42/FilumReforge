@@ -129,44 +129,66 @@ function edgePath(fromKey: string, toKey: string): string {
 
 <template>
   <div class="dag-preview" data-testid="graph-template-dag-preview">
-    <svg :width="layout.width" :height="layout.height" class="dag-preview__canvas">
-      <path
-        v-for="(edge, index) in layout.edges"
-        :key="`${edge.from}-${edge.to}-${index}`"
-        :d="edgePath(edge.from, edge.to)"
-        class="dag-preview__edge"
-        :class="{ 'dag-preview__edge--reject': edge.reject }"
-      />
-    </svg>
+    <p v-if="nodes.length === 0" class="dag-preview__empty">暂无节点，保存节点或添加边后将在此显示拓扑。</p>
     <div
-      v-for="node in nodes"
-      :key="node.node_key"
-      class="dag-preview__node"
-      :style="{
-        left: `${layout.positions.get(node.node_key)?.x ?? 0}px`,
-        top: `${layout.positions.get(node.node_key)?.y ?? 0}px`,
-        width: `${NODE_WIDTH}px`,
-        height: `${NODE_HEIGHT}px`,
-      }"
+      v-else
+      class="dag-preview__stage"
+      :style="{ width: `${layout.width}px`, height: `${layout.height}px` }"
     >
-      <strong>{{ node.node_key }}</strong>
-      <span>{{ node.title }}</span>
+      <svg :width="layout.width" :height="layout.height" class="dag-preview__canvas">
+        <path
+          v-for="(edge, index) in layout.edges"
+          :key="`${edge.from}-${edge.to}-${index}`"
+          :d="edgePath(edge.from, edge.to)"
+          class="dag-preview__edge"
+          :class="{ 'dag-preview__edge--reject': edge.reject }"
+        />
+      </svg>
+      <div
+        v-for="node in nodes"
+        :key="node.node_key"
+        class="dag-preview__node"
+        :style="{
+          left: `${layout.positions.get(node.node_key)?.x ?? 0}px`,
+          top: `${layout.positions.get(node.node_key)?.y ?? 0}px`,
+          width: `${NODE_WIDTH}px`,
+          height: `${NODE_HEIGHT}px`,
+        }"
+      >
+        <strong>{{ node.node_key }}</strong>
+        <span>{{ node.title }}</span>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .dag-preview {
-  position: relative;
   overflow: auto;
+  width: 100%;
+  min-height: 120px;
   border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   background: var(--el-fill-color-blank);
 }
 
+.dag-preview__empty {
+  margin: 0;
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.dag-preview__stage {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .dag-preview__canvas {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   pointer-events: none;
 }
 
