@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
 import { getProfile } from '@/api/profiles'
-import { cloneGraphTemplate, listGraphTemplates } from '@/api/workflow-graph'
+import { cloneGraphTemplate, createBlankGraphTemplate, listGraphTemplates } from '@/api/workflow-graph'
 import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -113,6 +113,20 @@ function openDesigner(template: GraphTemplateSummary): void {
   void router.push({ name: 'task-template-designer', params: { id: template.id } })
 }
 
+async function handleCreateBlank(): Promise<void> {
+  if (!props.canManage) {
+    ElMessage.warning('当前账号无权编辑任务模板')
+    return
+  }
+  try {
+    const created = await createBlankGraphTemplate('未命名模板')
+    ElMessage.success('已创建空白草稿')
+    void router.push({ name: 'task-template-designer', params: { id: created.id } })
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  }
+}
+
 async function handleClone(template: GraphTemplateSummary): Promise<void> {
   if (!props.canManage) {
     ElMessage.warning('当前账号无权编辑任务模板')
@@ -146,6 +160,9 @@ onMounted(() => {
             <strong>任务模板</strong>
             <p class="graph-templates__hint">选模板 → 填写 launch 信息 → 实例化派发。</p>
           </div>
+          <el-button v-if="canManage" type="primary" data-testid="graph-template-create" @click="handleCreateBlank">
+            新建模板
+          </el-button>
           <el-button @click="loadTemplates">刷新</el-button>
         </div>
       </template>

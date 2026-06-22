@@ -116,12 +116,20 @@ class WorkflowGraphTemplateAdminService:
     payload: WorkflowGraphTemplateCreateRequest,
   ) -> WorkflowGraphTemplateDesignerRead:
     await self._ensure_manage(actor)
-    source = await self._get_template_or_raise(template_id=payload.clone_from_id)
-    return await self._fork_template(
-      actor=actor,
-      source=source,
-      name=payload.name.strip() if payload.name else f"{source.name}（副本）",
-    )
+    if payload.clone_from_id is not None:
+      source = await self._get_template_or_raise(template_id=payload.clone_from_id)
+      result = await self._fork_template(
+        actor=actor,
+        source=source,
+        name=payload.name.strip() if payload.name else f"{source.name}（副本）",
+      )
+    else:
+      result = await self._create_blank_template(
+        actor=actor,
+        name=payload.name.strip() if payload.name else "未命名模板",
+      )
+    await self._commit()
+    return result
 
   async def fork_template_version(
     self,
@@ -131,7 +139,9 @@ class WorkflowGraphTemplateAdminService:
   ) -> WorkflowGraphTemplateDesignerRead:
     await self._ensure_manage(actor)
     source = await self._get_template_or_raise(template_id=template_id)
-    return await self._fork_template(actor=actor, source=source, name=source.name)
+    result = await self._fork_template(actor=actor, source=source, name=source.name)
+    await self._commit()
+    return result
 
   async def save_draft(
     self,
@@ -164,7 +174,9 @@ class WorkflowGraphTemplateAdminService:
       raise ConflictError("已有运行实例的模板不可修改节点结构。")
 
     await self._session.flush()
-    return await self.get_designer_detail(template_id=template_id)
+    result = await self.get_designer_detail(template_id=template_id)
+    await self._commit()
+    return result
 
   async def update_template(
     self,
@@ -184,7 +196,9 @@ class WorkflowGraphTemplateAdminService:
       template.config = {**dict(template.config or {}), **payload.config}
 
     await self._session.flush()
-    return await self.get_template_detail(template_id=template_id)
+    result = await self.get_template_detail(template_id=template_id)
+    await self._commit()
+    return result
 
   async def update_status(
     self,
@@ -215,7 +229,9 @@ class WorkflowGraphTemplateAdminService:
       template.status = target_status
 
     await self._session.flush()
-    return await self.get_designer_detail(template_id=template_id)
+    result = await self.get_designer_detail(template_id=template_id)
+    await self._commit()
+    return result
 
   async def validate_template(self, *, template_id: UUID) -> WorkflowGraphTemplateValidateResponse:
     template = await self._get_template_or_raise(template_id=template_id)
@@ -272,7 +288,9 @@ class WorkflowGraphTemplateAdminService:
       raise ConflictError("仅 draft 模板可导入 JSON。")
     if await self._has_instances(template_id=template_id):
       raise ConflictError("已有运行实例的模板不可导入结构。")
-    return await self._apply_import_bundle(actor=actor, template=template, bundle=payload.bundle)
+    result = await self._apply_import_bundle(actor=actor, template=template, bundle=payload.bundle)
+    await self._commit()
+    return result
 
   async def import_template_new(
     self,
@@ -304,8 +322,11 @@ class WorkflowGraphTemplateAdminService:
     if name:
       template.name = name.strip()
       await self._session.flush()
-      return await self.get_designer_detail(template_id=template.id)
-    return designer
+      result = await self.get_designer_detail(template_id=template.id)
+    else:
+      result = designer
+    await self._commit()
+    return result
 
   async def dry_run_template(
     self,
@@ -454,6 +475,51 @@ class WorkflowGraphTemplateAdminService:
       )
     await self._session.flush()
     return await self.get_designer_detail(template_id=template.id)
+
+  async def _create_blank_template(
+    self,
+    *,
+    actor: User,
+    name: str,
+  ) -> WorkflowGraphTemplateDesignerRead:
+    base_code = f"custom_{uuid4().hex[:12]}"
+    version = await self._get_next_template_version(base_code=base_code)
+    code = self._derive_template_code(base_code=base_code, version=version)
+    if await self._session.scalar(select(WorkflowGraphTemplate.id).where(WorkflowGraphTemplate.code == code)):
+      raise ConflictError("模板编码冲突，请稍后重试。")
+
+    template = WorkflowGraphTemplate(
+      code=code,
+      base_code=base_code,
+      version=version,
+      name=name.strip(),
+      description=None,
+      status=WorkflowGraphTemplateStatus.DRAFT,
+      context_schema={},
+      config={"run_kind": "batch", "aggregate_mode": "batch"},
+      created_by=actor.id,
+      source_template_id=None,
+    )
+    self._session.add(template)
+    await self._session.flush()
+
+    self._session.add(
+      WorkflowGraphTemplateNode(
+        template_id=template.id,
+        node_key="N1_START",
+        title="开始",
+        assignment_mode="single",
+        join_mode="all",
+        assignee_rule={},
+        config={"kind": "single"},
+        sort_order=1,
+      )
+    )
+    await self._session.flush()
+    return await self.get_designer_detail(template_id=template.id)
+
+  async def _commit(self) -> None:
+    await self._session.commit()
 
   async def _replace_structure(
     self,

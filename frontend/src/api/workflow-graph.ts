@@ -127,6 +127,18 @@ export async function cloneGraphTemplate(
   }
 }
 
+export async function createBlankGraphTemplate(
+  name = '未命名模板',
+): Promise<GraphTemplateDesignerDetail> {
+  const { data } = await http.post<GraphTemplateDesignerDetail>('/workflow-graph/templates', { name })
+  return {
+    ...data,
+    config: data.config ?? {},
+    nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
+  }
+}
+
 export async function saveGraphTemplateDraft(
   templateId: string,
   payload: {
