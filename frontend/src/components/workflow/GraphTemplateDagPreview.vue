@@ -130,7 +130,16 @@ const layout = computed(() => {
   return { positions, width, height, forwardEdges, rejectEdges, maxX, maxY }
 })
 
-function nodeBox(key: string) {
+type NodeBox = {
+  left: number
+  top: number
+  right: number
+  bottom: number
+  cx: number
+  cy: number
+}
+
+function nodeBox(key: string): NodeBox | null {
   const pos = layout.value.positions.get(key)
   if (!pos) {
     return null
@@ -143,6 +152,29 @@ function nodeBox(key: string) {
     cx: pos.x + NODE_WIDTH / 2,
     cy: pos.y + NODE_HEIGHT / 2,
   }
+}
+
+/** Point on a rectangle border; align is 0..1 along that edge (0.5 = center). */
+function borderPoint(
+  box: NodeBox,
+  side: 'top' | 'right' | 'bottom' | 'left',
+  align = 0.5,
+): { x: number; y: number } {
+  const t = Math.min(1, Math.max(0, align))
+  switch (side) {
+    case 'top':
+      return { x: box.left + (box.right - box.left) * t, y: box.top }
+    case 'right':
+      return { x: box.right, y: box.top + (box.bottom - box.top) * t }
+    case 'bottom':
+      return { x: box.left + (box.right - box.left) * t, y: box.bottom }
+    case 'left':
+      return { x: box.left, y: box.top + (box.bottom - box.top) * t }
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function forwardEdgePath(fromKey: string, toKey: string): string {
@@ -177,31 +209,77 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
   }
 
   const laneOffset = 16 + laneIndex * REJECT_LANE_STEP
+  const cornerRadius = 6
 
   if (direction.value === 'horizontal') {
     const laneY = layout.value.maxY + laneOffset
-    const dropX = from.cx
-    const targetIsLeft = to.cx < from.cx
-    const riseX = targetIsLeft ? to.left : to.cx
-    const riseY = targetIsLeft ? to.cy : to.bottom
-    const dropAnchorY = targetIsLeft ? from.cy : from.bottom
+    const exit = borderPoint(from, 'bottom')
+    const entryAlign = clamp((exit.x - to.left) / (to.right - to.left), 0.15, 0.85)
+    const entry = borderPoint(to, 'bottom', entryAlign)
+    const dropX = exit.x
+    const dropY = exit.y
+    const riseX = entry.x
+    const riseY = entry.y
+
+    if (Math.abs(dropX - riseX) < 1) {
+      return `M ${dropX} ${dropY} L ${riseX} ${riseY}`
+    }
+
+    const turnY = laneY
+    const r = Math.min(cornerRadius, Math.abs(turnY - dropY) / 2, Math.abs(riseX - dropX) / 4)
+    const dropTurnY = turnY - r
+    const riseTurnY = turnY + r
+    const turnTowardRise = riseX > dropX ? 1 : -1
+
     return [
-      `M ${dropX} ${dropAnchorY}`,
-      `L ${dropX} ${laneY}`,
-      `L ${riseX} ${laneY}`,
+      `M ${dropX} ${dropY}`,
+      `L ${dropX} ${dropTurnY}`,
+      `Q ${dropX} ${turnY} ${dropX + turnTowardRise * r} ${turnY}`,
+      `L ${riseX - turnTowardRise * r} ${turnY}`,
+      `Q ${riseX} ${turnY} ${riseX} ${riseTurnY}`,
       `L ${riseX} ${riseY}`,
     ].join(' ')
   }
 
   const laneX = layout.value.maxX + laneOffset
   const targetIsAbove = to.cy < from.cy
-  const dropY = from.cy
-  const riseX = targetIsAbove ? to.cx : to.right
-  const riseY = targetIsAbove ? to.bottom : to.cy
+  const exit = borderPoint(from, 'right')
+  const entry = targetIsAbove
+    ? borderPoint(to, 'bottom', clamp((exit.y - to.top) / (to.bottom - to.top), 0.15, 0.85))
+    : borderPoint(to, 'right', clamp((exit.y - to.top) / (to.bottom - to.top), 0.15, 0.85))
+
+  const dropX = exit.x
+  const dropY = exit.y
+  const riseX = entry.x
+  const riseY = entry.y
+
+  if (targetIsAbove) {
+    const turnX = laneX
+    const r = Math.min(cornerRadius, Math.abs(turnX - dropX) / 2, Math.abs(riseY - dropY) / 4)
+    const dropTurnX = turnX - r
+    const riseTurnX = turnX + r
+    const turnTowardRise = riseY > dropY ? 1 : -1
+
+    return [
+      `M ${dropX} ${dropY}`,
+      `L ${dropTurnX} ${dropY}`,
+      `Q ${turnX} ${dropY} ${turnX} ${dropY + turnTowardRise * r}`,
+      `L ${turnX} ${riseY - turnTowardRise * r}`,
+      `Q ${turnX} ${riseY} ${riseTurnX} ${riseY}`,
+      `L ${riseX} ${riseY}`,
+    ].join(' ')
+  }
+
+  const turnX = laneX
+  const r = Math.min(cornerRadius, Math.abs(turnX - dropX) / 2, Math.abs(riseY - dropY) / 4)
+  const turnTowardRise = riseY > dropY ? 1 : -1
+
   return [
-    `M ${from.right} ${dropY}`,
-    `L ${laneX} ${dropY}`,
-    `L ${laneX} ${riseY}`,
+    `M ${dropX} ${dropY}`,
+    `L ${turnX - r} ${dropY}`,
+    `Q ${turnX} ${dropY} ${turnX} ${dropY + turnTowardRise * r}`,
+    `L ${turnX} ${riseY - turnTowardRise * r}`,
+    `Q ${turnX} ${riseY} ${turnX - r} ${riseY}`,
     `L ${riseX} ${riseY}`,
   ].join(' ')
 }
@@ -257,9 +335,10 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
               id="dag-reject-arrow"
               markerWidth="8"
               markerHeight="8"
-              refX="7"
+              refX="8"
               refY="4"
               orient="auto"
+              markerUnits="userSpaceOnUse"
             >
               <path d="M0,0 L8,4 L0,8 Z" class="dag-preview__marker--reject" />
             </marker>
@@ -413,6 +492,8 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
 .dag-preview__edge--reject {
   stroke: var(--el-color-warning);
   stroke-dasharray: 7 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .dag-preview__marker--forward {
