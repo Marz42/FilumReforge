@@ -13,7 +13,7 @@
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **Stage 2 周期（Phase 0–6）与 UI IA Phase A–F 已收口**（2026-05-21）；测试基线与在线 Ubuntu 主机演练见 `memory-bank/progress.md`。工作流重构 Phase 11-A–11-G 已完成。下一步主焦点见 `improvements-stage2-implementation-plan.md` **§11** 与 `progress.md`「当前规划焦点」：**回滚演练**、工作流 E 与图引擎统一、生命周期规则 UI、注册/通知深化。Phase 11 实施事实以 `workflow-refactor-implementation-plan.md` 为准。
+**当前执行位置**: **Stage 2、UI IA、工作流图引擎 Phase 11、TCE Phase 1–5、图模板设计器 D1–D3 + UX 抛光** @ `0.89.0` 已收口（2026-06-22）。测试基线与在线 Ubuntu 主机演练见 `memory-bank/progress.md`。下一步主焦点见 `progress.md`「当前规划焦点」与 `active-task.md`：**B-12**（Legacy E 统一）、**F-05**（Shell 拆分）、E2E live/UAT 基线刷新；并行 P2：**回滚演练**（暂缓）、生命周期规则 UI、注册/通知深化。Phase 11 实施事实以 `workflow-refactor-implementation-plan.md` 为准。
 
 ## 2. 已确认约束
 

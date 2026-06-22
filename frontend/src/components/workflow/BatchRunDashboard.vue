@@ -77,6 +77,15 @@ function resolveChildTitle(child: WorkflowGraphInstanceSummary): string {
   return child.run_label ?? child.id.slice(0, 8)
 }
 
+function resolveScriptAuthorLabel(child: WorkflowGraphInstanceSummary): string {
+  const context = child.context ?? {}
+  const authorId = context.script_author_id
+  if (typeof authorId !== 'string' || !authorId) {
+    return '—'
+  }
+  return authorId.slice(0, 8) + '…'
+}
+
 function resolveRootTaskId(child: WorkflowGraphInstanceSummary): string | null {
   const rootTaskId = child.context?.root_task_id
   return typeof rootTaskId === 'string' ? rootTaskId : null
@@ -117,9 +126,14 @@ watch(
     <el-empty v-if="children.length === 0" description="暂无子制作流，汇总派发后将自动 fork" />
 
     <el-table v-else :data="children" border size="small">
-      <el-table-column label="选题" min-width="180">
+      <el-table-column label="选题" min-width="160">
         <template #default="{ row }: { row: WorkflowGraphInstanceSummary }">
           {{ resolveChildTitle(row) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="脚本撰写" width="120">
+        <template #default="{ row }: { row: WorkflowGraphInstanceSummary }">
+          {{ resolveScriptAuthorLabel(row) }}
         </template>
       </el-table-column>
       <el-table-column prop="current_node_key" label="当前节点" width="140" />

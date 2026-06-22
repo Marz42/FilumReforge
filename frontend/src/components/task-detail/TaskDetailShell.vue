@@ -23,6 +23,7 @@ import TemplateCapturePanel from '@/components/workflow/TemplateCapturePanel.vue
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
 import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue'
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
+import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import TaskDetailMoreMenu from '@/components/task-detail/TaskDetailMoreMenu.vue'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
@@ -470,8 +471,12 @@ const showCaptureProgressPanel = computed(
 const showVideoTrackingPanel = computed(
   () =>
     selectedTaskProfile.value.id === 'video_batch_root'
-    && graphInstance.value !== null
-    && batchAggregateMode.value === 'streaming',
+    && graphInstance.value !== null,
+)
+const showBatchRunDashboard = computed(
+  () =>
+    selectedTaskProfile.value.id === 'video_batch_root'
+    && graphInstance.value !== null,
 )
 const showCloseCaptureButton = computed(
   () =>
@@ -1351,6 +1356,11 @@ watch(
               :can-manage-reject="canManageCaptureReject"
               @dispatched="reloadAfterAction"
               @rejected="reloadAfterAction"
+            />
+            <BatchRunDashboard
+              v-if="showBatchRunDashboard && graphInstance"
+              :graph-instance="graphInstance"
+              @open-task="(taskId: string) => emit('selectTask', taskId)"
             />
             <VideoCaptureProgressPanel
               v-if="showCaptureProgressPanel && graphInstance"

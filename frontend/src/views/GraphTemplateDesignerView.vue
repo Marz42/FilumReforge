@@ -53,7 +53,7 @@ const validationErrors = ref<string[]>([])
 const form = reactive({
   name: '',
   description: '',
-  aggregateMode: 'batch' as 'batch' | 'streaming',
+  aggregateMode: 'streaming' as 'batch' | 'streaming',
   launchSchemaJson: '{}',
 })
 

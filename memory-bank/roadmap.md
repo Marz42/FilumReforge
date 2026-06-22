@@ -39,7 +39,7 @@
 
 | 优先级 | 主题 | 目标 | 计划入口 |
 |--------|------|------|----------|
-| **P0** | **任务中心增强（TCE）** | 读模型/性能/统计/多部门模板；Phase 1 正确性 + 测试服 | [`plans/task-center-enhance.md`](./plans/task-center-enhance.md) · [`active-task.md`](./active-task.md) |
+| **P0** | **任务中心架构债** | B-12 Legacy E 统一 · F-05 Shell 拆分 · E2E 基线刷新 | [`active-task.md`](./active-task.md) · [`domains/task-center.md`](./domains/task-center.md) §10 |
 
 **TCE 阶段切片**
 
@@ -65,7 +65,7 @@
 
 | 优先级 | 主题 | 目标 | 计划入口 |
 |--------|------|------|----------|
-| P1 | 工作流 E 与图引擎统一 | 产品级单一模板源（**TCE Phase 5 / TC-P3**） | `task-center-enhance.md` §2 P3 · ADR-005 |
+| P1 | 工作流 E 与图引擎统一 | 产品级单一模板源（**B-12** backlog） | `task-center-enhance.md` §8 · ADR-005 |
 | P2 | 生命周期规则化 | 默认映射 + 前端结构化配置 | `plans/improvements-stage2-implementation-plan.md` §11 |
 | P2 | 通知渠道深化 | 真实 Email/WebSocket、投递观测 | 同上 |
 | P2 | Docker 图模板实测收尾 | A–F 手工 / live E2E | `handbooks/workflow-video-v1-docker-runbook.md` |

@@ -7,7 +7,7 @@ from uuid import UUID
 
 TOPIC_MEETING_BATCH_CODE = "topic_meeting_batch_v1"
 VIDEO_PRODUCTION_CODE = "video_production_per_topic_v1"
-SEED_VERSION = 3
+SEED_VERSION = 4
 
 CAPTURE_SCHEMA_TOPIC: dict[str, Any] = {
   "mode": "row_table",
@@ -75,7 +75,7 @@ def build_topic_meeting_batch_config(
   return {
     "seed_version": SEED_VERSION,
     "run_kind": "batch",
-    "aggregate_mode": "batch",
+    "aggregate_mode": "streaming",
     "aggregate_node_key": "N2_AGGREGATE",
     "child_template_code": VIDEO_PRODUCTION_CODE,
     "launch_schema": LAUNCH_SCHEMA_TOPIC,

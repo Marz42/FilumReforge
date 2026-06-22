@@ -1,5 +1,43 @@
 # Project Filum 进度记录
 
+## 会话摘要（视频工作流派发与脚本提交修复）
+
+### 2026-06-22 23:00 — 选题增量派发、双待办去重、跟踪可见性
+
+**完成事项**:
+- [x] **制作 ROOT 指派负责人**（非脚本撰写人）；`department_pools` / `manager_user_id` 写入子 Run context
+- [x] **待办排除** graph ROOT 壳层任务；跟踪排除 production ROOT 壳层
+- [x] **阶段标签**含节点名（如「撰写脚本：进行中」）；跟踪列表增「当前步骤」「处理人」列
+- [x] **默认 streaming**：种子模板 `aggregate_mode` + 设计器默认；批次 ROOT 常显 `VideoTrackingPanel` + `BatchRunDashboard`
+- [x] **汇总去重**：`finalize_topics` / `TemplateAggregatePanel` 跳过已 `forked_topics`
+- [x] 回归：`test_workflow_video_dispatch_fixes.py` + 相关视频测试 14 passed
+
+**验证**：见下方用户操作路径（需 `seed_workflow_video_templates` 刷新模板至 seed v4）
+
+**分支**: `main`
+
+## 会话摘要（Memory-Bank 启动对齐审查）
+
+### 2026-06-22 21:58 — 加载 HOT/WARM、git 主线核对、文档漂移修正
+
+**完成事项**:
+- [x] 读取 `AGENT_RULES.md` 与 HOT 六件套；WARM：`roadmap.md`、`plans/implementation-plan.md`、`plans/task-center-enhance.md`、`domains/task-center.md`
+- [x] `git log --oneline -n 20`：`e0e5128`（HEAD）为图模板设计器 UX 抛光 + TCE/D1–D3 主干
+- [x] 文档漂移修正：`architecture.md` 文首焦点、`project-brief.md` TCE 状态、`roadmap.md` P0、`progress.md`「当前规划焦点」
+- [x] 对齐报告：[`history/reports/alignment-assessment-20260622.md`](./history/reports/alignment-assessment-20260622.md)
+
+**结论**:
+- 代码与 memory-bank **主干一致**（TCE Phase 1–5 + 设计器 D1–D3 + UX 抛光已落地）
+- 主要过时信息为文首「下一焦点仍写 TCE Phase 1」类状态摘要；`implementation-plan.md` §1 执行位置仍偏 2026-05 口径
+
+**下一工程主线**（见 `active-task.md`）:
+1. **B-12** — Legacy E 后端与图引擎 runtime 统一（ADR-005）
+2. **F-05** — `TaskDetailShell` 完整拆分
+3. **E2E 基线刷新** — UAT / docker-gui / playwright live（发布前）
+4. P2 并行：生命周期规则化、通知渠道深化；回滚演练暂缓
+
+**分支**: `main` @ `e0e5128`（工作树干净）
+
 ## 会话摘要（图模板设计器 UX 抛光）
 
 ### 2026-06-22 — 设计器写操作、DAG 预览与表格布局
@@ -1094,13 +1132,13 @@
 
 ## 当前规划焦点
 
-Stage 2 周期（Phase 0–6 + IA A–F）与 Paradigma Phase 0–4 已收口。**下一工程主线**为任务中心增强（TCE）：
+Stage 2、UI IA、工作流图引擎 Phase 11、**TCE Phase 1–5**、**图模板设计器 D1–D3 + UX 抛光** @ `0.89.0` 均已收口。任务中心 **产品闭环已完成**；下一工程主线为 **架构债与工程质量**（[`active-task.md`](./active-task.md)）：
 
-1. **TCE Phase 1**（P0）— graph 节点投影读路径、操作后 refresh、看板可读、测试服 `department_id` 迁移 — [`active-task.md`](./active-task.md) · [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)
-2. **TCE Phase 2** — batch tasks API + workspace hydration（B-04 / F-01）
-3. **TCE Phase 4** — 多文案部门共用图模板（B-16 / F-17 §6.2.1）
-4. **TCE Phase 5 / TC-P3** — 工作流 E 与图引擎统一（ADR-005）
-5. **生命周期规则化**、通知渠道深化、E2E live 基线刷新（P2）
+1. **B-12**（P1）— Legacy E 后端删除与图引擎 runtime 统一（ADR-005）· `task_templates` API 仍存
+2. **F-05**（P1）— `TaskDetailShell.vue` 完整拆分（~1800 行巨石）
+3. **F-10–F-12** — 任务中心 UI 抛光 backlog（见 [`domains/task-center.md`](./domains/task-center.md) §10）
+4. **E2E 基线刷新**（P3）— UAT / docker-gui / playwright live 与发布 commit 同步
+5. **生命周期规则化**、通知渠道深化（P2）
 6. **Ubuntu 最小回滚路径演练** — 暂缓，上线前再补
 
 ## 重构执行补记

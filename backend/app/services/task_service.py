@@ -338,26 +338,30 @@ class TaskService:
   def _build_graph_stage_label(self, *, task: Task, node_instance: WorkflowNodeInstance) -> str:
     metadata = self._copy_task_metadata(task)
     latest_action = self._read_str_metadata(metadata, "latest_handshake_action")
+    step_title = (node_instance.title or node_instance.node_key or "当前步骤").strip()
 
     if node_instance.business_state == WorkflowNodeBusinessState.REJECTED:
-      return "任务：已拒绝待调整"
+      return f"{step_title}：已拒绝待调整"
     if node_instance.business_state == WorkflowNodeBusinessState.ASSIGNED:
       if latest_action == "takeover":
-        return "任务：管理员接管待确认"
+        return f"{step_title}：管理员接管待确认"
       if latest_action == "delegated":
-        return "任务：已转办待确认"
+        return f"{step_title}：已转办待确认"
       if latest_action == "reassigned":
-        return "任务：重新派发待确认"
-      return "任务：待确认"
+        return f"{step_title}：重新派发待确认"
+      return f"{step_title}：待确认"
     if node_instance.business_state == WorkflowNodeBusinessState.ACCEPTED:
-      return "任务：已接受待开工"
+      return f"{step_title}：已接受待开工"
     if node_instance.business_state == WorkflowNodeBusinessState.RETURNED_FOR_REWORK:
-      return "任务：返工中"
+      return f"{step_title}：返工中"
     if node_instance.business_state == WorkflowNodeBusinessState.PENDING_REVIEW:
-      return "任务：待验收"
+      return f"{step_title}：待验收"
     if node_instance.business_state == WorkflowNodeBusinessState.DONE:
-      return "任务：已完成"
-    return f"任务：{_task_status_label(self._resolve_graph_task_status(instance=node_instance.instance, node_instance=node_instance))}"
+      return f"{step_title}：已完成"
+    status_label = _task_status_label(
+      self._resolve_graph_task_status(instance=node_instance.instance, node_instance=node_instance)
+    )
+    return f"{step_title}：{status_label}"
 
   def _build_graph_projection(
     self,
@@ -1525,6 +1529,18 @@ class TaskService:
     return dict(task.extra_metadata or {})
 
   @staticmethod
+  def _is_graph_run_root_shell_task(task: Task) -> bool:
+    """Batch/production ROOT tasks are tracking shells — not actionable inbox items."""
+    return TaskService._copy_task_metadata(task).get("workflow_graph_root_task") is True
+
+  @staticmethod
+  def _is_production_graph_root_shell_task(task: Task) -> bool:
+    metadata = TaskService._copy_task_metadata(task)
+    if metadata.get("workflow_graph_root_task") is not True:
+      return False
+    return str(metadata.get("run_kind") or "") == "production"
+
+  @staticmethod
   def _read_str_metadata(metadata: dict[str, Any], key: str) -> str | None:
     raw_value = metadata.get(key)
     if isinstance(raw_value, str) and raw_value.strip():
@@ -2110,6 +2126,8 @@ class TaskService:
     graph_entries: list[tuple[Task, TaskInboxEntry]] = []
     legacy_tasks: list[Task] = []
     for task in tasks:
+      if self._is_graph_run_root_shell_task(task):
+        continue
       projection = graph_projection_map.get(task.id)
       if projection is not None:
         if projection.status != TaskStatus.DONE and projection.current_handler_id == actor.id:
@@ -2237,6 +2255,8 @@ class TaskService:
       inbox_task_ids = set(exclude_inbox_task_ids)
     for task in tasks:
       if task.id in inbox_task_ids:
+        continue
+      if self._is_production_graph_root_shell_task(task):
         continue
       relation_types: list[str] = []
       if task.creator_id == actor.id:

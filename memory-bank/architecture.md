@@ -2,7 +2,7 @@
 
 **文档版本**: v3.12.2（工程基线修订号，与产品 SemVer [`VERSION`](../VERSION) `0.89.0` 独立）  
 **最后同步**: 2026-06-22 @ TCE Phase 5 + 图模板设计器 D1–D3 + UX 抛光 · 产品基线 `0.89.0`  
-**状态摘要**: Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11-G、视频工作流 v1 W0–W10、Stage 2 Phase 0–6、任务中心 v2 TC-P0–P2+ @ `0.89.0` 均已落地；**下一工程焦点**为 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md) Phase 1。**Ubuntu 最小回滚演练**与 **Docker A–F 手工实测**仍为待办。细节见 [`progress.md`](./progress.md) 与 [`roadmap.md`](./roadmap.md)。  
+**状态摘要**: Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11-G、视频工作流 v1 W0–W10、Stage 2 Phase 0–6、任务中心 v2 TC-P0–P2+、**TCE Phase 1–5**、**图模板设计器 D1–D3 + UX 抛光** @ `0.89.0` 均已落地；**下一工程焦点**为 backlog **B-12**（Legacy E 统一）/ **F-05**（Shell 拆分）与 E2E 基线刷新（见 [`active-task.md`](./active-task.md)）。**Ubuntu 最小回滚演练**与 **Docker A–F 手工实测**仍为待办。细节见 [`progress.md`](./progress.md) 与 [`roadmap.md`](./roadmap.md)。  
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位

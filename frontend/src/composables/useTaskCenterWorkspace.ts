@@ -49,6 +49,7 @@ function enrichRowsFromSnapshot(
       relationTypes: string[]
       handlerLabel: string | null
       runLabel: string | null
+      stageLabel: string | null
       userFacingState: TaskUserFacingState | null
     }
   >()
@@ -65,6 +66,7 @@ function enrichRowsFromSnapshot(
       handlerLabel:
         'current_handler_label' in item ? item.current_handler_label : null,
       runLabel: item.run_label ?? null,
+      stageLabel: 'current_stage_label' in item ? item.current_stage_label : null,
       userFacingState: (item.user_facing_state as TaskUserFacingState | null | undefined) ?? null,
     })
   }
@@ -95,6 +97,7 @@ function enrichRowsFromSnapshot(
       relationTypes: meta.relationTypes,
       assigneeLabel,
       runLabel: meta.runLabel ?? row.runLabel,
+      stageLabel: meta.stageLabel ?? row.stageLabel,
       userState,
       userStateLabel,
       userStateTagType: userStateTagTypeValue,

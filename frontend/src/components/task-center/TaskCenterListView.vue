@@ -50,6 +50,16 @@ function rowClassName(row: TaskCenterWorkspaceRow): string {
         {{ row.runLabel }}
       </template>
     </el-table-column>
+    <el-table-column v-if="filter === 'tracking'" label="当前步骤" min-width="140">
+      <template #default="{ row }: { row: TaskCenterWorkspaceRow }">
+        {{ row.stageLabel || '—' }}
+      </template>
+    </el-table-column>
+    <el-table-column v-if="filter === 'tracking'" label="处理人" min-width="120">
+      <template #default="{ row }: { row: TaskCenterWorkspaceRow }">
+        {{ row.assigneeLabel || '—' }}
+      </template>
+    </el-table-column>
     <el-table-column label="用户态" width="120">
       <template #default="{ row }: { row: TaskCenterWorkspaceRow }">
         <el-tag :type="normalizeTagType(row.userStateTagType)" effect="plain">

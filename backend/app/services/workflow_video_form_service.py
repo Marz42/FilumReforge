@@ -429,6 +429,17 @@ class WorkflowVideoFormService:
         message="已打回采集，待相关编辑补交。",
       )
 
+    context_before_fork = dict(instance.context or {})
+    forked_topics_map = context_before_fork.get("forked_topics")
+    already_forked: set[str] = set()
+    if isinstance(forked_topics_map, dict):
+      already_forked = {str(key) for key in forked_topics_map}
+
+    topics_to_fork = [
+      topic for topic in approved_topics if str(topic.topic_id) not in already_forked
+    ]
+    skipped_forked = len(approved_topics) - len(topics_to_fork)
+
     context = dict(instance.context or {})
     context["approved_topics"] = [topic.model_dump(mode="json") for topic in approved_topics]
     context["rejected_topics"] = [item.model_dump(mode="json") for item in normalized_rejections]
@@ -467,8 +478,19 @@ class WorkflowVideoFormService:
     fork_result = await self._fork_service.fork_production_runs(
       actor=actor,
       batch_instance_id=instance_id,
-      approved_topics=approved_topics,
+      approved_topics=topics_to_fork,
     )
+
+    skip_note = f"，跳过 {skipped_forked} 条已派发" if skipped_forked else ""
+    if not topics_to_fork:
+      return FinalizeTopicsResponse(
+        instance_id=instance_id,
+        approved_count=len(approved_topics),
+        fork_status=str(context_before_fork.get("fork_status") or "completed"),
+        fork_deferred=False,
+        child_instance_ids=[],
+        message=f"所选 {len(approved_topics)} 条选题均已派发，无需重复 fork{skip_note}。",
+      )
 
     return FinalizeTopicsResponse(
       instance_id=instance_id,
@@ -476,7 +498,10 @@ class WorkflowVideoFormService:
       fork_status=fork_result.fork_status,
       fork_deferred=False,
       child_instance_ids=fork_result.child_instance_ids,
-      message=f"已派发 {fork_result.forked_count} 条制作子 Run（跳过 {fork_result.skipped_count} 条重复）。",
+      message=(
+        f"已派发 {fork_result.forked_count} 条制作子 Run"
+        f"（跳过 {fork_result.skipped_count + skipped_forked} 条重复）{skip_note}。"
+      ),
     )
 
   async def _resolve_capture_source_node_key(

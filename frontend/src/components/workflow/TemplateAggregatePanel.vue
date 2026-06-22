@@ -33,9 +33,19 @@ interface MatrixRow {
   submitter_label: string
   approved: boolean
   script_author_id: string
+  dispatched: boolean
 }
 
 const matrixRows = ref<MatrixRow[]>([])
+
+const forkedTopicIds = computed(() => {
+  const context = props.graphInstance?.context ?? {}
+  const forked = context.forked_topics
+  if (!forked || typeof forked !== 'object') {
+    return new Set<string>()
+  }
+  return new Set(Object.keys(forked as Record<string, string>))
+})
 
 const nodeKey = computed(() => {
   const metadata = props.task.extra_metadata as Record<string, unknown> | undefined
@@ -80,15 +90,19 @@ async function loadSubmissions(): Promise<void> {
     const response = await listInstanceSubmissions(instanceId, sourceNodeKey.value)
     submissions.value = response.submissions
     matrixRows.value = response.submissions.flatMap((submission) =>
-      submission.topics.map((topic) => ({
-        topic_id: topic.topic_id ?? '',
-        title: topic.title,
-        content: topic.content ?? '',
-        reason: topic.reason ?? '',
-        submitter_label: submission.assignee_email ?? submission.assignee_user_id ?? '—',
-        approved: true,
-        script_author_id: submission.assignee_user_id ?? '',
-      })),
+      submission.topics.map((topic) => {
+        const topicId = topic.topic_id ?? ''
+        return {
+          topic_id: topicId,
+          title: topic.title,
+          content: topic.content ?? '',
+          reason: topic.reason ?? '',
+          submitter_label: submission.assignee_email ?? submission.assignee_user_id ?? '—',
+          approved: !forkedTopicIds.value.has(topicId),
+          script_author_id: submission.assignee_user_id ?? '',
+          dispatched: topicId ? forkedTopicIds.value.has(topicId) : false,
+        }
+      }),
     )
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
@@ -102,9 +116,11 @@ async function handleFinalize(): Promise<void> {
   if (!instanceId) {
     return
   }
-  const approved = matrixRows.value.filter((row) => row.approved && row.topic_id && row.script_author_id)
+  const approved = matrixRows.value.filter(
+    (row) => row.approved && row.topic_id && row.script_author_id && !row.dispatched,
+  )
   if (approved.length === 0) {
-    ElMessage.warning('请至少通过一条选题并指定脚本撰写人')
+    ElMessage.warning('请至少选择一条未派发的选题并指定脚本撰写人')
     return
   }
   const missingAuthor = approved.some((row) => !row.script_author_id)
@@ -185,11 +201,17 @@ onMounted(() => {
     <el-table v-else :data="matrixRows" border size="small">
       <el-table-column label="通过" width="64">
         <template #default="{ row }: { row: MatrixRow }">
-          <el-checkbox v-model="row.approved" />
+          <el-checkbox v-model="row.approved" :disabled="row.dispatched" />
         </template>
       </el-table-column>
       <el-table-column prop="title" label="选题标题" min-width="160" />
       <el-table-column prop="submitter_label" label="提交人" width="140" />
+      <el-table-column label="状态" width="96">
+        <template #default="{ row }: { row: MatrixRow }">
+          <span v-if="row.dispatched" class="workflow-panel__dispatched">已派发</span>
+          <span v-else>待派发</span>
+        </template>
+      </el-table-column>
       <el-table-column label="脚本撰写人" min-width="180">
         <template #default="{ row }: { row: MatrixRow }">
           <el-select
@@ -197,7 +219,7 @@ onMounted(() => {
             filterable
             placeholder="选择撰写人"
             style="width: 100%"
-            :disabled="!row.approved"
+            :disabled="!row.approved || row.dispatched"
           >
             <el-option
               v-for="option in scriptAuthorOptions"
@@ -261,5 +283,11 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
+}
+
+.workflow-panel__dispatched {
+  color: var(--el-color-success);
+  font-size: 12px;
+  font-weight: 600;
 }
 </style>

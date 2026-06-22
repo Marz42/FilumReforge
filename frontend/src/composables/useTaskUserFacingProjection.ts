@@ -12,6 +12,7 @@ export interface TaskCenterWorkspaceRow {
   taskId: string
   title: string
   runLabel: string
+  stageLabel: string | null
   userState: TaskUserFacingState
   userStateLabel: string
   userStateTagType: ReturnType<typeof userFacingStateTagType>
@@ -41,6 +42,7 @@ export function projectTaskForWorkspace(
     taskId: task.id,
     title: task.title,
     runLabel: resolveTaskRunLabel(task.title, metadata),
+    stageLabel: null,
     userState,
     userStateLabel: TASK_USER_FACING_STATE_LABELS[userState],
     userStateTagType: userFacingStateTagType(userState),

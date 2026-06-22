@@ -683,6 +683,17 @@ class WorkflowVideoInstantiationService:
     }
     if topic.content:
       context["topic_content"] = topic.content
+
+    template_config = _template.config if isinstance(_template.config, dict) else {}
+    department_pools = template_config.get("department_pools")
+    if isinstance(department_pools, dict) and department_pools:
+      context["department_pools"] = department_pools
+
+    parent_context = parent_instance.context if isinstance(parent_instance.context, dict) else {}
+    manager_raw = parent_context.get("manager_user_id")
+    if manager_raw is not None:
+      context["manager_user_id"] = str(manager_raw)
+
     validate_run_context(context)
 
     in_degree: dict[UUID, int] = {node.id: 0 for node in nodes}
@@ -757,11 +768,18 @@ class WorkflowVideoInstantiationService:
     instance.current_node_key = activated_node_keys[0] if activated_node_keys else None
     await self._session.flush()
 
+    parent_context = parent_instance.context if isinstance(parent_instance.context, dict) else {}
+    manager_raw = parent_context.get("manager_user_id")
+    if manager_raw is not None:
+      root_assignee_id = UUID(str(manager_raw))
+    else:
+      root_assignee_id = actor.id
+
     root_task = await self._create_root_task(
       actor=actor,
       template=_template,
       instance=instance,
-      assignee_id=topic.script_author_id,
+      assignee_id=root_assignee_id,
       department_id=parent_instance.department_id,
       run_label=topic.title,
       run_kind="production",
@@ -769,6 +787,7 @@ class WorkflowVideoInstantiationService:
       extra_metadata={
         "topic_id": str(topic.topic_id),
         "parent_instance_id": str(parent_instance.id),
+        "script_author_id": str(topic.script_author_id),
       },
     )
 
