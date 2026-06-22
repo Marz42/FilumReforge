@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 export interface DagPreviewNode {
   node_key: string
@@ -17,23 +17,36 @@ const props = defineProps<{
   edges: DagPreviewEdge[]
 }>()
 
-const NODE_WIDTH = 132
-const NODE_HEIGHT = 44
-const GAP_X = 28
-const GAP_Y = 56
-const PADDING = 24
+type LayoutDirection = 'horizontal' | 'vertical'
+
+const direction = ref<LayoutDirection>('horizontal')
+
+const NODE_WIDTH = 140
+const NODE_HEIGHT = 48
+const GAP_LAYER = 72
+const GAP_SIBLING = 28
+const PADDING = 36
+const REJECT_LANE_STEP = 22
 
 const layout = computed(() => {
   const nodeKeys = props.nodes.map((node) => node.node_key)
   const positions = new Map<string, { x: number; y: number; layer: number }>()
   if (nodeKeys.length === 0) {
-    return { positions, width: 320, height: 120, edges: [] as Array<{ from: string; to: string; reject: boolean }> }
+    return {
+      positions,
+      width: 320,
+      height: 160,
+      forwardEdges: [] as Array<{ from: string; to: string; index: number }>,
+      rejectEdges: [] as Array<{ from: string; to: string; index: number }>,
+    }
   }
 
-  const forwardEdges = props.edges.filter((edge) => !edge.is_reject_path)
+  const forwardEdgesRaw = props.edges.filter((edge) => !edge.is_reject_path)
+  const rejectEdgesRaw = props.edges.filter((edge) => edge.is_reject_path)
+
   const incoming = new Map<string, number>(nodeKeys.map((key) => [key, 0]))
   const outgoing = new Map<string, string[]>(nodeKeys.map((key) => [key, []]))
-  for (const edge of forwardEdges) {
+  for (const edge of forwardEdgesRaw) {
     if (!incoming.has(edge.from_node_key) || !incoming.has(edge.to_node_key)) {
       continue
     }
@@ -75,88 +88,219 @@ const layout = computed(() => {
     layerBuckets.set(layer, bucket)
   }
 
-  let maxWidth = 0
-  for (const [layer, keys] of layerBuckets.entries()) {
-    keys.sort()
-    keys.forEach((key, index) => {
-      const x = PADDING + index * (NODE_WIDTH + GAP_X)
-      const y = PADDING + layer * (NODE_HEIGHT + GAP_Y)
-      positions.set(key, { x, y, layer })
-      maxWidth = Math.max(maxWidth, x + NODE_WIDTH)
-    })
+  let maxX = PADDING
+  let maxY = PADDING
+
+  if (direction.value === 'horizontal') {
+    for (const [layer, keys] of layerBuckets.entries()) {
+      keys.sort()
+      keys.forEach((key, index) => {
+        const x = PADDING + layer * (NODE_WIDTH + GAP_LAYER)
+        const y = PADDING + index * (NODE_HEIGHT + GAP_SIBLING)
+        positions.set(key, { x, y, layer })
+        maxX = Math.max(maxX, x + NODE_WIDTH)
+        maxY = Math.max(maxY, y + NODE_HEIGHT)
+      })
+    }
+  } else {
+    for (const [layer, keys] of layerBuckets.entries()) {
+      keys.sort()
+      keys.forEach((key, index) => {
+        const x = PADDING + index * (NODE_WIDTH + GAP_SIBLING)
+        const y = PADDING + layer * (NODE_HEIGHT + GAP_LAYER)
+        positions.set(key, { x, y, layer })
+        maxX = Math.max(maxX, x + NODE_WIDTH)
+        maxY = Math.max(maxY, y + NODE_HEIGHT)
+      })
+    }
   }
 
-  const maxLayer = Math.max(...layers.values())
-  const height = PADDING * 2 + (maxLayer + 1) * NODE_HEIGHT + maxLayer * GAP_Y
-  const edges = props.edges
-    .filter(
-      (edge) => positions.has(edge.from_node_key) && positions.has(edge.to_node_key),
-    )
-    .map((edge) => ({
-      from: edge.from_node_key,
-      to: edge.to_node_key,
-      reject: Boolean(edge.is_reject_path),
-    }))
+  const rejectLaneReserve = rejectEdgesRaw.length > 0 ? REJECT_LANE_STEP * rejectEdgesRaw.length + 28 : 0
+  const width = Math.max(maxX + PADDING, 320)
+  const height = Math.max(maxY + PADDING + rejectLaneReserve, 160)
 
-  return {
-    positions,
-    width: Math.max(maxWidth + PADDING, 320),
-    height,
-    edges,
-  }
+  const forwardEdges = forwardEdgesRaw
+    .filter((edge) => positions.has(edge.from_node_key) && positions.has(edge.to_node_key))
+    .map((edge, index) => ({ from: edge.from_node_key, to: edge.to_node_key, index }))
+
+  const rejectEdges = rejectEdgesRaw
+    .filter((edge) => positions.has(edge.from_node_key) && positions.has(edge.to_node_key))
+    .map((edge, index) => ({ from: edge.from_node_key, to: edge.to_node_key, index }))
+
+  return { positions, width, height, forwardEdges, rejectEdges, maxX, maxY }
 })
 
-function nodeCenter(key: string, edge: 'start' | 'end'): { x: number; y: number } | null {
+function nodeBox(key: string) {
   const pos = layout.value.positions.get(key)
   if (!pos) {
     return null
   }
-  const x = pos.x + NODE_WIDTH / 2
-  const y = edge === 'start' ? pos.y + NODE_HEIGHT : pos.y
-  return { x, y }
+  return {
+    left: pos.x,
+    top: pos.y,
+    right: pos.x + NODE_WIDTH,
+    bottom: pos.y + NODE_HEIGHT,
+    cx: pos.x + NODE_WIDTH / 2,
+    cy: pos.y + NODE_HEIGHT / 2,
+  }
 }
 
-function edgePath(fromKey: string, toKey: string): string {
-  const start = nodeCenter(fromKey, 'start')
-  const end = nodeCenter(toKey, 'end')
-  if (!start || !end) {
+function forwardEdgePath(fromKey: string, toKey: string): string {
+  const from = nodeBox(fromKey)
+  const to = nodeBox(toKey)
+  if (!from || !to) {
     return ''
   }
-  const midY = (start.y + end.y) / 2
-  return `M ${start.x} ${start.y} C ${start.x} ${midY}, ${end.x} ${midY}, ${end.x} ${end.y}`
+
+  if (direction.value === 'horizontal') {
+    const startX = from.right
+    const startY = from.cy
+    const endX = to.left
+    const endY = to.cy
+    const midX = (startX + endX) / 2
+    return `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`
+  }
+
+  const startX = from.cx
+  const startY = from.bottom
+  const endX = to.cx
+  const endY = to.top
+  const midY = (startY + endY) / 2
+  return `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`
+}
+
+function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): string {
+  const from = nodeBox(fromKey)
+  const to = nodeBox(toKey)
+  if (!from || !to) {
+    return ''
+  }
+
+  const laneOffset = 16 + laneIndex * REJECT_LANE_STEP
+
+  if (direction.value === 'horizontal') {
+    const laneY = layout.value.maxY + laneOffset
+    const dropX = from.cx
+    const targetIsLeft = to.cx < from.cx
+    const riseX = targetIsLeft ? to.left : to.cx
+    const riseY = targetIsLeft ? to.cy : to.bottom
+    const dropAnchorY = targetIsLeft ? from.cy : from.bottom
+    return [
+      `M ${dropX} ${dropAnchorY}`,
+      `L ${dropX} ${laneY}`,
+      `L ${riseX} ${laneY}`,
+      `L ${riseX} ${riseY}`,
+    ].join(' ')
+  }
+
+  const laneX = layout.value.maxX + laneOffset
+  const targetIsAbove = to.cy < from.cy
+  const dropY = from.cy
+  const riseX = targetIsAbove ? to.cx : to.right
+  const riseY = targetIsAbove ? to.bottom : to.cy
+  return [
+    `M ${from.right} ${dropY}`,
+    `L ${laneX} ${dropY}`,
+    `L ${laneX} ${riseY}`,
+    `L ${riseX} ${riseY}`,
+  ].join(' ')
 }
 </script>
 
 <template>
   <div class="dag-preview" data-testid="graph-template-dag-preview">
+    <header class="dag-preview__header">
+      <div class="dag-preview__legend" aria-label="流程图图例">
+        <span class="dag-preview__legend-title">图例</span>
+        <span class="dag-preview__legend-item">
+          <svg class="dag-preview__legend-swatch" width="28" height="10" aria-hidden="true">
+            <line x1="0" y1="5" x2="28" y2="5" class="dag-preview__legend-line--forward" marker-end="url(#dag-legend-forward)" />
+          </svg>
+          正常流转
+        </span>
+        <span class="dag-preview__legend-item">
+          <svg class="dag-preview__legend-swatch" width="28" height="10" aria-hidden="true">
+            <line x1="0" y1="5" x2="28" y2="5" class="dag-preview__legend-line--reject" marker-end="url(#dag-legend-reject)" />
+          </svg>
+          审核 / 打回
+        </span>
+        <span class="dag-preview__legend-item">
+          <span class="dag-preview__legend-node" aria-hidden="true" />
+          流程节点（键 · 标题）
+        </span>
+      </div>
+      <el-radio-group v-model="direction" size="small" data-testid="dag-preview-direction">
+        <el-radio-button value="horizontal">横向</el-radio-button>
+        <el-radio-button value="vertical">纵向</el-radio-button>
+      </el-radio-group>
+    </header>
+
     <p v-if="nodes.length === 0" class="dag-preview__empty">暂无节点，保存节点或添加边后将在此显示拓扑。</p>
-    <div
-      v-else
-      class="dag-preview__stage"
-      :style="{ width: `${layout.width}px`, height: `${layout.height}px` }"
-    >
-      <svg :width="layout.width" :height="layout.height" class="dag-preview__canvas">
-        <path
-          v-for="(edge, index) in layout.edges"
-          :key="`${edge.from}-${edge.to}-${index}`"
-          :d="edgePath(edge.from, edge.to)"
-          class="dag-preview__edge"
-          :class="{ 'dag-preview__edge--reject': edge.reject }"
-        />
-      </svg>
+    <div v-else class="dag-preview__scroll">
       <div
-        v-for="node in nodes"
-        :key="node.node_key"
-        class="dag-preview__node"
-        :style="{
-          left: `${layout.positions.get(node.node_key)?.x ?? 0}px`,
-          top: `${layout.positions.get(node.node_key)?.y ?? 0}px`,
-          width: `${NODE_WIDTH}px`,
-          height: `${NODE_HEIGHT}px`,
-        }"
+        class="dag-preview__stage"
+        :style="{ width: `${layout.width}px`, height: `${layout.height}px` }"
       >
-        <strong>{{ node.node_key }}</strong>
-        <span>{{ node.title }}</span>
+        <svg :width="layout.width" :height="layout.height" class="dag-preview__canvas">
+          <defs>
+            <marker
+              id="dag-forward-arrow"
+              markerWidth="8"
+              markerHeight="8"
+              refX="7"
+              refY="4"
+              orient="auto"
+            >
+              <path d="M0,0 L8,4 L0,8 Z" class="dag-preview__marker--forward" />
+            </marker>
+            <marker
+              id="dag-reject-arrow"
+              markerWidth="8"
+              markerHeight="8"
+              refX="7"
+              refY="4"
+              orient="auto"
+            >
+              <path d="M0,0 L8,4 L0,8 Z" class="dag-preview__marker--reject" />
+            </marker>
+            <marker id="dag-legend-forward" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" class="dag-preview__marker--forward" />
+            </marker>
+            <marker id="dag-legend-reject" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" class="dag-preview__marker--reject" />
+            </marker>
+          </defs>
+
+          <path
+            v-for="edge in layout.forwardEdges"
+            :key="`f-${edge.from}-${edge.to}-${edge.index}`"
+            :d="forwardEdgePath(edge.from, edge.to)"
+            class="dag-preview__edge dag-preview__edge--forward"
+            marker-end="url(#dag-forward-arrow)"
+          />
+          <path
+            v-for="edge in layout.rejectEdges"
+            :key="`r-${edge.from}-${edge.to}-${edge.index}`"
+            :d="rejectEdgePath(edge.from, edge.to, edge.index)"
+            class="dag-preview__edge dag-preview__edge--reject"
+            marker-end="url(#dag-reject-arrow)"
+          />
+        </svg>
+
+        <div
+          v-for="node in nodes"
+          :key="node.node_key"
+          class="dag-preview__node"
+          :style="{
+            left: `${layout.positions.get(node.node_key)?.x ?? 0}px`,
+            top: `${layout.positions.get(node.node_key)?.y ?? 0}px`,
+            width: `${NODE_WIDTH}px`,
+            height: `${NODE_HEIGHT}px`,
+          }"
+        >
+          <strong>{{ node.node_key }}</strong>
+          <span>{{ node.title }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -164,12 +308,67 @@ function edgePath(fromKey: string, toKey: string): string {
 
 <style scoped>
 .dag-preview {
-  overflow: auto;
   width: 100%;
   min-height: 120px;
   border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   background: var(--el-fill-color-blank);
+}
+
+.dag-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-light);
+  border-radius: 8px 8px 0 0;
+}
+
+.dag-preview__legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+}
+
+.dag-preview__legend-title {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.dag-preview__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dag-preview__legend-swatch {
+  flex-shrink: 0;
+}
+
+.dag-preview__legend-line--forward {
+  stroke: var(--el-color-primary);
+  stroke-width: 2;
+}
+
+.dag-preview__legend-line--reject {
+  stroke: var(--el-color-warning);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.dag-preview__legend-node {
+  display: inline-block;
+  width: 22px;
+  height: 14px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-bg-color);
 }
 
 .dag-preview__empty {
@@ -180,9 +379,15 @@ function edgePath(fromKey: string, toKey: string): string {
   color: var(--el-text-color-secondary);
 }
 
+.dag-preview__scroll {
+  overflow: auto;
+  padding: 12px;
+}
+
 .dag-preview__stage {
   position: relative;
   flex-shrink: 0;
+  margin: 0 auto;
 }
 
 .dag-preview__canvas {
@@ -190,17 +395,29 @@ function edgePath(fromKey: string, toKey: string): string {
   top: 0;
   left: 0;
   pointer-events: none;
+  overflow: visible;
 }
 
 .dag-preview__edge {
   fill: none;
+  stroke-width: 2;
+}
+
+.dag-preview__edge--forward {
   stroke: var(--el-color-primary);
-  stroke-width: 1.5;
 }
 
 .dag-preview__edge--reject {
-  stroke: var(--el-color-danger);
-  stroke-dasharray: 6 4;
+  stroke: var(--el-color-warning);
+  stroke-dasharray: 7 5;
+}
+
+.dag-preview__marker--forward {
+  fill: var(--el-color-primary);
+}
+
+.dag-preview__marker--reject {
+  fill: var(--el-color-warning);
 }
 
 .dag-preview__node {
@@ -214,10 +431,20 @@ function edgePath(fromKey: string, toKey: string): string {
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
   background: var(--el-bg-color);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
   font-size: 11px;
+  z-index: 1;
 }
 
 .dag-preview__node strong {
   font-size: 12px;
+  line-height: 1.2;
+}
+
+.dag-preview__node span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-text-color-secondary);
 }
 </style>
