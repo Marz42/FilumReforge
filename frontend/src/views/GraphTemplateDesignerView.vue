@@ -505,26 +505,32 @@ onMounted(async () => {
         </el-form>
       </el-card>
 
-      <el-card shadow="never" class="designer__panel designer__panel--wide">
+      <el-card shadow="never" class="designer__panel designer__panel--wide designer__panel--topology">
         <template #header><strong>拓扑预览</strong></template>
         <GraphTemplateDagPreview :nodes="dagNodes" :edges="dagEdges" />
       </el-card>
 
       <el-card shadow="never" class="designer__panel designer__panel--full">
         <template #header><strong>节点</strong></template>
-        <el-table :data="nodeRows" highlight-current-row @row-click="(row) => { selectedNodeKey = row.node_key }">
-          <el-table-column prop="node_key" label="节点键" min-width="120" />
-          <el-table-column label="标题" min-width="140">
+        <el-table
+          class="designer__data-table"
+          :data="nodeRows"
+          highlight-current-row
+          @row-click="(row) => { selectedNodeKey = row.node_key }"
+        >
+          <el-table-column prop="node_key" label="节点键" min-width="100" show-overflow-tooltip />
+          <el-table-column label="标题" min-width="120">
             <template #default="{ row }">
               <el-input v-model="row.title" :disabled="structureLocked" size="small" />
             </template>
           </el-table-column>
-          <el-table-column label="派发" width="96">
+          <el-table-column label="派发" width="112">
             <template #default="{ row }">
               <el-select
                 v-model="row.assignment_mode"
                 :disabled="structureLocked"
                 size="small"
+                class="designer__cell-select"
                 @change="handleAssignmentModeChange(row)"
               >
                 <el-option label="single" value="single" />
@@ -532,21 +538,29 @@ onMounted(async () => {
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="汇聚" width="88">
+          <el-table-column label="汇聚" width="100">
             <template #default="{ row }">
               <el-select
                 v-model="row.join_mode"
                 :disabled="structureLocked || row.assignment_mode === 'single'"
                 size="small"
+                class="designer__cell-select"
               >
                 <el-option label="all" value="all" />
                 <el-option label="any" value="any" />
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="顺序" width="80">
+          <el-table-column label="顺序" width="128" align="center">
             <template #default="{ row }">
-              <el-input-number v-model="row.sort_order" :disabled="structureLocked" size="small" :min="0" />
+              <el-input-number
+                v-model="row.sort_order"
+                :disabled="structureLocked"
+                size="small"
+                class="designer__cell-number"
+                :min="0"
+                controls-position="right"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -591,10 +605,16 @@ onMounted(async () => {
             </el-button>
           </div>
         </template>
-        <el-table :data="edgeRows" empty-text="暂无边">
-          <el-table-column label="起点" min-width="140">
+        <el-table class="designer__data-table" :data="edgeRows" empty-text="暂无边">
+          <el-table-column label="起点" min-width="128">
             <template #default="{ row }">
-              <el-select v-model="row.from_node_key" :disabled="structureLocked" size="small" filterable>
+              <el-select
+                v-model="row.from_node_key"
+                :disabled="structureLocked"
+                size="small"
+                class="designer__cell-select"
+                filterable
+              >
                 <el-option
                   v-for="option in nodeKeyOptions"
                   :key="option.value"
@@ -604,9 +624,15 @@ onMounted(async () => {
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="终点" min-width="140">
+          <el-table-column label="终点" min-width="128">
             <template #default="{ row }">
-              <el-select v-model="row.to_node_key" :disabled="structureLocked" size="small" filterable>
+              <el-select
+                v-model="row.to_node_key"
+                :disabled="structureLocked"
+                size="small"
+                class="designer__cell-select"
+                filterable
+              >
                 <el-option
                   v-for="option in nodeKeyOptions"
                   :key="option.value"
@@ -616,17 +642,24 @@ onMounted(async () => {
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="reject" width="72">
+          <el-table-column label="打回" width="72" align="center">
             <template #default="{ row }">
               <el-checkbox v-model="row.is_reject_path" :disabled="structureLocked" />
             </template>
           </el-table-column>
-          <el-table-column label="priority" width="88">
+          <el-table-column label="优先级" width="116" align="center">
             <template #default="{ row }">
-              <el-input-number v-model="row.priority" :disabled="structureLocked" size="small" :min="0" />
+              <el-input-number
+                v-model="row.priority"
+                :disabled="structureLocked"
+                size="small"
+                class="designer__cell-number"
+                :min="0"
+                controls-position="right"
+              />
             </template>
           </el-table-column>
-          <el-table-column label="condition JSON" min-width="220">
+          <el-table-column label="条件（JSON）" min-width="140">
             <template #default="{ row }">
               <el-input
                 v-model="row.conditionJson"
@@ -636,7 +669,7 @@ onMounted(async () => {
               />
             </template>
           </el-table-column>
-          <el-table-column v-if="!structureLocked" label="" width="64">
+          <el-table-column v-if="!structureLocked" label="操作" width="56" align="center">
             <template #default="{ $index }">
               <el-button link type="danger" @click="removeEdgeRow($index)">删</el-button>
             </template>
@@ -765,6 +798,28 @@ onMounted(async () => {
 .designer__panel--full {
   grid-column: 1 / -1;
   min-width: 0;
+}
+
+.designer__panel--topology :deep(.el-card__body) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.designer__data-table {
+  width: 100%;
+}
+
+.designer__cell-select {
+  width: 100%;
+}
+
+.designer__cell-number {
+  width: 100%;
+}
+
+.designer__cell-number :deep(.el-input__wrapper) {
+  padding-left: 8px;
+  padding-right: 28px;
 }
 
 .designer__json :deep(textarea) {

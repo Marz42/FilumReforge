@@ -310,6 +310,7 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
 .dag-preview {
   width: 100%;
   min-height: 120px;
+  overflow: hidden;
   border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   background: var(--el-fill-color-blank);
@@ -380,7 +381,9 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
 }
 
 .dag-preview__scroll {
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
   padding: 12px;
 }
 
