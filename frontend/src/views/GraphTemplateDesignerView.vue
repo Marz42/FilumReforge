@@ -20,6 +20,7 @@ import type {
   GraphTemplateDryRunResult,
   GraphTemplateNodeDetail,
 } from '@/types/workflowVideo'
+import { analyzeEdgeTopology } from '@/utils/graphTemplateTopology'
 import { getErrorMessage } from '@/utils/errors'
 
 type DesignerNodeRow = GraphTemplateNodeDetail & {
@@ -72,7 +73,11 @@ const nodeKeyOptions = computed(() =>
   nodeRows.value.map((node) => ({ value: node.node_key, label: `${node.node_key} · ${node.title}` })),
 )
 const dagNodes = computed(() =>
-  nodeRows.value.map((node) => ({ node_key: node.node_key, title: node.title })),
+  nodeRows.value.map((node) => ({
+    node_key: node.node_key,
+    title: node.title,
+    sort_order: node.sort_order,
+  })),
 )
 const dagEdges = computed(() =>
   edgeRows.value.map((edge) => ({
@@ -81,6 +86,14 @@ const dagEdges = computed(() =>
     is_reject_path: edge.is_reject_path,
   })),
 )
+const edgeTopologyIssues = computed(() =>
+  analyzeEdgeTopology(
+    nodeRows.value.map((node) => ({ node_key: node.node_key, sort_order: node.sort_order })),
+    edgeRows.value,
+  ),
+)
+const edgeTopologyErrors = computed(() => edgeTopologyIssues.value.filter((item) => item.level === 'error'))
+const edgeTopologyWarnings = computed(() => edgeTopologyIssues.value.filter((item) => item.level === 'warning'))
 
 function applyDetail(next: GraphTemplateDesignerDetail): void {
   detail.value = next
@@ -605,6 +618,36 @@ onMounted(async () => {
             </el-button>
           </div>
         </template>
+        <p class="designer__hint designer__hint--edge-guide">
+          <strong>正常流转</strong>（未勾选打回）：须构成无环 DAG，表示主流程顺序推进。
+          <strong>审核 / 打回</strong>（勾选打回）：允许指向上游节点，不参与主流程分层，在预览中以虚线显示。
+        </p>
+        <el-alert
+          v-if="edgeTopologyErrors.length"
+          type="error"
+          :closable="false"
+          show-icon
+          class="designer__edge-alert"
+          title="边与路由存在问题"
+          data-testid="designer-edge-topology-errors"
+        >
+          <ul class="designer__errors">
+            <li v-for="item in edgeTopologyErrors" :key="item.message">{{ item.message }}</li>
+          </ul>
+        </el-alert>
+        <el-alert
+          v-if="edgeTopologyWarnings.length"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="designer__edge-alert"
+          title="边与路由提示"
+          data-testid="designer-edge-topology-warnings"
+        >
+          <ul class="designer__errors">
+            <li v-for="item in edgeTopologyWarnings" :key="item.message">{{ item.message }}</li>
+          </ul>
+        </el-alert>
         <el-table class="designer__data-table" :data="edgeRows" empty-text="暂无边">
           <el-table-column label="起点" min-width="128">
             <template #default="{ row }">
@@ -765,6 +808,15 @@ onMounted(async () => {
   margin: 0 0 8px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.designer__hint--edge-guide {
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.designer__edge-alert {
+  margin-bottom: 12px;
 }
 
 .designer__hint code {

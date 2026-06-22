@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import { assignForwardLayers } from '@/utils/graphTemplateTopology'
+
 export interface DagPreviewNode {
   node_key: string
   title: string
+  sort_order?: number
 }
 
 export interface DagPreviewEdge {
@@ -38,47 +41,21 @@ const layout = computed(() => {
       height: 160,
       forwardEdges: [] as Array<{ from: string; to: string; index: number }>,
       rejectEdges: [] as Array<{ from: string; to: string; index: number }>,
+      hasForwardCycle: false,
     }
   }
 
   const forwardEdgesRaw = props.edges.filter((edge) => !edge.is_reject_path)
   const rejectEdgesRaw = props.edges.filter((edge) => edge.is_reject_path)
 
-  const incoming = new Map<string, number>(nodeKeys.map((key) => [key, 0]))
-  const outgoing = new Map<string, string[]>(nodeKeys.map((key) => [key, []]))
-  for (const edge of forwardEdgesRaw) {
-    if (!incoming.has(edge.from_node_key) || !incoming.has(edge.to_node_key)) {
-      continue
-    }
-    incoming.set(edge.to_node_key, (incoming.get(edge.to_node_key) ?? 0) + 1)
-    outgoing.get(edge.from_node_key)?.push(edge.to_node_key)
-  }
-
-  const entryKeys = nodeKeys.filter((key) => (incoming.get(key) ?? 0) === 0)
-  const layers = new Map<string, number>()
-  const queue = [...entryKeys]
-  for (const key of queue) {
-    layers.set(key, 0)
-  }
-  while (queue.length > 0) {
-    const current = queue.shift()!
-    const layer = layers.get(current) ?? 0
-    for (const downstream of outgoing.get(current) ?? []) {
-      const nextLayer = layer + 1
-      if ((layers.get(downstream) ?? -1) < nextLayer) {
-        layers.set(downstream, nextLayer)
-        queue.push(downstream)
-      }
-    }
-  }
-
-  let fallbackLayer = Math.max(0, ...layers.values()) + 1
-  for (const key of nodeKeys) {
-    if (!layers.has(key)) {
-      layers.set(key, fallbackLayer)
-      fallbackLayer += 1
-    }
-  }
+  const sortOrderByKey = new Map(
+    props.nodes.map((node, index) => [node.node_key, node.sort_order ?? index + 1]),
+  )
+  const { layers, hasForwardCycle: forwardCycleDetected } = assignForwardLayers(
+    nodeKeys,
+    forwardEdgesRaw,
+    sortOrderByKey,
+  )
 
   const layerBuckets = new Map<number, string[]>()
   for (const key of nodeKeys) {
@@ -127,7 +104,7 @@ const layout = computed(() => {
     .filter((edge) => positions.has(edge.from_node_key) && positions.has(edge.to_node_key))
     .map((edge, index) => ({ from: edge.from_node_key, to: edge.to_node_key, index }))
 
-  return { positions, width, height, forwardEdges, rejectEdges, maxX, maxY }
+  return { positions, width, height, forwardEdges, rejectEdges, maxX, maxY, hasForwardCycle: forwardCycleDetected }
 })
 
 type NodeBox = {
@@ -327,6 +304,15 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
       </el-radio-group>
     </header>
 
+    <p
+      v-if="layout.hasForwardCycle"
+      class="dag-preview__cycle-warn"
+      role="alert"
+      data-testid="dag-preview-cycle-warning"
+    >
+      forward 边存在环路，预览已降级为按节点顺序排列。请为反向边勾选「打回」，或删除造成环路的正常流转边。
+    </p>
+
     <p v-if="nodes.length === 0" class="dag-preview__empty">暂无节点，保存节点或添加边后将在此显示拓扑。</p>
     <div v-else class="dag-preview__scroll">
       <div
@@ -472,6 +458,16 @@ function rejectEdgePath(fromKey: string, toKey: string, laneIndex: number): stri
   text-align: center;
   font-size: 13px;
   color: var(--el-text-color-secondary);
+}
+
+.dag-preview__cycle-warn {
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--el-color-warning-light-5);
+  background: var(--el-color-warning-light-9);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-color-warning-dark-2);
 }
 
 .dag-preview__scroll {
