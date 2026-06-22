@@ -1,5 +1,18 @@
 # Project Filum 进度记录
 
+## 会话摘要（图模板设计器 UX 抛光）
+
+### 2026-06-22 — 设计器写操作、DAG 预览与表格布局
+
+**完成事项**:
+- [x] **后端**：`WorkflowGraphTemplateAdminService` 写路径补 `commit()`；复制/改名/另存发布不再假报「不存在」
+- [x] **新建**：`clone_from_id` 可选 + 空白模板 API；列表「新建模板」
+- [x] **DAG 预览**：横向/纵向切换、图例、打回独立通道；单横向滚动条；`roundedOrthogonalPath` 正交圆角；打回/正常箭头贴节点边框；SVG `z-index` 防遮挡
+- [x] **设计器表格**：节点/边列宽调整；边表头中文化（打回/优先级/条件 JSON/操作）
+- [x] **Commits**（本地 main 领先 origin **7**）：`ca01dfe` … `6c0f9c0`
+
+**分支**: `main`
+
 ## 会话摘要（任务中心 E2E 扩面）
 
 ### 2026-06-22 — 任务中心 E2E 全覆盖 + 多账号 mock 15/15

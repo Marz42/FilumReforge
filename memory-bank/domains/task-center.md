@@ -1,7 +1,7 @@
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同、Inbox、多视图、统计、详情 Shell 的**全貌梳理**。  
-> **最后同步**：2026-06-21 @ **TCE Phase 5 + 图模板设计器 D1–D3 ✅** · 产品 SemVer `0.89.0`  
+> **最后同步**：2026-06-22 @ **TCE Phase 5 + 图模板设计器 D1–D3 + UX 抛光 ✅** · 产品 SemVer `0.89.0`  
 > **排期归档**：[`plans/task-center-enhance.md`](../plans/task-center-enhance.md) · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)  
 > **契约索引**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **UI 手册**：[`handbooks/user-manual.md`](../handbooks/user-manual.md)
 
@@ -255,8 +255,8 @@ Legacy（仍存活，无 UI）：`/api/v1/task-templates/*`。
 | **GlobalMemoFloat** | `components/shell/GlobalMemoFloat.vue` | 全局右下角备忘浮窗 |
 | **TaskTemplatesView** | `views/TaskTemplatesView.vue` | 图模板页壳层（列表 + 实例化 Dialog 编排） |
 | **GraphTemplateDesignerView** | `views/GraphTemplateDesignerView.vue` | 全页设计器：config/节点/边/校验/发布/导入导出/dry-run |
-| **GraphTemplatesPanel** | `components/workflow/GraphTemplatesPanel.vue` | 模板列表、「设计/复制/改名」、Run（30d）列 |
-| **GraphTemplateDagPreview** | `components/workflow/GraphTemplateDagPreview.vue` | 拓扑 SVG 预览（D3） |
+| **GraphTemplatesPanel** | `components/workflow/GraphTemplatesPanel.vue` | 模板列表、「新建/设计/复制/改名」、Run（30d）列 |
+| **GraphTemplateDagPreview** | `components/workflow/GraphTemplateDagPreview.vue` | 拓扑 SVG 预览：横/纵布局、图例、打回通道、边框锚点箭头 |
 | **GraphTemplateEditDialog** | `components/workflow/GraphTemplateEditDialog.vue` | 快速改名称/说明（主编辑走设计器） |
 
 `TasksView.vue` 仍存在于仓库（路由可达），但 **不再** 嵌入任务中心；保留供独立路径或 E2E 兼容。
@@ -454,7 +454,7 @@ flowchart LR
 
 | 能力 | 实现 |
 |------|------|
-| 列表 + 实例化 | `GraphTemplatesPanel`：设计/复制/改名、Run（30d）统计 |
+| 列表 + 实例化 | `GraphTemplatesPanel`：新建/设计/复制/改名、Run（30d）统计 |
 | 全页设计器 | `/task-templates/:id/edit`：config、节点表、边表、routing_rules |
 | Admin API | clone/create、designer GET、draft PUT、fork、publish、validate |
 | 产品化（D3） | DAG 预览、dry-run、JSON 导入导出、模板 Run 统计 |

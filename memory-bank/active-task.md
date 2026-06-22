@@ -10,7 +10,7 @@
 |------|------|
 | **任务标题** | 任务中心 backlog（B-12 / F-05） |
 | **优先级** | P1 · 架构债 |
-| **状态** | **E2E 扩面 ✅** @ 2026-06-22 · 设计器 D1–D3 ✅ @ 2026-06-21 |
+| **状态** | **设计器 UX 抛光 ✅** @ 2026-06-22 · E2E 扩面 ✅ · D1–D3 ✅ @ 2026-06-21 |
 | **关联** | [`domains/task-center.md`](./domains/task-center.md) §12 · [`progress.md`](./progress.md)「测试基线」 |
 
 ---
@@ -19,6 +19,7 @@
 
 | 交付 | 说明 |
 |------|------|
+| **设计器 UX 抛光** | 写操作 commit 修复；空白新建；DAG 横向/图例/打回通道；单滚动条；节点/边表列宽与中文化；打回虚线贴边框 + 圆角/箭头可见 |
 | **E2E 扩面** | core **33/33**；multi-account mock **15/15**（A–N）；`npm run test:e2e:task-center` |
 | **交互覆盖** | 握手 accept/协商/转办、验收、结束采集、统计 deep-link、看板 Run 筛选 |
 | **产品修复** | `TaskCenterView` deep-link `selected` 保留；`TaskDetailShell` `TASK_CENTER_V2_UI_ENABLED` import |

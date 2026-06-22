@@ -68,12 +68,12 @@
 
 ### 图模板设计器（F-18–F-20 ✅）
 
-**说明**（@ 2026-06-21）：
+**说明**（@ 2026-06-22，D1–D3 功能 @ 2026-06-21）：
 
 | 层 | 状态 |
 |----|------|
-| 前端 | `/task-templates/:id/edit` 全页设计器；列表「设计/复制」；DAG 预览、dry-run、JSON 导入导出 |
-| 后端 | `WorkflowGraphTemplateAdminService` + `workflow_graph_template_topology`；export/import/dry-run/stats API |
+| 前端 | `/task-templates/:id/edit` 全页设计器；列表「新建/设计/复制」；DAG 预览（横/纵、图例、打回通道）；dry-run、JSON 导入导出 |
+| 后端 | `WorkflowGraphTemplateAdminService`（写操作已 commit）+ `workflow_graph_template_topology`；export/import/dry-run/stats API |
 | Legacy E 设计器 | **不恢复**；E 后端仍保留至 B-12 |
 
 详见 [`domains/task-center.md`](./domains/task-center.md) §12。

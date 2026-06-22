@@ -6,12 +6,17 @@
 
 ### Added
 
+- **图模板空白新建**：`POST /workflow-graph/templates` 无 `clone_from_id` 时创建空白 draft；列表「新建模板」
+- **DAG 预览增强**：横向/纵向布局、图例、打回独立通道、正交圆角路由
 - **E2E 任务中心扩面**：`task-center-interactions.spec.ts`（8 条：握手 accept/协商/转办、验收、结束采集、统计 deep-link、模板入口）；`task-center-interaction-mock.ts`；`npm run test:e2e:task-center` + `playwright.task-center.config.ts`（core 33 + multi-account 15 = 48）
 - **E2E 统计 Tab**：`task-center-stats.spec.ts` +2（部门筛选、看板 Run 筛选）
 - **E2E multi-account mock**：Phase A–N 全绿（15/15）；mock 补齐 `preview-participants?policy=`、模板 GET config、`user_facing_state`
 
 ### Fixed
 
+- **图模板设计器写操作**：AdminService 写库补 `commit()`；复制/改名/发布不再假报「模板不存在」
+- **图模板 DAG 预览**：单滚动条；打回虚线贴节点边框；圆角方向修正；箭头不被节点遮挡
+- **图模板设计器表格**：节点/边列宽；边表头中文化（打回/优先级/条件 JSON）
 - **TaskCenterView** deep-link `selected=` 在 non-search 模式下不再被 sanitize 清除
 - **TaskDetailShell** 补 `TASK_CENTER_V2_UI_ENABLED` import
 
