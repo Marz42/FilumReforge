@@ -79,7 +79,10 @@ def _is_valid_ooxml_zip(content: bytes, *, require_word: bool) -> bool:
 
 
 def _is_valid_wav(content: bytes) -> bool:
-  return len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WAVE"
+  if len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WAVE":
+    return True
+  kind = filetype.guess(content)
+  return kind is not None and kind.mime in {"audio/wav", "audio/x-wav"}
 
 
 def _is_valid_mp3(content: bytes) -> bool:

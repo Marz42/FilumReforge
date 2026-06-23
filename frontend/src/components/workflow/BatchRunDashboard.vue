@@ -86,7 +86,10 @@ function resolveScriptAuthorLabel(child: WorkflowGraphInstanceSummary): string {
   return authorId.slice(0, 8) + '…'
 }
 
-function resolveRootTaskId(child: WorkflowGraphInstanceSummary): string | null {
+function resolveOpenTaskId(child: WorkflowGraphInstanceSummary): string | null {
+  if (child.active_task_id) {
+    return child.active_task_id
+  }
   const rootTaskId = child.context?.root_task_id
   return typeof rootTaskId === 'string' ? rootTaskId : null
 }
@@ -145,12 +148,12 @@ watch(
       <el-table-column label="操作" width="100" fixed="right">
         <template #default="{ row }: { row: WorkflowGraphInstanceSummary }">
           <el-button
-            v-if="resolveRootTaskId(row)"
+            v-if="resolveOpenTaskId(row)"
             link
             type="primary"
-            @click="emit('open-task', resolveRootTaskId(row)!)"
+            @click="emit('open-task', resolveOpenTaskId(row)!)"
           >
-            打开
+            打开当前步骤
           </el-button>
         </template>
       </el-table-column>

@@ -260,6 +260,7 @@ export interface WorkflowGraphInstanceSummary {
   progress_percent?: number
   total_node_count?: number
   completed_node_count?: number
+  active_task_id?: string | null
 }
 
 export interface WorkflowRunEventItem {

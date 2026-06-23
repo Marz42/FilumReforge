@@ -4,6 +4,7 @@ export type TaskDetailProfileId =
   | 'video_n1_capture'
   | 'video_n2_aggregate'
   | 'video_batch_root'
+  | 'video_production_root'
   | 'video_production_step'
   | 'video_production_multi'
   | 'video_production_platform'
@@ -89,6 +90,7 @@ const TASK_DETAIL_PROFILE_IDS: TaskDetailProfileId[] = [
   'video_n1_capture',
   'video_n2_aggregate',
   'video_batch_root',
+  'video_production_root',
   'video_production_step',
   'video_production_multi',
   'video_production_platform',
@@ -120,6 +122,13 @@ function profileFromOverride(
         id: 'video_batch_root',
         submitMode: null,
         showCaptureProgress: true,
+        ...VIDEO_PROFILE_DEFAULTS,
+      }
+    case 'video_production_root':
+      return {
+        id: 'video_production_root',
+        submitMode: null,
+        showCaptureProgress: false,
         ...VIDEO_PROFILE_DEFAULTS,
       }
     case 'video_n2_aggregate':
@@ -240,12 +249,23 @@ export function resolveTaskDetailProfile(
   if (isGraphTemplateTask(task, metadata)) {
     const isRootBatch =
       metadata.workflow_graph_root_task === true && runKind(metadata) === 'batch'
+    const isRootProduction =
+      metadata.workflow_graph_root_task === true && runKind(metadata) === 'production'
 
     if (isRootBatch) {
       return {
         id: 'video_batch_root',
         submitMode: null,
         showCaptureProgress: true,
+        ...VIDEO_PROFILE_DEFAULTS,
+      }
+    }
+
+    if (isRootProduction) {
+      return {
+        id: 'video_production_root',
+        submitMode: null,
+        showCaptureProgress: false,
         ...VIDEO_PROFILE_DEFAULTS,
       }
     }

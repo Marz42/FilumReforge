@@ -24,6 +24,7 @@ import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgres
 import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue'
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
 import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
+import { resolveActiveStepTaskId } from '@/domain/workflow-graph/activeStepTask'
 import TaskDetailMoreMenu from '@/components/task-detail/TaskDetailMoreMenu.vue'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
@@ -441,6 +442,24 @@ const isGraphRootBatchTask = computed(
     isGraphTemplateTask.value
     && selectedTaskMetadata.value.workflow_graph_root_task === true
     && graphRunKind.value === 'batch',
+)
+const isGraphProductionRootTask = computed(
+  () =>
+    isGraphTemplateTask.value
+    && selectedTaskMetadata.value.workflow_graph_root_task === true
+    && graphRunKind.value === 'production',
+)
+const productionActiveStepTaskId = computed(() =>
+  resolveActiveStepTaskId(graphInstance.value, {
+    preferAssigneeUserId: authStore.user?.id ?? null,
+  }),
+)
+const showProductionRootStepRouter = computed(
+  () =>
+    isGraphProductionRootTask.value
+    && graphInstance.value !== null
+    && productionActiveStepTaskId.value !== null
+    && productionActiveStepTaskId.value !== selectedTask.value?.id,
 )
 const selectedTaskProfile = computed(() =>
   resolveTaskDetailProfile(selectedTask.value, { currentUserId: authStore.user?.id }),
@@ -1357,6 +1376,26 @@ watch(
               @dispatched="reloadAfterAction"
               @rejected="reloadAfterAction"
             />
+            <el-alert
+              v-if="showProductionRootStepRouter"
+              type="info"
+              :closable="false"
+              show-icon
+              class="workflow-panel"
+              data-testid="production-root-step-router"
+            >
+              <template #title>这是制作 Run 跟踪壳层</template>
+              请打开当前步骤任务提交脚本、配音等交付物。
+              <div style="margin-top: 8px">
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="emit('selectTask', productionActiveStepTaskId!)"
+                >
+                  打开当前步骤任务
+                </el-button>
+              </div>
+            </el-alert>
             <BatchRunDashboard
               v-if="showBatchRunDashboard && graphInstance"
               :graph-instance="graphInstance"

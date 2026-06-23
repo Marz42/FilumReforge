@@ -24,6 +24,7 @@ import type {
   DepartmentRunSummary,
 } from '@/types/workflowVideo'
 import { http } from './http'
+import { resolveActiveStepTaskId } from '@/domain/workflow-graph/activeStepTask'
 
 export interface PreviewParticipantsPayload {
   mode?: 'all' | 'subset'
@@ -45,6 +46,10 @@ type GraphInstanceListItem = {
 function mapGraphInstanceSummary(item: GraphInstanceListItem): WorkflowGraphInstanceSummary {
   const total = item.node_instances.length
   const completed = item.node_instances.filter((node) => node.engine_state === 'completed').length
+  const nodeInstances = item.node_instances.map((node) => ({
+    ...node,
+    task_id: node.task_id ?? null,
+  }))
   return {
     id: item.id,
     template_id: item.template_id,
@@ -56,6 +61,10 @@ function mapGraphInstanceSummary(item: GraphInstanceListItem): WorkflowGraphInst
     progress_percent: total ? Math.round((completed / total) * 100) : 0,
     total_node_count: total,
     completed_node_count: completed,
+    active_task_id: resolveActiveStepTaskId({
+      current_node_key: item.current_node_key,
+      node_instances: nodeInstances,
+    }),
   }
 }
 

@@ -86,7 +86,15 @@ _WORKFLOW_GRAPH_INSTANCE_READ_COLUMNS: frozenset[str] = frozenset(
 
 
 def _build_node_instance_read(ni: WorkflowNodeInstance) -> WorkflowNodeInstanceRead:
-  return WorkflowNodeInstanceRead.model_validate(ni)
+  config = ni.config if isinstance(ni.config, dict) else {}
+  task_id_raw = config.get("task_id")
+  task_id: UUID | None = None
+  if isinstance(task_id_raw, str) and task_id_raw.strip():
+    try:
+      task_id = UUID(task_id_raw.strip())
+    except ValueError:
+      task_id = None
+  return WorkflowNodeInstanceRead.model_validate(ni).model_copy(update={"task_id": task_id})
 
 
 def _workflow_graph_instance_read(

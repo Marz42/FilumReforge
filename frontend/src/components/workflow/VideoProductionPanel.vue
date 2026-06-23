@@ -6,6 +6,7 @@ import type { UploadFile, UploadInstance } from 'element-plus'
 import { uploadAttachment } from '@/api/attachments'
 import { submitTaskDeliverable } from '@/api/tasks'
 import type { Task } from '@/types/api'
+import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import { getErrorMessage } from '@/utils/errors'
 
 const props = withDefaults(
@@ -52,7 +53,17 @@ function extractRawFiles(uploadFiles: UploadFile[]): File[] {
 }
 
 function handleFileChange(_uploadFile: UploadFile, uploadFiles: UploadFile[]): void {
-  selectedFiles.value = extractRawFiles(uploadFiles)
+  const files = extractRawFiles(uploadFiles)
+  for (const file of files) {
+    const validationError = validateAttachmentFile(file)
+    if (validationError) {
+      ElMessage.warning(validationError)
+      uploadRef.value?.clearFiles()
+      selectedFiles.value = []
+      return
+    }
+  }
+  selectedFiles.value = files
 }
 
 function handleFileRemove(_uploadFile: UploadFile, uploadFiles: UploadFile[]): void {
@@ -132,6 +143,7 @@ defineExpose({ submit, submitting })
           ref="uploadRef"
           drag
           multiple
+          :accept="ATTACHMENT_ACCEPT"
           :auto-upload="false"
           :limit="uploadLimit"
           data-testid="video-production-upload"

@@ -13,6 +13,8 @@ process.env.VERIFY_RUN_ID = runId
 process.env.VERIFY_RUN_DIR = path.join(repoRoot, 'verification-runs', `workflow-video-live-${runId}`)
 
 const liveBaseURL = process.env.PLAYWRIGHT_LIVE_BASE_URL || 'http://127.0.0.1:38080'
+const useSystemChrome =
+  process.env.PLAYWRIGHT_USE_SYSTEM_CHROME === '1' || process.env.PLAYWRIGHT_LIVE_SKIP_STACK === '1'
 
 export default defineConfig({
   testDir: './e2e/live',
@@ -45,7 +47,15 @@ export default defineConfig({
     baseURL: liveBaseURL,
     trace: 'retain-on-failure',
     screenshot: 'off',
-    video: 'retain-on-failure',
+    video: useSystemChrome ? 'off' : 'retain-on-failure',
   },
-  projects: [{ name: 'chromium-video-live', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium-video-live',
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(useSystemChrome ? { channel: 'chrome' as const } : {}),
+      },
+    },
+  ],
 })

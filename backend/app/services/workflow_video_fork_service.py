@@ -47,7 +47,11 @@ class WorkflowVideoForkService:
     self._orchestration_service = orchestration_service or WorkflowOrchestrationService(session)
 
   async def _load_batch_instance(self, *, batch_instance_id: UUID) -> WorkflowGraphInstance:
-    instance = await self._session.get(WorkflowGraphInstance, batch_instance_id)
+    instance = await self._session.scalar(
+      select(WorkflowGraphInstance)
+      .where(WorkflowGraphInstance.id == batch_instance_id)
+      .with_for_update()
+    )
     if instance is None:
       raise NotFoundError("批次图实例不存在。")
     context = instance.context if isinstance(instance.context, dict) else {}

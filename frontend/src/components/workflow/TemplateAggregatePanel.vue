@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { finalizeInstanceTopics, listInstanceSubmissions, rejectInstanceCaptures } from '@/api/workflow-graph'
@@ -79,6 +79,12 @@ const scriptAuthorOptions = computed(() => {
   }
   return [...options.values()]
 })
+
+const allApprovedDispatched = computed(
+  () =>
+    matrixRows.value.length > 0
+    && matrixRows.value.every((row) => !row.approved || row.dispatched),
+)
 
 async function loadSubmissions(): Promise<void> {
   const instanceId = props.graphInstance?.id
@@ -179,6 +185,14 @@ async function handleRejectRow(row: MatrixRow): Promise<void> {
 onMounted(() => {
   void loadSubmissions()
 })
+
+watch(
+  () => props.graphInstance?.context?.forked_topics,
+  () => {
+    void loadSubmissions()
+  },
+  { deep: true },
+)
 </script>
 
 <template>
@@ -252,10 +266,11 @@ onMounted(() => {
       <el-button
         type="primary"
         :loading="submitting"
+        :disabled="allApprovedDispatched"
         data-testid="template-aggregate-submit"
         @click="handleFinalize"
       >
-        确认派发
+        {{ allApprovedDispatched ? '已全部派发' : '确认派发' }}
       </el-button>
     </div>
   </el-card>

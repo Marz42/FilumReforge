@@ -1018,6 +1018,7 @@ export interface WorkflowNodeInstanceSummary {
   completed_at: string | null
   terminated_at: string | null
   created_at: string
+  task_id?: string | null
 }
 
 export interface WorkflowGraphInstanceDetail {

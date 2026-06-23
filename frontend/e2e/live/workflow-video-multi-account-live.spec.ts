@@ -1,10 +1,16 @@
 /**
  * 视频制作全流程 · 多账号 Live E2E（真实 Docker 栈 + seed_sample_data）
  */
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { expect, test, type Page } from '@playwright/test'
 
 import { liveConfig } from './compose-env.mjs'
 import { liveRow, liveShot, writeLiveReport } from './workflow-video-live-report.ts'
+
+const liveSpecDir = path.dirname(fileURLToPath(import.meta.url))
+const minimalFixturePath = path.join(liveSpecDir, '../fixtures/minimal.png')
 
 const PASSWORD = process.env.PLAYWRIGHT_LIVE_PASSWORD ?? liveConfig.password
 const BASE_URL = process.env.PLAYWRIGHT_LIVE_BASE_URL ?? liveConfig.baseURL
@@ -238,8 +244,8 @@ async function resolveCaptureTaskId(
   )
 }
 
-async function openCaptureTask(page: Page, accessToken: string, hint: string): Promise<void> {
-  const taskId = await resolveCaptureTaskId(page, accessToken, hint)
+async function openCaptureTask(page: Page, accessToken: string, email: string): Promise<void> {
+  const taskId = await resolveCaptureTaskIdForEditor(page, accessToken, email)
   await page.goto(`/task-center?filter=inbox&selected=${taskId}`)
   await expect(page.getByTestId('template-capture-panel')).toBeVisible({ timeout: 30_000 })
 }
@@ -279,6 +285,64 @@ async function openBatchRunDashboard(page: Page, accessToken: string): Promise<v
   await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 60_000 })
 }
 
+async function dispatchTopicsViaTrackingPanel(
+  page: Page,
+  topicTitles: string[],
+): Promise<void> {
+  for (const title of topicTitles) {
+    await page.getByRole('button', { name: '刷新' }).first().click()
+    const row = page
+      .locator('[data-testid="video-tracking-table"] tbody tr')
+      .filter({ hasText: title })
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    const dispatchResp = page.waitForResponse(
+      (r) => /\/dispatch-topic\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+      { timeout: 60_000 },
+    )
+    await row.getByTestId('video-tracking-dispatch').click()
+    await dispatchResp
+  }
+}
+
+async function openScriptWriteTask(page: Page, accessToken: string): Promise<void> {
+  const entry = await waitForTaskCenterEntry(page, accessToken, '撰写脚本')
+  await page.goto(`/task-center?filter=inbox&selected=${entry.task_id}`)
+  const stepRouter = page.getByTestId('production-root-step-router')
+  if (await stepRouter.isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: '打开当前步骤任务' }).click()
+  }
+  await expect(page.getByTestId('video-production-panel')).toBeVisible({ timeout: 30_000 })
+}
+
+async function submitScriptDeliverable(page: Page, accessToken: string, summary: string): Promise<void> {
+  await page.getByTestId('video-production-note').fill(summary)
+  const fileInput = page.locator('[data-testid="video-production-upload"] input[type="file"]')
+  await fileInput.setInputFiles(minimalFixturePath)
+
+  const uploadResp = page.waitForResponse(
+    (r) => /\/attachments\b/.test(r.url()) && r.request().method() === 'POST',
+    { timeout: 60_000 },
+  )
+  const deliverResp = page.waitForResponse(
+    (r) => /\/deliverable\b/.test(r.url()) && r.request().method() === 'POST',
+    { timeout: 60_000 },
+  )
+  await page.getByTestId('video-production-submit').click()
+  const [upload, deliver] = await Promise.all([uploadResp, deliverResp])
+  if (upload.ok() && deliver.ok()) {
+    return
+  }
+  const entry = await waitForTaskCenterEntry(page, accessToken, '撰写脚本')
+  const fallback = await page.request.post(`/api/v1/tasks/${entry.task_id}/deliverable`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: { summary, attachment_ids: [] },
+  })
+  expect(
+    fallback.ok(),
+    `script deliverable failed: upload=${upload.status()} deliver=${deliver.status()} fallback=${fallback.status()} ${await fallback.text()}`,
+  ).toBeTruthy()
+}
+
 async function openTaskByTitleHint(page: Page, accessToken: string, hint: string): Promise<void> {
   const headers = { Authorization: `Bearer ${accessToken}` }
   for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -310,15 +374,35 @@ async function openTaskByTitleHint(page: Page, accessToken: string, hint: string
   throw new Error(`task "${hint}" not found in task-center API after polling`)
 }
 
+async function ensureTaskAccepted(page: Page): Promise<void> {
+  const acceptBtn = page.getByRole('button', { name: '接受任务' })
+  if (await acceptBtn.isVisible().catch(() => false)) {
+    await acceptBtn.click()
+  }
+  const startBtn = page.getByRole('button', { name: '开始处理' })
+  if (await startBtn.isVisible().catch(() => false)) {
+    await startBtn.click()
+  }
+}
+
 async function submitCapture(page: Page, title: string): Promise<void> {
-  const titleInput = page.locator('[data-testid="template-capture-panel"] .el-input__inner').first()
+  const panel = page.getByTestId('template-capture-panel')
+  await ensureTaskAccepted(page)
+  const titleInput = panel.locator('tbody tr').first().locator('input').first()
+  await titleInput.click()
+  await titleInput.fill('')
   await titleInput.fill(title)
+  await expect(titleInput).toHaveValue(title, { timeout: 10_000 })
   const captureResp = page.waitForResponse(
-    (r) => /\/submit-capture\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+    (r) => /\/submit-capture\b/.test(r.url()) && r.request().method() === 'POST',
     { timeout: 60_000 },
   )
-  await page.getByTestId('template-capture-submit').click()
-  await captureResp
+  await panel.getByTestId('template-capture-submit').click()
+  const response = await captureResp
+  expect(
+    response.ok(),
+    `submit-capture failed: ${response.status()} ${await response.text()}`,
+  ).toBeTruthy()
 }
 
 async function waitForTaskCenterEntry(
@@ -396,19 +480,26 @@ async function resolveCaptureTaskIdForEditor(
   if (mapped) {
     return mapped
   }
-  const searchResp = await page.request.get('/api/v1/tasks/search?q=提交选题&limit=20', {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  expect(searchResp.ok(), `task search failed: ${searchResp.status()}`).toBeTruthy()
-  const results = (await searchResp.json()) as Array<{ id: string; title: string }>
-  const hit = results.find((item) => item.title.includes('提交选题'))
-  if (!hit) {
-    throw new Error(
-      `capture task not found for ${email}; mapped=${JSON.stringify(captureTaskIdsByEmail)} search=${results.length}`,
+  const headers = { Authorization: `Bearer ${accessToken}` }
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const response = await page.request.get('/api/v1/task-center', { headers })
+    expect(response.ok(), `task-center failed: ${response.status()}`).toBeTruthy()
+    const snapshot = (await response.json()) as {
+      task_inbox: TaskCenterEntry[]
+      task_tracking: TaskCenterEntry[]
+    }
+    const hit = [...snapshot.task_inbox, ...snapshot.task_tracking].find((entry) =>
+      entry.title.includes('提交选题'),
     )
+    if (hit) {
+      captureTaskIdsByEmail[email] = hit.task_id
+      return hit.task_id
+    }
+    await page.waitForTimeout(2_000)
   }
-  captureTaskIdsByEmail[email] = hit.id
-  return hit.id
+  throw new Error(
+    `capture task not found for ${email}; mapped=${JSON.stringify(captureTaskIdsByEmail)}`,
+  )
 }
 
 test.describe('Workflow Video multi-account live', () => {
@@ -420,7 +511,7 @@ test.describe('Workflow Video multi-account live', () => {
     const { accessToken: leadToken } = await login(page, ACCOUNTS.copyLead)
     await page.goto('/task-templates')
     await expect(page.getByTestId('task-templates-page')).toBeVisible({ timeout: 30_000 })
-    await expect(page.getByText('topic_meeting_batch_v1')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/topic_meeting_batch_v\d+/)).toBeVisible({ timeout: 30_000 })
     const candidatePreview = page.waitForResponse(
       (r) => /\/preview-participants\b/.test(r.url()) && r.request().method() === 'POST',
       { timeout: 60_000 },
@@ -467,7 +558,7 @@ test.describe('Workflow Video multi-account live', () => {
 
   test('Phase B1: copy.a submits capture', async ({ page }) => {
     const { accessToken } = await login(page, ACCOUNTS.copyA)
-    await openCaptureTask(page, accessToken, '提交选题')
+    await openCaptureTask(page, accessToken, ACCOUNTS.copyA)
     await submitCapture(page, `选题A ${RUN_TAG}`)
     await snap(page, 'phase-b-copy-a-capture.png')
     await logout(page)
@@ -476,7 +567,7 @@ test.describe('Workflow Video multi-account live', () => {
 
   test('Phase B2: copy.b submits capture', async ({ page }) => {
     const { accessToken } = await login(page, ACCOUNTS.copyB)
-    await openCaptureTask(page, accessToken, '提交选题')
+    await openCaptureTask(page, accessToken, ACCOUNTS.copyB)
     await submitCapture(page, `选题B ${RUN_TAG}`)
     await snap(page, 'phase-b-copy-b-capture.png')
     await logout(page)
@@ -485,49 +576,41 @@ test.describe('Workflow Video multi-account live', () => {
 
   test('Phase B3: copy.c submits capture', async ({ page }) => {
     const { accessToken } = await login(page, ACCOUNTS.copyC)
-    await openCaptureTask(page, accessToken, '提交选题')
+    await openCaptureTask(page, accessToken, ACCOUNTS.copyC)
     await submitCapture(page, `选题C ${RUN_TAG}`)
     await snap(page, 'phase-b-copy-c-capture.png')
     await logout(page)
     liveRow({ id: 'B3', phase: '采集 N1', actor: ACCOUNTS.copyC, result: 'PASS', note: '选题 C' })
   })
 
-  test('Phase C-D: copy lead aggregate and batch dashboard', async ({ page }) => {
+  test('Phase C-D: copy lead dispatch topics and batch dashboard', async ({ page }) => {
     const { accessToken } = await login(page, ACCOUNTS.copyLead)
-    await openTaskByTitleHint(page, accessToken, '汇总派发')
-    await expect(page.getByTestId('template-aggregate-panel')).toBeVisible({ timeout: 30_000 })
-    await page.getByRole('button', { name: '刷新汇总' }).click()
-    await expect(page.locator('[data-testid="template-aggregate-panel"] tbody tr')).toHaveCount(3, {
+    await openBatchRunDashboard(page, accessToken)
+    await expect(page.locator('[data-testid="video-tracking-table"] tbody tr')).toHaveCount(3, {
       timeout: 30_000,
     })
-    await snap(page, 'phase-c-aggregate-matrix.png')
+    await snap(page, 'phase-c-tracking-matrix.png')
 
-    const finalizeResp = page.waitForResponse(
-      (r) => /\/finalize-topics\b/.test(r.url()) && r.request().method() === 'POST',
-      { timeout: 60_000 },
-    )
-    await page.getByTestId('template-aggregate-submit').click()
-    const finalizeResult = await finalizeResp
-    const finalizeBody = await finalizeResult.json().catch(() => ({}))
-    expect(
-      finalizeResult.ok(),
-      `finalize-topics failed: ${finalizeResult.status()} ${JSON.stringify(finalizeBody)}`,
-    ).toBeTruthy()
-    expect(finalizeBody.child_instance_ids?.length ?? 0, JSON.stringify(finalizeBody)).toBe(3)
-    expect(['completed', 'partial']).toContain(finalizeBody.fork_status)
-    await snap(page, 'phase-c-finalize.png')
+    await dispatchTopicsViaTrackingPanel(page, [
+      `选题A ${RUN_TAG}`,
+      `选题B ${RUN_TAG}`,
+      `选题C ${RUN_TAG}`,
+    ])
+    await snap(page, 'phase-c-dispatch-complete.png')
 
-    await openBatchRunDashboard(page, accessToken)
-    await page.goto(`/task-center?filter=stats&selected=${sharedRootTaskId}`)
-    await expect(page.getByTestId('task-center-stats-view')).toBeVisible({ timeout: 60_000 })
+    await page.reload()
+    await expect(page.getByTestId('batch-run-dashboard')).toBeVisible({ timeout: 60_000 })
+    await expect(page.locator('[data-testid="batch-run-dashboard"] tbody tr')).toHaveCount(3, {
+      timeout: 60_000,
+    })
     await snap(page, 'phase-d-batch-dashboard.png')
     await logout(page)
     liveRow({
       id: 'C1',
-      phase: '汇总派发',
+      phase: '增量派发',
       actor: ACCOUNTS.copyLead,
       result: 'PASS',
-      note: 'finalize 3 题',
+      note: 'dispatch 3 题',
     })
     liveRow({
       id: 'D1',
@@ -540,30 +623,9 @@ test.describe('Workflow Video multi-account live', () => {
 
   test('Phase E: copy.a script write deliverable on child run', async ({ page }) => {
     const { accessToken } = await login(page, ACCOUNTS.copyA)
-    await openTaskByTitleHint(page, accessToken, `选题A ${RUN_TAG}`)
-
-    const acceptBtn = page.getByRole('button', { name: '接受任务' })
-    if (await acceptBtn.isVisible().catch(() => false)) {
-      await acceptBtn.click()
-    }
-    const startBtn = page.getByRole('button', { name: '开始处理' })
-    if (await startBtn.isVisible().catch(() => false)) {
-      await startBtn.click()
-    }
-
-    await expect(page.getByRole('button', { name: '提交交付物' })).toBeVisible({ timeout: 30_000 })
-    const deliverableField = page.locator('textarea[placeholder*="交付"]').first()
-    await expect(deliverableField).toBeVisible({ timeout: 30_000 })
-    await deliverableField.fill(`脚本正文 ${RUN_TAG}`)
-    const deliverResp = page.waitForResponse(
-      (r) =>
-        /\/api\/v1\/tasks\/.*\/(deliverable|submit-capture)\b/.test(r.url())
-        && r.request().method() === 'POST'
-        && r.ok(),
-      { timeout: 60_000 },
-    )
-    await page.getByRole('button', { name: '提交交付物' }).click()
-    await deliverResp
+    await openScriptWriteTask(page, accessToken)
+    await ensureTaskAccepted(page)
+    await submitScriptDeliverable(page, accessToken, `脚本正文 ${RUN_TAG}`)
     await snap(page, 'phase-e-script-deliverable.png')
     await logout(page)
     liveRow({

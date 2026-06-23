@@ -51,6 +51,7 @@ from app.services.workflow_rule_resolver import resolve_actor_department_id
 from app.services.task_service import TaskService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.workflow_projection_department import resolve_projection_department_id
 
 
 @dataclass(slots=True)
@@ -295,12 +296,18 @@ class WorkflowVideoInstantiationService:
       node_key=node_instance.node_key,
     )
 
+    assignee_id = node_instance.assignee_user_id or actor.id
+    projection_department_id = await resolve_projection_department_id(
+      self._session,
+      instance=instance,
+      assignee_id=assignee_id,
+    )
     if self._task_service is not None:
       task, _assignee = await self._task_service.create_task_record(
         actor=actor,
         title=title,
-        assignee_id=node_instance.assignee_user_id or actor.id,
-        department_id=None,
+        assignee_id=assignee_id,
+        department_id=projection_department_id,
         source_type=TaskSourceType.TEMPLATE,
         extra_metadata=metadata,
         commit=False,
@@ -311,8 +318,7 @@ class WorkflowVideoInstantiationService:
         task.status = TaskStatus.DOING
       return task
 
-    assignee_id = node_instance.assignee_user_id or actor.id
-    resolved_department_id = await self._session.scalar(
+    resolved_department_id = projection_department_id or await self._session.scalar(
       select(Profile.department_id).where(Profile.user_id == assignee_id)
     )
     task = Task(
@@ -616,12 +622,13 @@ class WorkflowVideoInstantiationService:
     if run_kind == "batch":
       metadata["ui_profile"] = TaskDetailUiProfile.VIDEO_BATCH_ROOT.value
 
+    root_department_id = department_id
     if self._task_service is not None:
       task, _assignee = await self._task_service.create_task_record(
         actor=actor,
         title=title,
         assignee_id=assignee_id,
-        department_id=None,
+        department_id=root_department_id,
         source_type=TaskSourceType.TEMPLATE,
         extra_metadata=metadata,
         commit=False,
@@ -632,7 +639,7 @@ class WorkflowVideoInstantiationService:
         task.parent_task_id = parent_task_id
       return task
 
-    resolved_department_id = await self._session.scalar(
+    resolved_department_id = root_department_id or await self._session.scalar(
       select(Profile.department_id).where(Profile.user_id == assignee_id)
     )
     task = Task(

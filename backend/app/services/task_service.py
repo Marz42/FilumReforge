@@ -2220,6 +2220,10 @@ class TaskService:
       Task.assignee_id == actor.id,
       Task.watchers.any(TaskWatcher.user_id == actor.id),
     ]
+    if actor.role not in MANAGEMENT_ROLES:
+      managed_department_ids = await get_managed_department_ids(self._session, actor.id)
+      if managed_department_ids:
+        tracking_filters.append(Task.department_id.in_(managed_department_ids))
     if workflow_related_task_ids:
       tracking_filters.append(Task.id.in_(workflow_related_task_ids))
 
@@ -2593,6 +2597,8 @@ class TaskService:
   ) -> Task:
     task = await self.get_task(actor=actor, task_id=task_id)
     await self._ensure_task_assignee_or_manager(actor=actor, task=task)
+    if self._is_graph_run_root_shell_task(task):
+      raise ConflictError("请在待办中打开具体步骤任务后再提交，不要在使用制作/批次根任务提交。")
     if task.status != TaskStatus.DOING:
       raise ConflictError("只有进行中的任务才能提交交付物。")
 

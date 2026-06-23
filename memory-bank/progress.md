@@ -1,5 +1,56 @@
 # Project Filum 进度记录
 
+## 会话摘要（清库重种 + A–F 选题会 Live E2E）
+
+### 2026-06-23 14:27 — Docker 8080 清库重种 + Playwright A–F 全流程
+
+**完成事项**:
+- [x] `docker compose down -v && up -d` + `seed_sample_data` + `seed_workflow_video_templates`（密码 `FilumTest123!`）
+- [x] Live E2E 适配 **streaming 增量派发**：Phase C-D 走 `VideoTrackingPanel` + `batch-run-dashboard`（非 batch finalize）
+- [x] `PLAYWRIGHT_LIVE_SKIP_STACK=1` 支持复用 8080 栈；8080 模式用系统 Chrome + 关闭 video 录制
+- [x] Phase B/E 采集与脚本提交 helper 加固（按账号 inbox、Element Plus 输入、VideoProductionPanel）
+- [x] **7/7 passed**（34.6s）：A 实例化 → B1–B3 采集 → C-D 派发/看板 → E 脚本交付 → F 脚本审核
+
+**报告**：`verification-runs/workflow-video-live-2026-06-23_06-26-25/report.md`
+
+**分支**: `main` @ `f185468`
+
+## 会话摘要（视频工作流四问题修复）
+
+### 2026-06-23 10:46 — 选题去重、可见性、导航、配音上传
+
+**完成事项**:
+- [x] **问题 1 选题重复派发**：`TemplateAggregatePanel` 监听 `forked_topics` 刷新；已全部派发时禁用 bulk；`finalize_topics` 在 topics 均已 fork 时跳过 `after_aggregate_confirmed`；`fork_production_runs` 对批次实例 `SELECT FOR UPDATE`
+- [x] **问题 2/3 可见性与导航**：投影/ROOT 任务写入 `department_id`；跟踪列表含管辖部门任务；ROOT 壳层禁止 `submit_task_deliverable`；`BatchRunDashboard`「打开当前步骤」；制作 ROOT 详情步骤跳转条；API 节点暴露 `task_id`
+- [x] **问题 4 配音上传**：`VideoProductionPanel` 加 `ATTACHMENT_ACCEPT` + 预校验；WAV 魔数校验放宽（filetype 回退）
+- [x] 回归：`test_workflow_video_dispatch_fixes.py` **5 passed**；`activeStepTask.spec.ts` **2 passed**
+
+**验证**：`pytest backend/tests/test_workflow_video_dispatch_fixes.py`；已有 Docker 环境需重跑 `seed_workflow_video_templates` 刷新模板
+
+**分支**: `main` @ `f185468`
+
+## 会话摘要（Memory-Bank 启动对齐审查）
+
+### 2026-06-23 10:12 — 拉取远端、HOT/WARM 加载、主线核对
+
+**完成事项**:
+- [x] `git pull origin`：`e0e5128` → **`bf75e31`**（fast-forward，视频派发/inbox 去重/跟踪标签修复）
+- [x] 读取 `AGENT_RULES.md` 与 HOT 六件套；WARM：`roadmap.md`、`plans/implementation-plan.md`、`history/reports/alignment-assessment-20260622.md`
+- [x] `git log --oneline -n 20`：HEAD `bf75e31`；近 20 条为 TCE/D1–D3、设计器 UX、视频 dispatch 补丁
+- [x] 对齐报告：[`history/reports/alignment-assessment-20260623.md`](./history/reports/alignment-assessment-20260623.md)
+
+**结论**:
+- 代码与 memory-bank **主干一致**；`bf75e31` 变更已在 `progress.md` 文首视频派发摘要中记录
+- 仍开放漂移：`domains/task-center.md` / `workflow-video-v1.md` 未写 inbox 壳层过滤与跟踪列；`alignment-assessment-20260622.md` HEAD 仍标 `e0e5128`；E2E UAT/docker/live 未重跑
+
+**下一工程主线**（`implementation-plan.md` §1 + `active-task.md`）:
+1. **B-12** — Legacy E 与图引擎 runtime 统一
+2. **F-05** — `TaskDetailShell` 完整拆分
+3. **E2E 基线刷新** — UAT / docker-gui / playwright live
+4. P2 并行：生命周期规则化、通知渠道深化
+
+**分支**: `main` @ `bf75e31`（工作树干净）
+
 ## 会话摘要（视频工作流派发与脚本提交修复）
 
 ### 2026-06-22 23:00 — 选题增量派发、双待办去重、跟踪可见性
@@ -494,8 +545,8 @@
 
 | 字段 | 值 |
 | --- | --- |
-| `baseline_id` | `2026-06-22-main-e2e-core-33` |
-| `commit` | （本 commit）· 基线建立在 `74e34d7` 之上 |
+| `baseline_id` | `2026-06-23-main-bf75e31` |
+| `commit` | `bf75e31` · 含 `test_workflow_video_dispatch_fixes.py` |
 | `runner_os` | Windows 11 + `backend/.venv`（Python 3.12.9）；前端 `npm ci` 后原生 Node |
 | `pytest` | **252 collected**（`backend/.venv/Scripts/python.exe -m pytest backend/tests`，约 90–130s）；设计器子集 **15 passed**（`test_workflow_graph_template_designer_d{1,2,3}` + `test_workflow_graph_template_topology`）；skip = `test_migrations.py::test_alembic_upgrade_and_downgrade`，需 `POSTGRES_TEST_ADMIN_DSN` |
 | `compileall` | PASS（`python -m compileall -q backend/app backend/tests`） |

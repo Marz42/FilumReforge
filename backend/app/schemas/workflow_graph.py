@@ -32,6 +32,7 @@ class WorkflowNodeInstanceRead(BaseModel):
   completed_at: datetime | None
   terminated_at: datetime | None
   created_at: datetime
+  task_id: UUID | None = None
 
 
 class WorkflowGraphTemplateSummaryRead(BaseModel):

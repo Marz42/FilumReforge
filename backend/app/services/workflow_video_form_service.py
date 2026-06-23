@@ -443,10 +443,26 @@ class WorkflowVideoFormService:
     context = dict(instance.context or {})
     context["approved_topics"] = [topic.model_dump(mode="json") for topic in approved_topics]
     context["rejected_topics"] = [item.model_dump(mode="json") for item in normalized_rejections]
-    context["fork_status"] = "pending"
+    if not topics_to_fork:
+      context["fork_status"] = str(context_before_fork.get("fork_status") or "completed")
+    else:
+      context["fork_status"] = "pending"
     instance.context = validate_run_context(context).model_dump(mode="json")
     instance.context_version += 1
     await self._session.flush()
+
+    skip_note = f"，跳过 {skipped_forked} 条已派发" if skipped_forked else ""
+    if not topics_to_fork:
+      await self._session.commit()
+      await self._session.refresh(instance)
+      return FinalizeTopicsResponse(
+        instance_id=instance_id,
+        approved_count=len(approved_topics),
+        fork_status=str(context_before_fork.get("fork_status") or "completed"),
+        fork_deferred=False,
+        child_instance_ids=[],
+        message=f"所选 {len(approved_topics)} 条选题均已派发，无需重复 fork{skip_note}。",
+      )
 
     template_config: dict[str, object] = {}
     if instance.template_id is not None:
@@ -480,17 +496,6 @@ class WorkflowVideoFormService:
       batch_instance_id=instance_id,
       approved_topics=topics_to_fork,
     )
-
-    skip_note = f"，跳过 {skipped_forked} 条已派发" if skipped_forked else ""
-    if not topics_to_fork:
-      return FinalizeTopicsResponse(
-        instance_id=instance_id,
-        approved_count=len(approved_topics),
-        fork_status=str(context_before_fork.get("fork_status") or "completed"),
-        fork_deferred=False,
-        child_instance_ids=[],
-        message=f"所选 {len(approved_topics)} 条选题均已派发，无需重复 fork{skip_note}。",
-      )
 
     return FinalizeTopicsResponse(
       instance_id=instance_id,

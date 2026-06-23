@@ -34,6 +34,8 @@ from app.services.task_service import TaskService
 from app.services.workflow_assignee_resolver import resolve_node_assignee_id
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_node_config_helpers import resolve_completion_policy
+from app.services.workflow_projection_department import resolve_projection_department_id
+
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
 
@@ -140,12 +142,17 @@ class WorkflowOrchestrationService:
       metadata["latest_handshake_action"] = "assigned"
 
     assignee_id = node_instance.assignee_user_id or actor.id
+    projection_department_id = instance.department_id
     if self._task_service is not None:
       task, _assignee = await self._task_service.create_task_record(
         actor=actor,
         title=title,
         assignee_id=assignee_id,
-        department_id=None,
+        department_id=await resolve_projection_department_id(
+          self._session,
+          instance=instance,
+          assignee_id=assignee_id,
+        ),
         source_type=TaskSourceType.TEMPLATE,
         extra_metadata=metadata,
         commit=False,
