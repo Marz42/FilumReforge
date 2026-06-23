@@ -13,7 +13,7 @@
 
 **报告**：`verification-runs/workflow-video-live-2026-06-23_06-26-25/report.md`
 
-**分支**: `main` @ `f185468`
+**分支**: `main` @ `b3e7918`
 
 ## 会话摘要（视频工作流四问题修复）
 
@@ -27,7 +27,7 @@
 
 **验证**：`pytest backend/tests/test_workflow_video_dispatch_fixes.py`；已有 Docker 环境需重跑 `seed_workflow_video_templates` 刷新模板
 
-**分支**: `main` @ `f185468`
+**分支**: `main` @ `b3e7918`
 
 ## 会话摘要（Memory-Bank 启动对齐审查）
 
