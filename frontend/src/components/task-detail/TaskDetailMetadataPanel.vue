@@ -5,6 +5,7 @@ import {
   resolvePriorityLabel,
   resolveStatusLabel,
   STATUS_TAG_TYPES,
+  type TagTypeInput,
 } from '@/components/task-detail/task-detail-labels'
 import type { TaskDetailProfile } from '@/domain/task-detail/profile'
 import type { Task, TaskPriority, TaskStatus } from '@/types/api'
@@ -14,7 +15,7 @@ defineProps<{
   task: Task
   profile: TaskDetailProfile
   userFacingStateLabel: string
-  userFacingTagType: 'info' | 'warning' | 'success' | 'danger' | 'primary'
+  userFacingTagType: TagTypeInput
   handshakeStateLabel: string
   isGraphHandshakeTask: boolean
   workflowNodeIteration: number

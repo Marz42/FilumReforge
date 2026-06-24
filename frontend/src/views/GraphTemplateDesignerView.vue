@@ -520,6 +520,10 @@ function handleAssignmentModeChange(row: DesignerNodeRow): void {
   }
 }
 
+function handleNodeRowClick(row: DesignerNodeRow): void {
+  selectedNodeKey.value = row.node_key
+}
+
 onMounted(async () => {
   await ensureLoaded()
   if (!canAdministerTaskTemplates.value) {
@@ -706,7 +710,7 @@ onMounted(async () => {
           class="designer__data-table"
           :data="nodeRows"
           highlight-current-row
-          @row-click="(row) => { selectedNodeKey = row.node_key }"
+          @row-click="handleNodeRowClick"
         >
           <el-table-column prop="node_key" label="节点键" min-width="100" show-overflow-tooltip />
           <el-table-column label="标题" min-width="120">

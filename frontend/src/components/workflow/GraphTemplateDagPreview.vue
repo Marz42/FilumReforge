@@ -39,6 +39,8 @@ const layout = computed(() => {
       positions,
       width: 320,
       height: 160,
+      maxX: PADDING,
+      maxY: PADDING,
       forwardEdges: [] as Array<{ from: string; to: string; index: number }>,
       rejectEdges: [] as Array<{ from: string; to: string; index: number }>,
       hasForwardCycle: false,
@@ -158,15 +160,16 @@ function roundedOrthogonalPath(points: Array<{ x: number; y: number }>, radius: 
   if (points.length === 0) {
     return ''
   }
+  const first = points[0]!
   if (points.length === 1) {
-    return `M ${points[0].x} ${points[0].y}`
+    return `M ${first.x} ${first.y}`
   }
 
-  let path = `M ${points[0].x} ${points[0].y}`
+  let path = `M ${first.x} ${first.y}`
 
   for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1]
-    const curr = points[i]
+    const prev = points[i - 1]!
+    const curr = points[i]!
     const next = points[i + 1]
 
     if (!next) {

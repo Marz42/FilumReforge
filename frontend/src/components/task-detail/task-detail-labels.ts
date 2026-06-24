@@ -28,9 +28,11 @@ export const PRIORITY_TAG_TYPES: Record<TaskPriority, '' | 'info' | 'warning' | 
   urgent: 'danger',
 }
 
-export function normalizeTagType(
-  value: '' | 'info' | 'warning' | 'success' | 'danger',
-): 'info' | 'warning' | 'success' | 'danger' | undefined {
+export type TagTypeInput = '' | 'info' | 'warning' | 'success' | 'danger' | 'primary'
+
+export type TagTypeOutput = 'info' | 'warning' | 'success' | 'danger' | 'primary' | undefined
+
+export function normalizeTagType(value: TagTypeInput): TagTypeOutput {
   return value || undefined
 }
 
