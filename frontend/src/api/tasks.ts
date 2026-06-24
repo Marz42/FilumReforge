@@ -23,6 +23,7 @@ export interface CreateTaskPayload {
   priority?: TaskPriority
   dependency_ids?: string[]
   attachment_ids?: string[]
+  watcher_user_ids?: string[]
 }
 
 export interface CreateTaskCommentPayload {

@@ -65,7 +65,7 @@ test('closes batch capture from root run detail', async ({ mockApi, page }) => {
   const closeButton = page.getByTestId('video-batch-close-capture')
   await expect(closeButton).toBeVisible()
   await closeButton.click()
-  await expect(page.locator('.el-message')).toContainText('采集阶段已结束')
+  await expect(page.locator('.el-message--success')).toContainText('采集已结束')
   await expect(closeButton).toBeHidden()
 })
 

@@ -74,6 +74,11 @@ class WorkflowGraphTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     cascade="all, delete-orphan",
   )
   instances = relationship("WorkflowGraphInstance", back_populates="template")
+  schedules = relationship(
+    "WorkflowGraphTemplateSchedule",
+    back_populates="template",
+    cascade="all, delete-orphan",
+  )
 
 
 class WorkflowGraphTemplateNode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -368,3 +373,53 @@ class WorkflowOutboxEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
   instance = relationship("WorkflowGraphInstance", back_populates="outbox_events")
   node_instance = relationship("WorkflowNodeInstance", back_populates="outbox_events")
+
+
+class WorkflowGraphTemplateSchedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "workflow_graph_template_schedules"
+  __table_args__ = (
+    CheckConstraint("scope_mode in ('self', 'subtree')", name="wf_graph_tpl_schedules_scope_mode_chk"),
+    CheckConstraint(
+      "participant_mode in ('all', 'subset')",
+      name="wf_graph_tpl_schedules_participant_mode_chk",
+    ),
+    CheckConstraint(
+      "last_run_status IS NULL OR last_run_status in ('success', 'failed', 'partial')",
+      name="wf_graph_tpl_schedules_last_run_status_chk",
+    ),
+    Index("idx_wf_graph_tpl_schedules_active_next_run", "is_active", "next_run_at"),
+    Index("idx_wf_graph_tpl_schedules_template", "template_id"),
+  )
+
+  template_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_graph_templates.id", name="fk_wf_graph_tpl_schedules_template", ondelete="CASCADE"),
+    nullable=False,
+  )
+  name: Mapped[str] = mapped_column(String(120), nullable=False)
+  scope_department_id: Mapped[UUID] = mapped_column(
+    ForeignKey("departments.id", name="fk_wf_graph_tpl_schedules_scope_department"),
+    nullable=False,
+  )
+  scope_mode: Mapped[str] = mapped_column(String(16), default="self", nullable=False)
+  cron_expr: Mapped[str] = mapped_column(String(128), nullable=False)
+  timezone: Mapped[str] = mapped_column(String(64), default="Asia/Shanghai", nullable=False)
+  default_inputs: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  run_label_template: Mapped[str | None] = mapped_column(String(255), nullable=True)
+  participant_mode: Mapped[str] = mapped_column(String(16), default="all", nullable=False)
+  participant_user_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
+  exclude_department_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
+  exclude_user_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
+  is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+  created_by: Mapped[UUID] = mapped_column(
+    ForeignKey("users.id", name="fk_wf_graph_tpl_schedules_created_by"),
+    nullable=False,
+  )
+  next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  last_run_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+  last_run_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+  last_run_instance_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+  template = relationship("WorkflowGraphTemplate", back_populates="schedules")
+  scope_department = relationship("Department", foreign_keys=[scope_department_id])
+  creator = relationship("User", foreign_keys=[created_by])

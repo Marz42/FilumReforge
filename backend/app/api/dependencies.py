@@ -43,14 +43,13 @@ from app.services.profile_field_policy_service import ProfileFieldPolicyService
 from app.services.profile_service import ProfileService
 from app.services.report_center_service import ReportCenterService
 from app.services.report_service import ReportService
-from app.services.task_automation_service import TaskAutomationService
 from app.services.task_service import TaskService
-from app.services.task_template_service import TaskTemplateService
 from app.services.tool_registry_service import ToolRegistryService
 from app.services.user_service import UserService
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+from app.services.workflow_graph_template_schedule_service import WorkflowGraphTemplateScheduleService
 from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_rework_service import WorkflowVideoReworkService
@@ -130,13 +129,11 @@ def get_organization_relation_service(
 
 def get_hr_lifecycle_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
-  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
   workflow_engine_service: Annotated[WorkflowEngineService, Depends(get_workflow_engine_service)],
   job_queue_publisher: Annotated[JobQueuePublisher, Depends(get_job_queue_publisher)],
 ) -> HRLifecycleService:
   return HRLifecycleService(
     session,
-    task_template_service=task_template_service,
     workflow_engine_service=workflow_engine_service,
     job_queue_publisher=job_queue_publisher,
   )
@@ -220,6 +217,24 @@ def get_workflow_video_instantiation_service(
   return WorkflowVideoInstantiationService(session, task_service=task_service, settings=settings)
 
 
+def get_workflow_graph_template_schedule_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  settings: Annotated[Settings, Depends(get_settings)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+) -> WorkflowGraphTemplateScheduleService:
+  instantiation_service = WorkflowVideoInstantiationService(
+    session,
+    task_service=task_service,
+    settings=settings,
+  )
+  return WorkflowGraphTemplateScheduleService(
+    session,
+    notification_service=notification_service,
+    instantiation_service=instantiation_service,
+  )
+
+
 def get_workflow_orchestration_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
@@ -288,21 +303,6 @@ def get_task_memo_service(
   task_service: Annotated[TaskService, Depends(get_task_service)],
 ) -> TaskMemoService:
   return TaskMemoService(session, task_service)
-
-
-def get_task_template_service(
-  session: Annotated[AsyncSession, Depends(get_db_session)],
-  task_service: Annotated[TaskService, Depends(get_task_service)],
-  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
-) -> TaskTemplateService:
-  return TaskTemplateService(session, task_service, notification_service)
-
-
-def get_task_automation_service(
-  session: Annotated[AsyncSession, Depends(get_db_session)],
-  task_template_service: Annotated[TaskTemplateService, Depends(get_task_template_service)],
-) -> TaskAutomationService:
-  return TaskAutomationService(session, task_template_service)
 
 
 def get_workflow_engine_service(

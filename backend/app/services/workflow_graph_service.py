@@ -1157,6 +1157,9 @@ class WorkflowGraphService:
       graph_instance.completed_at = now
       graph_instance.current_node_key = None
       await self._session.flush()
+      from app.services.workflow_graph_template_chain_service import maybe_trigger_template_chain
+
+      await maybe_trigger_template_chain(self._session, instance=graph_instance)
 
   # ------------------------------------------------------------------ #
   # Phase 6 / Query helpers

@@ -46,12 +46,12 @@ def test_w0_graph_template_engine_can_be_enabled_via_settings() -> None:
   assert use_graph_template_instantiation(settings) is True
 
 
-def test_w0_legacy_task_template_instantiation_remains_available() -> None:
+def test_w0_legacy_task_template_instantiation_disabled_after_b12() -> None:
   settings = Settings(
     jwt_secret_key="test-jwt-secret-key-for-suite-123456",
     workflow_graph_template_engine_enabled=True,
   )
-  assert use_legacy_task_template_instantiation(settings) is True
+  assert use_legacy_task_template_instantiation(settings) is False
 
 
 @pytest.mark.parametrize(

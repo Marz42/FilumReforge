@@ -69,6 +69,7 @@ class TaskCreateRequest(BaseModel):
   priority: TaskPriority = TaskPriority.MEDIUM
   dependency_ids: list[UUID] = Field(default_factory=list)
   attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
+  watcher_user_ids: list[UUID] = Field(default_factory=list)
 
 
 class TaskUpdateRequest(BaseModel):

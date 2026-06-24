@@ -23,6 +23,7 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.models import (
   Profile,
   Task,
+  TaskWatcher,
   User,
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
@@ -30,10 +31,14 @@ from app.models import (
   WorkflowNodeInstance,
 )
 from app.schemas.workflow_video import validate_node_config
+from app.services.cross_department_routing_service import resolve_cross_department_boundary_cc_user_ids
 from app.services.task_service import TaskService
 from app.services.workflow_assignee_resolver import resolve_node_assignee_id
 from app.services.workflow_graph_service import WorkflowGraphService
-from app.services.workflow_node_config_helpers import resolve_completion_policy
+from app.services.workflow_node_config_helpers import (
+  is_streaming_aggregate_node,
+  resolve_completion_policy,
+)
 from app.services.workflow_projection_department import resolve_projection_department_id
 
 
@@ -212,6 +217,18 @@ class WorkflowOrchestrationService:
         continue
       if self._task_id_from_node_config(node_instance) is not None:
         continue
+      template_node = await self._load_template_node(node_instance=node_instance)
+      if is_streaming_aggregate_node(
+        instance=instance,
+        node_instance=node_instance,
+        template_node=template_node,
+      ):
+        await self._engine_skip_streaming_aggregate_node(
+          actor=actor,
+          instance=instance,
+          node_instance=node_instance,
+        )
+        continue
       await self.resolve_and_bind_assignee(
         actor=actor,
         template=template,
@@ -223,6 +240,12 @@ class WorkflowOrchestrationService:
         template=template,
         instance=instance,
         node_instance=node_instance,
+      )
+      await self._maybe_add_boundary_cc_watchers(
+        actor=actor,
+        instance=instance,
+        task=task,
+        assignee_id=node_instance.assignee_user_id or actor.id,
       )
       node_instance.config = {
         **dict(node_instance.config or {}),
@@ -238,6 +261,69 @@ class WorkflowOrchestrationService:
       )
     await self._session.flush()
     return created
+
+  async def _engine_skip_streaming_aggregate_node(
+    self,
+    *,
+    actor: User,
+    instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+  ) -> None:
+    """W-08: auto-complete aggregate node without creating an inbox shell task."""
+    now = datetime.now(UTC)
+    node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
+    node_instance.business_state = WorkflowNodeBusinessState.DONE
+    node_instance.completed_at = now
+    node_instance.config = {
+      **dict(node_instance.config or {}),
+      "engine_skipped": True,
+      "skip_reason": "streaming_aggregate",
+    }
+    await self._session.flush()
+
+    downstream = await self._workflow_graph_service.progress_from_completed_node(
+      node_instance_id=node_instance.id,
+    )
+    if downstream:
+      await self.ensure_projection_tasks(
+        actor=actor,
+        instance=instance,
+        node_instances=downstream,
+      )
+
+  async def _maybe_add_boundary_cc_watchers(
+    self,
+    *,
+    actor: User,
+    instance: WorkflowGraphInstance,
+    task: Task,
+    assignee_id: UUID,
+  ) -> None:
+    """F-27: CC org-tree managers when projection crosses department boundary."""
+    if self._task_service is None or instance.department_id is None:
+      return
+
+    assignee_department_id = await self._session.scalar(
+      select(Profile.department_id).where(Profile.user_id == assignee_id)
+    )
+    cc_user_ids = await resolve_cross_department_boundary_cc_user_ids(
+      self._session,
+      origin_department_id=instance.department_id,
+      target_department_id=assignee_department_id,
+      exclude_user_ids={actor.id, assignee_id},
+    )
+    if not cc_user_ids:
+      return
+    for user_id in cc_user_ids:
+      self._session.add(
+        TaskWatcher(
+          task_id=task.id,
+          user_id=user_id,
+          relation="boundary_cc",
+          created_by=actor.id,
+        )
+      )
+    await self._session.flush()
 
   async def resolve_and_bind_assignee(
     self,
@@ -368,6 +454,10 @@ class WorkflowOrchestrationService:
       if downstream_pending is None:
         instance.status = WorkflowGraphInstanceStatus.COMPLETED
         instance.completed_at = now
+        await self._session.flush()
+        from app.services.workflow_graph_template_chain_service import maybe_trigger_template_chain
+
+        await maybe_trigger_template_chain(self._session, instance=instance)
 
     await self._session.flush()
 

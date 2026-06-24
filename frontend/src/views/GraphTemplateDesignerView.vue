@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
+import { listDepartments } from '@/api/departments'
 import {
   dryRunGraphTemplate,
   exportGraphTemplate,
@@ -22,6 +23,11 @@ import type {
 } from '@/types/workflowVideo'
 import { analyzeEdgeTopology } from '@/utils/graphTemplateTopology'
 import { getErrorMessage } from '@/utils/errors'
+
+type DepartmentPoolRow = {
+  pool_key: string
+  department_id: string
+}
 
 type DesignerNodeRow = GraphTemplateNodeDetail & {
   configJson: string
@@ -55,7 +61,15 @@ const form = reactive({
   description: '',
   aggregateMode: 'streaming' as 'batch' | 'streaming',
   launchSchemaJson: '{}',
+  schedulable: false,
+  onCompleteEnabled: false,
+  onCompleteNextTemplateCode: '',
+  onCompleteCarryInputs: true,
+  schedulable: false,
 })
+
+const departmentOptions = ref<Array<{ value: string; label: string }>>([])
+const departmentPoolRows = ref<DepartmentPoolRow[]>([])
 
 const nodeRows = ref<DesignerNodeRow[]>([])
 const edgeRows = ref<DesignerEdgeRow[]>([])
@@ -102,6 +116,21 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
   form.aggregateMode = (next.config?.aggregate_mode === 'streaming' ? 'streaming' : 'batch')
   const launchSchema = next.config?.launch_schema
   form.launchSchemaJson = JSON.stringify(launchSchema ?? {}, null, 2)
+  const onComplete = next.config?.on_complete as
+    | { next_template_code?: string; carry_inputs?: boolean }
+    | undefined
+  form.onCompleteEnabled = Boolean(onComplete?.next_template_code)
+  form.onCompleteNextTemplateCode = onComplete?.next_template_code ?? ''
+  form.onCompleteCarryInputs = onComplete?.carry_inputs !== false
+  form.schedulable = next.config?.schedulable === true
+  const pools = next.config?.department_pools
+  departmentPoolRows.value =
+    pools && typeof pools === 'object' && !Array.isArray(pools)
+      ? Object.entries(pools as Record<string, string>).map(([pool_key, department_id]) => ({
+          pool_key,
+          department_id: String(department_id),
+        }))
+      : []
   nodeRows.value = next.nodes.map((node) => ({
     ...node,
     assignment_mode: node.assignment_mode ?? 'single',
@@ -151,6 +180,26 @@ function parseLaunchSchema(): Record<string, unknown> | null {
   }
 }
 
+function addDepartmentPoolRow(): void {
+  departmentPoolRows.value.push({ pool_key: '', department_id: '' })
+}
+
+function removeDepartmentPoolRow(index: number): void {
+  departmentPoolRows.value.splice(index, 1)
+}
+
+async function loadDepartments(): Promise<void> {
+  try {
+    const departments = await listDepartments()
+    departmentOptions.value = departments.map((department) => ({
+      value: department.id,
+      label: `${department.name} (${department.code})`,
+    }))
+  } catch {
+    departmentOptions.value = []
+  }
+}
+
 function buildDraftPayload() {
   const launchSchema = parseLaunchSchema()
   if (launchSchema === null) {
@@ -160,6 +209,32 @@ function buildDraftPayload() {
     ...(detail.value?.config ?? {}),
     launch_schema: launchSchema,
     aggregate_mode: form.aggregateMode,
+  }
+  if (form.onCompleteEnabled && form.onCompleteNextTemplateCode.trim()) {
+    config.on_complete = {
+      next_template_code: form.onCompleteNextTemplateCode.trim(),
+      carry_inputs: form.onCompleteCarryInputs,
+    }
+  } else {
+    delete config.on_complete
+  }
+  if (form.schedulable) {
+    config.schedulable = true
+  } else {
+    delete config.schedulable
+  }
+  const departmentPools: Record<string, string> = {}
+  for (const row of departmentPoolRows.value) {
+    const poolKey = row.pool_key.trim()
+    if (!poolKey || !row.department_id) {
+      continue
+    }
+    departmentPools[poolKey] = row.department_id
+  }
+  if (Object.keys(departmentPools).length > 0) {
+    config.department_pools = departmentPools
+  } else {
+    delete config.department_pools
   }
   const nodes = nodeRows.value.map((node, index) => {
     let nodeConfig: Record<string, unknown>
@@ -420,7 +495,7 @@ onMounted(async () => {
     void router.replace({ name: 'task-templates' })
     return
   }
-  await loadDesigner()
+  await Promise.all([loadDesigner(), loadDepartments()])
 })
 </script>
 
@@ -514,6 +589,57 @@ onMounted(async () => {
               class="designer__json"
               spellcheck="false"
             />
+          </el-form-item>
+          <el-form-item label="允许周期定时（F-24 schedulable）">
+            <el-switch v-model="form.schedulable" data-testid="designer-schedulable" />
+            <p class="designer__hint">开启后模板可被「建立任务 → 定时派发」选用；须为 batch 采集类模板。</p>
+          </el-form-item>
+          <el-form-item label="完成后触发下一模板（F-23）">
+            <el-switch v-model="form.onCompleteEnabled" />
+          </el-form-item>
+          <el-form-item v-if="form.onCompleteEnabled" label="下一模板 code">
+            <el-input
+              v-model="form.onCompleteNextTemplateCode"
+              maxlength="64"
+              placeholder="例如 video_production_per_topic_v1"
+              data-testid="designer-on-complete-code"
+            />
+          </el-form-item>
+          <el-form-item v-if="form.onCompleteEnabled" label="继承 inputs">
+            <el-switch v-model="form.onCompleteCarryInputs" />
+          </el-form-item>
+          <el-form-item label="department_pools（F-26）">
+            <div class="designer__pool-list">
+              <div
+                v-for="(row, index) in departmentPoolRows"
+                :key="`${row.pool_key}-${index}`"
+                class="designer__pool-row"
+              >
+                <el-input
+                  v-model="row.pool_key"
+                  placeholder="pool_key"
+                  data-testid="designer-pool-key"
+                />
+                <el-select
+                  v-model="row.department_id"
+                  filterable
+                  clearable
+                  placeholder="选择部门"
+                  data-testid="designer-pool-department"
+                >
+                  <el-option
+                    v-for="option in departmentOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+                <el-button link type="danger" @click="removeDepartmentPoolRow(index)">删除</el-button>
+              </div>
+              <el-button size="small" data-testid="designer-add-pool" @click="addDepartmentPoolRow">
+                添加 pool
+              </el-button>
+            </div>
           </el-form-item>
         </el-form>
       </el-card>
@@ -895,6 +1021,20 @@ onMounted(async () => {
 .designer__errors {
   margin: 0;
   padding-left: 18px;
+}
+
+.designer__pool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.designer__pool-row {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr auto;
+  gap: 8px;
+  align-items: center;
 }
 
 @media (max-width: 960px) {

@@ -26,6 +26,24 @@ export const TASK_BATCH_ROOT = 'task-batch-root-1'
 export const GRAPH_HANDSHAKE = 'graph-instance-handshake'
 export const GRAPH_BATCH_ROOT = 'graph-batch-root-1'
 export const GRAPH_REVIEW = 'graph-instance-1'
+export const SCHEDULABLE_GRAPH_TEMPLATE_ID = 'graph-template-schedulable-1'
+
+const schedulableGraphTemplateSummary = {
+  id: SCHEDULABLE_GRAPH_TEMPLATE_ID,
+  code: 'weekly_capture_v1',
+  name: '每周采集',
+  status: 'active',
+  version: 1,
+  run_kind: 'batch',
+  config: {
+    run_kind: 'batch',
+    schedulable: true,
+    launch_schema: {
+      fields: [{ key: 'theme', label: '主题', type: 'text' }],
+    },
+    participant_policies: { copywriters: { type: 'department_members' } },
+  },
+}
 
 type AdminUser = {
   id: string
@@ -366,6 +384,85 @@ export async function handleTaskCenterInteractionRoute(
     return true
   }
 
+  if (request.method() === 'GET' && isExactApiPath(apiPath, '/workflow-graph/templates')) {
+    if (parseQueryParam(apiPath, 'schedulable') === 'true') {
+      await fulfillJson(route, [schedulableGraphTemplateSummary])
+      return true
+    }
+    return false
+  }
+
+  if (
+    request.method() === 'POST'
+    && /^\/workflow-graph\/templates\/[^/]+\/preview-participants$/.test(pathname)
+  ) {
+    await fulfillJson(route, {
+      policy_ref: 'copywriters',
+      mode: 'all',
+      user_ids: [adminUser.id, delegateUser.id],
+      users: [
+        { id: adminUser.id, email: adminUser.email, display_name: '系统管理员' },
+        { id: delegateUser.id, email: delegateUser.email, display_name: '协作同事' },
+      ],
+      snapshot: { mode: 'all', user_ids: [adminUser.id, delegateUser.id] },
+    })
+    return true
+  }
+
+  if (request.method() === 'POST' && isExactApiPath(apiPath, '/workflow-graph/schedules')) {
+    const body = request.postDataJSON() as {
+      template_id?: string
+      name?: string
+      scope_department_id?: string
+      scope_mode?: string
+      cron_expr?: string
+      timezone?: string
+      participant_mode?: string
+    }
+    const now = '2025-04-04T08:00:00Z'
+    await fulfillJson(
+      route,
+      {
+        id: 'schedule-e2e-1',
+        template_id: body.template_id ?? SCHEDULABLE_GRAPH_TEMPLATE_ID,
+        template_code: schedulableGraphTemplateSummary.code,
+        template_name: schedulableGraphTemplateSummary.name,
+        name: body.name?.trim() || 'E2E 周期任务',
+        scope_department_id: body.scope_department_id ?? 'dept-content',
+        scope_department_name: '内容部',
+        scope_mode: body.scope_mode ?? 'self',
+        cron_expr: body.cron_expr ?? '0 9 * * 1',
+        timezone: body.timezone ?? 'Asia/Shanghai',
+        default_inputs: {},
+        participant_mode: body.participant_mode ?? 'all',
+        participant_user_ids: [],
+        exclude_department_ids: [],
+        exclude_user_ids: [],
+        is_active: true,
+        created_by: adminUser.id,
+        next_run_at: '2025-04-07T01:00:00Z',
+        last_run_at: null,
+        last_run_status: null,
+        last_run_message: null,
+        last_run_instance_count: null,
+        created_at: now,
+        updated_at: now,
+      },
+      201,
+    )
+    return true
+  }
+
+  if (request.method() === 'POST' && /^\/workflow-graph\/schedules\/[^/]+\/run-now$/.test(pathname)) {
+    await fulfillJson(route, {
+      created_count: 1,
+      skipped_count: 0,
+      failed_count: 0,
+      details: [{ department_id: 'dept-content', status: 'created' }],
+    })
+    return true
+  }
+
   if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+$/.test(pathname)) {
     const instanceId = pathname.slice('/workflow-graph/instances/'.length)
     const base = graphInstances[instanceId]
@@ -381,6 +478,22 @@ export async function handleTaskCenterInteractionRoute(
     return true
   }
 
+  if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+\/submissions/.test(pathname)) {
+    const instanceId = pathname.match(/^\/workflow-graph\/instances\/([^/]+)\/submissions/)?.[1]
+    const nodeKey = parseQueryParam(apiPath, 'node_key') ?? 'N1_PROPOSE'
+    await fulfillJson(route, {
+      instance_id: instanceId,
+      node_key: nodeKey,
+      submissions: [],
+    })
+    return true
+  }
+
+  if (request.method() === 'GET' && /^\/workflow-graph\/instances\/[^/]+\/children/.test(pathname)) {
+    await fulfillJson(route, [])
+    return true
+  }
+
   if (request.method() === 'POST' && /^\/workflow-graph\/instances\/[^/]+\/close-capture$/.test(pathname)) {
     const instanceId = pathname.match(/^\/workflow-graph\/instances\/([^/]+)\/close-capture$/)?.[1]
     if (!instanceId) {
@@ -389,7 +502,13 @@ export async function handleTaskCenterInteractionRoute(
     }
     const existing = state.graphContexts.get(instanceId) ?? {}
     state.graphContexts.set(instanceId, { ...existing, capture_closed: true, capture_closed_at: new Date().toISOString() })
-    await fulfillJson(route, { message: '采集阶段已结束', instance_id: instanceId })
+    await fulfillJson(route, {
+      instance_id: instanceId,
+      capture_closed: true,
+      capture_closed_at: new Date().toISOString(),
+      skipped_capture_count: 0,
+      message: '采集已结束，关闭 0 个未提交入口。',
+    })
     return true
   }
 

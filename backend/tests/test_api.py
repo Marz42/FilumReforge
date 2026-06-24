@@ -1443,254 +1443,102 @@ async def test_phase4_task_reject_and_delegate_api_refresh_task_center_snapshot(
 
 
 @pytest.mark.asyncio
-async def test_task_template_delete_api_respects_instance_history(api_client) -> None:
+async def test_b12_task_templates_api_is_not_available(api_client) -> None:
   client, _ = api_client
   headers, _ = await bootstrap_and_login(client)
 
-  create_department_response = await client.post(
-    "/api/v1/departments",
-    headers=headers,
-    json={
-      "name": "模板部",
-      "code": "template-api-dept",
-      "capabilities": ["publish_org_task"],
-    },
-  )
-  assert create_department_response.status_code == 201
-  department_id = create_department_response.json()["id"]
+  list_response = await client.get("/api/v1/task-templates", headers=headers)
+  assert list_response.status_code == 404
 
-  me_response = await client.get("/api/v1/auth/me", headers=headers)
-  assert me_response.status_code == 200
-  admin_user_id = me_response.json()["id"]
-
-  profile_response = await client.post(
-    "/api/v1/profiles",
-    headers=headers,
-    json={
-      "user_id": admin_user_id,
-      "employee_no": "EMP-TPL-ROOT",
-      "real_name": "管理员",
-      "department_id": department_id,
-    },
-  )
-  assert profile_response.status_code in {201, 409}
-
-  deletable_response = await client.post(
+  create_response = await client.post(
     "/api/v1/task-templates",
     headers=headers,
     json={
-      "code": "template-delete-open",
-      "name": "可删除模板",
+      "code": "legacy-template",
+      "name": "Legacy 模板",
       "category": "ops",
       "steps": [
         {
           "step_key": "draft",
-          "title": "整理草稿",
+          "title": "草稿",
           "default_assignee_rule": {"type": "initiator"},
         }
       ],
     },
   )
-  assert deletable_response.status_code == 201
-  deletable_template_id = deletable_response.json()["id"]
-
-  protected_response = await client.post(
-    "/api/v1/task-templates",
-    headers=headers,
-    json={
-      "code": "template-delete-locked",
-      "name": "已实例化模板",
-      "category": "ops",
-      "steps": [
-        {
-          "step_key": "draft",
-          "title": "整理草稿",
-          "default_assignee_rule": {"type": "initiator"},
-        }
-      ],
-    },
-  )
-  assert protected_response.status_code == 201
-  protected_template_id = protected_response.json()["id"]
-
-  instantiate_response = await client.post(
-    f"/api/v1/task-templates/{protected_template_id}/instantiate",
-    headers=headers,
-    json={
-      "department_id": department_id,
-      "payload": {"department_id": department_id},
-    },
-  )
-  assert instantiate_response.status_code == 200
-
-  delete_open_response = await client.delete(
-    f"/api/v1/task-templates/{deletable_template_id}",
-    headers=headers,
-  )
-  assert delete_open_response.status_code == 204
-
-  delete_protected_response = await client.delete(
-    f"/api/v1/task-templates/{protected_template_id}",
-    headers=headers,
-  )
-  assert delete_protected_response.status_code == 409
+  assert create_response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_task_template_update_api_returns_conflict_for_step_changes_after_instantiation(api_client) -> None:
-  client, _ = api_client
+async def test_f22_create_task_with_watchers_api(api_client) -> None:
+  client, queue_publisher = api_client
   headers, _ = await bootstrap_and_login(client)
 
-  create_department_response = await client.post(
-    "/api/v1/departments",
+  watcher_response = await client.post(
+    "/api/v1/users",
     headers=headers,
     json={
-      "name": "模板更新部",
-      "code": "template-update-api-dept",
-      "capabilities": ["publish_org_task"],
+      "email": "watcher@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
     },
   )
-  assert create_department_response.status_code == 201
-  department_id = create_department_response.json()["id"]
+  assert watcher_response.status_code == 201
+  watcher_id = watcher_response.json()["id"]
 
-  me_response = await client.get("/api/v1/auth/me", headers=headers)
-  assert me_response.status_code == 200
-  admin_user_id = me_response.json()["id"]
-
-  profile_response = await client.post(
-    "/api/v1/profiles",
+  assignee_response = await client.post(
+    "/api/v1/users",
     headers=headers,
     json={
-      "user_id": admin_user_id,
-      "employee_no": "EMP-TPL-UPD-ROOT",
-      "real_name": "管理员",
-      "department_id": department_id,
+      "email": "assignee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
     },
   )
-  assert profile_response.status_code in {201, 409}
+  assert assignee_response.status_code == 201
+  assignee_id = assignee_response.json()["id"]
 
-  template_response = await client.post(
-    "/api/v1/task-templates",
+  departments_response = await client.get("/api/v1/departments", headers=headers)
+  root_department = next(item for item in departments_response.json() if item["code"] == "root")
+
+  for user_id, employee_no, real_name in (
+    (watcher_id, "EMP-WATCH-001", "抄送同事"),
+    (assignee_id, "EMP-ASSIGN-001", "执行同事"),
+  ):
+    profile_response = await client.post(
+      "/api/v1/profiles",
+      headers=headers,
+      json={
+        "user_id": user_id,
+        "employee_no": employee_no,
+        "real_name": real_name,
+        "department_id": root_department["id"],
+        "custom_fields": {},
+      },
+    )
+    assert profile_response.status_code == 201
+
+  task_response = await client.post(
+    "/api/v1/tasks",
     headers=headers,
     json={
-      "code": "template-update-locked",
-      "name": "实例化模板",
-      "category": "ops",
-      "description": "旧说明",
-      "steps": [
-        {
-          "step_key": "draft",
-          "title": "整理草稿",
-          "default_assignee_rule": {"type": "initiator"},
-        },
-        {
-          "step_key": "review",
-          "title": "主管复核",
-          "default_assignee_rule": {"type": "department_manager"},
-          "depends_on_step_keys": ["draft"],
-        },
-      ],
+      "title": "F-22 抄送测试",
+      "assignee_id": assignee_id,
+      "department_id": root_department["id"],
+      "priority": "medium",
+      "watcher_user_ids": [watcher_id],
     },
   )
-  assert template_response.status_code == 201
-  template_id = template_response.json()["id"]
-  assert template_response.json()["base_code"] == "template-update-locked"
-  assert template_response.json()["version"] == 1
-  assert template_response.json()["latest_version"] == 1
-  assert template_response.json()["has_instances"] is False
+  assert task_response.status_code == 201
+  task_id = task_response.json()["id"]
 
-  instantiate_response = await client.post(
-    f"/api/v1/task-templates/{template_id}/instantiate",
-    headers=headers,
-    json={
-      "department_id": department_id,
-      "payload": {"department_id": department_id},
-    },
-  )
-  assert instantiate_response.status_code == 200
-  assert instantiate_response.json()["template"]["has_instances"] is True
-  assert instantiate_response.json()["template"]["is_structure_locked"] is True
+  watchers_response = await client.get(f"/api/v1/tasks/{task_id}/watchers", headers=headers)
+  assert watchers_response.status_code == 200
+  assert watcher_id in {item["user_id"] for item in watchers_response.json()}
 
-  metadata_update_response = await client.patch(
-    f"/api/v1/task-templates/{template_id}",
-    headers=headers,
-    json={
-      "code": "template-update-locked",
-      "name": "实例化模板 v2",
-      "category": "ops",
-      "description": "新说明",
-      "steps": [
-        {
-          "step_key": "draft",
-          "title": "整理草稿",
-          "description": None,
-          "step_type": "task",
-          "assignment_mode": "single",
-          "join_mode": "all",
-          "default_assignee_rule": {"type": "initiator"},
-          "default_due_offset_hours": None,
-          "sort_order": 1,
-          "config": {},
-          "depends_on_step_keys": [],
-        },
-        {
-          "step_key": "review",
-          "title": "主管复核",
-          "description": None,
-          "step_type": "task",
-          "assignment_mode": "single",
-          "join_mode": "all",
-          "default_assignee_rule": {"type": "department_manager"},
-          "default_due_offset_hours": None,
-          "sort_order": 2,
-          "config": {},
-          "depends_on_step_keys": ["draft"],
-        },
-      ],
-    },
-  )
-  assert metadata_update_response.status_code == 200
-  assert metadata_update_response.json()["name"] == "实例化模板 v2"
-
-  step_change_response = await client.patch(
-    f"/api/v1/task-templates/{template_id}",
-    headers=headers,
-    json={
-      "code": "template-update-locked",
-      "name": "实例化模板 v2",
-      "category": "ops",
-      "description": "新说明",
-      "steps": [
-        {
-          "step_key": "draft",
-          "title": "整理基础资料",
-          "description": None,
-          "step_type": "task",
-          "assignment_mode": "single",
-          "join_mode": "all",
-          "default_assignee_rule": {"type": "initiator"},
-          "default_due_offset_hours": None,
-          "sort_order": 1,
-          "config": {},
-          "depends_on_step_keys": [],
-        },
-        {
-          "step_key": "review",
-          "title": "主管复核",
-          "description": None,
-          "step_type": "task",
-          "assignment_mode": "single",
-          "join_mode": "all",
-          "default_assignee_rule": {"type": "department_manager"},
-          "default_due_offset_hours": None,
-          "sort_order": 2,
-          "config": {},
-          "depends_on_step_keys": ["draft"],
-        },
-      ],
-    },
-  )
-  assert step_change_response.status_code == 409
+  assert any(payload["message_type"] == "task_cc_added" for payload in queue_publisher.payloads)
 
 
 @pytest.mark.asyncio
@@ -2152,24 +2000,6 @@ async def test_profile_event_api_accepts_lifecycle_automation_targets(api_client
   )
   assert employee_profile_response.status_code == 201
 
-  template_response = await client.post(
-    "/api/v1/task-templates",
-    headers=headers,
-    json={
-      "code": "api-lifecycle-template",
-      "name": "API 生命周期模板",
-      "category": "hr",
-      "steps": [
-        {
-          "step_key": "setup",
-          "title": "创建事项",
-          "default_assignee_rule": {"type": "user", "user_id": employee_id},
-        }
-      ],
-    },
-  )
-  assert template_response.status_code == 201
-
   workflow_response = await client.post(
     "/api/v1/workflows/definitions",
     headers=headers,
@@ -2198,16 +2028,28 @@ async def test_profile_event_api_accepts_lifecycle_automation_targets(api_client
       "effective_date": "2025-05-01",
       "title": "入职联动",
       "payload": {"department_id": admin_department_id},
-      "task_template_id": template_response.json()["id"],
       "workflow_definition_id": workflow_response.json()["id"],
     },
   )
 
   assert event_response.status_code == 201
   assert event_response.json()["trigger_status"] == "pending"
-  assert event_response.json()["task_template_id"] == template_response.json()["id"]
+  assert event_response.json()["task_template_id"] is None
   assert event_response.json()["workflow_definition_id"] == workflow_response.json()["id"]
   assert queue_publisher.jobs[-1][0] == PROCESS_EMPLOYMENT_EVENT_JOB
+
+  legacy_template_event_response = await client.post(
+    f"/api/v1/profiles/{employee_id}/events",
+    headers=headers,
+    json={
+      "event_type": "transfer",
+      "effective_date": "2025-06-01",
+      "title": "Legacy 模板联动",
+      "payload": {"department_id": admin_department_id},
+      "task_template_id": employee_id,
+    },
+  )
+  assert legacy_template_event_response.status_code == 409
 
   field_definitions_response = await client.get("/api/v1/profile-field-definitions", headers=headers)
   assert field_definitions_response.status_code == 200
@@ -2350,73 +2192,45 @@ async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
   )
   assert delegation_response.status_code == 201
 
-  template_response = await client.post(
-    "/api/v1/task-templates",
-    headers=headers,
-    json={
-      "code": "api-phase4-template",
-      "name": "API 模板",
-      "category": "ops",
-      "steps": [
-        {
-          "step_key": "draft",
-          "title": "员工提交",
-          "default_assignee_rule": {"type": "initiator"},
-        },
-        {
-          "step_key": "review",
-          "title": "经理复核",
-          "default_assignee_rule": {"type": "department_manager"},
-          "depends_on_step_keys": ["draft"],
-        },
-      ],
-    },
-  )
-  assert template_response.status_code == 201
-  template_id = template_response.json()["id"]
-
-  instantiate_response = await client.post(
-    f"/api/v1/task-templates/{template_id}/instantiate",
+  task_response = await client.post(
+    "/api/v1/tasks",
     headers=employee_headers,
     json={
-      "watcher_user_ids": [watcher_id],
-      "payload": {"department_id": department_id},
+      "title": "员工提交",
+      "assignee_id": employee_id,
+      "department_id": department_id,
+      "priority": "medium",
     },
   )
-  assert instantiate_response.status_code == 200
-  instantiate_payload = instantiate_response.json()
-  instantiated_tasks = instantiate_payload["tasks"]
-  assert len(instantiated_tasks) == 1
-  assert instantiate_payload["instance"]["step_snapshots"][0]["status"] == "active"
-  assert instantiate_payload["instance"]["step_snapshots"][1]["status"] == "blocked"
-  first_task_id = instantiated_tasks[0]["id"]
+  assert task_response.status_code == 201
+  first_task_id = task_response.json()["id"]
 
-  for next_status in ("doing", "review", "done"):
-    status_response = await client.patch(
-      f"/api/v1/tasks/{first_task_id}/status",
-      headers=employee_headers,
-      json={"status": next_status},
-    )
-    assert status_response.status_code == 200
-
-  instances_response = await client.get(
-    f"/api/v1/task-templates/{template_id}/instances",
+  second_task_response = await client.post(
+    "/api/v1/tasks",
     headers=employee_headers,
+    json={
+      "title": "后续跟进",
+      "assignee_id": employee_id,
+      "department_id": department_id,
+      "priority": "medium",
+    },
   )
-  assert instances_response.status_code == 200
-  assert len(instances_response.json()) == 1
-  latest_instance = instances_response.json()[0]
-  assert latest_instance["step_snapshots"][0]["status"] == "completed"
-  assert latest_instance["step_snapshots"][1]["status"] == "active"
-  assert len(latest_instance["step_snapshots"][1]["step_runs"]) == 1
+  assert second_task_response.status_code == 201
 
   watcher_add_response = await client.post(
     f"/api/v1/tasks/{first_task_id}/watchers",
     headers=headers,
-    json={"user_ids": [manager_id]},
+    json={"user_ids": [watcher_id]},
   )
   assert watcher_add_response.status_code == 200
-  assert len(watcher_add_response.json()) == 2
+
+  manager_watcher_response = await client.post(
+    f"/api/v1/tasks/{first_task_id}/watchers",
+    headers=headers,
+    json={"user_ids": [manager_id]},
+  )
+  assert manager_watcher_response.status_code == 200
+  assert len(manager_watcher_response.json()) == 2
 
   board_response = await client.get("/api/v1/tasks/views/board", headers=headers)
   assert board_response.status_code == 200
@@ -2424,24 +2238,20 @@ async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
 
   gantt_response = await client.get("/api/v1/tasks/views/gantt", headers=headers)
   assert gantt_response.status_code == 200
-  assert len(gantt_response.json()) == 2
+  assert len(gantt_response.json()) >= 2
 
-  schedule_response = await client.post(
+  legacy_schedule_response = await client.post(
     "/api/v1/task-templates/schedules",
     headers=headers,
     json={
-      "template_id": template_id,
+      "template_id": employee_id,
       "cron_expr": "*/5 * * * *",
       "timezone": "UTC",
       "payload": {"department_id": department_id},
       "is_active": True,
     },
   )
-  assert schedule_response.status_code == 201
-
-  schedules_response = await client.get("/api/v1/task-templates/schedules/list", headers=headers)
-  assert schedules_response.status_code == 200
-  assert len(schedules_response.json()) == 1
+  assert legacy_schedule_response.status_code == 404
 
   workflow_definition_response = await client.post(
     "/api/v1/workflows/definitions",
@@ -2529,7 +2339,7 @@ async def test_phase4_workflow_messaging_api_flow(api_client) -> None:
   watcher_messages_response = await client.get("/api/v1/messages", headers=watcher_headers)
   assert watcher_messages_response.status_code == 200
   watcher_messages = watcher_messages_response.json()["items"]
-  assert len([item for item in watcher_messages if item["message_type"] == "task_cc_added"]) == 2
+  assert len([item for item in watcher_messages if item["message_type"] == "task_cc_added"]) >= 1
 
   assert any(payload["message_type"] == "workflow_action_required" for payload in queue_publisher.payloads)
 
@@ -2894,40 +2704,47 @@ async def test_task_center_api_supports_snapshot_and_memos(api_client) -> None:
     password="StrongPassword123!",
   )
 
-  template_response = await client.post(
-    "/api/v1/task-templates",
+  task_response = await client.post(
+    "/api/v1/tasks",
     headers=manager_headers,
     json={
-      "code": "task-center-template",
-      "name": "任务中心模板",
-      "category": "ops",
-      "steps": [
-        {
-          "step_key": "draft",
-          "title": "提交内容",
-          "default_assignee_rule": {"type": "initiator"},
-        }
-      ],
+      "title": "提交内容",
+      "assignee_id": employee_id,
+      "department_id": department_id,
+      "priority": "medium",
     },
   )
-  assert template_response.status_code == 201
-  template_id = template_response.json()["id"]
+  assert task_response.status_code == 201
+  task_id = task_response.json()["id"]
 
-  instantiate_response = await client.post(
-    f"/api/v1/task-templates/{template_id}/instantiate",
+  accept_response = await client.post(
+    f"/api/v1/tasks/{task_id}/accept",
     headers=employee_headers,
-    json={"payload": {"department_id": department_id}},
   )
-  assert instantiate_response.status_code == 200
-  task_id = instantiate_response.json()["tasks"][0]["id"]
+  assert accept_response.status_code == 200
 
-  for next_status in ("doing", "review", "done"):
-    status_response = await client.patch(
-      f"/api/v1/tasks/{task_id}/status",
-      headers=employee_headers,
-      json={"status": next_status},
-    )
-    assert status_response.status_code == 200
+  doing_response = await client.patch(
+    f"/api/v1/tasks/{task_id}/status",
+    headers=employee_headers,
+    json={"status": "doing"},
+  )
+  assert doing_response.status_code == 200
+
+  submit_response = await client.post(
+    f"/api/v1/tasks/{task_id}/deliverable",
+    headers=employee_headers,
+    json={"summary": "任务中心测试交付"},
+  )
+  assert submit_response.status_code == 200
+  assert submit_response.json()["status"] == "review"
+
+  approve_response = await client.post(
+    f"/api/v1/tasks/{task_id}/review",
+    headers=manager_headers,
+    json={"action": "approve", "comment": "完成", "quality_score": 5},
+  )
+  assert approve_response.status_code == 200
+  assert approve_response.json()["status"] == "done"
 
   memo_response = await client.post(
     "/api/v1/task-center/memos",

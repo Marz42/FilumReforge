@@ -11,6 +11,7 @@ import TaskCenterFilterCards from '@/components/task-center/TaskCenterFilterCard
 import TaskCenterGanttView from '@/components/task-center/TaskCenterGanttView.vue'
 import TaskCenterListView from '@/components/task-center/TaskCenterListView.vue'
 import TaskCenterStatsView from '@/components/task-center/TaskCenterStatsView.vue'
+import ScheduledDispatchForm from '@/components/task-center/ScheduledDispatchForm.vue'
 import { useTaskCenterWorkspace } from '@/composables/useTaskCenterWorkspace'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import {
@@ -88,11 +89,14 @@ const authStore = useAuthStore()
 const { openPanel: openGlobalMemoPanel } = useGlobalMemoPanel()
 const loading = ref(false)
 const taskDialogVisible = ref(false)
+const taskDialogTab = ref<'single' | 'schedule'>('single')
+const scheduledDispatchFormRef = ref<InstanceType<typeof ScheduledDispatchForm> | null>(null)
 const taskSearchQuery = ref('')
 const taskSearchLoading = ref(false)
 const taskSearchResults = ref<TaskSearchResult[]>([])
 let taskSearchTimer: ReturnType<typeof setTimeout> | undefined
 const publishSubmitting = ref(false)
+const scheduleSubmitting = ref(false)
 const publishAttachmentUploading = ref(false)
 const snapshot = ref<TaskCenterSnapshot | null>(null)
 
@@ -110,6 +114,7 @@ const publishForm = reactive({
   department_id: '',
   priority: 'medium' as TaskPriority,
   due_date: null as Date | null,
+  watcher_user_ids: [] as string[],
 })
 
 const activeFilter = computed<TaskCenterFilter>(() => normalizeFilter(route.query.filter ?? route.query.tab))
@@ -372,6 +377,7 @@ function resetPublishForm(): void {
   publishForm.department_id = publishDepartmentOptions.value[0]?.id ?? ''
   publishForm.priority = 'medium'
   publishForm.due_date = null
+  publishForm.watcher_user_ids = []
   publishDraftAttachments.value = []
 }
 
@@ -441,6 +447,7 @@ function openTaskDialog(): void {
   if (!permissions.value.can_publish_task) {
     return
   }
+  taskDialogTab.value = 'single'
   resetPublishForm()
   taskDialogVisible.value = true
 }
@@ -584,6 +591,7 @@ async function handlePublishTask(): Promise<void> {
       priority: publishForm.priority,
       due_date: publishForm.due_date ? publishForm.due_date.toISOString() : null,
       attachment_ids: publishDraftAttachments.value.map((attachment) => attachment.id),
+      watcher_user_ids: publishForm.watcher_user_ids,
     })
     ElMessage.success('任务已发布')
     taskDialogVisible.value = false
@@ -594,6 +602,22 @@ async function handlePublishTask(): Promise<void> {
     ElMessage.error(getErrorMessage(error))
   } finally {
     publishSubmitting.value = false
+  }
+}
+
+async function handleScheduleCreated(): Promise<void> {
+  taskDialogVisible.value = false
+  taskDialogTab.value = 'single'
+  await loadSnapshot()
+  handleFilterChange('tracking')
+}
+
+async function handleScheduleSubmit(): Promise<void> {
+  scheduleSubmitting.value = true
+  try {
+    await scheduledDispatchFormRef.value?.submit()
+  } finally {
+    scheduleSubmitting.value = false
   }
 }
 
@@ -922,7 +946,16 @@ onMounted(() => {
       data-testid="task-center-task-dialog"
       :before-close="handleTaskDialogBeforeClose"
     >
-      <el-form label-position="top" class="task-center-view__form">
+      <el-tabs v-model="taskDialogTab" data-testid="task-center-create-tabs">
+        <el-tab-pane label="单步任务" name="single" />
+        <el-tab-pane label="定时派发" name="schedule" />
+      </el-tabs>
+
+      <el-form
+        v-if="taskDialogTab === 'single'"
+        label-position="top"
+        class="task-center-view__form"
+      >
         <el-form-item label="任务标题">
           <div data-testid="task-center-task-title">
             <el-input v-model="publishForm.title" placeholder="例如：完成四月客户复盘" />
@@ -980,6 +1013,30 @@ onMounted(() => {
             </el-select>
           </div>
         </el-form-item>
+        <el-form-item label="抄送人">
+          <div data-testid="task-center-task-watchers" class="task-center-view__control-wrap">
+            <el-select
+              v-model="publishForm.watcher_user_ids"
+              class="task-center-view__full-select"
+              multiple
+              filterable
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="选择需要抄送的同事（可选）"
+              teleported
+              :popper-options="{ strategy: 'fixed' }"
+              popper-class="task-center-view-select-popper"
+            >
+              <el-option
+                v-for="user in filteredPublishUserOptions.filter((user) => user.user_id !== publishForm.assignee_user_id)"
+                :key="user.user_id"
+                :label="user.label"
+                :value="user.user_id"
+              />
+            </el-select>
+          </div>
+        </el-form-item>
         <el-form-item label="附件（可选）">
           <div data-testid="task-center-task-attachments">
             <el-upload
@@ -1027,16 +1084,34 @@ onMounted(() => {
         </el-form-item>
       </el-form>
 
+      <ScheduledDispatchForm
+        v-else
+        ref="scheduledDispatchFormRef"
+        :department-options="publishDepartmentOptions"
+        :user-options="publishUserOptions"
+        @created="handleScheduleCreated"
+      />
+
       <template #footer>
         <div class="task-center-view__dialog-footer">
           <el-button @click="handleCancelTaskDialog">取消</el-button>
           <el-button
+            v-if="taskDialogTab === 'single'"
             type="primary"
             :loading="publishSubmitting"
             data-testid="task-center-task-submit"
             @click="handlePublishTask"
           >
             建立任务
+          </el-button>
+          <el-button
+            v-else
+            type="primary"
+            :loading="scheduleSubmitting"
+            data-testid="task-center-schedule-submit"
+            @click="handleScheduleSubmit"
+          >
+            创建周期任务
           </el-button>
         </div>
       </template>

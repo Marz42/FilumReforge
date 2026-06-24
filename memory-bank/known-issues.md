@@ -38,15 +38,35 @@
 
 ### Legacy 工作流 E 后端（待删除）
 
-**说明**（@ `0.89.0`）:
+**说明**（@ ADR-009 G-05 · 2026-06-23）:
 
 | 层 | 状态 |
 |----|------|
 | 前端模板页 | **已移除** Legacy E Tab / CRUD；唯一入口为图模板列表 + 实例化（用户可见名「任务模板」） |
-| 后端 `task_templates` API / `TaskTemplateService` | **仍保留**；运行中 E 实例与 `decideStepRun` 仍可用 |
-| 删除时机 | **待删除** — **B-12** backlog（TCE Phase 5 未纳入；需迁移方案） |
+| 后端 `task_templates` API / `TaskTemplateService` | **P0 删除** — **B-12**；目标 **仅图引擎 runtime** |
+| 迁移 | 历史 E 实例需迁移或只读归档方案（实施 B-12 时定稿） |
 
-**实例化路径**: `POST /api/v1/workflow-graph/templates/{id}/runs`
+**实例化路径**（目标态）: `POST /api/v1/workflow-graph/templates/{id}/runs` **唯一**
+
+### 单步任务已知缺口（ADR-009）
+
+| 缺口 | 状态 | 跟踪 |
+|------|------|------|
+| 创建时抄送人 | **F-22 ✅** | `TaskCreateRequest.watcher_user_ids` + Dialog 多选 |
+| 跨部门点对点 + 路径 CC | **F-21 ✅** | 组织树 manager 路径 CC；深树性能为技术债 |
+| 自派任务 | **不在任务中心** | 走 `task_memos` 备忘（G-03） |
+| 派活 vs 汇报线 | **依部门 manager 子树** | 汇报线不改；远期 **项目组 P4** |
+
+### 任务流已知缺口（ADR-010）
+
+| 缺口 | 状态 | 跟踪 |
+|------|------|------|
+| copywriters 池与发起部门脱钩 | **F-28 ✅** | fork 时 copywriters = 发起部门 |
+| 通用完成后触发模板 | **F-23 ✅** | `config.on_complete` + 发布防环 |
+| 跨部门边界 CC | **F-27 ✅** | 投影任务 boundary_cc |
+| department_pools 设计器 UI | **F-26 ✅** | pools 部门选择器（launch/routing 仍 JSON） |
+| 部门定时图模板 | **F-24 ✅** | ADR-011 · `/workflow-graph/schedules` |
+| streaming N2 空壳待办 | **W-08 ✅** | aggregate engine skip |
 
 ### 任务中心 TCE（Phase 1–5 ✅）
 
@@ -64,7 +84,7 @@
 | B-16/F-17 多部门实例化 | ✅ |
 | B-08/B-13/B-14/F-13–F-16 Phase 5 清理 | ✅ |
 
-**仍开放**：B-12（E 后端）、F-05（Shell 拆分）、F-10–F-12（抛光）。
+| **仍开放**：**F-10–F-12**（抛光）、**F-24/F-25**（Phase 3）、**S-01**（暂缓）。
 
 ### 图模板设计器（F-18–F-20 ✅）
 

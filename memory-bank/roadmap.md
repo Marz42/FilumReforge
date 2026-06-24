@@ -1,12 +1,13 @@
 # Project Filum 路线图
 
-> 🌡️ WARM — 宏观里程碑与当前版本焦点。细粒度排期见 [`plans/`](./plans/)。
+> 🌡️ WARM — 宏观里程碑与**任务中心改造计划**。全貌见 [`domains/task-center.md`](./domains/task-center.md)。
 
 | 字段 | 内容 |
 |------|------|
 | **当前版本** | `0.89.0`（根目录 `VERSION`） |
-| **版本主题** | 任务中心 v2 IA 2.0（三视图 + 任务统计 + Shell 拆分） |
-| **阶段** | Stage 2 / 工作流深化 / **任务中心增强（TCE）** |
+| **版本主题** | 任务中心三大模块对齐（单步 · 任务流 · 统计） |
+| **阶段** | **TC-Transform Phase 2** — 任务流能力扩展 |
+| **最后整理** | 2026-06-23 — Phase 0–1 完成 · Phase 2 启动 |
 
 ---
 
@@ -14,87 +15,146 @@
 
 | 里程碑 | 完成 | 关键交付 |
 |--------|------|----------|
-| Phase A | done | 文档入口、脚手架、Docker Compose |
-| Phase 1 Foundation | done | 用户、部门、档案、附件、任务基础 |
-| Phase 2 Collaboration | done | 状态机、评论留痕、ARQ、统计 |
-| Phase 3 HR Governance | done | 生命周期、字段权限、多岗位、代理 |
-| Phase 4 Workflow & Messaging | done | 模板 E、审批流、消息中心、多视图 |
-| Phase 5 Knowledge & AI | done | 知识库、RAG、`@系统`、Push、PWA |
-| 重构 Step 1–7 | done | IA 壳层、任务中心、汇报、人员工作台 |
-| UI IA Phase A–F | done | 登录/壳层/任务/汇报/组织/总览 |
-| 工作流图引擎 Phase 11 | done | dual-write、多节点、outbox、graph-first 读路径 |
-| 工作流 E 首批 | done | 模板实例运行态、扇出/汇聚、设计器 |
-| Stage 2 Phase 0–6 | done | 模板治理、生命周期联动、邀请注册、消息深化 |
-| 视频工作流 v1 W0–W10 | done | 选题会、表单引擎、按题 fork、E2E 硬化 |
-| Memory-Bank Phase 0–4 | done | 协议层 + HOT/WARM/COLD + 对齐审查 |
-| 任务中心 v2 设计 | done | UX 规格 v2.1 + 交互 Demo 评审通过（2026-06-18） |
-| 任务中心 v2 TC-P0 | done | Action Profile、N1 单表单、Run 列、用户态 @ `7bc242c` |
-| 任务中心 v2 TC-P1 | done | `dispatch_topic`、VideoTrackingPanel、打回/退回、participant 收口 |
-| 任务中心 v2 TC-P2 | done | 三视图 + 统计 Tab + `TaskDetailShell` + `ui_profile` @ `0.88.0` |
-| 任务中心 v2 TC-P2+ | done | Legacy E UI 移除、图模板单入口 @ `0.89.0` |
+| Phase A–5 · 重构 · UI IA | done | 模块化单体基线 |
+| 工作流图引擎 Phase 11 | done | graph-first · dual-write · outbox |
+| 视频工作流 v1 W0–W10 | done | 选题会 · fork · E2E |
+| 任务中心 v2 TC-P0–P2+ | done | 三视图 · 统计 Tab · Shell @ `0.89.0` |
+| TCE Phase 1–5 | done | 读模型 · 多部门 B-16 · TC-P3 @ 2026-06-21 |
+| 图模板设计器 D1–D3 | done | authoring · 拓扑 · dry-run |
+| 视频 Live E2E A–F | done | streaming · 8080 7/7 @ `b3e7918` |
 
 ---
 
-## 🔥 下一焦点（P0）
+## 任务中心产品架构（三大模块）
 
-| 优先级 | 主题 | 目标 | 计划入口 |
-|--------|------|------|----------|
-| **P0** | **任务中心架构债** | B-12 Legacy E 统一 · F-05 Shell 拆分 · E2E 基线刷新 | [`active-task.md`](./active-task.md) · [`domains/task-center.md`](./domains/task-center.md) §10 |
-
-**TCE 阶段切片**
-
-| 阶段 | 交付概要 | 状态 |
-|------|----------|------|
-| Phase 1 | B-01/B-03/B-02 + F-02/F-03/F-08（PR-A/PR-B） | ✅ **完成** |
-| Phase 2 | batch API、snapshot 字段、hydration（B-04–B-07, F-01, F-04, F-07） | ✅ **完成** |
-| Phase 3 | 部门统计、Shell 拆分、分页（B-06, B-09–B-11, F-06, F-09） | ✅ **完成** |
-| Phase 4 | 多文案部门共用模板（B-16, F-17 §6.2.1） | ✅ **完成** |
-| Phase 5 | **TC-P3**（aggregate_mode、结束采集）+ 清理 | ✅ **完成**（B-12 另立项） |
-
-**TC-P0–P2 切片（已完成）**
-
-| 阶段 | 交付概要 | 状态 |
-|------|----------|------|
-| TC-P0 | Profile + N1 单表单 + 进度文案 + 列表 Run 列 | ✅ |
-| TC-P1 | `dispatch_topic` + 跟踪页增量派发 + submit_mode/退回 | ✅ |
-| TC-P2 | 看板/甘特/统计入口 + `TasksView` 拆分 | ✅ @ `0.88.0` |
-
----
-
-## 🚧 并行 / 后续焦点
-
-| 优先级 | 主题 | 目标 | 计划入口 |
-|--------|------|------|----------|
-| P1 | 工作流 E 与图引擎统一 | 产品级单一模板源（**B-12** backlog） | `task-center-enhance.md` §8 · ADR-005 |
-| P2 | 生命周期规则化 | 默认映射 + 前端结构化配置 | `plans/improvements-stage2-implementation-plan.md` §11 |
-| P2 | 通知渠道深化 | 真实 Email/WebSocket、投递观测 | 同上 |
-| P2 | Docker 图模板实测收尾 | A–F 手工 / live E2E | `handbooks/workflow-video-v1-docker-runbook.md` |
-| P3 | 注册方式扩展 | 公开/审批式注册（产品决策后） | `project-brief.md` |
-| P3 | E2E 基线刷新 | Playwright live、docker-gui、UAT 与发布 commit 同步 | `handbooks/e2e-gui-verification-automation-runbook.md` |
-| 暂缓 | Ubuntu 最小回滚演练 | git 回退 + systemd ± 迁移 rollback dry-run | `deployment-runbook-ubuntu-2404.md` §21.8 |
-
----
-
-## 📋 计划中（中长期）
-
-| 方向 | 说明 | 触发条件 |
+| 模块 | 入口 | 改造焦点 |
 |------|------|----------|
-| 岗位编辑器工作台 | 结构化岗位权限与可见范围 | Stage 2 后续增强 |
-| S3 兼容对象存储 | 附件存储生产化 | 部署规模扩大 |
-| 工作流设计器拖拽化 | 非当前首版目标 | 结构化设计器稳定后 |
-| 国际化 | 多语言 UI | 产品需求明确 |
+| **单步任务** | 建立任务 | F-22 抄送 · F-21 跨部门 |
+| **任务流** | 任务模板实例化 | **F-28** 多部门池 · F-23 模板链 · F-26 设计器 |
+| **任务统计** | stats Tab | S-01 周期/绩效（暂缓立项） |
+
+决策索引：[`decisions.md`](./decisions.md) **ADR-009**（单步）· **ADR-010**（任务流）
+
+---
+
+## 改造计划（TC-Transform）
+
+按依赖排序；细项与代码锚点见 [`domains/task-center.md`](./domains/task-center.md) §6–§13。
+
+### Phase 0 — 架构收口（P0）· 立即
+
+| ID | 交付 | 验收 |
+|----|------|------|
+| **B-12** | 删除 Legacy E runtime（`task_templates` API · `TaskTemplateService` · Legacy 定时） | 实例化/调度仅图引擎；迁移或归档历史 E 实例 |
+| **F-05** | `TaskDetailShell` 完整拆分 | 可维护性；行为不变 |
+| **E2E 基线** | UAT / docker-gui / Playwright live 与 `b3e7918` 同步 | CI/手工 runbook 绿 |
+
+### Phase 1 — 正确性 + 单步补齐（P1）· Phase 0 后
+
+| ID | 交付 | 验收 |
+|----|------|------|
+| **F-28** | 制作 fork 时 **`copywriters` 池 = 批次发起部门**（或 `instance_department` 语义） | B 部 Run → N4/N12 → B 部经理；A → A；`post_production` 仍固定 C |
+| **F-22** | 建立任务 Dialog + `TaskCreateRequest.watcher_user_ids` | 创建即 `TaskWatcher` + 通知 |
+| **F-10–F-12** | 抛光（PublishDialog 抽出等） | 可选并行 |
+
+**F-28 为阻塞项**：多文案部共用模板的产品承诺；优先于 F-23。
+
+### Phase 2 — 任务流能力扩展（P2）
+
+| ID | 交付 | 验收 |
+|----|------|------|
+| **F-23** | **通用模板链**：Run/节点完成 → 配置触发下一 `WorkflowGraphTemplate`；发布时 **防环** | 不限于 video fork；拒绝 A→B→A |
+| **F-27** | 任务流 **跨部门边界 CC**（组织树 manager，不经负责人门控） | 与 F-21 共享路由内核 |
+| **F-21** | 单步 **跨部门路由 + 路径 CC** | 组织树；深树性能记 tech debt |
+| **W-08** | streaming 模式 **N2 空壳/engine skip** | ROOT-only 增量派发 UX 一致 |
+| **F-26** | 设计器 **`department_pools` 部门选择器** + 逐步去 JSON | 含 launch_schema/routing 表单化 |
+
+### Phase 3 — 体验与共用增强（P3+）
+
+| ID | 交付 | 验收 |
+|----|------|------|
+| **F-25** | 附件预览/试听（md/docx/xlsx/wav/图片） | 单步 + 任务流交付物 |
+| **F-24** | 部门/子树 **图模板定时实例化** | ✅ schedulable · 双 Tab · 重叠校验 · 通知 · run-now |
+| **S-01** | 任务统计：周期 rollup + 绩效入口 | 产品立项后；可独立路由 |
+
+### Phase 4 — 中长期（P4）
+
+| ID | 交付 |
+|----|------|
+| **项目组** | 跨部门成员编组派活（G-02；替代组织树 hack） |
+| 设计器拖拽化 · S3 · i18n | 见「中长期」表 |
+
+---
+
+## 能力差距速查
+
+### 单步（ADR-009）
+
+| ID | 决策 | 工程项 | 阶段 |
+|----|------|--------|------|
+| G-04 | 创建须抄送 | F-22 | 1 |
+| G-01 | 跨部门 + CC | F-21 | 2 |
+| G-03 | 自派 → 备忘 | — | — |
+| G-05 | 仅图引擎 | B-12 | 0 |
+
+### 任务流（ADR-010）
+
+| ID | 议题 | 工程项 | 阶段 |
+|----|------|--------|------|
+| W-09 | A/B 制作链经理不串 | **F-28** | **1** |
+| W-03 | 通用完成后触发模板 | F-23 | 2 |
+| W-07 | 跨部门 CC（组织树） | F-27 | 2 |
+| W-02/W-06 | 模板定 pools · 去 JSON | F-26 | 2–3 |
+| W-04 | 部门定时 | **F-24** ✅ | — |
+| W-05 | 附件预览 | F-25 | 3 |
+| W-08 | streaming/N2 | TBD | 2 |
+
+### 统计
+
+| ID | 议题 | 阶段 |
+|----|------|------|
+| S-01 | 周期/绩效 | 暂缓 |
+
+---
+
+## 🔥 当前执行顺序（推荐）
+
+```
+B-12 ─┬─► F-28 ─► F-22
+      ├─► F-05
+      └─► E2E 基线
+              │
+              ▼
+      F-23 · F-27/F-21 · W-08 · F-26
+              │
+              ▼
+      F-25 · F-24 · S-01（立项后）
+```
+
+**下一 actionable**：**F-25**（附件预览）；S-01 立项后独立推进。
 
 ---
 
 ## 并行工作线
 
 ```
-主线（产品）────────── 任务中心增强 TCE（Phase 1 就绪 → PR-A/PR-B）
-        │
-        ├─ 视频 v1 ──── 选题会模板运维；Phase 4 多部门实例化（§6）
-        ├─ 工作流 E ─── 后端待删；统一评估 → TCE Phase 5（TC-P3）
-        ├─ 工程质量 ─── Docker 实测 / E2E live 基线 / B-03 迁移
-        └─ memory-bank ─ Paradigma 维护
+主线 ─── TC-Transform Phase 0→1→2
+  ├─ 架构 B-12 / F-05
+  ├─ 任务流 F-28 → F-23
+  ├─ 单步 F-22 → F-21
+  ├─ 设计器 F-26
+  └─ 质量 E2E / Docker live
 ```
 
-细计划见 [`plans/task-center-enhance.md`](./plans/task-center-enhance.md)、[`plans/task-center-v2-implementation-plan.md`](./plans/task-center-v2-implementation-plan.md)、[`plans/implementation-plan.md`](./plans/implementation-plan.md)。
+细计划：[`plans/task-center-enhance.md`](./plans/task-center-enhance.md) · [`plans/implementation-plan.md`](./plans/implementation-plan.md)
+
+---
+
+## 📋 中长期（非任务中心主线）
+
+| 方向 | 说明 |
+|------|------|
+| 岗位编辑器工作台 | Stage 2 增强 |
+| S3 对象存储 | 附件生产化 |
+| 国际化 | 产品需求后 |
+| Ubuntu 回滚演练 | 暂缓 |

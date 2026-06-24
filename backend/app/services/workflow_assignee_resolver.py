@@ -25,6 +25,41 @@ def parse_department_pools(template: WorkflowGraphTemplate) -> dict[str, UUID]:
   return parsed
 
 
+def build_production_department_pools(
+  *,
+  template_pools: dict[str, Any] | None,
+  launch_department_id: UUID | None,
+) -> dict[str, UUID]:
+  """F-28: merge template pools; copywriters follows batch launch department."""
+  parsed: dict[str, UUID] = {}
+  if isinstance(template_pools, dict):
+    for key, value in template_pools.items():
+      if value is None:
+        continue
+      parsed[str(key)] = UUID(str(value))
+  if launch_department_id is not None:
+    parsed["copywriters"] = launch_department_id
+  return parsed
+
+
+def resolve_department_pools(
+  template: WorkflowGraphTemplate,
+  context: dict[str, Any] | None = None,
+) -> dict[str, UUID]:
+  """Template pools overridden by instance context department_pools (string UUIDs)."""
+  pools = parse_department_pools(template)
+  if not isinstance(context, dict):
+    return pools
+  ctx_pools = context.get("department_pools")
+  if not isinstance(ctx_pools, dict):
+    return pools
+  for key, value in ctx_pools.items():
+    if value is None:
+      continue
+    pools[str(key)] = UUID(str(value))
+  return pools
+
+
 async def resolve_node_assignee_id(
   session: AsyncSession,
   *,
@@ -61,7 +96,7 @@ async def resolve_node_assignee_id(
     department_id=department_id,
     allow_multiple=False,
     context=resolved_context,
-    department_pools=parse_department_pools(template),
+    department_pools=resolve_department_pools(template, resolved_context),
   )
   if not users:
     raise ConflictError(f"节点 {template_node.node_key} 无法解析受理人。")

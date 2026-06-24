@@ -56,12 +56,14 @@ from app.services.workflow_node_config_helpers import resolve_completion_policy
 from app.services.workflow_rule_resolver import resolve_user_targets_from_rule
 from app.services.access_control import (
   MANAGEMENT_ROLES,
-  can_publish_org_tasks,
   can_manage_assignee,
+  can_publish_org_tasks,
   ensure_active_user,
   ensure_department_stats_access,
+  get_actor_department_id,
   get_managed_department_ids,
 )
+from app.services.cross_department_routing_service import resolve_cross_department_boundary_cc_user_ids
 from app.services.notification_service import NotificationService
 from app.services.condition_evaluator import evaluate_routing_rules
 from app.services.task_user_facing_state import resolve_task_run_label, resolve_task_user_facing_state
@@ -1135,9 +1137,14 @@ class TaskService:
     if assignee is None:
       raise NotFoundError("执行人不存在。")
     ensure_active_user(assignee)
-    if not skip_assignee_permission and not await can_manage_assignee(self._session, actor, assignee_id):
-      raise AuthorizationError("当前账号不能为该执行人创建任务。")
-    return assignee
+    if skip_assignee_permission:
+      return assignee
+    if await can_manage_assignee(self._session, actor, assignee_id):
+      return assignee
+    # F-21: cross-department routing — org publishers may assign outside subtree.
+    if await can_publish_org_tasks(self._session, actor):
+      return assignee
+    raise AuthorizationError("当前账号不能为该执行人创建任务。")
 
   async def _resolve_task_department_id(
     self,
@@ -2013,6 +2020,7 @@ class TaskService:
     priority: TaskPriority = TaskPriority.MEDIUM,
     dependency_ids: list[UUID] | None = None,
     attachment_ids: list[UUID] | None = None,
+    watcher_user_ids: list[UUID] | None = None,
   ) -> Task:
     task, _ = await self.create_task_record(
       actor=actor,
@@ -2027,6 +2035,22 @@ class TaskService:
       source_type=TaskSourceType.MANUAL,
       commit=True,
     )
+    merged_watcher_ids = list(dict.fromkeys(watcher_user_ids or []))
+    actor_department_id = await get_actor_department_id(self._session, actor.id)
+    assignee_department_id = await get_actor_department_id(self._session, assignee_id)
+    path_cc_ids = await resolve_cross_department_boundary_cc_user_ids(
+      self._session,
+      origin_department_id=actor_department_id,
+      target_department_id=assignee_department_id,
+      exclude_user_ids={actor.id, assignee_id},
+    )
+    merged_watcher_ids = list(dict.fromkeys([*merged_watcher_ids, *path_cc_ids]))
+    if merged_watcher_ids:
+      await self.add_task_watchers(
+        actor=actor,
+        task_id=task.id,
+        watcher_user_ids=merged_watcher_ids,
+      )
     return task
 
   async def list_tasks(self, *, actor: User) -> list[Task]:

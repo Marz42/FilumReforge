@@ -189,6 +189,7 @@ async def create_task(
     priority=payload.priority,
     dependency_ids=payload.dependency_ids or None,
     attachment_ids=payload.attachment_ids or None,
+    watcher_user_ids=payload.watcher_user_ids or None,
   )
   return TaskRead.model_validate(task)
 

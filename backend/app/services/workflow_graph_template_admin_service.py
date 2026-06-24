@@ -42,7 +42,12 @@ from app.schemas.workflow_graph import (
   WorkflowGraphTemplateUpdateRequest,
   WorkflowGraphTemplateValidateResponse,
 )
-from app.schemas.workflow_video import validate_launch_schema, validate_node_config
+from app.schemas.workflow_video import (
+  validate_launch_schema,
+  validate_node_config,
+  validate_on_complete_config,
+)
+from app.services.workflow_graph_template_chain_service import validate_on_complete_for_publish
 from app.services.access_control import can_manage_task_templates, ensure_active_user
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_template_topology import (
@@ -238,6 +243,7 @@ class WorkflowGraphTemplateAdminService:
     nodes = await self._load_node_details(template_id=template_id)
     edges = await self._load_edge_details(template_id=template_id)
     errors = self._collect_validation_errors(template=template, nodes=nodes, edges=edges)
+    errors.extend(await validate_on_complete_for_publish(self._session, template=template))
     return WorkflowGraphTemplateValidateResponse(valid=not errors, errors=errors)
 
   async def export_template(self, *, actor: User, template_id: UUID) -> WorkflowGraphTemplateExportBundle:
@@ -797,6 +803,16 @@ class WorkflowGraphTemplateAdminService:
         validate_launch_schema(launch_schema_raw)
       except PydanticValidationError as exc:
         errors.append(f"launch_schema: {exc.errors()[0]['msg']}")
+
+    on_complete_raw = config.get("on_complete")
+    if on_complete_raw is not None:
+      if not isinstance(on_complete_raw, dict):
+        errors.append("on_complete 必须是对象。")
+      else:
+        try:
+          validate_on_complete_config(on_complete_raw)
+        except PydanticValidationError as exc:
+          errors.append(f"on_complete: {exc.errors()[0]['msg']}")
 
     node_keys = {node.node_key for node in nodes}
     aggregate_node_key = config.get("aggregate_node_key")

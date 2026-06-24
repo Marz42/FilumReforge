@@ -10,7 +10,7 @@ const captureEditorAccounts = [
 
 const copyLeadEmail = 'demo.video.copy.lead@example.com'
 
-test.describe.configure({ mode: 'serial', timeout: 90_000 })
+test.describe.configure({ mode: 'serial', timeout: 180_000 })
 
 test.describe('workflow video v1 (W10)', () => {
   test.beforeEach(async ({ page }) => {

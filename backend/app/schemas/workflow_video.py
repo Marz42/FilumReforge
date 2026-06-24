@@ -64,6 +64,13 @@ class AcceptanceSpecSchema(BaseModel):
   reject_to: AcceptanceRejectToSchema | None = None
 
 
+class OnCompleteTemplateChainSchema(BaseModel):
+  """F-23: trigger next graph template when a run completes."""
+
+  next_template_code: str = Field(min_length=1, max_length=64)
+  carry_inputs: bool = True
+
+
 class AggregateOnConfirmSchema(BaseModel):
   action: AggregateOnConfirmAction
   child_template_code: str | None = Field(default=None, max_length=64)
@@ -364,6 +371,20 @@ def validate_launch_schema(payload: dict[str, Any]) -> LaunchSchema:
   return LaunchSchema.model_validate(payload)
 
 
+def validate_on_complete_config(payload: dict[str, Any]) -> OnCompleteTemplateChainSchema:
+  return OnCompleteTemplateChainSchema.model_validate(payload)
+
+
+def parse_on_complete_config(config: dict[str, Any]) -> OnCompleteTemplateChainSchema | None:
+  raw = config.get("on_complete")
+  if not isinstance(raw, dict):
+    return None
+  try:
+    return validate_on_complete_config(raw)
+  except ValidationError:
+    return None
+
+
 def validate_capture_schema(payload: dict[str, Any]) -> CaptureSchema:
   return CaptureSchema.model_validate(payload)
 
@@ -389,6 +410,7 @@ __all__ = [
   "CreateGraphTemplateRunResponse",
   "DepartmentRunSummaryRead",
   "LaunchSchema",
+  "OnCompleteTemplateChainSchema",
   "ParticipantPolicyDefinition",
   "ParticipantUserPreview",
   "ParticipantsSnapshotEntry",
@@ -404,6 +426,8 @@ __all__ = [
   "validate_aggregate_schema",
   "validate_capture_schema",
   "validate_launch_schema",
+  "validate_on_complete_config",
+  "parse_on_complete_config",
   "validate_node_config",
   "validate_run_context",
   "ValidationError",

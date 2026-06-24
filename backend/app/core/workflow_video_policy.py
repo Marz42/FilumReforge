@@ -1,8 +1,7 @@
 """Video workflow v1 policy helpers (W0+).
 
 Graph template instantiation (batch / production runs) is gated by
-``workflow_graph_template_engine_enabled``. Task-template E instantiation
-remains the legacy default path until W3+ routes call the graph engine.
+``workflow_graph_template_engine_enabled``. Legacy task-template E instantiation was removed in B-12 (TC-Transform Phase 0).
 
 Environment variables (W9-3):
 - ``WORKFLOW_GRAPH_ENGINE_ENABLED`` → ``workflow_graph_engine_enabled`` (default true)
@@ -24,13 +23,9 @@ def use_graph_template_instantiation(settings: Settings | None = None) -> bool:
 
 
 def use_legacy_task_template_instantiation(settings: Settings | None = None) -> bool:
-  """Return True when ``TaskTemplateService.instantiate_template`` remains available.
-
-  Legacy instantiation stays enabled regardless of the graph template flag until
-  an explicit deprecation phase (see workflow-video-v1 W10).
-  """
+  """Return True when Legacy E ``TaskTemplateService`` APIs are available (removed in B-12)."""
   _ = settings or get_settings()
-  return True
+  return False
 
 
 def use_workflow_graph_engine(settings: Settings | None = None) -> bool:

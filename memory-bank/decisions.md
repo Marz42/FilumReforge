@@ -97,7 +97,7 @@
 
 **后果**
 两套入口需文档与测试双覆盖；迁移 CLI 与 feature flag 回退路径已建立。  
-**2026-06-21 更新**（@ TCE Phase 5 + 设计器 D1–D3）：前端单入口 + snapshot 图模板摘要 + **图模板设计器**（`WorkflowGraphTemplateAdminService`）已完成；后端 E API **仍保留** — 删除见 **B-12** backlog。
+**2026-06-23 更新**（ADR-009）：**B-12 目标明确为删除 Legacy E runtime、仅保留图引擎**；单步抄送 **F-22**、跨部门 **F-21** 已立项。前端单入口 + 图模板设计器已完成；E API **待 P0 删除**。
 
 ---
 
@@ -160,3 +160,68 @@ Agent 协作需知识温度分层与统一 Update 工作流。
 
 **后果**  
 文档迁移分 Phase 进行；`design-document`/`tech-stack` 保留只读完整版。
+
+---
+
+## ADR-009: 单步任务产品边界与能力差距决策
+
+**日期**: 2026-06-23  
+**状态**: 已采纳  
+**背景**: 设计意图对照代码审查（单步任务 G-01–G-06）；需统一产品边界与 roadmap 排期。
+
+**决策**
+
+1. **任务中心两类任务**：**单步任务**（「建立任务」· `MANUAL` · `graph_manual`）与 **任务流任务**（图模板实例化 · `WorkflowGraph*`）。
+2. **单步发布范围**：依 **`Department.manager_id` 管辖子树**（含 Admin/HR 全员、部门 `PUBLISH_ORG_TASK` 本部门）；**不**改用 `ReportingLine`。
+3. **跨部门单步（G-01）**：列为 **新产品能力 F-21**（部门路径路由 + 路径节点自动 CC）；深树性能记技术债。
+4. **跨部门协作远期（G-02）**：走 **「项目组」**（多部门成员编组），非组织树 hack；单独立项 P4。
+5. **自派任务（G-03）**：**不属于任务中心**；个人待办走 **`task_memos` 备忘**，不扩展「建立任务」给普通员工自派。
+6. **抄送（G-04）**：手动建立单步任务 **必须支持抄送人** — **F-22**（`TaskCreateRequest.watcher_user_ids` + 发布 Dialog）。
+7. **Runtime（G-05）**：**移除 Legacy E runtime**，任务模板与实例化 **仅图引擎** — **B-12**（强化 ADR-005 后果）。
+
+**后果**  
+Roadmap P0=B-12；P1=F-22；P2=F-21；文档见 [`roadmap.md`](./roadmap.md) · [`domains/task-center.md`](./domains/task-center.md) §6。
+
+---
+
+## ADR-010: 任务流产品边界与能力差距决策
+
+**日期**: 2026-06-23  
+**状态**: 已采纳  
+**背景**: 任务中心三大模块之 **任务流**；设计意图对照代码（W-01–W-09）及多部门/fork 讨论。
+
+**决策**
+
+1. **统一入口**：任务流仅 **图模板实例化**（`POST .../workflow-graph/templates/{id}/runs`）；Legacy E 删除见 **B-12**。
+2. **多部门共用模板**：批次 **B-16 `instance_department`** + 制作链 **`department_pools`**（固定目标部门 C 在 **制作模板 config** 定死 UUID）；**F-28** 修复 `copywriters` 池须随 **发起部门** 解析（A→A 经理，B→B 经理）。
+3. **模板链（W-03）**：**通用能力 F-23** — Run/节点完成可触发下一图模板；**禁止** A→B→A（发布时环检测 + 运行时 guard）；现状仅 video **fork** 子集。
+4. **部门定时（W-04）**：**F-24** — 见 **ADR-011**；不沿用 Legacy `TaskSchedule`+cron；`config.schedulable` + 建立任务「定时派发」Tab。
+5. **附件（W-05）**：预览/试听 **F-25** P3+。
+6. **设计器（W-06）**：JSON/cron → 表单组件 **F-26**；含 `department_pools` 部门选择器。
+7. **跨部门跳转 CC（W-07）**：任务直达执行人、**不经部门负责人门控**；边界 **抄送组织树 manager** — **F-27**（与 F-21 同路由思路）。
+8. **任务统计（S-01）**：周期/绩效 **暂不立项**；现状 gap 仅文档化。
+
+**后果**  
+改造计划 **TC-Transform** Phase 0–3 见 [`roadmap.md`](./roadmap.md)；全貌 [`domains/task-center.md`](./domains/task-center.md) §7–§8。
+
+---
+
+## ADR-011: 部门图模板周期调度（F-24 / W-04）
+
+**日期**: 2026-06-23  
+**状态**: 已采纳  
+**背景**: 产品审阅 F-24 细化方案；替代 Legacy E `TaskSchedule`（B-12 已 no-op）。
+
+**决策**
+
+1. **实体**：`workflow_graph_template_schedules` — 绑定 **ACTIVE** 且 `config.schedulable=true` 的图模板。
+2. **范围**：`scope_mode=self` 或 `subtree`（递归含所有 **active** 子部门）；可 **exclude_department_ids** / **exclude_user_ids**；参与人 **all/subset** 可编辑。
+3. **触发**：部门 **manager** 为 actor；每部门每 tick 一个 **batch** Run；**禁止** streaming / production 模板。
+4. **重叠**：`skip_if_active` 固定开启；**发布/启用调度时**校验目标部门无同模板 ACTIVE Run。
+5. **入口**：任务中心 **建立任务** Dialog → Tab「单步任务 | **定时派发**」。
+6. **通知**：创建/更新启用时向相关部门 manager 发送「您有一个新的周期任务，下一次开始于 …」。
+7. **立即执行**：`POST .../schedules/{id}/run-now` 允许。
+8. **Worker**：复用 `run_due_task_schedules_job`，ARQ cron 每 5 分钟扫描。
+
+**后果**  
+API `/workflow-graph/schedules`；设计器 **schedulable** 开关；Legacy `/task-templates/schedules` 废弃。

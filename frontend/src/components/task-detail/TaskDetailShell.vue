@@ -25,8 +25,9 @@ import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
 import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import { resolveActiveStepTaskId } from '@/domain/workflow-graph/activeStepTask'
-import TaskDetailMoreMenu from '@/components/task-detail/TaskDetailMoreMenu.vue'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
+import TaskDetailHeaderBar from '@/components/task-detail/TaskDetailHeaderBar.vue'
+import TaskDetailMetadataPanel from '@/components/task-detail/TaskDetailMetadataPanel.vue'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
   isVideoWorkflowProfile,
@@ -38,7 +39,6 @@ import {
   TASK_USER_FACING_STATE_LABELS,
   userFacingStateTagType,
 } from '@/domain/task-detail/user-state'
-import { decideStepRun } from '@/api/task-templates'
 import { listUsers } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import type { WorkflowRunEventItem } from '@/types/workflowVideo'
@@ -47,7 +47,6 @@ import type {
   Department,
   Task,
   TaskActivityEntry,
-  TaskPriority,
   TaskCenterUserOption,
   TaskStatus,
   TaskWatcher,
@@ -69,34 +68,6 @@ type StatusAction = {
   label: string
   status: TaskStatus
   buttonType: 'primary' | 'warning' | 'success'
-}
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  todo: '待办',
-  doing: '进行中',
-  review: '评审中',
-  done: '已完成',
-}
-
-const STATUS_TAG_TYPES: Record<TaskStatus, '' | 'info' | 'warning' | 'success'> = {
-  todo: 'info',
-  doing: 'warning',
-  review: '',
-  done: 'success',
-}
-
-const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  low: '低',
-  medium: '中',
-  high: '高',
-  urgent: '紧急',
-}
-
-const PRIORITY_TAG_TYPES: Record<TaskPriority, '' | 'info' | 'warning' | 'danger'> = {
-  low: 'info',
-  medium: '',
-  high: 'warning',
-  urgent: 'danger',
 }
 
 const NEXT_STATUS_ACTIONS: Record<Exclude<TaskStatus, 'done'>, StatusAction> = {
@@ -575,10 +546,6 @@ function resolveRunEventLabel(eventType: string): string {
   return EVENT_TYPE_LABELS[eventType] ?? eventType
 }
 
-function normalizeTagType(value: '' | 'info' | 'warning' | 'success' | 'danger'): 'info' | 'warning' | 'success' | 'danger' | undefined {
-  return value || undefined
-}
-
 function resolveDepartmentName(departmentId: string | null): string {
   if (!departmentId) {
     return '—'
@@ -632,14 +599,6 @@ function formatNodeDuration(node: WorkflowNodeInstanceSummary): string {
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours} 小时`
   return `${Math.floor(hours / 24)} 天`
-}
-
-function resolveStatusLabel(status: TaskStatus): string {
-  return STATUS_LABELS[status]
-}
-
-function resolvePriorityLabel(priority: TaskPriority): string {
-  return PRIORITY_LABELS[priority]
 }
 
 function resolveTaskListRunLabel(task: Task): string {
@@ -1009,22 +968,25 @@ async function handleDeliverableReview(action: 'approve' | 'return_for_rework', 
 }
 
 async function handleApprovalDecide(decision: 'approved' | 'rejected' | 'returned'): Promise<void> {
-  const task = selectedTask.value
-  if (!task) return
-  const meta = task.extra_metadata as Record<string, unknown>
-  const templateId = meta?.template_id as string | undefined
-  const instanceId = meta?.template_instance_id as string | undefined
-  const stepRunId = meta?.template_step_run_id as string | undefined
-  if (!templateId || !instanceId || !stepRunId) {
-    ElMessage.error('无法获取模板审核上下文，请联系管理员')
+  if (decision === 'approved') {
+    await handleDeliverableReview('approve', deliverableReviewForm.comment)
+    return
+  }
+
+  const comment = rejectCommentText.value.trim()
+  if (!comment) {
+    ElMessage.error('驳回修改时必须填写原因')
     return
   }
 
   approvalSubmitting.value = true
   try {
-    const comment = rejectCommentText.value.trim() || undefined
-    await decideStepRun(templateId, instanceId, stepRunId, decision, comment)
-    ElMessage.success(decision === 'approved' ? '已审核通过' : '已驳回，步骤将重新激活')
+    await reviewTaskDeliverable(selectedTask.value!.id, {
+      action: 'return_for_rework',
+      comment,
+      quality_score: null,
+    })
+    ElMessage.success('已驳回，任务将重新激活')
     rejectCommentDialogVisible.value = false
     rejectCommentText.value = ''
     await reloadAfterAction()
@@ -1158,124 +1120,44 @@ watch(
   <div class="task-detail-shell">
     <el-card shadow="never" class="page__detail" data-testid="tasks-detail-panel" v-loading="loading">
           <template #header>
-            <div class="page__header">
-              <span>任务协同详情</span>
-              <div v-if="showCloseCaptureButton" style="display: flex; gap: 8px; align-items: center">
-                <el-button
-                  type="warning"
-                  :loading="closeCaptureSubmitting"
-                  data-testid="video-batch-close-capture"
-                  @click="handleCloseCapture"
-                >
-                  结束采集
-                </el-button>
-              </div>
-              <div v-else-if="showDetailHeaderActions" style="display: flex; gap: 8px; align-items: center">
-                <template v-if="canDecideApproval">
-                  <el-button
-                    type="success"
-                    :loading="approvalSubmitting"
-                    @click="handleApprovalDecide('approved')"
-                  >
-                    审核通过
-                  </el-button>
-                  <el-button
-                    type="danger"
-                    :loading="approvalSubmitting"
-                    @click="openRejectDialog"
-                  >
-                    驳回修改
-                  </el-button>
-                </template>
-                <template v-else-if="canReviewDeliverable">
-                  <el-button
-                    type="success"
-                    :loading="approvalSubmitting"
-                    @click="handleDeliverableReview('approve', deliverableReviewForm.comment)"
-                  >
-                    验收通过
-                  </el-button>
-                  <el-button
-                    v-if="!useVideoProductionReviewMoreMenu"
-                    type="danger"
-                    :loading="approvalSubmitting"
-                    @click="openReworkDialog"
-                  >
-                    打回返工
-                  </el-button>
-                </template>
-                <template v-else-if="selectedTask && isGraphHandshakeTask && selectedTask.status === 'todo'">
-                  <el-button
-                    v-if="canAcceptTask"
-                    type="primary"
-                    :loading="handshakeSubmitting"
-                    @click="handleAcceptAssignment"
-                  >
-                    接受任务
-                  </el-button>
-                  <el-button
-                    v-if="canRejectTask"
-                    type="danger"
-                    plain
-                    :loading="handshakeSubmitting"
-                    @click="openHandshakeRejectDialog"
-                  >
-                    退回协商
-                  </el-button>
-                  <el-button
-                    v-if="canDelegateTask"
-                    type="warning"
-                    plain
-                    :loading="handshakeSubmitting"
-                    @click="openDelegateDialog"
-                  >
-                    转办
-                  </el-button>
-                  <el-button
-                    v-if="nextStatusAction && canAdvanceSelectedTaskByStatus"
-                    :type="nextStatusAction.buttonType"
-                    :loading="statusSubmitting"
-                    @click="handleStatusTransition"
-                  >
-                    {{ nextStatusAction.label }}
-                  </el-button>
-                </template>
-                <el-button
-                  v-else-if="canSubmitDeliverable && selectedTaskProfile.submitMode === 'file'"
-                  type="primary"
-                  :loading="videoProductionPanelRef?.submitting ?? false"
-                  data-testid="video-production-header-submit"
-                  @click="videoProductionPanelRef?.submit()"
-                >
-                  上传并提交
-                </el-button>
-                <el-button
-                  v-else-if="canSubmitDeliverable"
-                  type="warning"
-                  :loading="deliverableSubmitting"
-                  @click="handleSubmitDeliverable"
-                >
-                  提交交付物
-                </el-button>
-                <el-button
-                  v-else-if="selectedTask && nextStatusAction && canAdvanceSelectedTaskByStatus"
-                  :type="nextStatusAction.buttonType"
-                  :loading="statusSubmitting"
-                  @click="handleStatusTransition"
-                >
-                  {{ nextStatusAction.label }}
-                </el-button>
-              </div>
-              <TaskDetailMoreMenu
-                v-if="selectedTask && usesVideoWorkflowLayout"
-                :profile="selectedTaskProfile"
-                :task="selectedTask"
-                :graph-instance="graphInstance"
-                :can-manage-capture-reject="canManageCaptureReject"
-                :can-reject-production="canRejectProductionStep"
-                @action-done="reloadAfterAction"
-              />
-            </div>
+            <TaskDetailHeaderBar
+              :show-close-capture-button="showCloseCaptureButton"
+              :close-capture-submitting="closeCaptureSubmitting"
+              :show-detail-header-actions="showDetailHeaderActions"
+              :can-decide-approval="canDecideApproval"
+              :approval-submitting="approvalSubmitting"
+              :can-review-deliverable="canReviewDeliverable"
+              :use-video-production-review-more-menu="useVideoProductionReviewMoreMenu"
+              :deliverable-review-comment="deliverableReviewForm.comment"
+              :selected-task="selectedTask"
+              :is-graph-handshake-task="isGraphHandshakeTask"
+              :can-accept-task="canAcceptTask"
+              :can-reject-task="canRejectTask"
+              :can-delegate-task="canDelegateTask"
+              :handshake-submitting="handshakeSubmitting"
+              :next-status-action="nextStatusAction"
+              :can-advance-selected-task-by-status="canAdvanceSelectedTaskByStatus"
+              :status-submitting="statusSubmitting"
+              :can-submit-deliverable="canSubmitDeliverable"
+              :selected-task-profile="selectedTaskProfile"
+              :video-production-panel-ref="videoProductionPanelRef"
+              :deliverable-submitting="deliverableSubmitting"
+              :uses-video-workflow-layout="usesVideoWorkflowLayout"
+              :graph-instance="graphInstance"
+              :can-manage-capture-reject="canManageCaptureReject"
+              :can-reject-production-step="canRejectProductionStep"
+              @close-capture="handleCloseCapture"
+              @approval-decide="handleApprovalDecide"
+              @open-reject-dialog="openRejectDialog"
+              @deliverable-review="handleDeliverableReview('approve', deliverableReviewForm.comment)"
+              @open-rework-dialog="openReworkDialog"
+              @accept-assignment="handleAcceptAssignment"
+              @open-handshake-reject-dialog="openHandshakeRejectDialog"
+              @open-delegate-dialog="openDelegateDialog"
+              @status-transition="handleStatusTransition"
+              @submit-deliverable="handleSubmitDeliverable"
+              @action-done="reloadAfterAction"
+            />
           </template>
 
           <el-empty
@@ -1285,88 +1167,28 @@ watch(
           />
 
           <template v-if="selectedTask">
-            <div
-              v-if="selectedTaskProfile.compactMetadata"
-              class="page__compact-meta"
-              data-testid="task-detail-compact-meta"
-            >
-              <el-space wrap>
-                <span>
-                  用户态
-                  <el-tag :type="normalizeTagType(selectedTaskUserFacingTagType)" effect="plain">
-                    {{ selectedTaskUserFacingStateLabel }}
-                  </el-tag>
-                </span>
-                <span>截止时间 {{ formatDateTime(selectedTask.due_date) }}</span>
-                <span>所属部门 {{ resolveDepartmentName(selectedTask.department_id) }}</span>
-                <span>Run {{ resolveTaskListRunLabel(selectedTask) }}</span>
-                <span>执行人 {{ resolveUserLabel(selectedTask.assignee_id) }}</span>
-              </el-space>
-            </div>
-
-            <el-descriptions v-if="!selectedTaskProfile.compactMetadata" :column="1" border>
-              <el-descriptions-item label="任务标题">
-                {{ selectedTask.title }}
-              </el-descriptions-item>
-              <el-descriptions-item label="执行人">
-                {{ resolveUserLabel(selectedTask.assignee_id) }}
-              </el-descriptions-item>
-              <el-descriptions-item label="状态">
-                <el-tag :type="normalizeTagType(STATUS_TAG_TYPES[selectedTask.status])" effect="plain">
-                  {{ resolveStatusLabel(selectedTask.status) }}
-                </el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="优先级">
-                <el-tag :type="normalizeTagType(PRIORITY_TAG_TYPES[selectedTask.priority])" effect="plain">
-                  {{ resolvePriorityLabel(selectedTask.priority) }}
-                </el-tag>
-              </el-descriptions-item>
-              <el-descriptions-item label="所属部门">
-                {{ resolveDepartmentName(selectedTask.department_id) }}
-              </el-descriptions-item>
-              <el-descriptions-item label="截止时间">
-                {{ formatDateTime(selectedTask.due_date) }}
-              </el-descriptions-item>
-              <el-descriptions-item label="任务描述">
-                {{ selectedTask.description || '—' }}
-              </el-descriptions-item>
-              <el-descriptions-item v-if="!selectedTaskProfile.hideHandshakeFields" label="握手状态">
-                {{ handshakeStateLabel }}
-              </el-descriptions-item>
-              <el-descriptions-item v-if="!selectedTaskProfile.hideHandshakeFields && isGraphHandshakeTask && workflowNodeIteration > 1" label="迭代版本">
-                V{{ workflowNodeIteration }}（系统深度打回重放）
-              </el-descriptions-item>
-              <el-descriptions-item v-if="isGraphHandshakeTask && workflowDeepRejectionReason" label="打回原因">
-                {{ workflowDeepRejectionReason }}
-              </el-descriptions-item>
-              <el-descriptions-item label="最近协商原因">
-                {{ latestRejectReason }}
-              </el-descriptions-item>
-              <el-descriptions-item label="最近转办原因">
-                {{ latestDelegateReason }}
-              </el-descriptions-item>
-              <el-descriptions-item label="最新交付说明">
-                {{ latestDeliverableSummary }}
-              </el-descriptions-item>
-              <el-descriptions-item label="最近提交时间">
-                {{ formatDateTime(latestDeliverableSubmittedAt) }}
-              </el-descriptions-item>
-              <el-descriptions-item label="完成质量评分">
-                {{ latestReviewQualityScore ? `${latestReviewQualityScore}/5` : '—' }}
-              </el-descriptions-item>
-              <el-descriptions-item label="返工次数">
-                {{ reworkCount }}
-              </el-descriptions-item>
-              <el-descriptions-item label="最近返工原因">
-                {{ latestReworkReason }}
-              </el-descriptions-item>
-              <el-descriptions-item v-if="graphParentInstanceId" label="所属批次">
-                实例 {{ graphParentInstanceId.slice(0, 8) }}…
-              </el-descriptions-item>
-              <el-descriptions-item v-if="graphRunKind" label="运行类型">
-                {{ graphRunKind === 'batch' ? '批次 Run' : graphRunKind === 'production' ? '制作 Run' : graphRunKind }}
-              </el-descriptions-item>
-            </el-descriptions>
+            <TaskDetailMetadataPanel
+              :task="selectedTask"
+              :profile="selectedTaskProfile"
+              :user-facing-state-label="selectedTaskUserFacingStateLabel"
+              :user-facing-tag-type="selectedTaskUserFacingTagType"
+              :handshake-state-label="handshakeStateLabel"
+              :is-graph-handshake-task="isGraphHandshakeTask"
+              :workflow-node-iteration="workflowNodeIteration"
+              :workflow-deep-rejection-reason="workflowDeepRejectionReason"
+              :latest-reject-reason="latestRejectReason"
+              :latest-delegate-reason="latestDelegateReason"
+              :latest-deliverable-summary="latestDeliverableSummary"
+              :latest-deliverable-submitted-at="latestDeliverableSubmittedAt"
+              :latest-review-quality-score="latestReviewQualityScore"
+              :rework-count="reworkCount"
+              :latest-rework-reason="latestReworkReason"
+              :graph-parent-instance-id="graphParentInstanceId"
+              :graph-run-kind="graphRunKind"
+              :resolve-department-name="resolveDepartmentName"
+              :resolve-user-label="resolveUserLabel"
+              :resolve-run-label="resolveTaskListRunLabel"
+            />
 
             <VideoTrackingPanel
               v-if="showVideoTrackingPanel && graphInstance"
@@ -1810,10 +1632,6 @@ watch(
 
 .page__detail {
   min-height: 100%;
-}
-
-.page__compact-meta {
-  margin-bottom: 16px;
 }
 
 .page__watchers {

@@ -46,7 +46,11 @@ from app.services.participant_resolution_service import (
   ParticipantResolutionService,
   resolve_assignee_from_rule,
 )
-from app.services.workflow_assignee_resolver import parse_department_pools, resolve_node_assignee_id
+from app.services.workflow_assignee_resolver import (
+  build_production_department_pools,
+  parse_department_pools,
+  resolve_node_assignee_id,
+)
 from app.services.workflow_rule_resolver import resolve_actor_department_id
 from app.services.task_service import TaskService
 from app.services.workflow_graph_service import WorkflowGraphService
@@ -344,11 +348,12 @@ class WorkflowVideoInstantiationService:
     participants_snapshot: dict[str, ParticipantsSnapshotEntry],
     department_id: UUID | None = None,
     run_label: str | None = None,
+    skip_publish_permission: bool = False,
   ) -> GraphTemplateRunResult:
     """Instantiate a graph template run with multi_instance expansion and ROOT task."""
     self._require_engine_enabled()
     ensure_active_user(actor)
-    if not await can_publish_org_tasks(self._session, actor):
+    if not skip_publish_permission and not await can_publish_org_tasks(self._session, actor):
       raise AuthorizationError("当前账号不能发布组织任务。")
 
     template, nodes, edges = await self._load_template_graph(template_id=template_id)
@@ -692,9 +697,12 @@ class WorkflowVideoInstantiationService:
       context["topic_content"] = topic.content
 
     template_config = _template.config if isinstance(_template.config, dict) else {}
-    department_pools = template_config.get("department_pools")
-    if isinstance(department_pools, dict) and department_pools:
-      context["department_pools"] = department_pools
+    production_pools = build_production_department_pools(
+      template_pools=template_config.get("department_pools"),
+      launch_department_id=parent_instance.department_id,
+    )
+    if production_pools:
+      context["department_pools"] = {key: str(value) for key, value in production_pools.items()}
 
     parent_context = parent_instance.context if isinstance(parent_instance.context, dict) else {}
     manager_raw = parent_context.get("manager_user_id")

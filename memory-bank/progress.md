@@ -1,5 +1,80 @@
 # Project Filum 进度记录
 
+## 会话摘要（F-24 部门周期调度）
+
+### 2026-06-23 — ADR-011 定稿 + F-24 实现
+
+**产品决策（用户审阅）**：参与人可编辑/排除部门与人 · subtree 递归 active 子部门 · 发布时防重叠 · schedulable 模板 · manager 为 actor · 不支持 streaming · 建立任务双 Tab · run-now + 周期任务通知
+
+**完成事项**:
+- [x] `workflow_graph_template_schedules` 表 + `WorkflowGraphTemplateScheduleService`
+- [x] API `GET/POST/PATCH /workflow-graph/schedules` + `run-now`
+- [x] 设计器 `schedulable` · 列表 `?schedulable=true`
+- [x] Worker `run_due_task_schedules` 恢复 + ARQ cron
+- [x] 前端 `ScheduledDispatchForm` + `TaskCenterView` 双 Tab
+- [x] `test_f24_graph_template_schedules.py` 3/3
+- [x] ADR-011 · 文档同步
+
+**分支**: 工作区未提交
+
+## 会话摘要（TC-Transform Phase 2 启动）
+
+### 2026-06-23 — F-23 · W-08 · F-21/F-27 · F-26
+
+**完成事项**:
+- [x] **F-23** 通用模板链：`config.on_complete` · 发布环检测 · `_maybe_complete_instance` 触发下一模板
+- [x] **W-08** streaming 模式 N2 aggregate engine skip（无空壳待办）
+- [x] **F-21** 单步跨部门路由 + 组织树路径 CC；**F-27** 任务流投影跨部门 boundary CC
+- [x] **F-26** 设计器 `department_pools` 部门选择器 + `on_complete` 表单
+- [x] 测试：`test_f23_template_chain.py` · `test_w08_streaming_aggregate_skip.py` · `test_f21_cross_department_routing.py`
+- [x] 文档：`active-task.md` · `roadmap.md` · `architecture.md` Phase 2 焦点
+
+**分支**: 工作区未提交
+
+## 会话摘要（TC-Transform Phase 0–1 实施）
+
+### 2026-06-23 — B-12 · F-28 · F-22 代码落地 + 测试
+
+**完成事项**:
+- [x] **B-12** 移除 Legacy E runtime：`task_templates` API、定时 `run_due_task_schedules` cron、HR 生命周期 `task_template_id` 拒绝；`use_legacy_task_template_instantiation()` → `False`
+- [x] **B-12 测试**：`test_b12_legacy_e_removal.py`、`test_b12_task_templates_api_is_not_available`；Legacy 单测 `@LEGACY_E_REMOVED` skip；相关 API/worker 用例改写
+- [x] **F-28** copywriters 池 = 发起部门（`test_workflow_video_f28_launch_department_pools.py` 通过）
+- [x] **F-22** `TaskCreateRequest.watcher_user_ids` + 创建时 `TaskWatcher` + 通知；任务中心 Dialog 抄送多选；`test_f22_create_task_with_watchers_api`
+- [x] 前端 Legacy 审核：`TaskDetailShell` 改走 `reviewTaskDeliverable`，移除 `decideStepRun`
+- [x] **F-05** 拆分 `TaskDetailHeaderBar` · `TaskDetailMetadataPanel` · `task-detail-labels.ts`；单测 `TaskDetailHeaderBar.spec.ts`
+- [x] E2E 修复：`task-center-interaction-mock` 补 `submissions`/`children`；close-capture 断言对齐后端文案
+
+**分支**: 工作区未提交
+
+## 会话摘要（任务中心三大模块文档 + 改造计划）
+
+### 2026-06-23 — task-center.md 全文 · roadmap TC-Transform · ADR-010
+
+**完成事项**:
+- [x] [`domains/task-center.md`](./domains/task-center.md) 重组：§0 三大模块 · §6 单步 · §7 任务流（多部门/fork/F-28）· §8 统计 · §13 差距总表
+- [x] [`roadmap.md`](./roadmap.md) **TC-Transform** Phase 0–4（B-12 · F-28 · F-22 · F-23 · F-26–F-27 · S-01 暂缓）
+- [x] [`decisions.md`](./decisions.md) **ADR-010** 任务流决策
+- [x] [`active-task.md`](./active-task.md) 下一焦点同步
+
+**分支**: `main` @ `5be0bf4`
+
+## 会话摘要（单步任务差距决策 + roadmap 整理）
+
+### 2026-06-23 — ADR-009 · G-01–G-06 产品决策 · 文档对齐
+
+**完成事项**:
+- [x] 单步任务设计意图对照代码审查（发布权限、子树范围、抄送/跨部门缺口）
+- [x] 采纳 G-01–G-06 决策并写入 [`roadmap.md`](./roadmap.md)、[`decisions.md`](./decisions.md) ADR-009
+- [x] 更新 [`domains/task-center.md`](./domains/task-center.md) §6.0–6.1、§10；[`active-task.md`](./active-task.md)、[`architecture.md`](./architecture.md)、[`project-brief.md`](./project-brief.md)、[`known-issues.md`](./known-issues.md)
+
+**排期结论**:
+- **P0** B-12 删 Legacy E · F-05 Shell · E2E 基线
+- **P1** F-22 建立任务抄送人
+- **P2** F-21 跨部门单步路由 + 路径 CC
+- **P4** 项目组（G-02 远期）；G-03 自派归备忘
+
+**分支**: `main` @ `5be0bf4`
+
 ## 会话摘要（清库重种 + A–F 选题会 Live E2E）
 
 ### 2026-06-23 14:27 — Docker 8080 清库重种 + Playwright A–F 全流程

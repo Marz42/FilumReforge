@@ -308,3 +308,54 @@ export interface VideoRunContext {
   script_author_id?: string | null
   forked_child_instance_ids?: string[]
 }
+
+export interface GraphTemplateSchedule {
+  id: string
+  template_id: string
+  template_code?: string | null
+  template_name?: string | null
+  name: string
+  scope_department_id: string
+  scope_department_name?: string | null
+  scope_mode: 'self' | 'subtree'
+  cron_expr: string
+  timezone: string
+  default_inputs: Record<string, unknown>
+  run_label_template?: string | null
+  participant_mode: 'all' | 'subset'
+  participant_user_ids: string[]
+  exclude_department_ids: string[]
+  exclude_user_ids: string[]
+  is_active: boolean
+  created_by: string
+  next_run_at: string | null
+  last_run_at: string | null
+  last_run_status: string | null
+  last_run_message: string | null
+  last_run_instance_count: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateGraphTemplateScheduleRequest {
+  template_id: string
+  name: string
+  scope_department_id: string
+  scope_mode?: 'self' | 'subtree'
+  cron_expr: string
+  timezone?: string
+  default_inputs?: Record<string, unknown>
+  run_label_template?: string | null
+  participant_mode?: 'all' | 'subset'
+  participant_user_ids?: string[]
+  exclude_department_ids?: string[]
+  exclude_user_ids?: string[]
+  is_active?: boolean
+}
+
+export interface GraphTemplateScheduleRunNowResponse {
+  created_count: number
+  skipped_count: number
+  failed_count: number
+  details: Array<Record<string, unknown>>
+}

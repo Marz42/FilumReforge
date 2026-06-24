@@ -27,8 +27,6 @@ from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.hr_lifecycle_service import HRLifecycleService
 from app.services.notification_service import NotificationService
 from app.services.task_service import TaskService
-from app.services.task_automation_service import TaskAutomationService
-from app.services.task_template_service import TaskTemplateService
 from app.services.workflow_engine_service import WorkflowEngineService
 from app.schemas.messages import NotificationMessage
 
@@ -186,11 +184,27 @@ async def run_due_task_schedules(
   session: AsyncSession,
   queue_publisher=None,  # noqa: ANN001
 ) -> int:
+  """Run due F-24 graph template schedules (replaces Legacy E no-op)."""
+  from app.core.config import get_settings
+  from app.services.notification_service import NotificationService
+  from app.services.task_service import TaskService
+  from app.services.workflow_graph_template_schedule_service import WorkflowGraphTemplateScheduleService
+  from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
+
+  settings = get_settings()
   notification_service = NotificationService(session, queue_publisher)
-  task_service = TaskService(session, notification_service)
-  task_template_service = TaskTemplateService(session, task_service, notification_service)
-  task_automation_service = TaskAutomationService(session, task_template_service)
-  return await task_automation_service.run_due_schedules()
+  task_service = TaskService(session, notification_service=notification_service, settings=settings)
+  instantiation_service = WorkflowVideoInstantiationService(
+    session,
+    task_service=task_service,
+    settings=settings,
+  )
+  schedule_service = WorkflowGraphTemplateScheduleService(
+    session,
+    notification_service=notification_service,
+    instantiation_service=instantiation_service,
+  )
+  return await schedule_service.run_due_schedules()
 
 
 async def enqueue_pending_workflow_reminders(
@@ -269,12 +283,9 @@ async def process_employment_event_automation(
 ) -> bool:
   resolved_event_id = _parse_uuid(event_id, field_name="event_id") if isinstance(event_id, str) else event_id
   notification_service = NotificationService(session, queue_publisher)
-  task_service = TaskService(session, notification_service)
-  task_template_service = TaskTemplateService(session, task_service, notification_service)
   workflow_engine_service = WorkflowEngineService(session, notification_service)
   lifecycle_service = HRLifecycleService(
     session,
-    task_template_service=task_template_service,
     workflow_engine_service=workflow_engine_service,
     job_queue_publisher=queue_publisher,
   )

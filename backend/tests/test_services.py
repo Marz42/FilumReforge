@@ -96,6 +96,8 @@ from app.services.user_service import UserService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_engine_service import WorkflowEngineService
 
+LEGACY_E_REMOVED = pytest.mark.skip(reason="B-12: Legacy E task template runtime removed")
+
 
 class InMemoryQueuePublisher:
   def __init__(self) -> None:
@@ -1606,44 +1608,14 @@ async def test_step3_task_center_permissions_history_and_memos(db_session) -> No
 
   notification_service = NotificationService(db_session)
   task_service = TaskService(db_session, notification_service)
-  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
   task_memo_service = TaskMemoService(db_session, task_service)
 
-  template = await task_template_service.create_template(
-    actor=manager,
-    code="content-publish",
-    name="内容发布",
-    category="ops",
-    steps=[
-      {
-        "step_key": "draft",
-        "title": "内容整理",
-        "default_assignee_rule": {"type": "initiator"},
-      }
-    ],
-  )
-  with pytest.raises(AuthorizationError):
-    await task_template_service.create_template(
-      actor=employee,
-      code="forbidden-template",
-      name="无权限模板",
-      category="ops",
-      steps=[
-        {
-          "step_key": "draft",
-          "title": "草稿",
-          "default_assignee_rule": {"type": "initiator"},
-        }
-      ],
-    )
-
-  instantiation = await task_template_service.instantiate_template(
+  created_task = await task_service.create_task(
     actor=employee,
-    template_id=template.id,
-    payload={"department_id": str(department.id)},
+    title="内容整理",
+    assignee_id=employee.id,
+    department_id=department.id,
   )
-  tasks = instantiation.tasks
-  created_task = tasks[0]
   await task_service.transition_task_status(
     actor=employee,
     task_id=created_task.id,
@@ -2163,12 +2135,9 @@ async def test_phase3_lifecycle_event_automation_enqueues_and_runs_idempotently(
   profile_service = ProfileService(db_session)
   queue_publisher = InMemoryQueuePublisher()
   notification_service = NotificationService(db_session, queue_publisher)
-  task_service = TaskService(db_session, notification_service)
-  task_template_service = TaskTemplateService(db_session, task_service, notification_service)
   workflow_engine_service = WorkflowEngineService(db_session, notification_service)
   lifecycle_service = HRLifecycleService(
     db_session,
-    task_template_service=task_template_service,
     workflow_engine_service=workflow_engine_service,
     job_queue_publisher=queue_publisher,
   )
@@ -2188,19 +2157,6 @@ async def test_phase3_lifecycle_event_automation_enqueues_and_runs_idempotently(
     department_id=admin_profile.department_id,
   )
 
-  template = await task_template_service.create_template(
-    actor=admin,
-    code="lifecycle-onboard",
-    name="入职模板",
-    category="hr",
-    steps=[
-      {
-        "step_key": "prepare-account",
-        "title": "开通账号",
-        "default_assignee_rule": {"type": "user", "user_id": str(admin.id)},
-      }
-    ],
-  )
   definition = await workflow_engine_service.create_definition(
     actor=admin,
     code="lifecycle-onboard-approval",
@@ -2224,7 +2180,6 @@ async def test_phase3_lifecycle_event_automation_enqueues_and_runs_idempotently(
     effective_date=date(2025, 5, 1),
     title="办理入职",
     payload={"department_id": str(admin_profile.department_id)},
-    task_template_id=template.id,
     workflow_definition_id=definition.id,
   )
 
@@ -2234,18 +2189,13 @@ async def test_phase3_lifecycle_event_automation_enqueues_and_runs_idempotently(
   processed_event = await lifecycle_service.process_event_automation(event_id=event.id)
   processed_again = await lifecycle_service.process_event_automation(event_id=event.id)
 
-  template_instance_count = await db_session.scalar(
-    select(func.count(TaskTemplateInstance.id)).where(TaskTemplateInstance.template_id == template.id)
-  )
   workflow_instance_count = await db_session.scalar(
     select(func.count()).select_from(WorkflowInstance).where(WorkflowInstance.definition_id == definition.id)
   )
 
   assert processed_event.trigger_status.value == "succeeded"
-  assert processed_event.triggered_template_instance_id is not None
   assert processed_event.triggered_workflow_instance_id is not None
   assert processed_again.trigger_status.value == "succeeded"
-  assert template_instance_count == 1
   assert workflow_instance_count == 1
 
 
@@ -2450,6 +2400,7 @@ async def test_message_center_snapshot_supports_delivery_filters_and_message_att
   assert message_view["delivery_state"] == NotificationDeliveryStatus.FAILED
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_phase4_template_automation_and_message_center_services(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
@@ -2581,6 +2532,7 @@ async def test_phase4_template_automation_and_message_center_services(db_session
   assert refreshed_schedule[0].last_run_message is not None
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_task_template_dependencies_block_downstream_status_transition(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
@@ -2693,6 +2645,7 @@ async def test_task_template_dependencies_block_downstream_status_transition(db_
   assert activated_task.status == TaskStatus.DOING
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_task_template_delete_only_allows_templates_without_instances(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
@@ -2773,6 +2726,7 @@ async def test_task_template_delete_only_allows_templates_without_instances(db_s
     await task_template_service.delete_template(actor=admin, template_id=protected_template.id)
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_task_template_update_preserves_metadata_but_blocks_step_changes_after_instantiation(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
@@ -2910,6 +2864,7 @@ async def test_task_template_update_preserves_metadata_but_blocks_step_changes_a
     )
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_task_template_can_create_new_version_from_locked_template(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
@@ -3000,6 +2955,7 @@ async def test_task_template_can_create_new_version_from_locked_template(db_sess
   assert metadata[version_two.id].latest_version == 2
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_task_template_fan_out_join_modes_activate_downstream(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
@@ -3981,6 +3937,7 @@ async def test_phase5_llm_router_handles_slash_commands_and_tool_calls(db_sessio
   assert mention_result.knowledge_hits
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_task_template_department_members_fan_out(db_session) -> None:
   """department_members 规则结合 fan_out 模式，应为部门每位成员各创建一个任务。"""
@@ -4073,6 +4030,7 @@ async def test_task_template_department_members_fan_out(db_session) -> None:
     assert task.extra_metadata.get("assignment_mode") == "fan_out"
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_task_template_department_members_empty_department_raises(db_session) -> None:
   """department_members 规则在部门无成员时应抛出 ConflictError。"""
@@ -5384,6 +5342,7 @@ async def test_phase6_instance_completion_marks_graph_done(db_session) -> None:
 # Phase 11-A: routing_rules 桥接到旧模板系统的条件激活
 # =========================================================================
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_phase11a_routing_rules_condition_match_activates_only_target_step(db_session) -> None:
   """步骤 A 配置 routing_rules（条件 amount > 10000 -> step_b，else -> step_c）:
@@ -5502,6 +5461,7 @@ async def test_phase11a_routing_rules_condition_match_activates_only_target_step
   assert "step_c" not in activated_step_keys
 
 
+@LEGACY_E_REMOVED
 @pytest.mark.asyncio
 async def test_phase11a_routing_rules_else_fallback_activates_when_no_condition_matches(db_session) -> None:
   """步骤 A 配置 routing_rules（条件 amount > 10000 -> step_b，else -> step_c）:

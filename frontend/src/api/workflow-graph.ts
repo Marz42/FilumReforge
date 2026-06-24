@@ -8,6 +8,9 @@ import type {
   GraphTemplateExportBundle,
   GraphTemplateSummary,
   GraphTemplateValidateResult,
+  CreateGraphTemplateScheduleRequest,
+  GraphTemplateSchedule,
+  GraphTemplateScheduleRunNowResponse,
   RejectCapturesRequest,
   RejectCapturesResponse,
   RejectProductionStepRequest,
@@ -68,11 +71,17 @@ function mapGraphInstanceSummary(item: GraphInstanceListItem): WorkflowGraphInst
   }
 }
 
-export async function listGraphTemplates(options?: { manage?: boolean }): Promise<GraphTemplateSummary[]> {
+export async function listGraphTemplates(options?: {
+  manage?: boolean
+  schedulable?: boolean
+}): Promise<GraphTemplateSummary[]> {
   const { data } = await http.get<
     Array<Omit<GraphTemplateSummary, 'config'> & { config?: Record<string, unknown> }>
   >('/workflow-graph/templates', {
-    params: options?.manage ? { scope: 'manage' } : undefined,
+    params: {
+      ...(options?.manage ? { scope: 'manage' } : {}),
+      ...(options?.schedulable ? { schedulable: true } : {}),
+    },
   })
   return data.map((item) => ({
     ...item,
@@ -440,6 +449,27 @@ export async function previewWorkflowParticipants(
     `/workflow-graph/templates/${templateId}/preview-participants`,
     payload,
     { params: { policy } },
+  )
+  return data
+}
+
+export async function listGraphTemplateSchedules(): Promise<GraphTemplateSchedule[]> {
+  const { data } = await http.get<GraphTemplateSchedule[]>('/workflow-graph/schedules')
+  return data
+}
+
+export async function createGraphTemplateSchedule(
+  payload: CreateGraphTemplateScheduleRequest,
+): Promise<GraphTemplateSchedule> {
+  const { data } = await http.post<GraphTemplateSchedule>('/workflow-graph/schedules', payload)
+  return data
+}
+
+export async function runGraphTemplateScheduleNow(
+  scheduleId: string,
+): Promise<GraphTemplateScheduleRunNowResponse> {
+  const { data } = await http.post<GraphTemplateScheduleRunNowResponse>(
+    `/workflow-graph/schedules/${scheduleId}/run-now`,
   )
   return data
 }

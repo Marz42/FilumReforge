@@ -16,14 +16,16 @@ from app.api.dependencies import (
   get_workflow_video_fork_service,
   get_workflow_video_rework_service,
   get_workflow_graph_template_admin_service,
+  get_workflow_graph_template_schedule_service,
   get_workflow_run_event_service,
   get_settings,
 )
 from app.core.config import Settings
 from app.core.exceptions import NotFoundError
 from app.core.enums import WorkflowNodeEngineState
-from app.models import User, WorkflowGraphInstance, WorkflowNodeInstance
+from app.models import User, WorkflowGraphInstance, WorkflowGraphTemplateNode, WorkflowNodeInstance
 from app.services.access_control import ensure_department_stats_access, can_manage_task_templates
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.workflow_video import (
   CloseCaptureResponse,
@@ -70,10 +72,20 @@ from app.schemas.workflow_graph import (
   WorkflowSmartNoticeCandidatesRequest,
   WorkflowSmartNoticeCandidatesResponse,
 )
+from app.schemas.workflow_graph_schedule import (
+  GraphTemplateScheduleCreateRequest,
+  GraphTemplateScheduleRead,
+  GraphTemplateScheduleRunNowResponse,
+  GraphTemplateScheduleUpdateRequest,
+)
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_graph_template_admin_service import WorkflowGraphTemplateAdminService
+from app.services.workflow_graph_template_schedule_service import (
+  WorkflowGraphTemplateScheduleService,
+  template_is_schedulable,
+)
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
@@ -209,6 +221,7 @@ async def list_graph_templates(
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
   scope: Annotated[str | None, Query()] = None,
+  schedulable: Annotated[bool | None, Query()] = None,
 ) -> list[WorkflowGraphTemplateSummaryRead]:
   if scope == "manage" and await can_manage_task_templates(session, actor):
     templates = await admin_service.list_manageable_templates()
@@ -217,6 +230,19 @@ async def list_graph_templates(
     _ = actor
     templates = await workflow_graph_service.list_active_templates()
     stats_map = {}
+
+  if schedulable:
+    filtered = []
+    for template in templates:
+      nodes = list(
+        await session.scalars(
+          select(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.template_id == template.id)
+        )
+      )
+      if template_is_schedulable(template=template, nodes=nodes):
+        filtered.append(template)
+    templates = filtered
+
   return [
     WorkflowGraphTemplateSummaryRead(
       id=template.id,
@@ -839,3 +865,67 @@ async def compute_smart_notice_candidates(
     candidate_user_ids=candidate_user_ids,
     reached_initiator=reached_initiator,
   )
+
+
+@router.get(
+  "/schedules",
+  response_model=list[GraphTemplateScheduleRead],
+  tags=["workflow-graph"],
+)
+async def list_graph_template_schedules(
+  actor: Annotated[User, Depends(get_current_user)],
+  schedule_service: Annotated[
+    WorkflowGraphTemplateScheduleService,
+    Depends(get_workflow_graph_template_schedule_service),
+  ],
+) -> list[GraphTemplateScheduleRead]:
+  return await schedule_service.list_schedules(actor=actor)
+
+
+@router.post(
+  "/schedules",
+  response_model=GraphTemplateScheduleRead,
+  tags=["workflow-graph"],
+)
+async def create_graph_template_schedule(
+  payload: GraphTemplateScheduleCreateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  schedule_service: Annotated[
+    WorkflowGraphTemplateScheduleService,
+    Depends(get_workflow_graph_template_schedule_service),
+  ],
+) -> GraphTemplateScheduleRead:
+  return await schedule_service.create_schedule(actor=actor, payload=payload)
+
+
+@router.patch(
+  "/schedules/{schedule_id}",
+  response_model=GraphTemplateScheduleRead,
+  tags=["workflow-graph"],
+)
+async def update_graph_template_schedule(
+  schedule_id: UUID,
+  payload: GraphTemplateScheduleUpdateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  schedule_service: Annotated[
+    WorkflowGraphTemplateScheduleService,
+    Depends(get_workflow_graph_template_schedule_service),
+  ],
+) -> GraphTemplateScheduleRead:
+  return await schedule_service.update_schedule(actor=actor, schedule_id=schedule_id, payload=payload)
+
+
+@router.post(
+  "/schedules/{schedule_id}/run-now",
+  response_model=GraphTemplateScheduleRunNowResponse,
+  tags=["workflow-graph"],
+)
+async def run_graph_template_schedule_now(
+  schedule_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  schedule_service: Annotated[
+    WorkflowGraphTemplateScheduleService,
+    Depends(get_workflow_graph_template_schedule_service),
+  ],
+) -> GraphTemplateScheduleRunNowResponse:
+  return await schedule_service.run_schedule_now(actor=actor, schedule_id=schedule_id)

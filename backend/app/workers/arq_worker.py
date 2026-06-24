@@ -184,13 +184,6 @@ class WorkerSettings:
       unique=True,
     ),
     cron(
-      run_due_task_schedules_job,
-      name=TASK_SCHEDULE_JOB,
-      minute={5, 20, 35, 50},
-      run_at_startup=True,
-      unique=True,
-    ),
-    cron(
       archive_expired_board_cards_job,
       name=BOARD_ARCHIVE_JOB,
       minute={12, 42},
@@ -201,6 +194,13 @@ class WorkerSettings:
       process_workflow_outbox_events_job,
       name=WORKFLOW_OUTBOX_JOB,
       second={0, 30},
+      run_at_startup=True,
+      unique=True,
+    ),
+    cron(
+      run_due_task_schedules_job,
+      name=TASK_SCHEDULE_JOB,
+      minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55},
       run_at_startup=True,
       unique=True,
     ),

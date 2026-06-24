@@ -34,3 +34,31 @@ test('searches tasks and shows user-facing labels', async ({ mockApi, page }) =>
     timeout: 10_000,
   })
 })
+
+test('creates a scheduled graph template dispatch from dialog tab', async ({ mockApi, page }) => {
+  await mockApi()
+
+  await page.goto('/task-center')
+  await page.getByTestId('task-center-create-task').click()
+  await expect(page.getByTestId('task-center-task-dialog')).toBeVisible()
+  await page.getByRole('tab', { name: '定时派发' }).click()
+  await expect(page.getByTestId('scheduled-dispatch-form')).toBeVisible()
+
+  await page.locator('[data-testid="scheduled-dispatch-template"]').click()
+  await page
+    .locator('.el-select-dropdown:visible .el-select-dropdown__item')
+    .filter({ hasText: '每周采集' })
+    .first()
+    .click()
+  await page.getByRole('textbox', { name: /调度名称/ }).fill('E2E 每周采集')
+  await page.locator('[data-testid="scheduled-dispatch-department"]').click()
+  await page
+    .locator('.el-select-dropdown:visible .el-select-dropdown__item')
+    .filter({ hasText: '内容部' })
+    .first()
+    .click()
+  await page.getByTestId('task-center-schedule-submit').click()
+
+  await expect(page.locator('.el-message')).toContainText('周期任务已创建')
+  await expect(page.getByTestId('task-center-task-dialog')).toBeHidden()
+})

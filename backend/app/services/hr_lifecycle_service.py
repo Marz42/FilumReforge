@@ -29,7 +29,6 @@ from app.models import (
 )
 from app.services.access_control import ensure_management_role
 from app.services.organization_relation_service import OrganizationRelationService
-from app.services.task_template_service import TaskTemplateService
 from app.services.workflow_engine_service import WorkflowEngineService
 
 MAX_EVENT_TRIGGER_ATTEMPTS = 3
@@ -41,13 +40,11 @@ class HRLifecycleService:
     self,
     session: AsyncSession,
     *,
-    task_template_service: TaskTemplateService | None = None,
     workflow_engine_service: WorkflowEngineService | None = None,
     job_queue_publisher: JobQueuePublisher | None = None,
   ) -> None:
     self._session = session
     self._organization_relation_service = OrganizationRelationService(session)
-    self._task_template_service = task_template_service
     self._workflow_engine_service = workflow_engine_service
     self._job_queue_publisher = job_queue_publisher
 
@@ -191,11 +188,9 @@ class HRLifecycleService:
     workflow_definition_id: UUID | None,
   ) -> None:
     if task_template_id is not None:
-      template = await self._session.get(TaskTemplate, task_template_id)
-      if template is None:
-        raise NotFoundError("任务模板不存在。")
-      if not template.is_active:
-        raise ConflictError("生命周期联动要求模板处于启用状态。")
+      raise ConflictError(
+        "Legacy 工作流 E 任务模板已下线（B-12）。请改用图模板 workflow_graph_template。"
+      )
 
     if workflow_definition_id is not None:
       definition = await self._session.get(WorkflowDefinition, workflow_definition_id)
@@ -241,16 +236,9 @@ class HRLifecycleService:
       raise NotFoundError("生命周期事件对应用户不存在。")
 
     if event.task_template_id is not None and event.triggered_template_instance_id is None:
-      if self._task_template_service is None:
-        raise ConflictError("生命周期联动未注入模板服务。")
-      template_result = await self._task_template_service.instantiate_template(
-        actor=event.creator,
-        template_id=event.task_template_id,
-        department_id=await self._resolve_event_department_id(event=event),
-        payload=self._build_trigger_payload(event=event, channel="task_template"),
+      raise ConflictError(
+        "Legacy 工作流 E 任务模板已下线（B-12）。请改用图模板 workflow_graph_template。"
       )
-      event.triggered_template_instance_id = template_result.instance.id
-      await self._session.commit()
 
     if event.workflow_definition_id is not None and event.triggered_workflow_instance_id is None:
       if self._workflow_engine_service is None:
