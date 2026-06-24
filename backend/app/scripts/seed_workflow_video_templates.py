@@ -73,6 +73,8 @@ async def run_seed(
   print("视频工作流图模板种子已完成。")
   print(f"- 批次模板 topic_meeting_batch_v1: {result.batch_template_id}")
   print(f"- 制作模板 video_production_per_topic_v1: {result.production_template_id}")
+  if result.batch_topology_synced_in_place or result.production_topology_synced_in_place:
+    print("- 检测到历史 Run 引用模板节点，已在保留节点 ID 的前提下同步拓扑与 config。")
   if copy_dept_code and post_dept_code:
     print(f"- 文案池 copywriters ← 部门 {copy_dept_code!r}")
     print(f"- 后期池 post_production ← 部门 {post_dept_code!r}")
