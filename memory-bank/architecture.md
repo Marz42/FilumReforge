@@ -1,9 +1,9 @@
 # Project Filum 架构基线
 
-**文档版本**: v3.12.2（工程基线修订号，与产品 SemVer [`VERSION`](../VERSION) `0.89.0` 独立）  
-**最后同步**: 2026-06-23 @ `b3e7918` 视频派发去重/可见性/ROOT 拦截 + Live E2E A–F · 产品基线 `0.89.0`  
-**下一工程焦点**（`roadmap.md` **TC-Transform** · [`domains/task-center.md`](./domains/task-center.md)）:
-- **P3** F-25（附件预览）· S-01 暂缓
+**文档版本**: v3.13.0（工程基线修订号，与产品 SemVer [`VERSION`](../VERSION) `0.90.0` 独立）  
+**最后同步**: 2026-06-23 @ `19608f0` TC-Transform Phase 0–2 · F-24/F-25 · 生产 seed 原地同步 · 产品基线 `0.90.0`  
+**下一工程焦点**（`roadmap.md` · [`domains/task-center.md`](./domains/task-center.md)）:
+- **内测验收** · **S-01** 暂缓 · **F-10–F-12** 抛光（可选）
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
 
 ## 1. 文档定位

@@ -254,7 +254,8 @@ npx playwright show-report verification-runs/workflow-video-live-<时间戳>/pla
 | 现象 | 原因 / 处理 |
 | --- | --- |
 | 任务模板页无实例化 / 403 | `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true`（Compose 已透传；`.env` 设为 `true` 并重启 API） |
-| 负责人下拉显示 UUID / 为空 | 须 `seed_version≥3` 且重跑 `seed_workflow_video_templates`；生产机用 `--copy-dept-code` / `--post-dept-code` 绑定真实部门（见 [Ubuntu 部署手册 §21.3.1](../handbooks/deployment-runbook-ubuntu-2404.md)） |
+| 负责人下拉显示 UUID / 为空 | 须 `seed_version≥3` 且重跑 `seed_workflow_video_templates`；生产机用 `--copy-dept-code` / `--post-dept-code`（见 [Ubuntu 部署手册 §21.3.1](../handbooks/deployment-runbook-ubuntu-2404.md)） |
+| seed 报 `fk_wf_node_instances_template_node` | 库上已有 Run；升级到 **`19608f0`** 后重跑 seed（原地同步，不删被引用节点） |
 | `LaunchSchema` 校验 `type=user` 失败 | 后端 `LaunchFieldSchema` 须含 `user`；升级 API 镜像后重跑种子 |
 | 参与人下拉为空 | 应用 `preview-participants` 填充选项；勿依赖 `listUsers` |
 | 实例化后 copy 成员 inbox=0 | 图实例化未 `commit`；确认 `WorkflowVideoInstantiationService` 已持久化 |

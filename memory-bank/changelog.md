@@ -4,43 +4,26 @@
 
 ## [Unreleased]
 
+---
+
+## [0.90.0] - 2026-06-23
+
 ### Added
 
-- **图模板空白新建**：`POST /workflow-graph/templates` 无 `clone_from_id` 时创建空白 draft；列表「新建模板」
-- **DAG 预览增强**：横向/纵向布局、图例、打回独立通道、正交圆角路由
-- **E2E 任务中心扩面**：`task-center-interactions.spec.ts`（8 条：握手 accept/协商/转办、验收、结束采集、统计 deep-link、模板入口）；`task-center-interaction-mock.ts`；`npm run test:e2e:task-center` + `playwright.task-center.config.ts`（core 33 + multi-account 15 = 48）
-- **E2E 统计 Tab**：`task-center-stats.spec.ts` +2（部门筛选、看板 Run 筛选）
-- **E2E multi-account mock**：Phase A–N 全绿（15/15）；mock 补齐 `preview-participants?policy=`、模板 GET config、`user_facing_state`
+- **TC-Transform Phase 0–2**：B-12 Legacy E 移除 · F-28 多文案部实例部门 · F-22 抄送 · F-23 模板链 · F-21/F-27 跨部门 · W-08 streaming N2 skip · F-26 设计器 pools
+- **F-24** 部门图模板周期调度：`workflow_graph_template_schedules` · schedulable · 建立任务「定时派发」Tab · Worker ARQ cron · ADR-011
+- **F-25** 应用内附件预览：image / PDF / txt / md / docx / xlsx / 音频 · 全局 `AttachmentPreviewDialog`
+- 定时派发 UI：`scheduleCron.ts`（每天/每周/每月 → cron）；设计器 active 模板「保存设置」
 
 ### Fixed
 
-- **图模板设计器写操作**：AdminService 写库补 `commit()`；复制/改名/发布不再假报「模板不存在」
-- **图模板 DAG 预览**：单滚动条；打回虚线贴节点边框；圆角方向修正；箭头不被节点遮挡
-- **图模板设计器表格**：节点/边列宽；边表头中文化（打回/优先级/条件 JSON）
-- **TaskCenterView** deep-link `selected=` 在 non-search 模式下不再被 sanitize 清除
-- **TaskDetailShell** 补 `TASK_CENTER_V2_UI_ENABLED` import
+- **生产 seed**：`seed_version` 升级时若已有 Run 引用 template nodes，改为按 `node_key` 原地同步（避免 `fk_wf_node_instances_template_node`）
+- **TaskDetailShell** 补 `resolveStatusLabel` 导入；**vue-tsc** 通过（tag types · DAG preview · 设计器 row click）
 
 ### Changed
 
-- Playwright：`PLAYWRIGHT_DEV_PORT` 可配置；4173 不可用时默认 5173；系统 Chrome channel 回退；`video: off`
-- 测试基线：**33/33** core mock · **15/15** multi-account mock（`2026-06-22-main-e2e-core-33`）
-- **TCE Phase 5**（B-08/B-13/B-14/B-15, F-13–F-16）：图模板 snapshot 摘要、aggregate_mode、结束采集、user_facing_state 图对齐、移除 TasksView 回退
-- **TCE Phase 4**（B-16, F-17）：多部门实例化 policy 实例部门优先、实例化发起部门 UI/校验
-- **TCE Phase 3**（B-06/B-09/B-11, F-06/F-09）：部门统计 API、snapshot 分页、Run 聚合 API、统计页部门/Run、看板 Run 筛选
-- **TCE Phase 2**（B-04/B-05/B-07, F-01/F-04/F-07）：batch tasks API、snapshot 读模型 `run_label`/`user_facing_state`、tracking inbox 去重、workspace batch hydration、搜索用户态、Run 标签对齐 graph context
-- **TCE Phase 1**（B-01/B-02/B-03, F-02/F-03/F-08）：节点投影 inbox 读路径、列表 SQL limit、department 迁移脚本、看板姓名、实例化发起部门、详情操作后 refresh
-- memory-bank 全量对齐 **TCE Phase 1**：`active-task`、`roadmap`、`project-brief` @ `0.89.0`；TC-P3 归入 `task-center-enhance` Phase 5
-
-### Added
-
-- 视频制作模板 **seed v3**：N5 合并配音上传、N11 排期 capture、N12 文案会签（`N12_CLOSE` + `N12_COSIGN`）；结案子 Run `archived` 且批次看板默认隐藏
-- `seed_workflow_video_templates` 支持 `--copy-dept-code` / `--post-dept-code`（生产环境绑定真实部门）
-- Mock 多账号 E2E **阶段 A–N**（15 用例，N1–N12 happy path）
-- 前端 Profile：`video_production_multi` / `video_production_platform` / `video_capture_schedule`
-
-### Changed
-
-- 制作链移除 N6 配音审核与配音部握手节点；W4/W6 测试与 E2E mock 状态机同步更新
+- 部署手册 §21.3.1：多文案部共用模板说明 · `.env` 显式 `WORKFLOW_GRAPH_*` · seed 行为与历史 Run 边界
+- E2E task-center **39/39**；后端 TC-Transform 相关测试绿
 
 ---
 

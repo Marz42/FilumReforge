@@ -5,7 +5,7 @@
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](./architecture.md)。
 
 **版本**: v3.12.3（与 [`architecture.md`](./architecture.md) 同步）  
-**最后同步**: 2026-06-22 @ TCE Phase 5 + 图模板设计器 D1–D3 + UX 抛光 · 产品基线 `0.89.0`
+**最后同步**: 2026-06-23 @ TC-Transform Phase 0–2 + F-24/F-25 · 产品基线 `0.90.0`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 

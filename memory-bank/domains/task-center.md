@@ -1,7 +1,7 @@
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同全貌：**产品架构 · 单步/任务流/统计 · 实现与差距 · 改造跟踪**。  
-> **最后同步**：2026-06-23 @ **三大模块架构 + ADR-009/010** · TCE + 设计器 + Live E2E ✅ · SemVer `0.89.0`  
+> **最后同步**：2026-06-23 @ **TC-Transform Phase 0–2 + F-24/F-25** · SemVer `0.90.0` · `main` @ `19608f0`  
 > **排期**：[`roadmap.md`](../roadmap.md) · **决策**：[`decisions.md`](../decisions.md) ADR-009 · ADR-010  
 > **契约**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)
 

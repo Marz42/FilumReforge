@@ -84,7 +84,7 @@
 | B-16/F-17 多部门实例化 | ✅ |
 | B-08/B-13/B-14/F-13–F-16 Phase 5 清理 | ✅ |
 
-| **仍开放**：**F-10–F-12**（抛光）、**F-24/F-25**（Phase 3）、**S-01**（暂缓）。
+| **仍开放**：**F-10–F-12**（抛光）、**S-01**（暂缓）。**F-24 / F-25** 已落地 @ `0.90.0`。
 
 ### 图模板设计器（F-18–F-20 ✅）
 
@@ -105,6 +105,12 @@
 - **B-16**：`ParticipantPolicyDefinition.scope` 默认 `instance_department`；实例 `department_id` 优先于 seed policy。
 - **F-17**：Dialog 默认/必选/可改发起部门；preview 与 submit 显式传 `department_id`。
 - 详见 enhance **§6.2.1** 与 [`domains/task-center.md`](./domains/task-center.md) 场景 F。
+
+### 生产 seed：`seed_version` 升级与外键冲突（已修复 @ `0.90.0`）
+
+**现象**（@ `0.89.0` 及更早）：已有视频 Run 时重跑 `seed_workflow_video_templates`，DELETE template nodes 触发 `fk_wf_node_instances_template_node`。  
+**处理**：升级到 **`19608f0`** 或更高；有历史 Run 时 seed 改为按 `node_key` 原地同步拓扑与 config，保留节点 UUID。  
+**参考**：[`deployment-runbook §21.3.1`](./handbooks/deployment-runbook-ubuntu-2404.md)
 
 ### 视频 v1 图模板开关默认关闭
 

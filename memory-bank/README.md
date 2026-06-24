@@ -1,6 +1,6 @@
 # memory-bank 文档索引
 
-本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.89.0`）。
+本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.90.0`）。
 
 > **当前实施焦点**：[`active-task.md`](./active-task.md) → **TC-Transform** · P0 **B-12** · P1 **F-28** / **F-22** · 全貌 [`domains/task-center.md`](./domains/task-center.md)
 

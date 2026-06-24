@@ -1,14 +1,26 @@
 # Project Filum 进度记录
 
+## 会话摘要（文档同步 · 0.90.0 内测部署）
+
+### 2026-06-23 — memory-bank + 生产 seed 修复
+
+**代码**：`19608f0` 生产 seed 有历史 Run 时原地同步模板；`3da3e06` vue-tsc；`e4da508` F-25 + F-24 UI。
+
+**文档**：`VERSION` → `0.90.0`；部署手册 §21.3.1（多文案部 · seed FK · env）；`known-issues` / `workflow-video-v1` / `active-task` / `roadmap` 对齐。
+
+**内测要点**：`alembic upgrade head` · `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true` · seed 后 restart backend+worker · F-24 须 batch+schedulable。
+
+---
+
 ## 会话摘要（测试服务器部署前检查）
 
 ### 2026-06-23 — 部署前完整检查
 
-**结论**：核心功能可上内测；推送前须提交 F-25 + 定时 UI + 设计器「保存设置」；测试机须 `alembic upgrade head` 与 Worker 常驻。
+**结论**：核心功能可上内测；`main` @ `19608f0`。
 
-**自动化**：后端 TC-Transform 相关 **24/24**；前端 unit **7/7**；`build-only` 通过；迁移链测试通过。
+**自动化**：后端 TC-Transform **24/24**；前端 unit **7/7**；E2E task-center **39/39**；`npm run build`（含 type-check）通过。
 
-**修复**：`TaskDetailShell.vue` 补 `resolveStatusLabel` 导入（任务状态变更/活动日志此前会 ReferenceError）。
+**修复**：`TaskDetailShell` 补 `resolveStatusLabel`；生产 seed 外键冲突（见上节）。
 
 ---
 
@@ -40,7 +52,7 @@
 - [x] `test_f24_graph_template_schedules.py` 3/3
 - [x] ADR-011 · 文档同步
 
-**分支**: 工作区未提交
+**分支**: `main` @ `2630feb` 起已 push；F-25/UI @ `e4da508` · type-check @ `3da3e06` · seed @ `19608f0`
 
 ## 会话摘要（TC-Transform Phase 2 启动）
 

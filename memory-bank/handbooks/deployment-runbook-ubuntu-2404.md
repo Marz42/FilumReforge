@@ -254,6 +254,9 @@ STORAGE_PROVIDER=local
 STORAGE_BUCKET=filum-prod
 STORAGE_BASE_PATH=${FILUM_ROOT}/data/storage
 WORKERS=2
+WORKFLOW_GRAPH_ENGINE_ENABLED=true
+WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true
+TASK_CENTER_V2_ENABLED=true
 
 # Optional: refresh cookie tuning
 # AUTH_REFRESH_COOKIE_NAME=filum_refresh_token
@@ -747,7 +750,9 @@ python -m app.scripts.seed_workflow_video_templates \
 说明：
 
 - **不要**在生产机跑 `seed_sample_data`（会写入 demo 账号/部门）
-- 脚本幂等：`seed_version` 变更时会重建模板节点/边；**已有 Run 实例不受影响**
+- 脚本幂等：`seed_version` 变更时同步模板拓扑与 `config`；**已在跑的 Run 实例不受影响**（继续按实例化时的图执行）
+- **有历史 Run 时**（`workflow_node_instances` 仍引用模板节点）：@ `0.90.0` 起按 `node_key` **原地同步**节点/边并更新 config，**不删除**被引用的 template node UUID；无历史 Run 时仍全量删节点重建
+- **`--copy-dept-code`**：写入模板**默认**文案池（兜底）；**多个文案部可共用同一模板**——实例化 Dialog 选「发起部门」，N1 参与人与制作链 copywriters 池跟发起部门（F-28）；`--post-dept-code` 固定后期部
 - 两部门须已设置 **部门经理**；文案/后期负责人部门建议具备 `publish_org_task` 能力
 - 完成后 `sudo systemctl restart filum-backend filum-worker`
 

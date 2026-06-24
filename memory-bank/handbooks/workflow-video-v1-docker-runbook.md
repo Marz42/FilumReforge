@@ -35,6 +35,10 @@ python -m app.scripts.seed_workflow_video_templates \
 
 `--voice-dept-code` 可省略（新版 N5 已合并配音上传，配音池仅为配置占位，默认与文案部相同）。
 
+**多文案部 + 一后期部**：只需 **一套** `topic_meeting_batch_v1` / `video_production_per_topic_v1`；`--copy-dept-code` 任选其一作默认文案池，实例化时选「发起部门」（文案 A 或 B）。详见 [deployment-runbook §21.3.1](../handbooks/deployment-runbook-ubuntu-2404.md)。
+
+**生产库已有 Run 时**：`seed_version` 升级不会 DELETE 被引用的 template nodes（@ `0.90.0` 原地同步）；若仍见 `fk_wf_node_instances_template_node` 报错，先 `git pull` 到含 `19608f0` 的版本再重跑 seed。
+
 ## 2. 功能开关（W9）
 
 ```bash
