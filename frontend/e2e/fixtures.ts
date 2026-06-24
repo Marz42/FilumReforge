@@ -458,8 +458,8 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
       await fulfillJson(route, [
         {
           id: 'att-mock-1',
-          original_filename: 'mock-spec.pdf',
-          mime_type: 'application/pdf',
+          original_filename: 'mock-spec.md',
+          mime_type: 'text/markdown',
           size_bytes: 128,
           checksum_sha256: '0'.repeat(64),
           uploader_id: adminUser.id,
@@ -467,9 +467,18 @@ async function installMockApi(page: Page, options: MockApiOptions = {}): Promise
           status: 'uploaded',
           deleted_at: null,
           created_at: '2025-04-04T08:00:00Z',
-          download_url: 'https://example.com/mock.pdf',
+          download_url: 'https://example.com/mock-spec.md',
         },
       ])
+      return
+    }
+
+    if (request.method() === 'GET' && /^\/attachments\/[^/]+\/content/.test(pathname)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/markdown; charset=utf-8',
+        body: '# E2E 附件预览\n\n任务中心 mock 正文。',
+      })
       return
     }
 

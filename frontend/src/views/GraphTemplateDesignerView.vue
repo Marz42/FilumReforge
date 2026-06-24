@@ -12,6 +12,7 @@ import {
   importGraphTemplateDraft,
   publishGraphTemplate,
   saveGraphTemplateDraft,
+  updateGraphTemplate,
   validateGraphTemplate,
 } from '@/api/workflow-graph'
 import GraphTemplateDagPreview from '@/components/workflow/GraphTemplateDagPreview.vue'
@@ -65,7 +66,6 @@ const form = reactive({
   onCompleteEnabled: false,
   onCompleteNextTemplateCode: '',
   onCompleteCarryInputs: true,
-  schedulable: false,
 })
 
 const departmentOptions = ref<Array<{ value: string; label: string }>>([])
@@ -200,12 +200,12 @@ async function loadDepartments(): Promise<void> {
   }
 }
 
-function buildDraftPayload() {
+function buildTemplateConfig(): Record<string, unknown> | null {
   const launchSchema = parseLaunchSchema()
   if (launchSchema === null) {
     return null
   }
-  const config = {
+  const config: Record<string, unknown> = {
     ...(detail.value?.config ?? {}),
     launch_schema: launchSchema,
     aggregate_mode: form.aggregateMode,
@@ -235,6 +235,14 @@ function buildDraftPayload() {
     config.department_pools = departmentPools
   } else {
     delete config.department_pools
+  }
+  return config
+}
+
+function buildDraftPayload() {
+  const config = buildTemplateConfig()
+  if (config === null) {
+    return null
   }
   const nodes = nodeRows.value.map((node, index) => {
     let nodeConfig: Record<string, unknown>
@@ -337,6 +345,30 @@ async function handleSave(): Promise<void> {
     }
     applyDetail(await saveGraphTemplateDraft(templateId.value, payload))
     ElMessage.success('草稿已保存')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleSaveActiveSettings(): Promise<void> {
+  if (!templateId.value || isDraft.value) {
+    return
+  }
+  saving.value = true
+  try {
+    const config = buildTemplateConfig()
+    if (config === null) {
+      return
+    }
+    await updateGraphTemplate(templateId.value, {
+      name: form.name.trim(),
+      description: form.description.trim() || null,
+      config,
+    })
+    applyDetail(await getGraphTemplateDesigner(templateId.value))
+    ElMessage.success('设置已保存')
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
   } finally {
@@ -539,6 +571,16 @@ onMounted(async () => {
         >
           保存草稿
         </el-button>
+        <el-button
+          v-if="!isDraft"
+          type="primary"
+          plain
+          :loading="saving"
+          data-testid="designer-save-settings"
+          @click="handleSaveActiveSettings"
+        >
+          保存设置
+        </el-button>
         <el-button :loading="forking" data-testid="designer-fork" @click="handleForkVersion">另存新版本</el-button>
         <el-button
           v-if="isDraft"
@@ -551,6 +593,15 @@ onMounted(async () => {
         </el-button>
       </div>
     </header>
+
+    <el-alert
+      v-if="detail && !isDraft"
+      type="info"
+      :closable="false"
+      show-icon
+      class="designer__alert"
+      title="已发布模板：可「保存设置」更新名称、schedulable、launch_schema 等；改节点/边请「另存新版本」。"
+    />
 
     <el-alert
       v-if="validationErrors.length"

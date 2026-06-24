@@ -28,6 +28,7 @@ import { resolveActiveStepTaskId } from '@/domain/workflow-graph/activeStepTask'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
 import TaskDetailHeaderBar from '@/components/task-detail/TaskDetailHeaderBar.vue'
 import TaskDetailMetadataPanel from '@/components/task-detail/TaskDetailMetadataPanel.vue'
+import { resolveStatusLabel } from '@/components/task-detail/task-detail-labels'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
   isVideoWorkflowProfile,

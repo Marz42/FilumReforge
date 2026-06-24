@@ -101,15 +101,37 @@ export function validateAttachmentFile(file: File): string | null {
 }
 
 export function attachmentMimeIsInlineViewable(mime: string): boolean {
-  const m = mime.split(';')[0]?.trim().toLowerCase() ?? ''
-  if (m === 'application/pdf') {
-    return true
+  return resolveAttachmentPreviewKind(mime) !== null
+}
+
+export type AttachmentPreviewKind = 'image' | 'pdf' | 'text' | 'markdown' | 'docx' | 'xlsx' | 'audio'
+
+export function resolveAttachmentPreviewKind(mime: string): AttachmentPreviewKind | null {
+  const normalized = mime.split(';')[0]?.trim().toLowerCase() ?? ''
+  if (normalized === 'application/pdf') {
+    return 'pdf'
   }
-  if (m.startsWith('image/')) {
-    return true
+  if (normalized.startsWith('image/')) {
+    return 'image'
   }
-  if (m === 'text/plain' || m === 'text/markdown') {
-    return true
+  if (normalized === 'text/plain') {
+    return 'text'
   }
-  return false
+  if (normalized === 'text/markdown') {
+    return 'markdown'
+  }
+  if (normalized === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    return 'docx'
+  }
+  if (normalized === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+    return 'xlsx'
+  }
+  if (normalized === 'audio/mpeg' || normalized === 'audio/wav' || normalized === 'audio/x-wav') {
+    return 'audio'
+  }
+  return null
+}
+
+export function attachmentSupportsPreview(mime: string): boolean {
+  return resolveAttachmentPreviewKind(mime) !== null
 }

@@ -1,5 +1,30 @@
 # Project Filum 进度记录
 
+## 会话摘要（测试服务器部署前检查）
+
+### 2026-06-23 — 部署前完整检查
+
+**结论**：核心功能可上内测；推送前须提交 F-25 + 定时 UI + 设计器「保存设置」；测试机须 `alembic upgrade head` 与 Worker 常驻。
+
+**自动化**：后端 TC-Transform 相关 **24/24**；前端 unit **7/7**；`build-only` 通过；迁移链测试通过。
+
+**修复**：`TaskDetailShell.vue` 补 `resolveStatusLabel` 导入（任务状态变更/活动日志此前会 ReferenceError）。
+
+---
+
+## 会话摘要（F-25 附件预览）
+
+### 2026-06-23 — F-25 应用内附件预览
+
+**完成事项**:
+- [x] `AttachmentPreviewDialog` + `useAttachmentPreview` 全局 Dialog
+- [x] 支持 image / PDF / txt / md / docx（mammoth）/ xlsx（SheetJS）/ wav·mp3 试听
+- [x] `AttachmentActions`「预览」按钮；任务详情/评论/消息/汇报/知识库共用
+- [x] 单元测试 `attachment-preview.spec.ts` 4/4
+- [x] E2E `previews task attachment in dialog`；task-center 套件 **39/39**
+
+---
+
 ## 会话摘要（F-24 部门周期调度）
 
 ### 2026-06-23 — ADR-011 定稿 + F-24 实现

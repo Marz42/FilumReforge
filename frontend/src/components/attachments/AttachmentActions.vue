@@ -2,12 +2,12 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
-import { attachmentMimeIsInlineViewable } from '@/constants/attachments'
+import { attachmentSupportsPreview } from '@/constants/attachments'
+import { useAttachmentPreview } from '@/composables/useAttachmentPreview'
 import type { Attachment } from '@/types/api'
 import {
   attachmentActionErrorMessage,
   downloadAttachmentFile,
-  openAttachmentInline,
 } from '@/utils/attachment-content'
 
 const props = defineProps<{
@@ -18,13 +18,14 @@ const props = defineProps<{
 
 const viewing = ref(false)
 const downloading = ref(false)
+const { openAttachmentPreview } = useAttachmentPreview()
 
-const canView = () => attachmentMimeIsInlineViewable(props.attachment.mime_type)
+const canPreview = () => attachmentSupportsPreview(props.attachment.mime_type)
 
 async function handleView(): Promise<void> {
   viewing.value = true
   try {
-    await openAttachmentInline(props.attachment)
+    await openAttachmentPreview(props.attachment)
   } catch (error) {
     ElMessage.error(attachmentActionErrorMessage(error))
   } finally {
@@ -47,14 +48,14 @@ async function handleDownload(): Promise<void> {
 <template>
   <el-space>
     <el-button
-      v-if="canView()"
+      v-if="canPreview()"
       link
       type="primary"
       :loading="viewing"
       :data-testid="viewTestId"
       @click="handleView"
     >
-      查看
+      预览
     </el-button>
     <el-button
       link
@@ -63,7 +64,7 @@ async function handleDownload(): Promise<void> {
       :data-testid="downloadTestId"
       @click="handleDownload"
     >
-      {{ canView() ? '下载' : '下载' }}
+      下载
     </el-button>
   </el-space>
 </template>

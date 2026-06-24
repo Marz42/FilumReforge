@@ -166,7 +166,7 @@ Feature flags：`TASK_CENTER_V2_ENABLED` · `WORKFLOW_GRAPH_ENGINE_ENABLED` · `
 | 2 | **多部门共用模板**：如文案 A/B 共用同一模板，批次在各自部门 fan-out，制作链可流向 **固定目标部门 C** |
 | 3 | **结束时触发另一模板**：Run/节点完成可配置触发下一图模板；**禁止循环** A→B→A |
 | 4 | **部门定时任务** | **F-24 ✅** — schedulable 模板 · 建立任务「定时派发」Tab · manager actor · 防重叠 |
-| 5 | **附件增强**：md/docx/xlsx/wav/图片预览试听 — **后续增强** |
+| 5 | **附件增强**：md/docx/xlsx/wav/图片预览试听 — **F-25 ✅** |
 | 6 | **设计器去 JSON**：launch_schema、routing、cron 等改 dropdown/checkbox — **F-26** |
 | 7 | **跨部门跳转**：任务 **不经部门负责人门控** 直达执行人；边界 **抄送组织树 manager**（与 F-21 同思路） |
 

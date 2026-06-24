@@ -62,3 +62,17 @@ test('creates a scheduled graph template dispatch from dialog tab', async ({ moc
   await expect(page.locator('.el-message')).toContainText('周期任务已创建')
   await expect(page.getByTestId('task-center-task-dialog')).toBeHidden()
 })
+
+test('previews task attachment in dialog', async ({ mockApi, page }) => {
+  await mockApi()
+
+  await page.goto('/task-center?filter=tracking&selected=task-graph-1')
+  await expect(page.getByTestId('tasks-detail-panel')).toBeVisible()
+  await expect(page.getByText('mock-spec.md')).toBeVisible()
+
+  await page.getByTestId('task-attachment-view').click()
+  await expect(page.getByTestId('attachment-preview-dialog')).toBeVisible()
+  await expect(page.getByTestId('attachment-preview-rich')).toContainText('E2E 附件预览')
+  await page.getByRole('button', { name: '关闭' }).click()
+  await expect(page.getByTestId('attachment-preview-dialog')).toBeHidden()
+})

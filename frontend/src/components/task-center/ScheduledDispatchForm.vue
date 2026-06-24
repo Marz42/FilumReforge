@@ -10,6 +10,16 @@ import {
 } from '@/api/workflow-graph'
 import { listDepartments } from '@/api/departments'
 import type { GraphTemplateSummary } from '@/types/workflowVideo'
+import {
+  buildCronFromSchedule,
+  isScheduleTimeComplete,
+  SCHEDULE_FREQUENCY_OPTIONS,
+  SCHEDULE_HOUR_OPTIONS,
+  SCHEDULE_MINUTE_OPTIONS,
+  SCHEDULE_MONTH_DAY_OPTIONS,
+  SCHEDULE_WEEKDAY_OPTIONS,
+  type ScheduleFrequency,
+} from '@/utils/scheduleCron'
 import { resolveLaunchSchema, resolveParticipantPolicyRefs } from '@/utils/workflowVideoSchema'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
 import { getErrorMessage } from '@/utils/errors'
@@ -33,7 +43,11 @@ const form = reactive({
   name: '',
   scope_department_id: '',
   scope_mode: 'self' as 'self' | 'subtree',
-  cron_preset: 'weekly_mon_9',
+  schedule_frequency: 'weekly' as ScheduleFrequency,
+  schedule_hour: '09',
+  schedule_minute: '00',
+  schedule_day_of_week: 1,
+  schedule_day_of_month: 1,
   cron_expr: '0 9 * * 1',
   timezone: 'Asia/Shanghai',
   theme: '',
@@ -52,12 +66,6 @@ const policyRef = computed(() => {
   const refs = resolveParticipantPolicyRefs(selectedTemplate.value?.config)
   return refs[0] ?? ''
 })
-
-const cronPresets: Record<string, string> = {
-  weekly_mon_9: '0 9 * * 1',
-  weekly_fri_17: '0 17 * * 5',
-  monthly_1_9: '0 9 1 * *',
-}
 
 const participantSelectOptions = computed(() =>
   previewUsers.value.map((user) => ({
@@ -101,25 +109,9 @@ watch(
   },
 )
 
-watch(
-  () => form.cron_preset,
-  (preset) => {
-    if (preset !== 'custom' && cronPresets[preset]) {
-      form.cron_expr = cronPresets[preset]
-    }
-  },
-)
-
-function applyCronPreset(preset: string): void {
-  form.cron_preset = preset
-  if (preset !== 'custom' && cronPresets[preset]) {
-    form.cron_expr = cronPresets[preset]
-  }
-}
-
 async function handleSubmit(): Promise<void> {
   if (!form.template_id) {
-    ElMessage.warning('请选择 schedulable 模板')
+    ElMessage.warning('请选择定时模板')
     return
   }
   if (!form.name.trim()) {
@@ -132,6 +124,23 @@ async function handleSubmit(): Promise<void> {
   }
   if (form.participant_mode === 'subset' && form.participant_user_ids.length === 0) {
     ElMessage.warning('subset 模式至少选择一名参与人')
+    return
+  }
+  const scheduleInput = {
+    frequency: form.schedule_frequency,
+    hour: form.schedule_hour,
+    minute: form.schedule_minute,
+    dayOfWeek: form.schedule_day_of_week,
+    dayOfMonth: form.schedule_day_of_month,
+  }
+  if (!isScheduleTimeComplete(scheduleInput)) {
+    ElMessage.warning('请选择执行时间')
+    return
+  }
+  try {
+    form.cron_expr = buildCronFromSchedule(scheduleInput)
+  } catch {
+    ElMessage.warning('执行时间无效，请重新选择')
     return
   }
 
@@ -186,7 +195,7 @@ defineExpose({ submit: handleSubmit, submitting })
 
 <template>
   <el-form label-position="top" class="scheduled-dispatch-form" data-testid="scheduled-dispatch-form">
-    <el-form-item label="schedulable 模板" required>
+    <el-form-item label="选择定时模板" required>
       <el-select
         v-model="form.template_id"
         filterable
@@ -223,23 +232,74 @@ defineExpose({ submit: handleSubmit, submitting })
     <el-form-item label="作用范围">
       <el-radio-group v-model="form.scope_mode">
         <el-radio value="self">仅本部门</el-radio>
-        <el-radio value="subtree">含所有 active 子部门</el-radio>
+        <el-radio value="subtree">所有子部门</el-radio>
       </el-radio-group>
     </el-form-item>
-    <el-form-item label="周期">
-      <el-radio-group v-model="form.cron_preset" @change="applyCronPreset(form.cron_preset)">
-        <el-radio value="weekly_mon_9">每周一 09:00</el-radio>
-        <el-radio value="weekly_fri_17">每周五 17:00</el-radio>
-        <el-radio value="monthly_1_9">每月 1 日 09:00</el-radio>
-        <el-radio value="custom">自定义 cron</el-radio>
-      </el-radio-group>
-      <el-input
-        v-if="form.cron_preset === 'custom'"
-        v-model="form.cron_expr"
-        class="scheduled-dispatch-form__cron"
-        placeholder="0 9 * * 1"
-        data-testid="scheduled-dispatch-cron"
-      />
+    <el-form-item label="执行时间" required>
+      <div data-testid="scheduled-dispatch-datetime" class="scheduled-dispatch-form__schedule">
+        <el-select
+          v-model="form.schedule_frequency"
+          class="scheduled-dispatch-form__frequency"
+          data-testid="scheduled-dispatch-frequency"
+        >
+          <el-option
+            v-for="option in SCHEDULE_FREQUENCY_OPTIONS"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <el-select
+          v-if="form.schedule_frequency === 'weekly'"
+          v-model="form.schedule_day_of_week"
+          class="scheduled-dispatch-form__weekday"
+          data-testid="scheduled-dispatch-weekday"
+        >
+          <el-option
+            v-for="option in SCHEDULE_WEEKDAY_OPTIONS"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <el-select
+          v-if="form.schedule_frequency === 'monthly'"
+          v-model="form.schedule_day_of_month"
+          class="scheduled-dispatch-form__month-day"
+          data-testid="scheduled-dispatch-month-day"
+        >
+          <el-option
+            v-for="option in SCHEDULE_MONTH_DAY_OPTIONS"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <el-select
+          v-model="form.schedule_hour"
+          class="scheduled-dispatch-form__hour"
+          filterable
+          placeholder="时"
+          data-testid="scheduled-dispatch-hour"
+        >
+          <el-option v-for="hour in SCHEDULE_HOUR_OPTIONS" :key="hour" :label="hour" :value="hour" />
+        </el-select>
+        <span class="scheduled-dispatch-form__colon">:</span>
+        <el-select
+          v-model="form.schedule_minute"
+          class="scheduled-dispatch-form__minute"
+          filterable
+          placeholder="分"
+          data-testid="scheduled-dispatch-minute"
+        >
+          <el-option
+            v-for="minute in SCHEDULE_MINUTE_OPTIONS"
+            :key="minute"
+            :label="minute"
+            :value="minute"
+          />
+        </el-select>
+      </div>
     </el-form-item>
     <el-form-item v-if="resolveLaunchSchema(selectedTemplate?.config)?.fields?.some((f) => f.key === 'theme')" label="默认主题">
       <el-input v-model="form.theme" placeholder="写入 launch theme（可选）" />
@@ -307,7 +367,30 @@ defineExpose({ submit: handleSubmit, submitting })
   width: 100%;
 }
 
-.scheduled-dispatch-form__cron {
-  margin-top: 8px;
+.scheduled-dispatch-form__schedule {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.scheduled-dispatch-form__frequency {
+  width: 108px;
+}
+
+.scheduled-dispatch-form__weekday,
+.scheduled-dispatch-form__month-day {
+  width: 108px;
+}
+
+.scheduled-dispatch-form__hour,
+.scheduled-dispatch-form__minute {
+  width: 88px;
+}
+
+.scheduled-dispatch-form__colon {
+  color: var(--filum-text-secondary);
+  font-size: 14px;
 }
 </style>
