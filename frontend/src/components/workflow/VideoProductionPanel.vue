@@ -39,7 +39,7 @@ const panelSubtitle = computed(() => {
   if (props.mode === 'platform') {
     return '上传平台链接截图，或在说明中填写视频链接'
   }
-  return '上传文件并提交验收'
+  return '上传脚本文稿并提交（配音在后续「配音审核并上传」步骤单独提交）'
 })
 
 function extractRawFiles(uploadFiles: UploadFile[]): File[] {

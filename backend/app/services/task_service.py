@@ -1640,6 +1640,12 @@ class TaskService:
         WorkflowGraphTemplateNode,
         node_instance.template_node_id,
       )
+    from app.services.workflow_node_config_helpers import reconcile_node_instance_config_from_template
+
+    reconcile_node_instance_config_from_template(
+      node_instance=node_instance,
+      template_node=template_node,
+    )
     policy = resolve_completion_policy(
       node_instance=node_instance,
       template_node=template_node,

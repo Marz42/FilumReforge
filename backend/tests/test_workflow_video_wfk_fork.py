@@ -14,13 +14,19 @@ from app.core.enums import (
   WorkflowGraphTemplateStatus,
   WorkflowNodeEngineState,
 )
-from app.models import Task, WorkflowGraphInstance, WorkflowGraphTemplate, WorkflowGraphTemplateNode
+from app.models import Task, WorkflowGraphInstance, WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
 from app.schemas.workflow_video import ApprovedTopic, ParticipantsSnapshotEntry, TopicCaptureRow
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
 from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
+from app.services.workflow_video_template_seed_data import (
+  VIDEO_PRODUCTION_CODE,
+  build_production_edges,
+  build_production_nodes,
+  build_production_template_config,
+)
 from test_workflow_video_w3_instantiation import (
   TEST_JWT_SECRET,
   _enabled_settings,
@@ -28,10 +34,10 @@ from test_workflow_video_w3_instantiation import (
 )
 
 
-async def _seed_production_template(db_session, *, admin_id):
+async def _seed_production_template(db_session, *, admin_id, department_id):
   existing = await db_session.scalar(
     select(WorkflowGraphTemplate).where(
-      WorkflowGraphTemplate.code == "video_production_per_topic_v1",
+      WorkflowGraphTemplate.code == VIDEO_PRODUCTION_CODE,
       WorkflowGraphTemplate.status == WorkflowGraphTemplateStatus.ACTIVE,
     )
   )
@@ -39,25 +45,44 @@ async def _seed_production_template(db_session, *, admin_id):
     return existing
 
   template = WorkflowGraphTemplate(
-    code="video_production_per_topic_v1",
-    base_code="video_production_per_topic_v1",
+    code=VIDEO_PRODUCTION_CODE,
+    base_code=VIDEO_PRODUCTION_CODE,
     version=1,
-    name="单题制作",
+    name="单题视频制作",
     status=WorkflowGraphTemplateStatus.ACTIVE,
-    config={"run_kind": "production"},
+    config=build_production_template_config(
+      copywriting_department_id=department_id,
+      voice_department_id=department_id,
+      post_department_id=department_id,
+    ),
     created_by=admin_id,
   )
   db_session.add(template)
   await db_session.flush()
-  db_session.add(
-    WorkflowGraphTemplateNode(
+
+  node_models: dict[str, WorkflowGraphTemplateNode] = {}
+  for node_data in build_production_nodes():
+    node = WorkflowGraphTemplateNode(
       template_id=template.id,
-      node_key="N3_SCRIPT_WRITE",
-      title="写脚本",
-      sort_order=1,
-      assignee_rule={"type": "context_var", "var": "script_author_id"},
+      node_key=node_data["node_key"],
+      title=node_data["title"],
+      sort_order=node_data["sort_order"],
+      assignee_rule=node_data.get("assignee_rule") or {},
+      config=node_data.get("config") or {},
     )
-  )
+    db_session.add(node)
+    node_models[node_data["node_key"]] = node
+  await db_session.flush()
+
+  for from_key, to_key, is_reject in build_production_edges():
+    db_session.add(
+      WorkflowGraphTemplateEdge(
+        template_id=template.id,
+        from_node_id=node_models[from_key].id,
+        to_node_id=node_models[to_key].id,
+        is_reject_path=is_reject,
+      )
+    )
   await db_session.flush()
   return template
 
@@ -83,7 +108,11 @@ def _build_services(db_session):
 
 async def _run_batch_with_topics(db_session, *, topic_specs: list[tuple]):
   seed = await _seed_topic_meeting_batch_template(db_session)
-  await _seed_production_template(db_session, admin_id=seed["admin"].id)
+  await _seed_production_template(
+    db_session,
+    admin_id=seed["admin"].id,
+    department_id=seed["department"].id,
+  )
   form, fork, instantiation = _build_services(db_session)
 
   editors = seed["editors"]
@@ -118,7 +147,11 @@ async def _run_batch_with_topics(db_session, *, topic_specs: list[tuple]):
 @pytest.mark.asyncio
 async def test_wfk_fork_five_topics_five_child_runs(db_session) -> None:
   seed = await _seed_topic_meeting_batch_template(db_session)
-  await _seed_production_template(db_session, admin_id=seed["admin"].id)
+  await _seed_production_template(
+    db_session,
+    admin_id=seed["admin"].id,
+    department_id=seed["department"].id,
+  )
   form, fork, instantiation = _build_services(db_session)
   author = seed["editors"][0]
 
@@ -165,7 +198,11 @@ async def test_wfk_fork_five_topics_five_child_runs(db_session) -> None:
 @pytest.mark.asyncio
 async def test_wfk_same_author_two_topics_two_script_tasks(db_session) -> None:
   seed = await _seed_topic_meeting_batch_template(db_session)
-  await _seed_production_template(db_session, admin_id=seed["admin"].id)
+  await _seed_production_template(
+    db_session,
+    admin_id=seed["admin"].id,
+    department_id=seed["department"].id,
+  )
   form, fork, _instantiation = _build_services(db_session)
   author = seed["editors"][0]
 
@@ -217,7 +254,11 @@ async def test_wfk_same_author_two_topics_two_script_tasks(db_session) -> None:
 @pytest.mark.asyncio
 async def test_wfk_idempotent_second_fork_skips(db_session) -> None:
   seed = await _seed_topic_meeting_batch_template(db_session)
-  await _seed_production_template(db_session, admin_id=seed["admin"].id)
+  await _seed_production_template(
+    db_session,
+    admin_id=seed["admin"].id,
+    department_id=seed["department"].id,
+  )
   form, fork, instantiation = _build_services(db_session)
   author = seed["editors"][0]
 

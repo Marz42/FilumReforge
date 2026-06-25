@@ -5,13 +5,150 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
-from app.core.enums import TaskSourceType
+from app.core.enums import TaskSourceType, TaskStatus, WorkflowNodeEngineState
 from app.core.exceptions import ConflictError
-from app.models import Task, WorkflowGraphInstance
+from app.models import Task, WorkflowGraphInstance, WorkflowNodeInstance
 from app.schemas.workflow_video import ApprovedTopic, ParticipantsSnapshotEntry, TopicCaptureRow
 from app.services.task_service import TaskService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
 from test_workflow_video_dispatch_topic import _build_form_service, _instantiate_batch_run
+
+
+async def _dispatch_single_topic(db_session, *, title: str = "脚本提交题") -> dict:
+  seed = await _instantiate_batch_run(db_session)
+  form = _build_form_service(db_session)
+  editor = seed["editors"][0]
+  task = seed["editor_tasks"][editor.id]
+  submit = await form.submit_capture(
+    actor=editor,
+    task_id=task.id,
+    topics=[TopicCaptureRow(title=title)],
+  )
+  topic_id = submit.topics[0].topic_id
+  assert topic_id is not None
+
+  dispatch = await form.dispatch_topic(
+    actor=seed["manager"],
+    instance_id=seed["run"].instance.id,
+    topic_id=topic_id,
+    title=title,
+    script_writer_user_id=editor.id,
+    source_node_instance_id=submit.node_instance_id,
+  )
+  assert dispatch.child_instance_id is not None
+
+  child_instance = await db_session.get(WorkflowGraphInstance, dispatch.child_instance_id)
+  assert child_instance is not None
+  n3_task = await db_session.scalar(
+    select(Task).where(
+      Task.assignee_id == editor.id,
+      Task.source_type == TaskSourceType.TEMPLATE,
+    )
+  )
+  n3_tasks = list(
+    await db_session.scalars(
+      select(Task).where(
+        Task.assignee_id == editor.id,
+        Task.source_type == TaskSourceType.TEMPLATE,
+      )
+    )
+  )
+  n3_task = next(
+    (t for t in n3_tasks if (t.extra_metadata or {}).get("template_node_key") == "N3_SCRIPT_WRITE"),
+    None,
+  )
+  assert n3_task is not None
+  return {
+    **seed,
+    "editor": editor,
+    "child_instance": child_instance,
+    "n3_task": n3_task,
+  }
+
+
+@pytest.mark.asyncio
+async def test_n3_submit_deliverable_advances_to_script_review(db_session) -> None:
+  ctx = await _dispatch_single_topic(db_session, title="n3-submit-advance")
+  task_service = TaskService(db_session)
+
+  completed = await task_service.submit_task_deliverable(
+    actor=ctx["editor"],
+    task_id=ctx["n3_task"].id,
+    summary="脚本文稿",
+    attachment_ids=[],
+  )
+  assert completed.status == TaskStatus.DONE
+
+  n3_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == ctx["child_instance"].id,
+      WorkflowNodeInstance.node_key == "N3_SCRIPT_WRITE",
+    )
+  )
+  n4_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == ctx["child_instance"].id,
+      WorkflowNodeInstance.node_key == "N4_SCRIPT_REVIEW",
+    )
+  )
+  assert n3_node is not None
+  assert n4_node is not None
+  assert n3_node.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert n4_node.engine_state == WorkflowNodeEngineState.ACKNOWLEDGED
+
+  n4_tasks = list(
+    await db_session.scalars(
+      select(Task).where(
+        Task.source_type == TaskSourceType.TEMPLATE,
+      )
+    )
+  )
+  n4_task = next(
+    (t for t in n4_tasks if (t.extra_metadata or {}).get("template_node_key") == "N4_SCRIPT_REVIEW"),
+    None,
+  )
+  assert n4_task is not None
+  assert n4_task.status == TaskStatus.REVIEW
+
+
+@pytest.mark.asyncio
+async def test_n3_submit_with_stale_capture_policy_still_advances(db_session) -> None:
+  """Simulate production runs forked before N3 redesign (on_capture_submitted snapshot)."""
+  ctx = await _dispatch_single_topic(db_session, title="stale-policy")
+  n3_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == ctx["child_instance"].id,
+      WorkflowNodeInstance.node_key == "N3_SCRIPT_WRITE",
+    )
+  )
+  assert n3_node is not None
+  n3_node.config = {
+    **dict(n3_node.config or {}),
+    "completion_policy": "on_capture_submitted",
+  }
+  await db_session.flush()
+
+  task_service = TaskService(db_session)
+  completed = await task_service.submit_task_deliverable(
+    actor=ctx["editor"],
+    task_id=ctx["n3_task"].id,
+    summary="脚本文稿",
+    attachment_ids=[],
+  )
+  assert completed.status == TaskStatus.DONE
+
+  await db_session.refresh(n3_node)
+  assert n3_node.config.get("completion_policy") == "on_submit_deliverable"
+  assert n3_node.engine_state == WorkflowNodeEngineState.COMPLETED
+
+  n4_node = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == ctx["child_instance"].id,
+      WorkflowNodeInstance.node_key == "N4_SCRIPT_REVIEW",
+    )
+  )
+  assert n4_node is not None
+  assert n4_node.engine_state == WorkflowNodeEngineState.ACKNOWLEDGED
 
 
 @pytest.mark.asyncio

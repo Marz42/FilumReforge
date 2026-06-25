@@ -827,6 +827,20 @@ class WorkflowGraphService:
         .with_for_update(skip_locked=True)
       )
       if downstream_ni is None:
+        # In-place template seed can add new template_node rows while historical runs
+        # still carry pending node_instances keyed by node_key only.
+        downstream_ni = await self._session.scalar(
+          select(WorkflowNodeInstance)
+          .where(
+            WorkflowNodeInstance.instance_id == instance_id,
+            WorkflowNodeInstance.node_key == downstream_template_node.node_key,
+            WorkflowNodeInstance.engine_state == WorkflowNodeEngineState.PENDING,
+          )
+          .with_for_update(skip_locked=True)
+        )
+        if downstream_ni is not None:
+          downstream_ni.template_node_id = downstream_template_node_id
+      if downstream_ni is None:
         # 已经激活或已完成，跳过
         continue
 

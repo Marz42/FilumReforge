@@ -38,7 +38,11 @@ def _build_form_service(db_session) -> WorkflowVideoFormService:
 
 async def _instantiate_batch_run(db_session):
   seed = await _seed_topic_meeting_batch_template(db_session)
-  await _seed_production_template(db_session, admin_id=seed["admin"].id)
+  await _seed_production_template(
+    db_session,
+    admin_id=seed["admin"].id,
+    department_id=seed["department"].id,
+  )
   admin = seed["admin"]
   manager = seed["manager"]
   editors = seed["editors"]

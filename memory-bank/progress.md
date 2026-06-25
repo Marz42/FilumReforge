@@ -1,5 +1,22 @@
 # Project Filum 进度记录
 
+## 会话摘要（N3 脚本提交 500 / 流程不推进）
+
+### 2026-06-23 — 撰写脚本提交修复
+
+**根因**：模板 seed v3/v4 将 N3 改为 `on_submit_deliverable`，但历史 `workflow_node_instances.config` 快照仍保留 `on_capture_submitted`，`resolve_completion_policy` 优先读实例快照 → 提交后任务进 REVIEW 且不推进图；误开 ROOT 壳层或图推进失败时表现为 500。
+
+**修复**：
+- `resolve_completion_policy` 以模板节点为准；`reconcile_node_instance_config_from_template` 在提交时对齐快照
+- `_activate_downstream` 按 `node_key` 回退匹配（in-place seed 后 template_node_id 漂移）
+- 测试：完整 production 模板 seed + `test_n3_submit_*` 回归；`VideoProductionPanel` 提示配音在 N5 单独提交
+
+**UX**：旧「单题视频制作/视频制作」合并步骤已拆为 N3 撰写脚本 + N5 配音上传（设计变更，非 bug）。
+
+**部署**：拉取本修复后 `seed_workflow_video_templates`（含 FK 原地同步）+ restart backend/worker。
+
+---
+
 ## 会话摘要（文档同步 · 0.90.0 内测部署）
 
 ### 2026-06-23 — memory-bank + 生产 seed 修复
