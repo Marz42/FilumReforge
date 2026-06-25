@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Callable, Generic, TypeVar
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1807,8 +1807,10 @@ class TaskService:
           Attachment.id.in_(attachment_ids),
           Attachment.status != AttachmentStatus.DELETED,
           Attachment.links.any(
-            Attachment.target_type == AttachmentTargetType.TASK,
-            Attachment.target_id == task_id,
+            and_(
+              AttachmentLink.target_type == AttachmentTargetType.TASK,
+              AttachmentLink.target_id == task_id,
+            )
           ),
         )
       )

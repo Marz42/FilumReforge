@@ -1121,6 +1121,72 @@ async def test_phase5_graph_task_supports_deliverable_review_and_rework_cycle(db
 
 
 @pytest.mark.asyncio
+async def test_submit_task_deliverable_validates_attachment_links(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="admin@example.com",
+    password="StrongPassword123!",
+    real_name="管理员",
+    employee_no="EMP-ROOT",
+  )
+  user_service = UserService(db_session)
+  profile_service = ProfileService(db_session)
+  task_service = TaskService(db_session)
+
+  employee = await user_service.create_user(
+    actor=admin,
+    email="employee@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  admin_profile = await profile_service.get_profile(actor=admin, user_id=admin.id)
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=employee.id,
+    employee_no="EMP-001",
+    real_name="普通员工",
+    department_id=admin_profile.department_id,
+  )
+
+  task = await task_service.create_task(
+    actor=admin,
+    title="带附件交付",
+    assignee_id=employee.id,
+  )
+  await task_service.transition_task_status(
+    actor=employee,
+    task_id=task.id,
+    target_status=TaskStatus.DOING,
+  )
+
+  with TemporaryDirectory() as tmp_dir:
+    attachment_service = AttachmentService(
+      db_session,
+      ObjectStorageService(LocalStorageAdapter(base_path=tmp_dir, bucket="filum-test")),
+    )
+    attachment = await attachment_service.upload_attachment(
+      actor=employee,
+      filename="script.txt",
+      content_type="text/plain",
+      content=b"script body",
+      target_type=AttachmentTargetType.TASK,
+      target_id=task.id,
+      relation="deliverable",
+    )
+
+  review_task = await task_service.submit_task_deliverable(
+    actor=employee,
+    task_id=task.id,
+    summary="脚本文稿",
+    attachment_ids=[attachment.id],
+  )
+
+  assert review_task.status == TaskStatus.REVIEW
+  assert review_task.extra_metadata["latest_deliverable_attachment_ids"] == [str(attachment.id)]
+
+
+@pytest.mark.asyncio
 async def test_phase4_graph_task_requires_accept_before_start_and_updates_inbox_context(db_session) -> None:
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,

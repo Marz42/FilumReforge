@@ -15,6 +15,12 @@
 
 **部署**：拉取本修复后 `seed_workflow_video_templates`（含 FK 原地同步）+ restart backend/worker。
 
+### 2026-06-23 — 交付物附件校验 500（生产日志）
+
+**根因**：`_validate_task_attachment_ids` 误用 `Attachment.target_type`（字段在 `AttachmentLink`）；仅 summary、无 `attachment_ids` 时不会触发。
+
+**修复**：改为 `AttachmentLink` + `and_()` 关系查询；回归 `test_submit_task_deliverable_validates_attachment_links`。
+
 ---
 
 ## 会话摘要（文档同步 · 0.90.0 内测部署）
