@@ -11,7 +11,7 @@ import type { Task, WorkflowGraphInstanceDetail } from '@/types/api'
 import type { CaptureSchema, ParticipantUserPreview } from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
-import { resolveCaptureSchema, isCaptureClosed } from '@/utils/workflowVideoSchema'
+import { resolveCaptureSchema, isCaptureClosed, resolveUserPoolKey } from '@/utils/workflowVideoSchema'
 
 const props = defineProps<{
   task: Task
@@ -45,10 +45,11 @@ const hasUserColumn = computed(() =>
   captureSchema.value?.columns.some((column) => column.type === 'user') ?? false,
 )
 
-const userPoolKey = computed(() => {
-  const column = captureSchema.value?.columns.find((entry) => entry.type === 'user' && entry.pool_key)
-  return column?.pool_key?.trim() || ''
-})
+const userPoolKey = computed(() =>
+  resolveUserPoolKey(props.graphInstance?.context, nodeKey.value),
+)
+
+const graphInstanceId = computed(() => props.graphInstance?.id ?? '')
 
 const templateId = computed(() => {
   const metadata = props.task.extra_metadata as Record<string, unknown> | undefined
@@ -86,7 +87,11 @@ async function loadManagerOptions(): Promise<void> {
   managerLoading.value = true
   try {
     if (userPoolKey.value && templateId.value) {
-      managerCandidates.value = await listDepartmentPoolMemberOptions(templateId.value, userPoolKey.value)
+      managerCandidates.value = await listDepartmentPoolMemberOptions(
+        templateId.value,
+        userPoolKey.value,
+        graphInstanceId.value || undefined,
+      )
       return
     }
     managerCandidates.value = await listManagedDepartmentMemberOptions()

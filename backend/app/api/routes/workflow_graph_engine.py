@@ -193,12 +193,18 @@ async def list_department_pool_member_options(
   pool_key: Annotated[str, Query(min_length=1, max_length=64)],
   actor: Annotated[User, Depends(get_current_user)],
   participant_service: Annotated[ParticipantResolutionService, Depends(get_participant_resolution_service)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+  instance_id: Annotated[UUID | None, Query()] = None,
 ) -> list[ParticipantUserPreview]:
   template = await participant_service.get_template_or_raise(template_id)
+  instance: WorkflowGraphInstance | None = None
+  if instance_id is not None:
+    instance = await workflow_graph_service.get_instance(instance_id=instance_id)
   users = await participant_service.list_department_pool_member_options(
     actor=actor,
     template=template,
     pool_key=pool_key,
+    instance=instance,
   )
   return [
     ParticipantUserPreview(

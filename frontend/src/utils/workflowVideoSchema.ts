@@ -26,6 +26,34 @@ export function resolveCaptureSchema(
   return raw as CaptureSchema
 }
 
+const DEFAULT_USER_POOL_BY_COLUMN: Record<string, string> = {
+  edit_assignee_id: 'post_production',
+}
+
+const DEFAULT_USER_POOL_BY_NODE: Record<string, string> = {
+  N7_EDIT_ASSIGN: 'post_production',
+}
+
+/** Resolve department pool for capture user pickers; fills gaps in stale schema snapshots. */
+export function resolveUserPoolKey(
+  context: Record<string, unknown> | undefined,
+  nodeKey: string,
+): string {
+  const schema = resolveCaptureSchema(context, nodeKey)
+  const userColumn = schema?.columns.find((entry) => entry.type === 'user')
+  const fromColumn = userColumn?.pool_key?.trim()
+  if (fromColumn) {
+    return fromColumn
+  }
+  if (userColumn?.key) {
+    const fromKey = DEFAULT_USER_POOL_BY_COLUMN[userColumn.key]?.trim()
+    if (fromKey) {
+      return fromKey
+    }
+  }
+  return DEFAULT_USER_POOL_BY_NODE[nodeKey]?.trim() ?? ''
+}
+
 export function resolveAggregateSchema(
   context: Record<string, unknown> | undefined,
   nodeKey: string,

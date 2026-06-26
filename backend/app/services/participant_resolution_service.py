@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.enums import UserStatus
 from app.core.exceptions import ConflictError, NotFoundError
-from app.models import Profile, User, WorkflowGraphTemplate
+from app.models import Profile, User, WorkflowGraphInstance, WorkflowGraphTemplate
 from app.schemas.workflow_video import ParticipantPolicyDefinition, ParticipantsSnapshotEntry
 from app.services.access_control import (
   ensure_active_user,
@@ -175,12 +175,14 @@ class ParticipantResolutionService:
     actor: User,
     template: WorkflowGraphTemplate,
     pool_key: str,
+    instance: WorkflowGraphInstance | None = None,
   ) -> list[User]:
     """Active members of a template department pool (capture user pickers)."""
-    from app.services.workflow_assignee_resolver import parse_department_pools
+    from app.services.workflow_assignee_resolver import resolve_department_pools
 
     ensure_active_user(actor)
-    pools = parse_department_pools(template)
+    context = instance.context if instance is not None and isinstance(instance.context, dict) else None
+    pools = resolve_department_pools(template, context)
     normalized_key = pool_key.strip()
     if normalized_key not in pools:
       raise NotFoundError(f"模板未配置部门池：{normalized_key}")

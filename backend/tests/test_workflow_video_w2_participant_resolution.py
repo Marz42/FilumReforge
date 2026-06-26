@@ -5,6 +5,7 @@ from __future__ import annotations
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import select
 
 from app.core.enums import UserRole, WorkflowGraphTemplateStatus
 from app.core.exceptions import ConflictError, NotFoundError
@@ -277,6 +278,82 @@ async def test_w2_list_managed_department_member_options_empty_without_departmen
   )
   service = ParticipantResolutionService(db_session)
   assert await service.list_managed_department_member_options(actor=lonely) == []
+
+
+@pytest.mark.asyncio
+async def test_w2_list_department_pool_member_options_uses_instance_context_pools(db_session) -> None:
+  from app.models import WorkflowGraphInstance
+
+  admin, manager, editor_a, editor_b, template = await _bootstrap_copywriting_team(db_session)
+  user_service = UserService(db_session)
+  dept_service = DepartmentService(db_session)
+  profile_service = ProfileService(db_session)
+
+  copy_dept_id = await db_session.scalar(
+    select(Profile.department_id).where(Profile.user_id == editor_a.id)
+  )
+  assert copy_dept_id is not None
+
+  post_editor = await user_service.create_user(
+    actor=admin,
+    email="w2-post-editor@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  post_dept = await dept_service.create_department(
+    actor=admin,
+    name="后期部",
+    code="w2-post",
+    manager_id=admin.id,
+  )
+  await profile_service.create_profile(
+    actor=admin,
+    user_id=post_editor.id,
+    employee_no="EMP-W2-POST",
+    real_name="剪辑甲",
+    department_id=post_dept.id,
+    custom_fields={},
+  )
+
+  template.config = {
+    **dict(template.config or {}),
+    "department_pools": {
+      "copywriters": str(copy_dept_id),
+      "post_production": str(copy_dept_id),
+    },
+  }
+  await db_session.flush()
+
+  instance = WorkflowGraphInstance(
+    template_id=template.id,
+    initiator_user_id=admin.id,
+    department_id=post_dept.id,
+    run_label="test-run",
+    context={
+      "department_pools": {
+        "copywriters": str(copy_dept_id),
+        "post_production": str(post_dept.id),
+      },
+    },
+  )
+  db_session.add(instance)
+  await db_session.flush()
+
+  service = ParticipantResolutionService(db_session)
+  without_instance = await service.list_department_pool_member_options(
+    actor=admin,
+    template=template,
+    pool_key="post_production",
+  )
+  with_instance = await service.list_department_pool_member_options(
+    actor=admin,
+    template=template,
+    pool_key="post_production",
+    instance=instance,
+  )
+
+  assert {user.id for user in without_instance} == {manager.id, editor_a.id, editor_b.id}
+  assert {user.id for user in with_instance} == {post_editor.id}
 
 
 @pytest.mark.asyncio
