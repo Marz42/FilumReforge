@@ -758,6 +758,125 @@ class WorkflowGraphService:
     )
     await self._session.commit()
 
+  async def _resolve_outgoing_edges(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+    completed_node_instance: WorkflowNodeInstance,
+  ) -> list[WorkflowGraphTemplateEdge]:
+    """Resolve forward edges; realign stale template_node_id via node_key when seed topology syncs."""
+    template_node_id = completed_node_instance.template_node_id
+    if template_node_id is not None:
+      outgoing_edges = list(
+        await self._session.scalars(
+          select(WorkflowGraphTemplateEdge).where(
+            WorkflowGraphTemplateEdge.from_node_id == template_node_id,
+            WorkflowGraphTemplateEdge.is_reject_path.is_(False),
+          )
+        )
+      )
+      if outgoing_edges:
+        return outgoing_edges
+
+    if graph_instance.template_id is None:
+      return []
+
+    live_template_node = await self._session.scalar(
+      select(WorkflowGraphTemplateNode).where(
+        WorkflowGraphTemplateNode.template_id == graph_instance.template_id,
+        WorkflowGraphTemplateNode.node_key == completed_node_instance.node_key,
+      )
+    )
+    if live_template_node is None:
+      return []
+
+    if completed_node_instance.template_node_id != live_template_node.id:
+      completed_node_instance.template_node_id = live_template_node.id
+
+    return list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateEdge).where(
+          WorkflowGraphTemplateEdge.from_node_id == live_template_node.id,
+          WorkflowGraphTemplateEdge.is_reject_path.is_(False),
+        )
+      )
+    )
+
+  async def _ensure_missing_template_node_instances(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+  ) -> None:
+    """Materialize PENDING node instances when template tail nodes were added after fork."""
+    if graph_instance.template_id is None:
+      return
+
+    template_nodes = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateNode)
+        .where(WorkflowGraphTemplateNode.template_id == graph_instance.template_id)
+        .order_by(WorkflowGraphTemplateNode.sort_order.asc())
+      )
+    )
+    if not template_nodes:
+      return
+
+    existing_keys = set(
+      await self._session.scalars(
+        select(WorkflowNodeInstance.node_key).where(
+          WorkflowNodeInstance.instance_id == graph_instance.id,
+        )
+      )
+    )
+
+    for template_node in template_nodes:
+      if template_node.node_key in existing_keys:
+        continue
+      self._session.add(
+        WorkflowNodeInstance(
+          instance_id=graph_instance.id,
+          template_node_id=template_node.id,
+          node_key=template_node.node_key,
+          title=template_node.title,
+          node_type=template_node.node_type,
+          engine_state=WorkflowNodeEngineState.PENDING,
+          business_state=WorkflowNodeBusinessState.DRAFT,
+          iteration=1,
+          node_instance_version=1,
+          config=dict(template_node.config or {}),
+        )
+      )
+
+    await self._session.flush()
+
+  async def _all_template_nodes_completed(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+  ) -> bool:
+    if graph_instance.template_id is None:
+      return True
+
+    template_node_keys = set(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateNode.node_key).where(
+          WorkflowGraphTemplateNode.template_id == graph_instance.template_id,
+        )
+      )
+    )
+    if not template_node_keys:
+      return True
+
+    completed_keys = set(
+      await self._session.scalars(
+        select(WorkflowNodeInstance.node_key).where(
+          WorkflowNodeInstance.instance_id == graph_instance.id,
+          WorkflowNodeInstance.engine_state == WorkflowNodeEngineState.COMPLETED,
+        )
+      )
+    )
+    return template_node_keys.issubset(completed_keys)
+
   async def _activate_downstream(
     self,
     *,
@@ -768,20 +887,16 @@ class WorkflowGraphService:
     """检查并激活下游节点，支持 join_mode=all 与 join_mode=any。"""
     instance_id = completed_node_instance.instance_id
     template_node_id = completed_node_instance.template_node_id
-    if template_node_id is None:
+    if template_node_id is None and not completed_node_instance.node_key:
       # 单步手动任务，没有模板节点，直接收口实例
       await self._maybe_complete_instance(graph_instance=graph_instance, now=now)
       return
 
-    # 找出本节点在模板中的出边（即下游节点的 template_node_id）
-    outgoing_edges: list[WorkflowGraphTemplateEdge] = list(
-      await self._session.scalars(
-        select(WorkflowGraphTemplateEdge)
-        .where(
-          WorkflowGraphTemplateEdge.from_node_id == template_node_id,
-          WorkflowGraphTemplateEdge.is_reject_path.is_(False),
-        )
-      )
+    await self._ensure_missing_template_node_instances(graph_instance=graph_instance)
+
+    outgoing_edges = await self._resolve_outgoing_edges(
+      graph_instance=graph_instance,
+      completed_node_instance=completed_node_instance,
     )
 
     if not outgoing_edges:
@@ -1160,6 +1275,9 @@ class WorkflowGraphService:
     )
     if pending_or_active_count is not None:
       return  # 还有未完成的节点
+
+    if not await self._all_template_nodes_completed(graph_instance=graph_instance):
+      return  # 模板尾节点尚未 materialize 或完成（避免 N10 后直接归档）
 
     if graph_instance.status == WorkflowGraphInstanceStatus.ACTIVE:
       context = dict(graph_instance.context or {})

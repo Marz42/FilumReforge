@@ -390,6 +390,186 @@ async def test_w4p_post_stage_tasks_use_assignee_department_not_batch_department
   assert instance.department_id == seed["copy_dept"].id
 
 
+async def _progress_through_n9(db_session, *, seed: dict, instance: WorkflowGraphInstance) -> None:
+  task_service = TaskService(db_session, settings=_enabled_settings())
+  graph_service = WorkflowGraphService(db_session)
+  orchestration = WorkflowOrchestrationService(
+    db_session,
+    workflow_graph_service=graph_service,
+    task_service=task_service,
+  )
+  form = WorkflowVideoFormService(db_session, orchestration_service=orchestration)
+
+  await task_service.submit_task_deliverable(
+    actor=seed["script_author"],
+    task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N3_SCRIPT_WRITE"),
+    summary="脚本",
+    attachment_ids=[],
+  )
+  await task_service.review_task_deliverable(
+    actor=seed["admin"],
+    task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N4_SCRIPT_REVIEW"),
+    approve=True,
+    comment="ok",
+  )
+  await task_service.submit_task_deliverable(
+    actor=seed["script_author"],
+    task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N5_VO_UPLOAD"),
+    summary="配音",
+    attachment_ids=[],
+  )
+
+  n7 = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == instance.id,
+      WorkflowNodeInstance.node_key == "N7_EDIT_ASSIGN",
+    )
+  )
+  assert n7 is not None
+  await db_session.refresh(n7)
+  assert n7.engine_state == WorkflowNodeEngineState.ACTIVATED
+
+  n7_task_id_raw = (n7.config or {}).get("task_id")
+  if not n7_task_id_raw:
+    n7_tasks = await orchestration.ensure_projection_tasks(
+      actor=seed["admin"],
+      instance=instance,
+      node_instances=[n7],
+    )
+    assert len(n7_tasks) == 1
+    n7_task_id = n7_tasks[0].id
+  else:
+    n7_task_id = UUID(str(n7_task_id_raw))
+
+  await form.submit_capture(
+    actor=seed["post_lead"],
+    task_id=n7_task_id,
+    topics=[TopicCaptureRow(edit_assignee_id=str(seed["editor"].id))],
+  )
+
+  await task_service.submit_task_deliverable(
+    actor=seed["editor"],
+    task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N8_EDIT_WORK"),
+    summary="粗剪",
+    attachment_ids=[],
+  )
+  await task_service.review_task_deliverable(
+    actor=seed["script_author"],
+    task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N9_EDIT_REVIEW"),
+    approve=True,
+    comment="ok",
+  )
+
+
+@pytest.mark.asyncio
+async def test_w4p_n10_upload_activates_n11_instead_of_archiving(db_session) -> None:
+  seed = await _seed_production_workspace(db_session)
+  run = await _instantiate_production_run(db_session, seed=seed)
+  instance = run.instance
+  task_service = TaskService(db_session, settings=_enabled_settings())
+
+  await _progress_through_n9(db_session, seed=seed, instance=instance)
+
+  await task_service.submit_task_deliverable(
+    actor=seed["editor"],
+    task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N10_UPLOAD"),
+    summary="平台链接",
+    attachment_ids=[],
+  )
+  await db_session.refresh(instance)
+
+  n11 = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == instance.id,
+      WorkflowNodeInstance.node_key == "N11_SCHEDULE",
+    )
+  )
+  assert n11 is not None
+  assert n11.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert n11.assignee_user_id == seed["post_lead"].id
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+  assert (instance.context or {}).get("archived") is not True
+
+
+@pytest.mark.asyncio
+async def test_w4p_n10_materializes_missing_tail_nodes_after_template_upgrade(db_session) -> None:
+  seed = await _seed_production_workspace(db_session)
+  run = await _instantiate_production_run(db_session, seed=seed)
+  instance = run.instance
+  task_service = TaskService(db_session, settings=_enabled_settings())
+
+  await _progress_through_n9(db_session, seed=seed, instance=instance)
+
+  tail_nodes = list(
+    await db_session.scalars(
+      select(WorkflowNodeInstance).where(
+        WorkflowNodeInstance.instance_id == instance.id,
+        WorkflowNodeInstance.node_key.in_(["N11_SCHEDULE", "N12_CLOSE", "N12_COSIGN"]),
+      )
+    )
+  )
+  for node in tail_nodes:
+    await db_session.delete(node)
+  await db_session.commit()
+
+  await task_service.submit_task_deliverable(
+    actor=seed["editor"],
+    task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N10_UPLOAD"),
+    summary="平台链接",
+    attachment_ids=[],
+  )
+  await db_session.refresh(instance)
+
+  n11 = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == instance.id,
+      WorkflowNodeInstance.node_key == "N11_SCHEDULE",
+    )
+  )
+  assert n11 is not None
+  assert n11.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+  assert (instance.context or {}).get("archived") is not True
+
+
+@pytest.mark.asyncio
+async def test_w4p_n10_resolves_outgoing_edges_when_template_node_id_is_stale(db_session) -> None:
+  seed = await _seed_production_workspace(db_session)
+  run = await _instantiate_production_run(db_session, seed=seed)
+  instance = run.instance
+  task_service = TaskService(db_session, settings=_enabled_settings())
+
+  await _progress_through_n9(db_session, seed=seed, instance=instance)
+
+  n10 = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == instance.id,
+      WorkflowNodeInstance.node_key == "N10_UPLOAD",
+    )
+  )
+  assert n10 is not None
+  n10.template_node_id = uuid4()
+  await db_session.commit()
+
+  await task_service.submit_task_deliverable(
+    actor=seed["editor"],
+    task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N10_UPLOAD"),
+    summary="平台链接",
+    attachment_ids=[],
+  )
+  await db_session.refresh(instance)
+
+  n11 = await db_session.scalar(
+    select(WorkflowNodeInstance).where(
+      WorkflowNodeInstance.instance_id == instance.id,
+      WorkflowNodeInstance.node_key == "N11_SCHEDULE",
+    )
+  )
+  assert n11 is not None
+  assert n11.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+
+
 @pytest.mark.asyncio
 async def test_w4p_n12_cosign_archives_production_run(db_session) -> None:
   seed = await _seed_production_workspace(db_session)
