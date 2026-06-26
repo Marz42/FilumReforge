@@ -1,4 +1,4 @@
-import axios, { AxiosHeaders } from 'axios'
+import axios, { AxiosHeaders, type AxiosInstance } from 'axios'
 
 import type { AuthSession } from '@/types/api'
 import { clearAuthSession, getAccessToken, notifyUnauthorized, setAccessToken } from './session'
@@ -27,25 +27,19 @@ function resolveBaseURL(): string {
 
 const baseURL = resolveBaseURL()
 
+/** Default API calls (JSON). */
+const DEFAULT_TIMEOUT_MS = 10_000
+
+/**
+ * Large attachment uploads (N5 配音等): single file up to 50MB on slow links needs minutes, not seconds.
+ * Keep separate from DEFAULT_TIMEOUT_MS so list/detail APIs fail fast.
+ */
+export const ATTACHMENT_UPLOAD_TIMEOUT_MS = 600_000
+
 export const rawHttp = axios.create({
   baseURL,
-  timeout: 10_000,
+  timeout: DEFAULT_TIMEOUT_MS,
   withCredentials: true,
-})
-
-export const http = axios.create({
-  baseURL,
-  timeout: 10_000,
-  withCredentials: true,
-})
-
-http.interceptors.request.use((config) => {
-  const accessToken = getAccessToken()
-  if (accessToken) {
-    config.headers = AxiosHeaders.from(config.headers)
-    config.headers.set('Authorization', `Bearer ${accessToken}`)
-  }
-  return config
 })
 
 let refreshPromise: Promise<string | null> | null = null
@@ -71,21 +65,48 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise
 }
 
-http.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config as (typeof error.config & RetriableRequest) | undefined
-
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      originalRequest._retry = true
-      const nextAccessToken = await refreshAccessToken()
-      if (nextAccessToken) {
-        originalRequest.headers = AxiosHeaders.from(originalRequest.headers)
-        originalRequest.headers.set('Authorization', `Bearer ${nextAccessToken}`)
-        return http.request(originalRequest)
-      }
+function attachAuthInterceptors(instance: AxiosInstance): void {
+  instance.interceptors.request.use((config) => {
+    const accessToken = getAccessToken()
+    if (accessToken) {
+      config.headers = AxiosHeaders.from(config.headers)
+      config.headers.set('Authorization', `Bearer ${accessToken}`)
     }
+    return config
+  })
 
-    return Promise.reject(error)
-  },
-)
+  instance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config as (typeof error.config & RetriableRequest) | undefined
+
+      if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+        originalRequest._retry = true
+        const nextAccessToken = await refreshAccessToken()
+        if (nextAccessToken) {
+          originalRequest.headers = AxiosHeaders.from(originalRequest.headers)
+          originalRequest.headers.set('Authorization', `Bearer ${nextAccessToken}`)
+          return instance.request(originalRequest)
+        }
+      }
+
+      return Promise.reject(error)
+    },
+  )
+}
+
+export const http = axios.create({
+  baseURL,
+  timeout: DEFAULT_TIMEOUT_MS,
+  withCredentials: true,
+})
+
+/** Multipart uploads — long timeout, same auth refresh as http. */
+export const uploadHttp = axios.create({
+  baseURL,
+  timeout: ATTACHMENT_UPLOAD_TIMEOUT_MS,
+  withCredentials: true,
+})
+
+attachAuthInterceptors(http)
+attachAuthInterceptors(uploadHttp)

@@ -1,5 +1,5 @@
 import type { Attachment, AttachmentTargetType, AttachmentVisibility } from '@/types/api'
-import { http } from './http'
+import { http, uploadHttp } from './http'
 
 export interface ListAttachmentsPayload {
   target_type: AttachmentTargetType
@@ -44,6 +44,6 @@ export async function uploadAttachment(payload: UploadAttachmentPayload): Promis
   formData.append('visibility', payload.visibility ?? 'private')
   formData.append('relation', payload.relation ?? 'primary')
 
-  const { data } = await http.post<Attachment>('/attachments', formData)
+  const { data } = await uploadHttp.post<Attachment>('/attachments', formData)
   return data
 }

@@ -26,6 +26,7 @@ const emit = defineEmits<{
 }>()
 
 const submitting = ref(false)
+const uploadProgress = ref('')
 const note = ref('')
 const selectedFiles = ref<File[]>([])
 const uploadRef = ref<UploadInstance>()
@@ -87,22 +88,33 @@ async function submit(): Promise<void> {
   }
 
   submitting.value = true
+  uploadProgress.value = ''
   try {
-    const attachmentIds: string[] = []
-    for (const file of selectedFiles.value) {
-      const attachment = await uploadAttachment({
-        file,
-        target_type: 'task',
-        target_id: props.task.id,
-        visibility: 'private',
-        relation: 'deliverable',
-      })
-      attachmentIds.push(attachment.id)
-    }
+    const files = selectedFiles.value
+    const total = files.length
+    let completed = 0
+    const attachmentIds = await Promise.all(
+      files.map(async (file) => {
+        const attachment = await uploadAttachment({
+          file,
+          target_type: 'task',
+          target_id: props.task.id,
+          visibility: 'private',
+          relation: 'deliverable',
+        })
+        completed += 1
+        if (total > 1) {
+          uploadProgress.value = `已上传 ${completed}/${total} 个文件…`
+        }
+        return attachment.id
+      }),
+    )
+
+    uploadProgress.value = '正在提交交付…'
 
     const summary =
       trimmedNote
-      || selectedFiles.value.map((file) => file.name).join('、')
+      || files.map((file) => file.name).join('、')
       || '平台交付'
 
     await submitTaskDeliverable(props.task.id, {
@@ -116,12 +128,14 @@ async function submit(): Promise<void> {
     ElMessage.success(isTemplateGraph ? '文件已提交，流程将进入下一环节' : '文件已上传并提交，等待验收')
     note.value = ''
     selectedFiles.value = []
+    uploadProgress.value = ''
     uploadRef.value?.clearFiles()
     emit('submitted')
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
   } finally {
     submitting.value = false
+    uploadProgress.value = ''
   }
 }
 
@@ -170,7 +184,7 @@ defineExpose({ submit, submitting })
         data-testid="video-production-submit"
         @click="submit"
       >
-        上传并提交
+        {{ uploadProgress || '上传并提交' }}
       </el-button>
     </el-form>
   </el-card>
