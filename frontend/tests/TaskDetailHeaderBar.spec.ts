@@ -57,6 +57,7 @@ describe('TaskDetailHeaderBar', () => {
         graphInstance: null,
         canManageCaptureReject: true,
         canRejectProductionStep: false,
+        canAdminArchive: false,
       },
       global: {
         plugins: [ElementPlus],

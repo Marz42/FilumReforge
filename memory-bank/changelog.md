@@ -4,6 +4,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- （无）
+
+---
+
+## [0.91.0] - 2026-06-23
+
+### Added
+
+- **F-29** 管理员单条任务归档：`POST /api/v1/tasks/{task_id}/archive`（admin only）；软归档 `extra_metadata.admin_archived*`；联动终止 `WorkflowGraphInstance`（批次 ROOT 含子 Run）；inbox/tracking/history 过滤；任务详情「更多 → 归档任务…」
+- **Admin/HR 跟踪督办**：`list_task_tracking` 对 `MANAGEMENT_ROLES` 展示全量未完成任务（关联方式「督办」）
+- **逾期延期**：跟踪列表与任务详情 Admin/HR「延期…」；`PATCH /tasks/{id}` 已逾期任务须设更晚 `due_date`（逾期不阻断提交/验收）
+
+### Fixed
+
+- **归档后 MissingGreenlet**：`_build_graph_stage_label` 不再访问 `node_instance.instance` 懒加载；`_build_visible_task_statement` 预加载 `watchers`
+- **N10 完成后误归档**（`efa450c`）：materialize 尾节点 · 出边 `node_key` 回退
+- **N7 指派剪辑师列表错部门**（`314bb6f`）：默认 `post_production` 池
+- **N3 脚本提交 / N5 多文件上传**：deliverable AttachmentLink · 上传超时
+
 ---
 
 ## [0.90.0] - 2026-06-23

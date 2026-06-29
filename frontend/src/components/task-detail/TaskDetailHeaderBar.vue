@@ -40,6 +40,7 @@ defineProps<{
   graphInstance: WorkflowGraphInstanceDetail | null
   canManageCaptureReject: boolean
   canRejectProductionStep: boolean
+  canAdminArchive: boolean
 }>()
 
 const emit = defineEmits<{
@@ -54,6 +55,7 @@ const emit = defineEmits<{
   statusTransition: []
   submitDeliverable: []
   actionDone: []
+  taskArchived: []
 }>()
 </script>
 
@@ -167,13 +169,15 @@ const emit = defineEmits<{
       </el-button>
     </div>
     <TaskDetailMoreMenu
-      v-if="selectedTask && usesVideoWorkflowLayout"
+      v-if="selectedTask && (usesVideoWorkflowLayout || canAdminArchive)"
       :profile="selectedTaskProfile"
       :task="selectedTask"
       :graph-instance="graphInstance"
       :can-manage-capture-reject="canManageCaptureReject"
       :can-reject-production="canRejectProductionStep"
+      :can-admin-archive="canAdminArchive"
       @action-done="emit('actionDone')"
+      @task-archived="emit('taskArchived')"
     />
   </div>
 </template>

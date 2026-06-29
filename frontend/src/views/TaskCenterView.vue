@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import { uploadAttachment } from '@/api/attachments'
-import { createTask, createTaskComment, searchTasks, type TaskSearchResult } from '@/api/tasks'
+import { createTask, createTaskComment, searchTasks, updateTask, type TaskSearchResult } from '@/api/tasks'
 import { getTaskCenterSnapshot, fetchTaskCenterHistoryPage, fetchTaskCenterInboxPage, fetchTaskCenterTrackingPage } from '@/api/task-center'
 import TaskCenterBoardView from '@/components/task-center/TaskCenterBoardView.vue'
 import TaskCenterFilterCards from '@/components/task-center/TaskCenterFilterCards.vue'
@@ -630,6 +630,37 @@ function isOverdue(item: TaskCenterTrackingItem): boolean {
 }
 
 const nudgingTaskIds = ref<Set<string>>(new Set())
+const extendDueDateDialogVisible = ref(false)
+const extendDueDateTaskId = ref<string | null>(null)
+const extendDueDateValue = ref<Date | null>(null)
+const extendDueDateSubmitting = ref(false)
+const canManageDueDate = computed(() => authStore.isManagementRole)
+
+function openExtendDueDateDialog(taskId: string): void {
+  extendDueDateTaskId.value = taskId
+  extendDueDateValue.value = null
+  extendDueDateDialogVisible.value = true
+}
+
+async function submitExtendDueDate(): Promise<void> {
+  const taskId = extendDueDateTaskId.value
+  if (!taskId || !extendDueDateValue.value) {
+    ElMessage.warning('请选择新的截止时间')
+    return
+  }
+  extendDueDateSubmitting.value = true
+  try {
+    await updateTask(taskId, { due_date: extendDueDateValue.value.toISOString() })
+    ElMessage.success('截止时间已更新')
+    extendDueDateDialogVisible.value = false
+    await loadSnapshot()
+    await refreshWorkspace()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    extendDueDateSubmitting.value = false
+  }
+}
 
 async function handleNudge(taskId: string): Promise<void> {
   nudgingTaskIds.value = new Set([...nudgingTaskIds.value, taskId])
@@ -813,8 +844,10 @@ onMounted(() => {
             :rows="workspaceRows"
             :selected-task-id="effectiveSelectedTaskId"
             :loading="workspaceLoading"
+            :can-manage-due-date="canManageDueDate"
             @select="handleMasterRowClick"
             @nudge="handleNudge"
+            @extend-due-date="openExtendDueDateDialog"
           />
 
           <div
@@ -1116,6 +1149,32 @@ onMounted(() => {
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="extendDueDateDialogVisible" title="延期任务" width="480px">
+      <p class="task-center-view__extend-hint">
+        逾期不阻断任务提交与验收。调整截止时间后，任务将从逾期列表中移除，执行人可继续推进。
+      </p>
+      <el-form label-position="top">
+        <el-form-item label="新的截止时间" required>
+          <FilumDateTimePicker
+            v-model="extendDueDateValue"
+            class="task-center-view__date-picker"
+            data-testid="task-center-extend-due-date-picker"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="extendDueDateDialogVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="extendDueDateSubmitting"
+          data-testid="task-center-extend-due-date-submit"
+          @click="submitExtendDueDate"
+        >
+          确认延期
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -1137,6 +1196,13 @@ onMounted(() => {
   margin: 6px 0 0;
   color: var(--filum-text-secondary);
   font-size: 13px;
+}
+
+.task-center-view__extend-hint {
+  margin: 0 0 16px;
+  color: var(--filum-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .task-center-view__view-toggle--disabled {

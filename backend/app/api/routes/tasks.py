@@ -15,6 +15,8 @@ from app.models import Attachment, AttachmentLink, User
 from app.schemas.attachments import AttachmentRead
 from app.schemas.tasks import (
   TaskActivityEntryRead,
+  TaskArchiveRequest,
+  TaskArchiveResponse,
   TaskAssignmentDelegateRequest,
   TaskAssignmentRejectRequest,
   TaskBoardColumnRead,
@@ -368,6 +370,26 @@ async def delegate_task_assignment(
     reason=payload.reason or "",
   )
   return TaskRead.model_validate(task)
+
+
+@router.post("/{task_id}/archive", response_model=TaskArchiveResponse)
+async def archive_task(
+  task_id: UUID,
+  payload: TaskArchiveRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskArchiveResponse:
+  task, archived_count, cancelled_instance_ids = await task_service.archive_task_by_admin(
+    actor=actor,
+    task_id=task_id,
+    reason=payload.reason,
+  )
+  return TaskArchiveResponse(
+    task_id=task.id,
+    archived_task_count=archived_count,
+    cancelled_instance_ids=cancelled_instance_ids,
+    message=f"已归档 {archived_count} 条关联任务并终止 {len(cancelled_instance_ids)} 个任务流 Run。",
+  )
 
 
 @router.post("/{task_id}/deliverable", response_model=TaskRead)

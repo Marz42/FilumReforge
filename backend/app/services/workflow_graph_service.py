@@ -1293,6 +1293,140 @@ class WorkflowGraphService:
 
       await maybe_trigger_template_chain(self._session, instance=graph_instance)
 
+  async def collect_projection_task_ids(self, *, instance_id: UUID) -> set[UUID]:
+    """Task ids linked to a graph instance (ROOT + node projection tasks)."""
+    instance = await self._session.get(WorkflowGraphInstance, instance_id)
+    if instance is None:
+      return set()
+
+    task_ids: set[UUID] = set()
+    if instance.source_id is not None:
+      task_ids.add(instance.source_id)
+
+    node_instances = list(
+      await self._session.scalars(
+        select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance_id)
+      )
+    )
+    for node_instance in node_instances:
+      config = node_instance.config if isinstance(node_instance.config, dict) else {}
+      raw_task_id = config.get("task_id")
+      if isinstance(raw_task_id, str) and raw_task_id.strip():
+        try:
+          task_ids.add(UUID(raw_task_id.strip()))
+        except ValueError:
+          continue
+    return task_ids
+
+  async def _cancel_single_instance_by_admin(
+    self,
+    *,
+    actor_id: UUID,
+    instance_id: UUID,
+    reason: str,
+    now: datetime,
+  ) -> set[UUID]:
+    graph_instance = await self._lock_graph_instance(instance_id=instance_id)
+    if graph_instance.status not in {
+      WorkflowGraphInstanceStatus.CANCELLED,
+      WorkflowGraphInstanceStatus.TERMINATED,
+      WorkflowGraphInstanceStatus.COMPLETED,
+    }:
+      node_instances = list(
+        await self._session.scalars(
+          select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance_id)
+        )
+      )
+      for node_instance in node_instances:
+        if node_instance.engine_state in {
+          WorkflowNodeEngineState.COMPLETED,
+          WorkflowNodeEngineState.TERMINATED,
+        }:
+          continue
+        node_instance.engine_state = WorkflowNodeEngineState.TERMINATED
+        node_instance.business_state = WorkflowNodeBusinessState.CANCELLED
+        node_instance.terminated_at = now
+        node_instance.completed_at = node_instance.completed_at or now
+        node_instance.node_instance_version += 1
+
+      context = dict(graph_instance.context or {})
+      context["admin_archived"] = True
+      context["admin_archived_at"] = now.isoformat()
+      context["admin_archived_by_user_id"] = str(actor_id)
+      context["admin_archive_reason"] = reason
+      run_kind = str(context.get("run_kind") or "")
+      if run_kind == "production":
+        context["archived"] = True
+        context["archived_at"] = now.isoformat()
+      graph_instance.context = context
+      graph_instance.status = WorkflowGraphInstanceStatus.CANCELLED
+      graph_instance.cancelled_at = now
+      graph_instance.completed_at = graph_instance.completed_at or now
+      graph_instance.current_node_key = None
+      await self._session.flush()
+
+      await WorkflowRunEventService(self._session).append(
+        instance_id=graph_instance.id,
+        event_type="admin_cancelled",
+        actor_user_id=actor_id,
+        payload={
+          "reason": reason,
+          "run_kind": run_kind or None,
+        },
+      )
+
+    return await self.collect_projection_task_ids(instance_id=instance_id)
+
+  async def cancel_instance_by_admin(
+    self,
+    *,
+    actor_id: UUID,
+    instance_id: UUID,
+    reason: str,
+    cancel_active_child_runs: bool = False,
+  ) -> tuple[set[UUID], list[UUID]]:
+    """Terminate a workflow graph run and return linked task ids + cancelled instance ids."""
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+      raise ConflictError("归档时必须填写原因。")
+
+    now = datetime.now(UTC)
+    cancelled_instance_ids: list[UUID] = []
+    task_ids: set[UUID] = set()
+
+    task_ids |= await self._cancel_single_instance_by_admin(
+      actor_id=actor_id,
+      instance_id=instance_id,
+      reason=normalized_reason,
+      now=now,
+    )
+    cancelled_instance_ids.append(instance_id)
+
+    if cancel_active_child_runs:
+      child_instance_ids = list(
+        await self._session.scalars(
+          select(WorkflowGraphInstance.id).where(
+            WorkflowGraphInstance.parent_instance_id == instance_id,
+            WorkflowGraphInstance.status.in_(
+              [
+                WorkflowGraphInstanceStatus.PENDING,
+                WorkflowGraphInstanceStatus.ACTIVE,
+              ]
+            ),
+          )
+        )
+      )
+      for child_instance_id in child_instance_ids:
+        task_ids |= await self._cancel_single_instance_by_admin(
+          actor_id=actor_id,
+          instance_id=child_instance_id,
+          reason=normalized_reason,
+          now=now,
+        )
+        cancelled_instance_ids.append(child_instance_id)
+
+    return task_ids, cancelled_instance_ids
+
   # ------------------------------------------------------------------ #
   # Phase 6 / Query helpers
   # ------------------------------------------------------------------ #

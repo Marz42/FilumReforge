@@ -8,11 +8,13 @@ const props = defineProps<{
   rows: TaskCenterWorkspaceRow[]
   selectedTaskId: string
   loading?: boolean
+  canManageDueDate?: boolean
 }>()
 
 const emit = defineEmits<{
   select: [taskId: string]
   nudge: [taskId: string]
+  extendDueDate: [taskId: string]
 }>()
 
 function normalizeTagType(
@@ -82,9 +84,21 @@ function rowClassName(row: TaskCenterWorkspaceRow): string {
         {{ formatDateTime(row.dueDate) }}
       </template>
     </el-table-column>
-    <el-table-column v-if="filter === 'tracking'" label="操作" width="100" fixed="right">
+    <el-table-column v-if="filter === 'tracking'" label="操作" width="160" fixed="right">
       <template #default="{ row }: { row: TaskCenterWorkspaceRow }">
-        <el-button size="small" @click.stop="emit('nudge', row.taskId)">催办</el-button>
+        <el-space wrap>
+          <el-button size="small" @click.stop="emit('nudge', row.taskId)">催办</el-button>
+          <el-button
+            v-if="canManageDueDate && row.isOverdue"
+            size="small"
+            type="warning"
+            plain
+            data-testid="task-center-extend-due-date"
+            @click.stop="emit('extendDueDate', row.taskId)"
+          >
+            延期
+          </el-button>
+        </el-space>
       </template>
     </el-table-column>
   </el-table>

@@ -85,6 +85,17 @@ class TaskStatusUpdateRequest(BaseModel):
   status: TaskStatus
 
 
+class TaskArchiveRequest(BaseModel):
+  reason: str = Field(min_length=1, max_length=2000)
+
+
+class TaskArchiveResponse(BaseModel):
+  task_id: UUID
+  archived_task_count: int
+  cancelled_instance_ids: list[UUID] = Field(default_factory=list)
+  message: str
+
+
 class TaskDeliverableSubmitRequest(BaseModel):
   summary: str | None = None
   attachment_ids: list[UUID] = Field(default_factory=list)

@@ -8,6 +8,7 @@ import {
   rejectInstanceCaptures,
   rejectProductionStep,
 } from '@/api/workflow-graph'
+import { archiveTask } from '@/api/tasks'
 import type { TaskDetailProfile } from '@/domain/task-detail/profile'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import type { Task, WorkflowGraphInstanceDetail } from '@/types/api'
@@ -21,10 +22,12 @@ const props = defineProps<{
   graphInstance: WorkflowGraphInstanceDetail | null
   canManageCaptureReject: boolean
   canRejectProduction: boolean
+  canAdminArchive: boolean
 }>()
 
 const emit = defineEmits<{
   actionDone: []
+  taskArchived: []
 }>()
 
 const captureRejectVisible = ref(false)
@@ -34,10 +37,22 @@ const rejectTopicId = ref('')
 const rejectSubmitting = ref(false)
 const rejectTopicsLoading = ref(false)
 const rejectTopicOptions = ref<Array<{ value: string; label: string }>>([])
+const adminArchiveVisible = ref(false)
+const adminArchiveReason = ref('')
+const adminArchiveSubmitting = ref(false)
+
+const isTaskAdminArchived = computed(() => {
+  const metadata = props.task?.extra_metadata as Record<string, unknown> | undefined
+  return metadata?.admin_archived === true
+})
 
 const menuItems = computed(() => {
   const items: Array<{ key: string; label: string }> = []
   const profileId = props.profile.id
+
+  if (props.canAdminArchive && props.task && !isTaskAdminArchived.value) {
+    items.push({ key: 'admin-archive', label: '归档任务…' })
+  }
 
   if (
     props.canManageCaptureReject
@@ -107,6 +122,11 @@ function openProductionRejectDialog(): void {
 }
 
 async function handleMenuCommand(key: string): Promise<void> {
+  if (key === 'admin-archive') {
+    adminArchiveReason.value = ''
+    adminArchiveVisible.value = true
+    return
+  }
   if (key === 'reject-capture') {
     await openCaptureRejectDialog()
     return
@@ -174,6 +194,30 @@ async function submitProductionReject(): Promise<void> {
     ElMessage.error(getErrorMessage(error))
   } finally {
     rejectSubmitting.value = false
+  }
+}
+
+async function submitAdminArchive(): Promise<void> {
+  const taskId = props.task?.id
+  if (!taskId) {
+    return
+  }
+  const reason = adminArchiveReason.value.trim()
+  if (!reason) {
+    ElMessage.warning('请填写归档原因')
+    return
+  }
+
+  adminArchiveSubmitting.value = true
+  try {
+    const response = await archiveTask(taskId, reason)
+    ElMessage.success(response.message || '任务已归档')
+    adminArchiveVisible.value = false
+    emit('taskArchived')
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    adminArchiveSubmitting.value = false
   }
 }
 </script>
@@ -269,9 +313,44 @@ async function submitProductionReject(): Promise<void> {
       </el-button>
     </template>
   </el-dialog>
+
+  <el-dialog v-model="adminArchiveVisible" title="归档任务" width="480px">
+    <p class="task-detail-more-menu__archive-hint">
+      归档后将终止关联的任务流运行，并从收件箱与跟踪列表中隐藏。此操作不可撤销。
+    </p>
+    <el-form label-position="top">
+      <el-form-item label="归档原因" required>
+        <el-input
+          v-model="adminArchiveReason"
+          type="textarea"
+          :rows="3"
+          placeholder="说明归档原因（必填）"
+          data-testid="task-detail-admin-archive-reason"
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="adminArchiveVisible = false">取消</el-button>
+      <el-button
+        type="danger"
+        :loading="adminArchiveSubmitting"
+        data-testid="task-detail-admin-archive-submit"
+        @click="submitAdminArchive"
+      >
+        确认归档
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
+.task-detail-more-menu__archive-hint {
+  margin: 0 0 16px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .task-detail-more-menu__caret {
   margin-left: 4px;
   font-size: 12px;

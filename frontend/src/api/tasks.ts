@@ -108,6 +108,20 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
   return data
 }
 
+export interface UpdateTaskPayload {
+  title?: string
+  description?: string | null
+  assignee_id?: string
+  department_id?: string | null
+  due_date?: string | null
+  priority?: TaskPriority
+}
+
+export async function updateTask(taskId: string, payload: UpdateTaskPayload): Promise<Task> {
+  const { data } = await http.patch<Task>(`/tasks/${taskId}`, payload)
+  return data
+}
+
 export async function updateTaskStatus(taskId: string, status: TaskStatus): Promise<Task> {
   const { data } = await http.patch<Task>(`/tasks/${taskId}/status`, { status })
   return data
@@ -211,5 +225,17 @@ export async function addTaskWatchers(taskId: string, userIds: string[]): Promis
   const { data } = await http.post<TaskWatcher[]>(`/tasks/${taskId}/watchers`, {
     user_ids: userIds,
   })
+  return data
+}
+
+export interface TaskArchiveResponse {
+  task_id: string
+  archived_task_count: number
+  cancelled_instance_ids: string[]
+  message: string
+}
+
+export async function archiveTask(taskId: string, reason: string): Promise<TaskArchiveResponse> {
+  const { data } = await http.post<TaskArchiveResponse>(`/tasks/${taskId}/archive`, { reason })
   return data
 }

@@ -4,8 +4,8 @@
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](./architecture.md)。
 
-**版本**: v3.12.3（与 [`architecture.md`](./architecture.md) 同步）  
-**最后同步**: 2026-06-23 @ TC-Transform Phase 0–2 + F-24/F-25 · 产品基线 `0.90.0`
+**版本**: v3.13.0（与 [`architecture.md`](./architecture.md) 同步）  
+**最后同步**: 2026-06-23 @ F-29 归档 API · Admin 跟踪督办 · 逾期延期 · 产品基线 `0.91.0`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -28,6 +28,8 @@
   - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
 - **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](./domains/task-center.md)
 - **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](./domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`stats/summary|workload?department_id=`；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
+- **F-29 管理员归档**（@ 2026-06-23）：`POST /api/v1/tasks/{task_id}/archive`（admin，`TaskArchiveRequest.reason` → `TaskArchiveResponse`）；任务 `extra_metadata.admin_archived` / `admin_archived_at` / `admin_archive_reason` / `admin_archive_source_task_id`；图实例 context `admin_archived*` + 节点 TERMINATED + instance CANCELLED
+- **任务 PATCH 逾期延期**（@ 2026-06-23）：已逾期任务 `due_date` 变更须晚于原截止时间（ConflictError）
 
 > §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.48 为图引擎与运行事件**摘要**（完整列定义以 ORM + Alembic 为准）。
 

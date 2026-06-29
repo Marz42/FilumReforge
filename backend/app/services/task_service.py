@@ -19,6 +19,7 @@ from app.core.enums import (
   TaskPriority,
   TaskSourceType,
   TaskStatus,
+  UserRole,
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
   WorkflowGraphInstanceStatus,
@@ -337,7 +338,13 @@ class TaskService:
       return TaskStatus.DOING
     return TaskStatus.TODO
 
-  def _build_graph_stage_label(self, *, task: Task, node_instance: WorkflowNodeInstance) -> str:
+  def _build_graph_stage_label(
+    self,
+    *,
+    task: Task,
+    instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+  ) -> str:
     metadata = self._copy_task_metadata(task)
     latest_action = self._read_str_metadata(metadata, "latest_handshake_action")
     step_title = (node_instance.title or node_instance.node_key or "当前步骤").strip()
@@ -361,7 +368,7 @@ class TaskService:
     if node_instance.business_state == WorkflowNodeBusinessState.DONE:
       return f"{step_title}：已完成"
     status_label = _task_status_label(
-      self._resolve_graph_task_status(instance=node_instance.instance, node_instance=node_instance)
+      self._resolve_graph_task_status(instance=instance, node_instance=node_instance)
     )
     return f"{step_title}：{status_label}"
 
@@ -409,7 +416,11 @@ class TaskService:
     return GraphTaskProjection(
       task_id=task.id,
       status=status,
-      current_stage_label=self._build_graph_stage_label(task=task, node_instance=node_instance),
+      current_stage_label=self._build_graph_stage_label(
+        task=task,
+        instance=instance,
+        node_instance=node_instance,
+      ),
       current_handler_id=current_handler_id,
       current_handler_label=current_handler_label,
       latest_deliverable_submitted_at=latest_deliverable_submitted_at,
@@ -1314,6 +1325,7 @@ class TaskService:
         selectinload(Task.creator).selectinload(User.profile),
         selectinload(Task.assignee).selectinload(User.profile),
         selectinload(Task.department),
+        selectinload(Task.watchers),
       )
       .order_by(Task.created_at.desc())
     )
@@ -2158,6 +2170,8 @@ class TaskService:
     graph_entries: list[tuple[Task, TaskInboxEntry]] = []
     legacy_tasks: list[Task] = []
     for task in tasks:
+      if self._is_admin_archived_task(task):
+        continue
       if self._is_graph_run_root_shell_task(task):
         continue
       projection = graph_projection_map.get(task.id)
@@ -2228,6 +2242,7 @@ class TaskService:
     after_task_id: UUID | None = None,
   ) -> TaskCenterListPage[TaskTrackingEntry]:
     ensure_active_user(actor)
+    is_management = actor.role in MANAGEMENT_ROLES
 
     workflow_related_task_ids = {
       task_id
@@ -2245,34 +2260,50 @@ class TaskService:
           )
         )
       )
+      if task_id is not None
     }
 
-    tracking_filters = [
-      Task.creator_id == actor.id,
-      Task.assignee_id == actor.id,
-      Task.watchers.any(TaskWatcher.user_id == actor.id),
-    ]
-    if actor.role not in MANAGEMENT_ROLES:
+    if is_management:
+      tasks = list(
+        await self._session.scalars(
+          (await self._build_visible_task_statement(actor=actor))
+          .where(Task.status != TaskStatus.DONE)
+          .order_by(Task.updated_at.desc())
+          .limit(self._list_scan_limit(limit=limit))
+        )
+      )
+      inbox_task_ids: set[UUID] = set()
+    else:
+      tracking_filters = [
+        Task.creator_id == actor.id,
+        Task.assignee_id == actor.id,
+        Task.watchers.any(TaskWatcher.user_id == actor.id),
+      ]
       managed_department_ids = await get_managed_department_ids(self._session, actor.id)
       if managed_department_ids:
         tracking_filters.append(Task.department_id.in_(managed_department_ids))
-    if workflow_related_task_ids:
-      tracking_filters.append(Task.id.in_(workflow_related_task_ids))
+      if workflow_related_task_ids:
+        tracking_filters.append(Task.id.in_(workflow_related_task_ids))
 
-    tasks = list(
-      await self._session.scalars(
-        select(Task)
-        .options(
-          selectinload(Task.creator).selectinload(User.profile),
-          selectinload(Task.assignee).selectinload(User.profile),
-          selectinload(Task.department),
-          selectinload(Task.watchers),
+      tasks = list(
+        await self._session.scalars(
+          select(Task)
+          .options(
+            selectinload(Task.creator).selectinload(User.profile),
+            selectinload(Task.assignee).selectinload(User.profile),
+            selectinload(Task.department),
+            selectinload(Task.watchers),
+          )
+          .where(or_(*tracking_filters))
+          .order_by(Task.updated_at.desc())
+          .limit(self._list_scan_limit(limit=limit))
         )
-        .where(or_(*tracking_filters))
-        .order_by(Task.updated_at.desc())
-        .limit(self._list_scan_limit(limit=limit))
       )
-    )
+      if exclude_inbox_task_ids is None:
+        inbox_page = await self.list_task_inbox(actor=actor, limit=limit)
+        inbox_task_ids = {entry.task_id for entry in inbox_page.items}
+      else:
+        inbox_task_ids = set(exclude_inbox_task_ids)
 
     graph_projection_map = (
       await self._graph_task_projection_map(tasks=tasks)
@@ -2284,15 +2315,12 @@ class TaskService:
       task_ids=[task.id for task in tasks if task.id not in graph_projection_map]
     )
     tracking_entries: list[TaskTrackingEntry] = []
-    if exclude_inbox_task_ids is None:
-      inbox_page = await self.list_task_inbox(actor=actor, limit=limit)
-      inbox_task_ids = {entry.task_id for entry in inbox_page.items}
-    else:
-      inbox_task_ids = set(exclude_inbox_task_ids)
     for task in tasks:
-      if task.id in inbox_task_ids:
+      if self._is_admin_archived_task(task):
         continue
-      if self._is_production_graph_root_shell_task(task):
+      if not is_management and task.id in inbox_task_ids:
+        continue
+      if not is_management and self._is_production_graph_root_shell_task(task):
         continue
       relation_types: list[str] = []
       if task.creator_id == actor.id:
@@ -2303,9 +2331,16 @@ class TaskService:
         relation_types.append("关注")
       if task.id in workflow_related_task_ids or task.id in graph_projection_map:
         relation_types.append("流程")
+      is_personally_related = (
+        task.creator_id == actor.id
+        or task.assignee_id == actor.id
+        or any(watcher.user_id == actor.id for watcher in task.watchers)
+      )
       has_workflow_participation = task.id in workflow_related_task_ids or task.id in graph_projection_map
-      if self._task_center_v2_enabled() and not has_workflow_participation:
+      if self._task_center_v2_enabled() and not has_workflow_participation and not is_management:
         continue
+      if is_management and not is_personally_related:
+        relation_types.append("督办")
 
       projection = graph_projection_map.get(task.id)
       if projection is not None:
@@ -2403,6 +2438,8 @@ class TaskService:
 
     entries: list[TaskHistoryEntry] = []
     for task in tasks:
+      if self._is_admin_archived_task(task):
+        continue
       relation_types: list[str] = []
       if task.creator_id == actor.id:
         relation_types.append("发起")
@@ -2462,6 +2499,8 @@ class TaskService:
     priority: TaskPriority | None = None,
   ) -> Task:
     task = await self.get_task(actor=actor, task_id=task_id)
+    if not await self._can_operate_task(actor=actor, task=task):
+      raise AuthorizationError("当前账号不能修改该任务。")
 
     previous_assignee_id = task.assignee_id
     previous_due_date = task.due_date
@@ -2483,6 +2522,9 @@ class TaskService:
         raise NotFoundError("所属部门不存在。")
       task.department_id = department_id
     if due_date is not None:
+      if due_date != previous_due_date and _is_overdue(due_date=previous_due_date, now=datetime.now(UTC)):
+        if due_date <= previous_due_date:
+          raise ConflictError("逾期任务延期时必须设置更晚的截止时间。")
       task.due_date = due_date
     if priority is not None:
       task.priority = priority
@@ -2628,6 +2670,8 @@ class TaskService:
     attachment_ids: list[UUID] | None = None,
   ) -> Task:
     task = await self.get_task(actor=actor, task_id=task_id)
+    if self._is_admin_archived_task(task):
+      raise ConflictError("任务已归档，无法继续操作。")
     await self._ensure_task_assignee_or_manager(actor=actor, task=task)
     if self._is_graph_run_root_shell_task(task):
       raise ConflictError("请在待办中打开具体步骤任务后再提交，不要在使用制作/批次根任务提交。")
@@ -3237,6 +3281,108 @@ class TaskService:
       raise NotFoundError("关注关系不存在。")
     await self._session.delete(watcher)
     await self._session.commit()
+
+  @staticmethod
+  def _is_admin_archived_task(task: Task) -> bool:
+    return TaskService._copy_task_metadata(task).get("admin_archived") is True
+
+  async def _resolve_graph_instance_id_for_archive(self, *, task: Task) -> UUID | None:
+    metadata = self._copy_task_metadata(task)
+    instance_id = self._read_uuid_metadata(metadata, "workflow_graph_instance_id")
+    if instance_id is not None:
+      return instance_id
+    instance = await self._session.scalar(
+      select(WorkflowGraphInstance.id).where(WorkflowGraphInstance.source_id == task.id)
+    )
+    return instance
+
+  async def _mark_task_admin_archived(
+    self,
+    *,
+    task: Task,
+    actor: User,
+    reason: str,
+    source_task_id: UUID,
+    now: datetime,
+  ) -> None:
+    if self._is_admin_archived_task(task):
+      return
+
+    metadata = self._copy_task_metadata(task)
+    previous_status = task.status
+    metadata.update(
+      {
+        "admin_archived": True,
+        "admin_archived_at": now.isoformat(),
+        "admin_archived_by_user_id": str(actor.id),
+        "admin_archive_reason": reason,
+        "admin_archive_source_task_id": str(source_task_id),
+      }
+    )
+    task.extra_metadata = metadata
+    task.status = TaskStatus.DONE
+    task.completed_at = now
+    task.updated_at = now
+
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.CLOSED,
+      from_status=previous_status,
+      to_status=TaskStatus.DONE,
+      detail={
+        "action": "admin_archive",
+        "reason": reason,
+        "source_task_id": str(source_task_id),
+      },
+    )
+
+  async def archive_task_by_admin(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    reason: str,
+  ) -> tuple[Task, int, list[UUID]]:
+    if actor.role != UserRole.ADMIN:
+      raise AuthorizationError("仅管理员可以归档任务。")
+
+    task = await self.get_task(actor=actor, task_id=task_id)
+    if self._is_admin_archived_task(task):
+      raise ConflictError("任务已归档。")
+
+    now = datetime.now(UTC)
+    task_ids: set[UUID] = {task.id}
+    cancelled_instance_ids: list[UUID] = []
+
+    instance_id = await self._resolve_graph_instance_id_for_archive(task=task)
+    if instance_id is not None:
+      if self._workflow_graph_service is None:
+        raise ConflictError("工作流图引擎未启用，无法终止关联任务流。")
+      cancel_children = self._is_graph_run_root_shell_task(task)
+      linked_task_ids, cancelled_instance_ids = await self._workflow_graph_service.cancel_instance_by_admin(
+        actor_id=actor.id,
+        instance_id=instance_id,
+        reason=reason,
+        cancel_active_child_runs=cancel_children,
+      )
+      task_ids |= linked_task_ids
+
+    for linked_task_id in task_ids:
+      linked_task = await self._session.get(Task, linked_task_id)
+      if linked_task is None:
+        continue
+      await self._mark_task_admin_archived(
+        task=linked_task,
+        actor=actor,
+        reason=reason,
+        source_task_id=task.id,
+        now=now,
+      )
+
+    await self._session.commit()
+    await self._session.refresh(task)
+    return task, len(task_ids), cancelled_instance_ids
 
   async def list_overdue_tasks(self) -> list[Task]:
     result = await self._session.scalars(

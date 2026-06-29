@@ -413,9 +413,45 @@ flowchart LR
 | W-08 | 任务流 | streaming/N2 UX | **engine skip** ✅ | — |
 | W-02 / W-06 | 任务流 | pools 表单 · 去 JSON | **F-26** | P2–P3 |
 | W-04 | 任务流 | 部门定时 | **F-24** ✅ | — |
-| W-05 | 共用 | 附件预览 | **F-25** | P3+ |
+| W-05 | 共用 | 附件预览 | **F-25** ✅ | — |
+| **W-10** | 运维 | 管理员单条任务归档/作废 | **F-29** ✅ | — |
 | S-01 | 统计 | 周期/绩效 | 待立项 | — |
 | G-02 | 单步 | 项目组 | **P4** | 中长期 |
+
+---
+
+## 15. 管理员能力（@ `0.91.0`）
+
+### 15.1 已有（`admin` / 部分 `hr`）
+
+| 能力 | 入口 / API | 说明 |
+|------|------------|------|
+| 全量任务可见 | `GET /tasks` | `MANAGEMENT_ROLES` 不按部门过滤 `_build_visible_task_statement` |
+| **跟踪督办** | 任务中心 **跟踪** Tab | Admin/HR 见全量未完成任务；无个人关联时标 **督办** |
+| 任务字段编辑 / 延期 | `PATCH /tasks/{id}` | admin/hr 或创建人/执行人/部门经理；已逾期须设更晚 `due_date` |
+| **单条任务归档** | `POST /tasks/{id}/archive` · 详情「更多 → 归档任务…」 | **仅 admin**；软归档 + 终止图 Run；inbox/tracking/history 排除 |
+| 内部评论 | 任务评论 `is_internal` | 仅 admin/hr 可读可写 |
+| **图节点接管** | `POST /workflow-graph/node-instances/{id}/takeover` | **仅 admin** |
+| 批次采集收口 | `POST .../instances/{id}/close-capture` | 关闭 N1 采集 |
+| 组织/账号 | 人员 · 部门 · 邀请 | HR 无部门树；admin 全平台 |
+| 看板/公告归档 | 总览 widget | 与任务无关的快照归档 |
+
+### 15.2 逾期与督办 UX
+
+| 项 | 行为 |
+|----|------|
+| 逾期标签 | 跟踪列表 `due_date < now && status != done` |
+| 催办 | 跟踪 Tab「催办」→ 写入 `【催办】` 评论 |
+| 延期 | Admin/HR 跟踪/详情「延期…」→ `PATCH due_date` |
+| 推进 | **逾期不阻断**状态流转、交付提交、图节点完成 |
+
+### 15.3 仍待（二期）
+
+| 缺口 | 说明 |
+|------|------|
+| 物理删除任务 | 无 `DELETE /tasks/{id}`；误建单步且无图引用时可二期 hard delete |
+
+**归档语义**：`extra_metadata.admin_archived*` + `status=done`；图 instance `CANCELLED`、未完成节点 `TERMINATED`；批次 ROOT 归档时取消 ACTIVE/PENDING 子 Run。
 
 ---
 
@@ -423,6 +459,7 @@ flowchart LR
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-23 | §15 **F-29 落地** · Admin 跟踪督办 · 逾期延期 · W-10 done |
 | 2026-06-23 | **全文重组**：§0 三大模块 · §6–8 单步/任务流/统计实现与差距 · fork/多部门/F-28 · §13 总表 |
 | 2026-06-23 | §6.0–6.1 ADR-009 单步决策 |
 | 2026-06-21 | TCE + 设计器 D1–D3 落地 |

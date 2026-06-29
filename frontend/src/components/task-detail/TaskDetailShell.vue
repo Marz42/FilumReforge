@@ -15,8 +15,10 @@ import { acceptTaskAssignment,
   rejectTaskAssignment,
   reviewTaskDeliverable,
   submitTaskDeliverable,
+  updateTask,
   updateTaskStatus,
 } from '@/api/tasks'
+import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import { closeInstanceCapture, getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import TemplateCapturePanel from '@/components/workflow/TemplateCapturePanel.vue'
@@ -451,6 +453,21 @@ const selectedTaskUserFacingTagType = computed(() => {
   return state ? userFacingStateTagType(state) : 'info'
 })
 const usesVideoWorkflowLayout = computed(() => isVideoWorkflowProfile(selectedTaskProfile.value))
+const canAdminArchive = computed(() => {
+  if (authStore.user?.role !== 'admin' || !selectedTask.value) {
+    return false
+  }
+  const metadata = selectedTask.value.extra_metadata as Record<string, unknown> | undefined
+  return metadata?.admin_archived !== true
+})
+const isSelectedTaskOverdue = computed(() => {
+  const task = selectedTask.value
+  if (!task?.due_date || task.status === 'done') {
+    return false
+  }
+  return new Date(task.due_date).getTime() < Date.now()
+})
+const canManageDueDate = computed(() => authStore.isManagementRole)
 const batchAggregateMode = computed(() => resolveAggregateMode(graphInstance.value?.context))
 const captureClosed = computed(() => isCaptureClosed(graphInstance.value?.context))
 const showCaptureProgressPanel = computed(
@@ -517,6 +534,9 @@ const showVideoProductionPanel = computed(
 )
 const videoProductionPanelRef = ref<InstanceType<typeof VideoProductionPanel> | null>(null)
 const closeCaptureSubmitting = ref(false)
+const extendDueDateDialogVisible = ref(false)
+const extendDueDateValue = ref<Date | null>(null)
+const extendDueDateSubmitting = ref(false)
 const usesCompactDetailTelemetry = computed(() => TASK_CENTER_V2_UI_ENABLED)
 const compactRunEvents = computed(() =>
   usesCompactDetailTelemetry.value || usesVideoWorkflowLayout.value
@@ -769,6 +789,33 @@ async function reloadAfterAction(): Promise<void> {
   }
   await loadSelectedTaskDetails(selectedTask.value.id)
   emit('actionDone')
+}
+
+function handleTaskArchived(): void {
+  emit('actionDone')
+}
+
+function openExtendDueDateDialog(): void {
+  extendDueDateValue.value = selectedTask.value?.due_date ? new Date(selectedTask.value.due_date) : null
+  extendDueDateDialogVisible.value = true
+}
+
+async function submitExtendDueDate(): Promise<void> {
+  if (!selectedTask.value || !extendDueDateValue.value) {
+    ElMessage.warning('请选择新的截止时间')
+    return
+  }
+  extendDueDateSubmitting.value = true
+  try {
+    await updateTask(selectedTask.value.id, { due_date: extendDueDateValue.value.toISOString() })
+    ElMessage.success('截止时间已更新')
+    extendDueDateDialogVisible.value = false
+    await reloadAfterAction()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    extendDueDateSubmitting.value = false
+  }
 }
 
 async function handleCloseCapture(): Promise<void> {
@@ -1144,6 +1191,7 @@ watch(
               :video-production-panel-ref="videoProductionPanelRef"
               :deliverable-submitting="deliverableSubmitting"
               :uses-video-workflow-layout="usesVideoWorkflowLayout"
+              :can-admin-archive="canAdminArchive"
               :graph-instance="graphInstance"
               :can-manage-capture-reject="canManageCaptureReject"
               :can-reject-production-step="canRejectProductionStep"
@@ -1158,6 +1206,7 @@ watch(
               @status-transition="handleStatusTransition"
               @submit-deliverable="handleSubmitDeliverable"
               @action-done="reloadAfterAction"
+              @task-archived="handleTaskArchived"
             />
           </template>
 
@@ -1168,6 +1217,21 @@ watch(
           />
 
           <template v-if="selectedTask">
+            <el-alert
+              v-if="isSelectedTaskOverdue"
+              type="warning"
+              :closable="false"
+              show-icon
+              class="task-detail-shell__overdue-alert"
+              data-testid="task-detail-overdue-alert"
+            >
+              <template #title>任务已逾期</template>
+              逾期不阻断提交与验收。如需调整截止时间，请由管理员延期后继续推进。
+              <div v-if="canManageDueDate" style="margin-top: 8px">
+                <el-button size="small" type="warning" @click="openExtendDueDateDialog">延期…</el-button>
+              </div>
+            </el-alert>
+
             <TaskDetailMetadataPanel
               :task="selectedTask"
               :profile="selectedTaskProfile"
@@ -1597,6 +1661,20 @@ watch(
           </template>
         </el-card>
 
+    <el-dialog v-model="extendDueDateDialogVisible" title="延期任务" width="480px">
+      <el-form label-position="top">
+        <el-form-item label="新的截止时间" required>
+          <FilumDateTimePicker v-model="extendDueDateValue" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="extendDueDateDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="extendDueDateSubmitting" @click="submitExtendDueDate">
+          确认延期
+        </el-button>
+      </template>
+    </el-dialog>
+
     <TaskDetailActionDialogs
       v-model:reject-comment-dialog-visible="rejectCommentDialogVisible"
       v-model:reject-comment-text="rejectCommentText"
@@ -1622,6 +1700,10 @@ watch(
 <style scoped>
 .task-detail-shell {
   min-height: 100%;
+}
+
+.task-detail-shell__overdue-alert {
+  margin-bottom: 16px;
 }
 
 .page__header {
