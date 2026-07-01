@@ -287,6 +287,30 @@ async def test_manager_tracking_includes_department_projection_tasks(db_session)
 
 
 @pytest.mark.asyncio
+async def test_batch_root_stays_in_tracking_before_dispatch(db_session) -> None:
+  seed = await _instantiate_batch_run(db_session)
+  form = _build_form_service(db_session)
+  task_service = TaskService(db_session)
+  manager = seed["manager"]
+  root_task_id = seed["run"].root_task.id
+
+  for editor in seed["editors"]:
+    await form.submit_capture(
+      actor=editor,
+      task_id=seed["editor_tasks"][editor.id].id,
+      topics=[TopicCaptureRow(title=f"{editor.id}-topic")],
+    )
+
+  tracking = await task_service.list_task_tracking(actor=manager, limit=50)
+  history = await task_service.list_task_history(actor=manager, limit=50)
+  tracking_ids = {entry.task_id for entry in tracking.items}
+  history_ids = {entry.task_id for entry in history.items}
+
+  assert root_task_id in tracking_ids
+  assert root_task_id not in history_ids
+
+
+@pytest.mark.asyncio
 async def test_graph_root_shell_excluded_from_inbox(db_session) -> None:
   seed = await _instantiate_batch_run(db_session)
   task_service = TaskService(db_session)

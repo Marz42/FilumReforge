@@ -324,9 +324,19 @@ class TaskService:
   @staticmethod
   def _resolve_graph_task_status(
     *,
+    task: Task | None = None,
     instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
   ) -> TaskStatus:
+    if task is not None and TaskService._is_batch_graph_root_shell_task(task):
+      if instance.status == WorkflowGraphInstanceStatus.COMPLETED:
+        return TaskStatus.DONE
+      if instance.status in {
+        WorkflowGraphInstanceStatus.ACTIVE,
+        WorkflowGraphInstanceStatus.SUSPENDED,
+      }:
+        return TaskStatus.DOING
+
     if instance.status == WorkflowGraphInstanceStatus.COMPLETED or node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
       return TaskStatus.DONE
     if node_instance.business_state == WorkflowNodeBusinessState.PENDING_REVIEW:
@@ -349,6 +359,12 @@ class TaskService:
     latest_action = self._read_str_metadata(metadata, "latest_handshake_action")
     step_title = (node_instance.title or node_instance.node_key or "当前步骤").strip()
 
+    if self._is_batch_graph_root_shell_task(task) and instance.status == WorkflowGraphInstanceStatus.ACTIVE:
+      context = instance.context if isinstance(instance.context, dict) else {}
+      if str(context.get("fork_status") or "") == "completed":
+        return "批次跟进：制作进行中"
+      return "汇总派发：待确认派发"
+
     if node_instance.business_state == WorkflowNodeBusinessState.REJECTED:
       return f"{step_title}：已拒绝待调整"
     if node_instance.business_state == WorkflowNodeBusinessState.ASSIGNED:
@@ -368,7 +384,7 @@ class TaskService:
     if node_instance.business_state == WorkflowNodeBusinessState.DONE:
       return f"{step_title}：已完成"
     status_label = _task_status_label(
-      self._resolve_graph_task_status(instance=instance, node_instance=node_instance)
+      self._resolve_graph_task_status(task=task, instance=instance, node_instance=node_instance)
     )
     return f"{step_title}：{status_label}"
 
@@ -383,7 +399,7 @@ class TaskService:
     payload = dict(deliverable.payload or {}) if deliverable is not None else {}
     latest_review = payload.get("latest_review") if isinstance(payload.get("latest_review"), dict) else {}
 
-    status = self._resolve_graph_task_status(instance=instance, node_instance=node_instance)
+    status = self._resolve_graph_task_status(task=task, instance=instance, node_instance=node_instance)
     current_handler_id = task.creator_id if node_instance.business_state in {
       WorkflowNodeBusinessState.PENDING_REVIEW,
       WorkflowNodeBusinessState.REJECTED,
@@ -413,6 +429,10 @@ class TaskService:
     if rework_count is None:
       rework_count = self._read_int_metadata(self._copy_task_metadata(task), "rework_count")
 
+    completed_at = None
+    if status == TaskStatus.DONE:
+      completed_at = node_instance.completed_at or instance.completed_at or task.completed_at
+
     return GraphTaskProjection(
       task_id=task.id,
       status=status,
@@ -426,7 +446,7 @@ class TaskService:
       latest_deliverable_submitted_at=latest_deliverable_submitted_at,
       rework_count=rework_count,
       review_quality_score=review_quality_score,
-      completed_at=node_instance.completed_at or instance.completed_at or task.completed_at,
+      completed_at=completed_at,
       business_state=node_instance.business_state,
       node_key=node_instance.node_key,
     )
@@ -1558,6 +1578,13 @@ class TaskService:
     if metadata.get("workflow_graph_root_task") is not True:
       return False
     return str(metadata.get("run_kind") or "") == "production"
+
+  @staticmethod
+  def _is_batch_graph_root_shell_task(task: Task) -> bool:
+    metadata = TaskService._copy_task_metadata(task)
+    if metadata.get("workflow_graph_root_task") is not True:
+      return False
+    return str(metadata.get("run_kind") or "") == "batch"
 
   @staticmethod
   def _read_str_metadata(metadata: dict[str, Any], key: str) -> str | None:

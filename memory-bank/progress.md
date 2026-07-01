@@ -1,5 +1,21 @@
 # Project Filum 进度记录
 
+## 会话摘要（0.91.1 · 批次 ROOT 误进历史）
+
+### 2026-06-23 — 选题会批次派发前误入历史任务
+
+**现象**：streaming 批次 Run 在全部 N1 采集提交后、发起者尚未派发选题时，批次 ROOT 出现在「历史任务」而非「跟踪」。
+
+**根因（流转逻辑，非模板）**：W-08 `streaming` 模式下 N2 被 engine-skip 后置为 `COMPLETED`；批次 ROOT 无绑定节点，`_select_graph_task_node` 回退到最新已完成节点，`_resolve_graph_task_status` 误判为 `DONE`。
+
+**修复**：`_is_batch_graph_root_shell_task`；批次 ROOT 以 `WorkflowGraphInstance.status` 为准（`ACTIVE`/`SUSPENDED` → `DOING`；`COMPLETED` → `DONE`）；阶段文案「汇总派发：待确认派发」。
+
+**测试**：`test_batch_root_stays_in_tracking_before_dispatch`。
+
+**版本**：`VERSION` → `0.91.1`。
+
+---
+
 ## 会话摘要（0.91.0 · F-29 + 管理督办 + 逾期延期）
 
 ### 2026-06-23 — 内测运维三项

@@ -1,7 +1,7 @@
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同全貌：**产品架构 · 单步/任务流/统计 · 实现与差距 · 改造跟踪**。  
-> **最后同步**：2026-06-23 @ **TC-Transform Phase 0–2 + F-24/F-25** · SemVer `0.90.0` · `main` @ `19608f0`  
+> **最后同步**：2026-06-23 @ **0.91.1** · 批次 ROOT 投影修复 · F-29 归档/督办/逾期 @ `0.91.0`  
 > **排期**：[`roadmap.md`](../roadmap.md) · **决策**：[`decisions.md`](../decisions.md) ADR-009 · ADR-010  
 > **契约**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)
 
@@ -86,6 +86,7 @@ flowchart TB
 2. **Hydration**：`GET /tasks?ids=` batch（看板/甘特/列表 v2）。
 3. **详情**：`GET /tasks/{id}` + 图任务 `GET /workflow-graph/instances/...`。
 4. **graph-first 列表**：`_graph_task_projection_map` → `run_label` / `user_facing_state`（B-05/B-15）。
+5. **批次 ROOT 投影**（`0.91.1`）：`workflow_graph_root_task` + `run_kind=batch` 时，列表 `status` 以 **`WorkflowGraphInstance.status`** 为准，不因 N2 engine-skip 的节点 `COMPLETED` 提前进历史；实例 `ACTIVE` 阶段标签「汇总派发：待确认派发」。
 
 图锚点：`extra_metadata.workflow_graph_instance_id`。
 

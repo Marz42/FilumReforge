@@ -1,7 +1,7 @@
 # Project Filum 架构基线
 
 **文档版本**: v3.14.0（工程基线修订号，与产品 SemVer [`VERSION`](../VERSION) `0.91.0` 独立）  
-**最后同步**: 2026-06-23 @ **F-29** 管理员归档 · Admin/HR 跟踪督办 · 逾期延期 · 产品基线 `0.91.0`  
+**最后同步**: 2026-06-23 @ **0.91.1** 批次 ROOT 投影 · F-29 归档/督办/逾期 @ `0.91.0`  
 **下一工程焦点**（`roadmap.md` · [`domains/task-center.md`](./domains/task-center.md)）:
 - **内测验收** · **S-01** 暂缓 · **F-10–F-12** 抛光（可选）
 **适用范围**: 当前仓库代码、完整数据库 schema、Phase 5 已交付基线，以及当前重构执行路径下的工程边界
@@ -517,7 +517,7 @@
 10. Phase 7 在 `complete_node_instance()` 上补 `context_updates` 输入，节点完成时可把结构化字段写入 `WorkflowGraphInstance.context` 并递增 `context_version`；出边路由支持 `eq/neq/gt/gte/lt/lte/in/not_in/contains/exists` 与 `else` 默认分支，未命中普通规则时走 `else`。
 11. Phase 7 补齐 `Notice Node` 触达即完成：Notice 节点被激活后会在同一事务链中自动置为 `COMPLETED` 并继续推进下游，不阻塞主链路。
 12. `backend/app/api/routes/workflow_graph_engine.py` 现提供 `GET /workflow-graph/templates/{template_id}/instances`、`GET /workflow-graph/instances/{instance_id}`、`POST /workflow-graph/node-instances/{node_instance_id}/complete`、`POST /workflow-graph/node-instances/{node_instance_id}/deep-reject`、`POST /workflow-graph/node-instances/{node_instance_id}/takeover`、`POST /workflow-graph/smart-notice-candidates` 等端点，返回图实例与节点实例快照、节点统计和 `progress_percent`；写操作由 `WorkflowGraphService` 提交事务后跨请求可见。
-13. **任务中心读路径（Phase 11-F，与代码一致）**：`TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 在 `TASK_CENTER_V2_ENABLED=true`（`Settings` 默认值，见 `backend/app/core/config.py`）下对具备图锚点的任务优先解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，再与未迁移的 legacy 任务合并排序；`TaskCenterService.get_task_center()` 仍调用上述三方法，前端 `GET /task-center` 协议保持稳定。Phase 11-E 迁移 CLI 与 Phase 11-F 默认切流已在仓库落地；深度打回等写路径见 Phase 9 / 11-D。若环境显式关闭 `TASK_CENTER_V2_ENABLED`，则回退为纯 legacy 列表语义。
+13. **任务中心读路径（Phase 11-F，与代码一致）**：`TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 在 `TASK_CENTER_V2_ENABLED=true`（`Settings` 默认值，见 `backend/app/core/config.py`）下对具备图锚点的任务优先解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，再与未迁移的 legacy 任务合并排序；`TaskCenterService.get_task_center()` 仍调用上述三方法，前端 `GET /task-center` 协议保持稳定。Phase 11-E 迁移 CLI 与 Phase 11-F 默认切流已在仓库落地；深度打回等写路径见 Phase 9 / 11-D。若环境显式关闭 `TASK_CENTER_V2_ENABLED`，则回退为纯 legacy 列表语义。**批次 ROOT shell**（`@ 0.91.1`）：`_resolve_graph_task_status` 对 `run_kind=batch` 的 ROOT 以图实例生命周期判定完成态，避免 streaming N2 skip 导致派发前误入历史。
 
 14. **任务中心增强（TCE，@ 2026-06-21）**：Phase 1–5 已落地（读模型、batch hydration、部门统计、多部门实例化、TC-P3 清理）；**图模板设计器 D1–D3** 已落地（`WorkflowGraphTemplateAdminService` + `GraphTemplateDesignerView`）。仍开放 backlog：**B-12**（Legacy E 后端）、**F-05**（Shell 拆分）、**F-10–F-12**（抛光）— 见 [`domains/task-center.md`](./domains/task-center.md) §10。
 
