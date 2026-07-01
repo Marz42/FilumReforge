@@ -10,6 +10,14 @@
 
 ---
 
+## [0.91.2] - 2026-06-23
+
+### Fixed
+
+- **任务中心 500**：批次 ROOT 投影修复误用不存在的 `WorkflowGraphInstanceStatus.SUSPENDED`；改为 `ACTIVE`/`PENDING`
+
+---
+
 ## [0.91.1] - 2026-06-23
 
 ### Fixed

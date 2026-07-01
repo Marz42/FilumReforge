@@ -333,7 +333,7 @@ class TaskService:
         return TaskStatus.DONE
       if instance.status in {
         WorkflowGraphInstanceStatus.ACTIVE,
-        WorkflowGraphInstanceStatus.SUSPENDED,
+        WorkflowGraphInstanceStatus.PENDING,
       }:
         return TaskStatus.DOING
 
