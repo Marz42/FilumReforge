@@ -94,7 +94,7 @@ async function openCaptureTask(page: Page, hint: string): Promise<void> {
 
   await row.click()
 
-  await expect(page.getByTestId('template-capture-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('capture-panel')).toBeVisible({ timeout: 30_000 })
 
 }
 
@@ -102,7 +102,7 @@ async function openCaptureTask(page: Page, hint: string): Promise<void> {
 
 async function submitCapture(page: Page, title: string): Promise<void> {
 
-  const titleInput = page.locator('[data-testid="template-capture-panel"] .el-input__inner').first()
+  const titleInput = page.locator('[data-testid="capture-panel"] .el-input__inner').first()
 
   await titleInput.fill(title)
 
@@ -114,7 +114,7 @@ async function submitCapture(page: Page, title: string): Promise<void> {
 
   )
 
-  await page.getByTestId('template-capture-submit').click()
+  await page.getByTestId('capture-submit').click()
 
   await captureResp
 
@@ -138,7 +138,7 @@ async function submitEditAssignCaptureViaApi(page: Page, taskId: string, editorU
 }
 
 async function submitEditAssignCapture(page: Page, editorLabel: string): Promise<void> {
-  const select = page.locator('[data-testid="template-capture-panel"] .el-select').first()
+  const select = page.locator('[data-testid="capture-panel"] .el-select').first()
   await select.click()
   await page
     .locator('.el-select-dropdown:visible .el-select-dropdown__item')
@@ -151,7 +151,7 @@ async function submitEditAssignCapture(page: Page, editorLabel: string): Promise
     (r) => /\/submit-capture\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
     { timeout: 60_000 },
   )
-  await page.getByTestId('template-capture-submit').click()
+  await page.getByTestId('capture-submit').click()
   await captureResp
 }
 
@@ -570,7 +570,7 @@ test.describe('Workflow Video multi-account mock', () => {
     await page.goto(`/task-center?filter=inbox&selected=${editAssignTaskId}`)
     await expect(page.getByTestId('tasks-detail-panel')).toBeVisible({ timeout: 30_000 })
 
-    const capturePanel = page.getByTestId('template-capture-panel')
+    const capturePanel = page.getByTestId('capture-panel')
     if (await capturePanel.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await submitEditAssignCapture(page, '叶舟')
     } else {

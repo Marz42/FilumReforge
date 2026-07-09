@@ -21,7 +21,7 @@ test('creates a manual task from the header dialog', async ({ mockApi, page }) =
   await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').first().click()
   await page.getByTestId('task-center-task-submit').click()
 
-  await expect(page.locator('.el-message')).toContainText('任务已发布')
+  await expect(page.locator('.el-message--success')).toContainText('任务已发布')
   await expect(page.getByTestId('task-center-list-view').getByText('E2E 新建任务')).toBeVisible()
 })
 
@@ -59,7 +59,7 @@ test('creates a scheduled graph template dispatch from dialog tab', async ({ moc
     .click()
   await page.getByTestId('task-center-schedule-submit').click()
 
-  await expect(page.locator('.el-message')).toContainText('周期任务已创建')
+  await expect(page.locator('.el-message--success')).toContainText('周期任务已创建')
   await expect(page.getByTestId('task-center-task-dialog')).toBeHidden()
 })
 

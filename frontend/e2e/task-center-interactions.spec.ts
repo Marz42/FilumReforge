@@ -14,7 +14,7 @@ test.describe('task center graph handshake', () => {
 
     await expect(page.getByRole('button', { name: '接受任务' })).toBeVisible()
     await page.getByRole('button', { name: '接受任务' }).click()
-    await expect(page.locator('.el-message')).toContainText('任务已接受')
+    await expect(page.locator('.el-message--success')).toContainText('任务已接受')
     await expect(page.getByText('已接受待开工')).toBeVisible()
   })
 
@@ -26,7 +26,7 @@ test.describe('task center graph handshake', () => {
     await page.locator('.el-dialog').filter({ hasText: '退回协商' }).locator('textarea').fill('需调整任务范围')
     await page.getByRole('button', { name: '确认退回' }).click()
 
-    await expect(page.locator('.el-message')).toContainText('任务已退回协商')
+    await expect(page.locator('.el-message--success')).toContainText('任务已退回协商')
     await expect(page.getByText('已拒绝待调整')).toBeVisible()
   })
 
@@ -45,7 +45,7 @@ test.describe('task center graph handshake', () => {
     await dialog.locator('textarea').fill('由协作同事继续处理')
     await page.getByRole('button', { name: '确认转办' }).click()
 
-    await expect(page.locator('.el-message')).toContainText('任务已转办')
+    await expect(page.locator('.el-message--success')).toContainText('任务已转办')
   })
 })
 
@@ -55,7 +55,7 @@ test('approves deliverable review on tracking task', async ({ mockApi, page }) =
 
   await expect(page.getByRole('button', { name: '验收通过' })).toBeVisible()
   await page.getByRole('button', { name: '验收通过' }).click()
-  await expect(page.locator('.el-message')).toContainText('验收已通过')
+  await expect(page.locator('.el-message--success')).toContainText('验收已通过')
 })
 
 test('closes batch capture from root run detail', async ({ mockApi, page }) => {

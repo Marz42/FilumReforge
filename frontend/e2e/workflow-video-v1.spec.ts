@@ -42,12 +42,12 @@ test.describe('workflow video v1 (W10)', () => {
     for (const { taskId, email } of captureEditorAccounts) {
       await loginAs(page, email)
       await page.goto(`/task-center?filter=tracking&selected=${taskId}`)
-      await expect(page.getByTestId('template-capture-panel')).toBeVisible()
-      await page.locator('[data-testid="template-capture-panel"] .el-input__inner').first().fill('E2E 选题')
+      await expect(page.getByTestId('capture-panel')).toBeVisible()
+      await page.locator('[data-testid="capture-panel"] .el-input__inner').first().fill('E2E 选题')
       const captureResponse = page.waitForResponse(
         (res) => res.url().includes('/submit-capture') && res.ok(),
       )
-      await page.getByTestId('template-capture-submit').click()
+      await page.getByTestId('capture-submit').click()
       await captureResponse
     }
 
@@ -82,12 +82,12 @@ test.describe('workflow video v1 (W10)', () => {
     for (const { taskId, email } of captureEditorAccounts.slice(0, 2)) {
       await loginAs(page, email)
       await page.goto(`/task-center?filter=tracking&selected=${taskId}`)
-      await expect(page.getByTestId('template-capture-panel')).toBeVisible()
-      await page.locator('[data-testid="template-capture-panel"] .el-input__inner').first().fill('E2E 选题')
+      await expect(page.getByTestId('capture-panel')).toBeVisible()
+      await page.locator('[data-testid="capture-panel"] .el-input__inner').first().fill('E2E 选题')
       const captureResponse = page.waitForResponse(
         (res) => res.url().includes('/submit-capture') && res.ok(),
       )
-      await page.getByTestId('template-capture-submit').click()
+      await page.getByTestId('capture-submit').click()
       await captureResponse
     }
 

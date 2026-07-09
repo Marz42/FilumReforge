@@ -247,7 +247,7 @@ async function resolveCaptureTaskId(
 async function openCaptureTask(page: Page, accessToken: string, email: string): Promise<void> {
   const taskId = await resolveCaptureTaskIdForEditor(page, accessToken, email)
   await page.goto(`/task-center?filter=inbox&selected=${taskId}`)
-  await expect(page.getByTestId('template-capture-panel')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('capture-panel')).toBeVisible({ timeout: 30_000 })
 }
 
 async function waitForRootTaskInCenter(
@@ -386,7 +386,7 @@ async function ensureTaskAccepted(page: Page): Promise<void> {
 }
 
 async function submitCapture(page: Page, title: string): Promise<void> {
-  const panel = page.getByTestId('template-capture-panel')
+  const panel = page.getByTestId('capture-panel')
   await ensureTaskAccepted(page)
   const titleInput = panel.locator('tbody tr').first().locator('input').first()
   await titleInput.click()
@@ -397,7 +397,7 @@ async function submitCapture(page: Page, title: string): Promise<void> {
     (r) => /\/submit-capture\b/.test(r.url()) && r.request().method() === 'POST',
     { timeout: 60_000 },
   )
-  await panel.getByTestId('template-capture-submit').click()
+  await panel.getByTestId('capture-submit').click()
   const response = await captureResp
   expect(
     response.ok(),

@@ -82,12 +82,12 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
 
     for (const [index, taskId] of ['task-capture-a', 'task-capture-b', 'task-capture-c'].entries()) {
       await page.goto(`/task-center?filter=tracking&selected=${taskId}`)
-      await expect(page.getByTestId('template-capture-panel')).toBeVisible()
+      await expect(page.getByTestId('capture-panel')).toBeVisible()
       await page.getByTestId('template-capture-title').fill(`UAT 选题 ${index + 1}`)
       const captureResponse = page.waitForResponse(
         (res) => res.url().includes('/submit-capture') && res.ok(),
       )
-      await page.getByTestId('template-capture-submit').click()
+      await page.getByTestId('capture-submit').click()
       await captureResponse
       await snap(page, `w04-wf-0${index + 1}-capture-${taskId}.png`)
     }
@@ -108,7 +108,7 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
     await page.goto('/task-center?filter=tracking&selected=task-capture-a')
     await page.getByTestId('template-capture-title').fill('UAT 打回题')
     const captureDone = page.waitForResponse((res) => res.url().includes('/submit-capture') && res.ok())
-    await page.getByTestId('template-capture-submit').click()
+    await page.getByTestId('capture-submit').click()
     await captureDone
 
     const rejectOk = await page.evaluate(
@@ -150,7 +150,7 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
     for (const taskId of ['task-capture-a', 'task-capture-b', 'task-capture-c']) {
       await page.goto(`/task-center?filter=tracking&selected=${taskId}`)
       await page.getByTestId('template-capture-title').fill('UAT')
-      await page.getByTestId('template-capture-submit').click()
+      await page.getByTestId('capture-submit').click()
     }
 
     await page.goto('/task-center?filter=tracking&selected=task-n2-aggregate')
@@ -201,7 +201,7 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
     for (const taskId of ['task-capture-a', 'task-capture-b']) {
       await page.goto(`/task-center?filter=tracking&selected=${taskId}`)
       await page.getByTestId('template-capture-title').fill('UAT')
-      await page.getByTestId('template-capture-submit').click()
+      await page.getByTestId('capture-submit').click()
     }
 
     await page.goto('/task-center?filter=tracking&selected=task-n2-aggregate')

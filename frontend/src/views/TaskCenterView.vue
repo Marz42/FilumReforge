@@ -325,12 +325,6 @@ async function handleTaskCreated(): Promise<void> {
   handleFilterChange('inbox')
 }
 
-async function handleScheduleCreated(): Promise<void> {
-  taskDialogVisible.value = false
-  await loadSnapshot()
-  handleFilterChange('tracking')
-}
-
 async function runTaskSearch(query: string): Promise<void> {
   const trimmed = query.trim()
   if (!trimmed) {
@@ -558,7 +552,6 @@ watch(
 )
 
 onMounted(() => {
-  resetPublishForm()
   void loadSnapshot()
 })
 </script>

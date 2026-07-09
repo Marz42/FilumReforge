@@ -15,14 +15,14 @@ interface PublishDraftAttachment {
   original_filename: string
 }
 
+const visible = defineModel<boolean>({ required: true })
+
 const props = defineProps<{
-  visible: boolean
   departmentOptions: Array<{ id: string; label: string }>
   userOptions: Array<{ user_id: string; email: string; real_name?: string; department_id?: string; department_name?: string; label: string }>
 }>()
 
 const emit = defineEmits<{
-  'update:visible': [value: boolean]
   created: []
 }>()
 
@@ -104,7 +104,7 @@ async function handleCancelTaskDialog(): Promise<void> {
   if (!(await requestCloseTaskDialog())) {
     return
   }
-  emit('update:visible', false)
+  visible.value = false
   resetPublishForm()
 }
 
@@ -173,7 +173,7 @@ async function handlePublishTask(): Promise<void> {
       watcher_user_ids: publishForm.watcher_user_ids,
     })
     ElMessage.success('任务已发布')
-    emit('update:visible', false)
+    visible.value = false
     resetPublishForm()
     emit('created')
   } catch (error) {
@@ -184,7 +184,7 @@ async function handlePublishTask(): Promise<void> {
 }
 
 async function handleScheduleCreated(): Promise<void> {
-  emit('update:visible', false)
+  visible.value = false
   taskDialogTab.value = 'single'
   emit('created')
 }
@@ -199,7 +199,7 @@ async function handleScheduleSubmit(): Promise<void> {
 }
 
 watch(
-  () => props.visible,
+  visible,
   (newVal) => {
     if (newVal) {
       taskDialogTab.value = 'single'
@@ -211,7 +211,7 @@ watch(
 
 <template>
   <el-dialog
-    :model-value="visible"
+    v-model="visible"
     title="建立任务"
     width="720px"
     align-center
@@ -220,7 +220,6 @@ watch(
     :close-on-click-modal="false"
     data-testid="task-center-task-dialog"
     :before-close="handleTaskDialogBeforeClose"
-    @update:model-value="(val: boolean) => emit('update:visible', val)"
   >
     <el-tabs v-model="taskDialogTab" data-testid="task-center-create-tabs">
       <el-tab-pane label="单步任务" name="single" />
