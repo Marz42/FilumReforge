@@ -35,7 +35,7 @@ git log --oneline -n 20
 - `memory-bank/progress.md`
 - `memory-bank/roadmap.md`
 - `memory-bank/plans/implementation-plan.md`
-- `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md`
+- `memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md`
 - `README.md`
 - `backend/README.md`
 - `frontend/README.md`

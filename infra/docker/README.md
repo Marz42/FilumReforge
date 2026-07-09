@@ -95,7 +95,7 @@ docker compose -f docker-compose.yml exec backend python -m app.scripts.seed_sam
 docker compose -f docker-compose.yml exec backend python -m app.scripts.seed_workflow_video_templates
 ```
 
-（与仓库根目录 `README.md` 中 demo 账号说明一致；图模板实测见 `memory-bank/handbooks/workflow-video-v1-docker-runbook.md`。）
+（与仓库根目录 `README.md` 中 demo 账号说明一致；图模板实测见 `memory-bank/knowledge/manuals/workflow-video-v1-docker-runbook.md`。）
 
 停止环境：
 

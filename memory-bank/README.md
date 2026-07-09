@@ -2,9 +2,9 @@
 
 本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.90.0`）。
 
-> **当前实施焦点**：[`active-task.md`](./active-task.md) → **TC-Transform** · P0 **B-12** · P1 **F-28** / **F-22** · 全貌 [`domains/task-center.md`](./domains/task-center.md)
+> **当前实施焦点**：[`active-task.md`](../runtime/active-task.md) → **TC-Transform** · P0 **B-12** · P1 **F-28** / **F-22** · 全貌 [`domains/task-center.md`](./domains/task-center.md)
 
-> **`handbooks/` ≈ Paradigma `manuals/`**：路径名保留 `handbooks/`，语义为部署运维与测试操作手册。
+> **`knowledge/manuals/` ≈ Paradigma `manuals/`**：路径名保留 `knowledge/manuals/`，语义为部署运维与测试操作手册。
 
 ---
 
@@ -14,10 +14,10 @@
 | --- | --- |
 | [project-brief.md](./project-brief.md) | 产品愿景、受众、功能边界、技术栈摘要 |
 | [architecture.md](./architecture.md) | 工程蓝图：模块、运行时、核心流程、关键文件 |
-| [data-contracts.md](./data-contracts.md) | schema、枚举、实体关系、API 索引 |
+| [data-contracts.md](./contracts/data-contracts.md) | schema、枚举、实体关系、API 索引 |
 | [conventions.md](./conventions.md) | 编码与协作规范 |
-| [active-task.md](./active-task.md) | 当前唯一聚焦任务 |
-| [progress.md](./progress.md) | 会话摘要 + 阶段验收与测试基线 |
+| [active-task.md](../runtime/active-task.md) | 当前唯一聚焦任务 |
+| [progress.md](../logs/progress/progress.md) | 会话摘要 + 阶段验收与测试基线 |
 
 ---
 
@@ -36,7 +36,7 @@
 | [demos/workflow-task-detail-v2.html](./demos/workflow-task-detail-v2.html) | 单页 HTML 交互 Demo（浏览器直接打开） |
 | [design-document.md](./design-document.md) | 完整产品设计（摘要见 project-brief） |
 | [tech-stack.md](./tech-stack.md) | 完整技术选型（摘要见 project-brief） |
-| [handbooks/user-manual.md](./handbooks/user-manual.md) | 用户说明书 v1.2 |
+| [knowledge/manuals/user-manual.md](./manuals/user-manual.md) | 用户说明书 v1.2 |
 
 ### domains/ 索引
 
@@ -55,20 +55,20 @@
 
 | 路径 | 用途 |
 | --- | --- |
-| [decisions.md](./decisions.md) | 架构决策记录 (ADR) |
-| [known-issues.md](./known-issues.md) | 已知坑位与环境陷阱 |
+| [decisions.md](./decisions/decisions.md) | 架构决策记录 (ADR) |
+| [known-issues.md](./known-issues/known-issues.md) | 已知坑位与环境陷阱 |
 | [glossary.md](./glossary.md) | 项目专有术语 |
 
-### [handbooks/](./handbooks/) — 操作手册
+### [knowledge/manuals/](./manuals/) — 操作手册
 
 | 文件 | 用途 |
 | --- | --- |
-| [deployment-runbook-ubuntu-2404.md](./handbooks/deployment-runbook-ubuntu-2404.md) | Ubuntu 24.04 生产部署 |
-| [manual-database-operations.md](./handbooks/manual-database-operations.md) | PostgreSQL 手工操作与迁移 |
-| [e2e-gui-verification-automation-runbook.md](./handbooks/e2e-gui-verification-automation-runbook.md) | Docker GUI + Playwright 验证 |
-| [workflow-video-v1-docker-runbook.md](./handbooks/workflow-video-v1-docker-runbook.md) | 视频工作流 v1 Docker 冒烟 |
-| [workflow-video-v1-collaborative-uat-guide.md](./handbooks/workflow-video-v1-collaborative-uat-guide.md) | W0–W10 协同 UAT |
-| [workflow-video-v1-multi-account-e2e-guide.md](./handbooks/workflow-video-v1-multi-account-e2e-guide.md) | 多账号 Live/Mock E2E |
+| [deployment-runbook-ubuntu-2404.md](./manuals/deployment-runbook-ubuntu-2404.md) | Ubuntu 24.04 生产部署 |
+| [manual-database-operations.md](./manuals/manual-database-operations.md) | PostgreSQL 手工操作与迁移 |
+| [e2e-gui-verification-automation-runbook.md](./manuals/e2e-gui-verification-automation-runbook.md) | Docker GUI + Playwright 验证 |
+| [workflow-video-v1-docker-runbook.md](./manuals/workflow-video-v1-docker-runbook.md) | 视频工作流 v1 Docker 冒烟 |
+| [workflow-video-v1-collaborative-uat-guide.md](./manuals/workflow-video-v1-collaborative-uat-guide.md) | W0–W10 协同 UAT |
+| [workflow-video-v1-multi-account-e2e-guide.md](./manuals/workflow-video-v1-multi-account-e2e-guide.md) | 多账号 Live/Mock E2E |
 
 ### [history/](./history/) — 存档
 
@@ -100,4 +100,4 @@
 | 阶段验测、会话结束 | `progress.md` |
 | 排期与阶段出口 | `roadmap.md` + `plans/`（**当前**: [`task-center-enhance.md`](./plans/task-center-enhance.md)） |
 | ADR / 坑位 / 术语 | `decisions.md` / `known-issues.md` / `glossary.md` |
-| 运维步骤 | `handbooks/` |
+| 运维步骤 | `knowledge/manuals/` |

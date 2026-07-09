@@ -14,7 +14,7 @@
 
 1. 读取 `AGENT_RULES.md`，按知识温度体系加载 memory-bank：
    - 🔥 HOT：project-brief、architecture、data-contracts、conventions、active-task、progress
-   - 🌡️ WARM：与任务相关的 roadmap、domains/、plans/、handbooks/、子项目 README
+   - 🌡️ WARM：与任务相关的 roadmap、domains/、plans/、knowledge/manuals/、子项目 README
 2. 执行 `git log --oneline -n 20` 确认最近主线。
 3. 审查文档与代码一致性，简要说明：
    - 哪些信息可能过时

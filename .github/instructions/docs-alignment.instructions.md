@@ -17,7 +17,7 @@ applyTo:
   - 🔥 `data-contracts.md` — **schema、枚举、API**（不再写入 architecture 正文）
   - 🔥 `conventions.md`、`active-task.md`、`progress.md`
   - 🌡️ `roadmap.md`、`plans/`、`domains/`
-  - 🧊 `decisions.md`、`known-issues.md`、`glossary.md`、`handbooks/`
+  - 🧊 `decisions.md`、`known-issues.md`、`glossary.md`、`knowledge/manuals/`
 - 写文档前先核对实现事实；优先用模型、迁移、服务、路由、测试和可运行命令作证据。
 - 继续开发类任务：先看 `git log --oneline -n 20` 与 `plans/implementation-plan.md`、`roadmap.md`。
 - 对齐审查区分：已对齐 / 文档漂移 / 实现未落地。

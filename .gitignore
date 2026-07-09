@@ -31,3 +31,4 @@ chrome-win64.zip
 
 # Local reference clone (Paradigma memory-bank template); not part of Filum repo
 /paradigma/
+/paradigma-upstream/

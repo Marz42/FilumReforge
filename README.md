@@ -78,7 +78,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 ├── backend/        # FastAPI、服务层、模型、迁移、worker、脚本
 ├── frontend/       # Vue 3 管理后台
 ├── infra/          # Docker Compose 与 Nginx 配置
-└── memory-bank/    # 设计/架构/进度（根目录）+ handbooks/ + plans/ + history/ + archive/
+└── memory-bank/    # 设计/架构/进度（根目录）+ knowledge/manuals/ + plans/ + history/ + archive/
 ```
 
 ## 文档入口
@@ -96,13 +96,13 @@ Agent 协作见 [`AGENT_RULES.md`](AGENT_RULES.md)、[`VERSION`](VERSION)。memo
 | [`roadmap.md`](memory-bank/roadmap.md) | 宏观里程碑（🌡️） |
 | [`plans/`](memory-bank/plans/) | 细粒度实施计划（🌡️） |
 | [`domains/`](memory-bank/domains/) | 子系统领域文档（🌡️） |
-| [`handbooks/`](memory-bank/handbooks/) | 运维与用户手册（🧊） |
+| [`knowledge/manuals/`](memory-bank/knowledge/manuals/) | 运维与用户手册（🧊） |
 
 完整产品设计/技术选型叙述：[`design-document.md`](memory-bank/design-document.md)、[`tech-stack.md`](memory-bank/tech-stack.md)（摘要已迁入 project-brief）。
 
-- [`handbooks/user-manual.md`](memory-bank/handbooks/user-manual.md)：用户说明书 v1.2
-- [`handbooks/manual-database-operations.md`](memory-bank/handbooks/manual-database-operations.md)：PostgreSQL 手工操作
-- [`handbooks/e2e-gui-verification-automation-runbook.md`](memory-bank/handbooks/e2e-gui-verification-automation-runbook.md)：Docker + Playwright GUI 验证
+- [`knowledge/manuals/user-manual.md`](memory-bank/knowledge/manuals/user-manual.md)：用户说明书 v1.2
+- [`knowledge/manuals/manual-database-operations.md`](memory-bank/knowledge/manuals/manual-database-operations.md)：PostgreSQL 手工操作
+- [`knowledge/manuals/e2e-gui-verification-automation-runbook.md`](memory-bank/knowledge/manuals/e2e-gui-verification-automation-runbook.md)：Docker + Playwright GUI 验证
 - [`infra/docker/E2E-GUI-VERIFICATION.md`](infra/docker/E2E-GUI-VERIFICATION.md)：端到端 GUI 分层验证清单
 
 ## 快速开始
@@ -170,7 +170,7 @@ npm run dev -- --host 0.0.0.0 --port 5173
 
 推荐优先使用主机部署路径；如果偏好容器编排，可直接使用生产 Compose，而不是把开发态 Compose 暴露到公网。
 
-如果需要一份按真实成功部署整理、可以逐条复制执行的完整操作手册，请直接看 [memory-bank/handbooks/deployment-runbook-ubuntu-2404.md](memory-bank/handbooks/deployment-runbook-ubuntu-2404.md)。该文档覆盖 Ubuntu 24.04 LTS 全新服务器初始化、PostgreSQL/Redis/Nginx/systemd 配置、前端静态文件权限、HTTP/HTTPS 验证、推送通知验证以及后续更新发布流程。完整文档索引见 [memory-bank/README.md](memory-bank/README.md)。
+如果需要一份按真实成功部署整理、可以逐条复制执行的完整操作手册，请直接看 [memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md](memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md)。该文档覆盖 Ubuntu 24.04 LTS 全新服务器初始化、PostgreSQL/Redis/Nginx/systemd 配置、前端静态文件权限、HTTP/HTTPS 验证、推送通知验证以及后续更新发布流程。完整文档索引见 [memory-bank/README.md](memory-bank/README.md)。
 
 ### 推荐拓扑
 
@@ -384,7 +384,7 @@ cd frontend
 npm run test:e2e:docker-gui
 ```
 
-报告与截图默认写入仓库根目录 `verification-runs/docker-gui-<时间戳>/`。详见 `memory-bank/handbooks/e2e-gui-verification-automation-runbook.md`。
+报告与截图默认写入仓库根目录 `verification-runs/docker-gui-<时间戳>/`。详见 `memory-bank/knowledge/manuals/e2e-gui-verification-automation-runbook.md`。
 
 ## 测试组织与 demo 账号
 
@@ -441,7 +441,7 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 - `/approvals` → `/reports`
 - `/users`、`/profiles` → `/people`（保留 `tab` 查询参数映射）
 
-操作细节见 [`memory-bank/handbooks/user-manual.md`](memory-bank/handbooks/user-manual.md)。
+操作细节见 [`memory-bank/knowledge/manuals/user-manual.md`](memory-bank/knowledge/manuals/user-manual.md)。
 
 ## 浏览器推送说明
 

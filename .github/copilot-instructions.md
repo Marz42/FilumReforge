@@ -18,6 +18,6 @@
 | 对齐审查 | `.github/prompts/memory-bank-alignment-review.prompt.md` |
 | ADR / 术语 / 坑位 | `memory-bank/decisions.md` 等 |
 | 子系统细节 | `memory-bank/domains/*.md` |
-| 部署 | `memory-bank/handbooks/deployment-runbook-ubuntu-2404.md` |
+| 部署 | `memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md` |
 
 技术细节见 `memory-bank/conventions.md` 与 `backend/README.md`、`frontend/README.md`。

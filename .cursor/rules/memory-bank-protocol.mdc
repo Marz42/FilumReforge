@@ -1,20 +1,20 @@
 ---
-description: Memory-Bank 工作流协议 — Project Filum
+description: Memory-Bank 工作流协议 — Project Filum (Paradigma v0.5.0)
 alwaysApply: true
 ---
 
 # Memory-Bank Protocol — Project Filum
 
-> 同步自 `AGENT_RULES.md`
+> 同步自 `AGENT_RULES.md`；三态结构 runtime/logs/knowledge
 
 ## 🔥 HOT
-`project-brief` · `architecture` · `data-contracts` · `conventions` · `active-task` · `progress`
+`knowledge/project-brief` · `knowledge/architecture` · `knowledge/contracts/data-contracts` · `knowledge/contracts/repository-contract` · `knowledge/conventions` · `runtime/active-task`
 
 ## 🌡️ WARM
-`roadmap` · `changelog` · `domains/*` · `plans/*` · `design-document` · `tech-stack` · 子项目 README
+`knowledge/roadmap` · `logs/changelog` · `knowledge/domains/*` · `knowledge/plans/*` · `knowledge/manuals/*` · `design-document` · `tech-stack` · 子项目 README · `DESIGN.md`(前端任务时)
 
 ## 🧊 COLD
-`decisions` · `known-issues` · `glossary` · `handbooks/` · `history/` · `archive/`
+`knowledge/decisions/*` · `knowledge/known-issues/*` · `knowledge/glossary` · `history/` · `archive/`
 
 ## Update
-会话结束追加 `progress.md`；schema→`data-contracts`；架构→`architecture`；版本→`VERSION`+`changelog`
+会话结束追加 `logs/progress/progress.md`；schema→`knowledge/contracts/data-contracts`；架构→`knowledge/architecture`；ADR→`knowledge/decisions/` 独立文件；坑位→`knowledge/known-issues/` 独立文件；版本→`VERSION`+`logs/changelog`；运行 `python .paradigma/tools/pd-check-all.py`
