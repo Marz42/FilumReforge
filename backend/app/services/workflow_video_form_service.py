@@ -569,6 +569,25 @@ class WorkflowVideoFormService:
       node.terminated_at = now
       node.node_instance_version += 1
 
+    # Sync Task projections for terminated capture nodes — mark as DONE
+    # so users don't get stuck with "doing" tasks after capture is closed.
+    for node in pending_nodes:
+      config = node.config if isinstance(node.config, dict) else {}
+      raw_task_id = config.get("task_id")
+      if isinstance(raw_task_id, str) and raw_task_id.strip():
+        try:
+          task_id = UUID(raw_task_id.strip())
+          pending_task = await self._session.get(Task, task_id)
+          if pending_task is not None and pending_task.status != TaskStatus.DONE:
+            pending_task.status = TaskStatus.DONE
+            pending_task.completed_at = now
+            task_metadata = dict(pending_task.extra_metadata or {})
+            task_metadata["latest_capture_state"] = "closed_by_manager"
+            task_metadata["capture_closed_at"] = now.isoformat()
+            pending_task.extra_metadata = task_metadata
+        except ValueError:
+          continue
+
     context["capture_closed"] = True
     context["capture_closed_at"] = now.isoformat()
     instance.context = validate_run_context(context).model_dump(mode="json")

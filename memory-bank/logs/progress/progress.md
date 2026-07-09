@@ -16,6 +16,23 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（关闭采集 Task 同步 + 交付物附件可见性）
+
+### 2026-07-09 15:01 — 修复关闭采集后 Task 卡住 + 附件不可见
+
+**完成事项**:
+- [x] **1A**: `close_capture` 后端新增 Task 投影同步 — 被终止的采集节点关联 Task 标记为 DONE + `extra_metadata.latest_capture_state = "closed_by_manager"`
+- [x] **1B**: `CapturePanel.vue` 关闭态 UI — el-alert 提示 + 所有输入/选择/日期/按钮 disabled + 提交按钮文案「采集已结束」
+- [x] **2A**: `deliverableForm` 新增 `attachment_ids` 字段 + 提交交付物时传入附件 ID + 表单新增 el-select 多选控件
+- [x] **2B**: 下游节点创建时从上游 `WorkflowDeliverable.payload.latest_submission.attachment_ids` 复制 `AttachmentLink` 到新 Task
+- [x] 验证: `python -m compileall` PASS · `vue-tsc --noEmit` PASS · `pd-check-all` All 5 · E2E **35/35**
+
+**影响文件**: `workflow_video_form_service.py` (+23), `CapturePanel.vue` (+14), `TaskDetailShell.vue` (+30), `workflow_orchestration_service.py` (+50)
+
+**下一 actionable**：commit + 下一步任务
+
+---
+
 ## 会话摘要（模板内容检查修复 · P0/P1 8项）
 
 ### 2026-07-09 13:11 — 任务模板配置修复

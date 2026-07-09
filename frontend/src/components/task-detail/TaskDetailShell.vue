@@ -140,6 +140,7 @@ const commentForm = reactive({
 
 const deliverableForm = reactive({
   summary: '',
+  attachment_ids: [] as string[],
 })
 
 const deliverableReviewForm = reactive({
@@ -692,6 +693,7 @@ function resetCommentForm(): void {
 
 function resetDeliverableForm(): void {
   deliverableForm.summary = ''
+  deliverableForm.attachment_ids = []
 }
 
 async function refreshTaskRecord(taskId: string): Promise<void> {
@@ -977,6 +979,7 @@ async function handleSubmitDeliverable(): Promise<void> {
   try {
     await submitTaskDeliverable(selectedTask.value.id, {
       summary: deliverableForm.summary.trim(),
+      attachment_ids: deliverableForm.attachment_ids,
     })
     ElMessage.success('交付物已提交，等待验收')
     resetDeliverableForm()
@@ -1357,6 +1360,25 @@ watch(
                   :rows="4"
                   placeholder="说明本次交付内容、完成情况与需要验收的要点"
                 />
+              </el-form-item>
+              <el-form-item v-if="taskAttachments.length > 0" label="附件（可选，选择已有任务附件作为交付物）">
+                <el-select
+                  v-model="deliverableForm.attachment_ids"
+                  multiple
+                  filterable
+                  clearable
+                  collapse-tags
+                  collapse-tags-tooltip
+                  placeholder="选择附件"
+                  data-testid="deliverable-attachment-select"
+                >
+                  <el-option
+                    v-for="att in taskAttachments"
+                    :key="att.id"
+                    :label="att.original_filename"
+                    :value="att.id"
+                  />
+                </el-select>
               </el-form-item>
             </el-form>
 

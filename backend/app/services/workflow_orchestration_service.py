@@ -21,10 +21,12 @@ from app.core.enums import (
 )
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models import (
+  AttachmentLink,
   Profile,
   Task,
   TaskWatcher,
   User,
+  WorkflowDeliverable,
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
   WorkflowGraphTemplateNode,
@@ -40,6 +42,29 @@ from app.services.workflow_node_config_helpers import (
   resolve_completion_policy,
 )
 from app.services.workflow_projection_department import resolve_projection_department_id
+
+
+_EDGE_FROM_NODE_INDEX = object()
+
+
+def _resolve_upstream_node_key(
+  *,
+  instance: WorkflowGraphInstance,
+  downstream_node_key: str,
+) -> str | None:
+  """Find the direct upstream node key from template edges."""
+  edges = getattr(instance.template, "edges", None)
+  if edges is None:
+    return None
+  for edge in edges:
+    if getattr(edge, "is_reject_path", False):
+      continue
+    to_node = getattr(edge, "to_node", None)
+    from_node = getattr(edge, "from_node", None)
+    if to_node is not None and getattr(to_node, "node_key", None) == downstream_node_key:
+      if from_node is not None:
+        return getattr(from_node, "node_key", None)
+  return None
 
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
@@ -200,6 +225,51 @@ class WorkflowOrchestrationService:
     await self._session.flush()
     return task
 
+  async def _inherit_upstream_deliverable_attachments(
+    self,
+    *,
+    instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+    target_task: Task,
+  ) -> None:
+    """Copy upstream node's deliverable attachments to the downstream task."""
+    upstream_deliverable: WorkflowDeliverable | None = None
+    for ni in instance.node_instances:
+      if ni.node_key != node_instance.node_key:
+        continue
+      upstream_key = _resolve_upstream_node_key(instance=instance, downstream_node_key=ni.node_key)
+      if upstream_key is None:
+        return
+      for candidate in instance.node_instances:
+        if candidate.node_key == upstream_key and candidate.engine_state == WorkflowNodeEngineState.COMPLETED:
+          upstream_deliverable = await self._session.scalar(
+            select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == candidate.id)
+          )
+          break
+      break
+
+    if upstream_deliverable is None or not isinstance(upstream_deliverable.payload, dict):
+      return
+
+    submission = upstream_deliverable.payload.get("latest_submission") or {}
+    attachment_ids = submission.get("attachment_ids")
+    if not isinstance(attachment_ids, list) or not attachment_ids:
+      return
+
+    for att_id_str in attachment_ids:
+      try:
+        att_uuid = UUID(str(att_id_str))
+        self._session.add(
+          AttachmentLink(
+            attachment_id=att_uuid,
+            target_type="task",
+            target_id=str(target_task.id),
+            visibility="private",
+          )
+        )
+      except (ValueError, AttributeError):
+        continue
+
   async def ensure_projection_tasks(
     self,
     *,
@@ -240,6 +310,11 @@ class WorkflowOrchestrationService:
         template=template,
         instance=instance,
         node_instance=node_instance,
+      )
+      await self._inherit_upstream_deliverable_attachments(
+        instance=instance,
+        node_instance=node_instance,
+        target_task=task,
       )
       await self._maybe_add_boundary_cc_watchers(
         actor=actor,

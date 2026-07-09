@@ -355,9 +355,6 @@ async function loadSnapshot(): Promise<void> {
   loading.value = true
   try {
     snapshot.value = await getTaskCenterSnapshot()
-    if (!publishForm.department_id && publishDepartmentOptions.value.length > 0) {
-      publishForm.department_id = publishDepartmentOptions.value[0]!.id
-    }
     sanitizeSelectedQuery()
   } catch (error) {
     ElMessage.error(getErrorMessage(error))

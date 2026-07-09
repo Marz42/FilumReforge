@@ -198,6 +198,14 @@ onMounted(() => {
     class="workflow-panel"
     data-testid="capture-panel"
   >
+    <el-alert
+      v-if="captureClosed"
+      title="采集已结束，由管理员提前关闭"
+      type="info"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 12px"
+    />
     <template #header>
       <div class="workflow-panel__header">
         <strong>{{ nodeKey.includes('SCHEDULE') ? '排期信息' : '表格采集' }}</strong>
@@ -219,6 +227,7 @@ onMounted(() => {
             filterable
             clearable
             :loading="managerLoading"
+            :disabled="captureClosed"
             placeholder="选择成员"
             style="width: 100%"
           >
@@ -234,6 +243,7 @@ onMounted(() => {
             v-model="row[column.key]"
             type="textarea"
             :rows="2"
+            :disabled="captureClosed"
           />
           <el-date-picker
             v-else-if="column.type === 'datetime'"
@@ -242,21 +252,22 @@ onMounted(() => {
             value-format="YYYY-MM-DDTHH:mm:ss[Z]"
             placeholder="选择日期时间"
             style="width: 100%"
+            :disabled="captureClosed"
           />
-          <el-input v-else v-model="row[column.key]" />
+          <el-input v-else v-model="row[column.key]" :disabled="captureClosed" />
         </template>
       </el-table-column>
       <el-table-column v-if="maxRows > 1" label="操作" width="72" fixed="right">
         <template #default="{ $index }">
-          <el-button link type="danger" @click="removeRow($index)">删除</el-button>
+          <el-button link type="danger" :disabled="captureClosed" @click="removeRow($index)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
     <div class="workflow-panel__actions">
-      <el-button v-if="maxRows > 1" @click="addRow">添加行</el-button>
-      <el-button type="primary" :loading="submitting" data-testid="capture-submit" @click="handleSubmit">
-        提交采集
+      <el-button v-if="maxRows > 1" :disabled="captureClosed" @click="addRow">添加行</el-button>
+      <el-button type="primary" :loading="submitting" :disabled="captureClosed" data-testid="capture-submit" @click="handleSubmit">
+        {{ captureClosed ? '采集已结束' : '提交采集' }}
       </el-button>
     </div>
   </el-card>
