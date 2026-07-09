@@ -47,4 +47,4 @@ paradigma:
 
 ---
 
-**下一 actionable**：DESIGN.md 引入与界面设计更新；任务模板内容检查；S-01 待产品立项。
+**下一 actionable**：DESIGN.md 引入与界面设计更新；S-01 待产品立项。

@@ -521,7 +521,7 @@ class WorkflowGraphTemplateAdminService:
       description=None,
       status=WorkflowGraphTemplateStatus.DRAFT,
       context_schema={},
-      config={"run_kind": "batch", "aggregate_mode": "batch"},
+      config={"run_kind": "batch", "aggregate_mode": "streaming"},
       created_by=actor.id,
       source_template_id=None,
     )

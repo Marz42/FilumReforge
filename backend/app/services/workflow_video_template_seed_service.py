@@ -221,6 +221,10 @@ class WorkflowVideoTemplateSeedService:
       str(department_id)
       for pool_value in (config.get("department_pools") or {}).values()
       if (department_id := str(pool_value))
+    } | {
+      str(policy.get("department_id"))
+      for policy in (config.get("participant_policies") or {}).values()
+      if isinstance(policy, dict) and "department_id" in policy
     })
     if scope_ids:
       template.scope_department_ids = scope_ids

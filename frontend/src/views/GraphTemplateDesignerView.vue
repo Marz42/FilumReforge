@@ -60,8 +60,11 @@ const validationErrors = ref<string[]>([])
 const form = reactive({
   name: '',
   description: '',
+  runKind: 'batch' as 'batch' | 'production',
   aggregateMode: 'streaming' as 'batch' | 'streaming',
   launchSchemaJson: '{}',
+  rootAssigneeVar: '',
+  aggregateNodeKey: '',
   schedulable: false,
   onCompleteEnabled: false,
   onCompleteNextTemplateCode: '',
@@ -69,9 +72,15 @@ const form = reactive({
   scopeDepartmentIds: [] as string[],
 })
 
+type ParticipantPolicyRow = {
+  policy_ref: string
+  department_id: string
+}
+
 const departmentTree = ref<Array<{ id: string; label: string; children?: Array<{ id: string; label: string; children?: unknown[] }> }>>([])
 const departmentOptions = ref<Array<{ value: string; label: string }>>([])
 const departmentPoolRows = ref<DepartmentPoolRow[]>([])
+const participantPolicyRows = ref<ParticipantPolicyRow[]>([])
 
 const nodeRows = ref<DesignerNodeRow[]>([])
 const edgeRows = ref<DesignerEdgeRow[]>([])
@@ -115,7 +124,10 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
   detail.value = next
   form.name = next.name
   form.description = next.description ?? ''
+  form.runKind = (next.config?.run_kind === 'production' ? 'production' : 'batch')
   form.aggregateMode = (next.config?.aggregate_mode === 'streaming' ? 'streaming' : 'batch')
+  form.rootAssigneeVar = (next.config?.root_assignee_var as string) ?? ''
+  form.aggregateNodeKey = (next.config?.aggregate_node_key as string) ?? ''
   const launchSchema = next.config?.launch_schema
   form.launchSchemaJson = JSON.stringify(launchSchema ?? {}, null, 2)
   const onComplete = next.config?.on_complete as
@@ -132,6 +144,14 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
       ? Object.entries(pools as Record<string, string>).map(([pool_key, department_id]) => ({
           pool_key,
           department_id: String(department_id),
+        }))
+      : []
+  const policies = next.config?.participant_policies
+  participantPolicyRows.value =
+    policies && typeof policies === 'object' && !Array.isArray(policies)
+      ? Object.entries(policies as Record<string, unknown>).map(([policy_ref, definition]) => ({
+          policy_ref,
+          department_id: String((definition as Record<string, unknown>).department_id ?? ''),
         }))
       : []
   nodeRows.value = next.nodes.map((node) => ({
@@ -191,6 +211,14 @@ function removeDepartmentPoolRow(index: number): void {
   departmentPoolRows.value.splice(index, 1)
 }
 
+function addParticipantPolicyRow(): void {
+  participantPolicyRows.value.push({ policy_ref: '', department_id: '' })
+}
+
+function removeParticipantPolicyRow(index: number): void {
+  participantPolicyRows.value.splice(index, 1)
+}
+
 async function loadDepartments(): Promise<void> {
   try {
     const departments = await listDepartments()
@@ -227,8 +255,22 @@ function buildTemplateConfig(): Record<string, unknown> | null {
   }
   const config: Record<string, unknown> = {
     ...(detail.value?.config ?? {}),
+    run_kind: form.runKind,
     launch_schema: launchSchema,
     aggregate_mode: form.aggregateMode,
+  }
+  if (typeof (detail.value?.config as Record<string, unknown>)?.seed_version === 'number') {
+    config.seed_version = (detail.value?.config as Record<string, unknown>).seed_version
+  }
+  if (form.rootAssigneeVar.trim()) {
+    config.root_assignee_var = form.rootAssigneeVar.trim()
+  } else {
+    delete config.root_assignee_var
+  }
+  if (form.aggregateNodeKey.trim()) {
+    config.aggregate_node_key = form.aggregateNodeKey.trim()
+  } else {
+    delete config.aggregate_node_key
   }
   if (form.onCompleteEnabled && form.onCompleteNextTemplateCode.trim()) {
     config.on_complete = {
@@ -255,6 +297,22 @@ function buildTemplateConfig(): Record<string, unknown> | null {
     config.department_pools = departmentPools
   } else {
     delete config.department_pools
+  }
+  const participantPolicies: Record<string, Record<string, unknown>> = {}
+  for (const row of participantPolicyRows.value) {
+    const policyRef = row.policy_ref.trim()
+    if (!policyRef || !row.department_id) {
+      continue
+    }
+    participantPolicies[policyRef] = {
+      type: 'department_members',
+      department_id: row.department_id,
+    }
+  }
+  if (Object.keys(participantPolicies).length > 0) {
+    config.participant_policies = participantPolicies
+  } else {
+    delete config.participant_policies
   }
   return config
 }
@@ -645,6 +703,13 @@ onMounted(async () => {
       <el-card shadow="never" class="designer__panel">
         <template #header><strong>模板信息</strong></template>
         <el-form label-position="top">
+          <el-form-item label="模板类型">
+            <el-radio-group v-model="form.runKind" :disabled="structureLocked && !isDraft">
+              <el-radio value="batch">批次（选题会 / 多步骤流程）</el-radio>
+              <el-radio value="production">制作（由批次 fork，不可直接实例化）</el-radio>
+            </el-radio-group>
+            <p class="designer__hint">创建后不可更改。批次模板可直接实例化；制作模板由选题会汇总派发后自动 fork。</p>
+          </el-form-item>
           <el-form-item label="名称" required>
             <el-input v-model="form.name" maxlength="120" show-word-limit />
           </el-form-item>
@@ -665,6 +730,22 @@ onMounted(async () => {
               class="designer__json"
               spellcheck="false"
             />
+          </el-form-item>
+          <el-form-item label="根任务执行人变量">
+            <el-input
+              v-model="form.rootAssigneeVar"
+              maxlength="64"
+              placeholder="例如 manager_user_id"
+            />
+            <p class="designer__hint">实例化时从 launch inputs 中读取此键的值作为根任务（ROOT）执行人。空则使用当前用户。</p>
+          </el-form-item>
+          <el-form-item label="汇总节点键">
+            <el-input
+              v-model="form.aggregateNodeKey"
+              maxlength="64"
+              placeholder="例如 N2_AGGREGATE"
+            />
+            <p class="designer__hint">streaming 模式下分配菜单的控制节点。与对应节点的 node_key 一致。</p>
           </el-form-item>
           <el-form-item label="允许周期定时（F-24 schedulable）">
             <el-switch v-model="form.schedulable" data-testid="designer-schedulable" />
@@ -697,6 +778,40 @@ onMounted(async () => {
               data-testid="designer-scope-departments"
             />
             <p class="designer__hint">选择对此模板可见的部门。留空则所有部门可见。影响模板列表过滤与实例化部门下拉。</p>
+          </el-form-item>
+          <el-form-item label="参与者策略（participant_policies）">
+            <div class="designer__pool-list">
+              <div
+                v-for="(row, index) in participantPolicyRows"
+                :key="`${row.policy_ref}-${index}`"
+                class="designer__pool-row"
+              >
+                <el-input
+                  v-model="row.policy_ref"
+                  placeholder="策略名（如 copywriters）"
+                  data-testid="designer-policy-ref"
+                />
+                <el-select
+                  v-model="row.department_id"
+                  filterable
+                  clearable
+                  placeholder="选择部门"
+                  data-testid="designer-policy-department"
+                >
+                  <el-option
+                    v-for="option in departmentOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+                <el-button link type="danger" @click="removeParticipantPolicyRow(index)">删除</el-button>
+              </div>
+              <el-button size="small" data-testid="designer-add-policy" @click="addParticipantPolicyRow">
+                添加策略
+              </el-button>
+            </div>
+            <p class="designer__hint">定义实例化时可选的参与者分组。策略名与节点 config.expand_from 对应。留空则实例化时不可选参与者子集。</p>
           </el-form-item>
           <el-form-item label="department_pools（F-26）">
             <div class="designer__pool-list">

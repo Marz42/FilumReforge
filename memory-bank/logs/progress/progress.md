@@ -16,6 +16,26 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（模板内容检查修复 · P0/P1 8项）
+
+### 2026-07-09 13:11 — 任务模板配置修复
+
+**完成事项**:
+- [x] **P0-1**: 种子 scope_ids 来源从 `department_pools` 扩展到 `participant_policies.department_id`（批次模板现在也能获得部门归属）
+- [x] **P0-2**: `parse_department_pools` 中 UUID(str(value)) 包装 try/except ValueError+AttributeError，跳过非法值
+- [x] **P0-3**: 设计器 `buildTemplateConfig` 显式保留 `seed_version`
+- [x] **P1-1**: 设计器新增 participant_policies 行编辑器（策略名 + 部门选择器，在 scope 和 department_pools 之间）
+- [x] **P1-2**: 设计器新增 `root_assignee_var` / `aggregate_node_key` 输入字段
+- [x] **P1-3**: 设计器新增 `run_kind` radio（批次/制作），`form` + `applyDetail` + `buildTemplateConfig` 全链路
+- [x] **P1-4**: 后端空白模板 `aggregate_mode` 默认值 batch → streaming（与种子模板一致）
+- [x] 验证：`python -m compileall` PASS · `vue-tsc --noEmit` PASS · `pd-check-all` All 5 passed
+
+**影响文件**: `seed_service.py`, `workflow_assignee_resolver.py`, `admin_service.py`, `GraphTemplateDesignerView.vue` (+80行)
+
+**下一 actionable**：DESIGN.md 引入与界面设计更新
+
+---
+
 ## 会话摘要（1C · F-10~F-12 UI 抛光）
 
 ### 2026-07-09 11:53 — 甘特空状态 · PublishTaskDialog 抽取 · 采集组件统一

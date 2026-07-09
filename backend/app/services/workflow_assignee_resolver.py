@@ -21,7 +21,10 @@ def parse_department_pools(template: WorkflowGraphTemplate) -> dict[str, UUID]:
   for key, value in pools.items():
     if value is None:
       continue
-    parsed[str(key)] = UUID(str(value))
+    try:
+      parsed[str(key)] = UUID(str(value))
+    except (ValueError, AttributeError):
+      continue
   return parsed
 
 
