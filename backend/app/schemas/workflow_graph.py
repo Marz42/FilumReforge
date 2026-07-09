@@ -46,6 +46,7 @@ class WorkflowGraphTemplateSummaryRead(BaseModel):
   version: int
   run_kind: str | None = None
   config: dict[str, object] = {}
+  scope_department_ids: list[str] = Field(default_factory=list)
   run_count_total: int | None = None
   run_count_30d: int | None = None
   active_run_count: int | None = None
@@ -117,12 +118,18 @@ class WorkflowGraphTemplateDraftSaveRequest(BaseModel):
   name: str = Field(min_length=1, max_length=120)
   description: str | None = Field(default=None, max_length=2000)
   config: dict[str, object] = Field(default_factory=dict)
+  scope_department_ids: list[str] | None = None
   nodes: list[WorkflowGraphTemplateNodeDraftWrite] = Field(default_factory=list)
   edges: list[WorkflowGraphTemplateEdgeDraftWrite] | None = None
 
 
 class WorkflowGraphTemplateStatusUpdateRequest(BaseModel):
   status: WorkflowGraphTemplateStatus
+
+
+class WorkflowGraphTemplateDeleteResponse(BaseModel):
+  deleted: bool = True
+  template_id: str
 
 
 class WorkflowGraphTemplateValidateResponse(BaseModel):
@@ -181,6 +188,7 @@ class WorkflowGraphTemplateUpdateRequest(BaseModel):
   name: str | None = Field(default=None, min_length=1, max_length=120)
   description: str | None = Field(default=None, max_length=2000)
   config: dict[str, object] | None = None
+  scope_department_ids: list[str] | None = None
 
 
 class WorkflowGraphInstanceRead(BaseModel):

@@ -21,7 +21,7 @@ import { acceptTaskAssignment,
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import { closeInstanceCapture, getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
-import TemplateCapturePanel from '@/components/workflow/TemplateCapturePanel.vue'
+import CapturePanel from '@/components/workflow/CapturePanel.vue'
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
 import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue'
 import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
@@ -502,7 +502,7 @@ const showDetailHeaderActions = computed(() => {
     && profileId !== 'video_n2_aggregate'
     && profileId !== 'video_batch_root'
 })
-const showVideoCapturePanel = computed(
+const showCapturePanel = computed(
   () =>
     (selectedTaskProfile.value.id === 'video_n1_capture'
       || selectedTaskProfile.value.id === 'video_capture_assign'
@@ -1292,8 +1292,8 @@ watch(
               v-if="showCaptureProgressPanel && graphInstance"
               :graph-instance="graphInstance"
             />
-            <TemplateCapturePanel
-              v-if="showVideoCapturePanel && selectedTask"
+            <CapturePanel
+              v-if="showCapturePanel && selectedTask"
               :task="selectedTask"
               :graph-instance="graphInstance"
               @submitted="reloadAfterAction"

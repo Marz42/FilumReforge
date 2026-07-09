@@ -4,7 +4,7 @@
 
 ## 🔥 HOT（每次对话必读）
 
-`memory-bank/project-brief.md` · `architecture.md` · `data-contracts.md` · `conventions.md` · `active-task.md` · `progress.md`
+`memory-bank/knowledge/project-brief.md` · `memory-bank/knowledge/architecture.md` · `memory-bank/knowledge/contracts/data-contracts.md` · `memory-bank/knowledge/conventions.md` · `memory-bank/runtime/active-task.md` · `memory-bank/logs/progress/progress.md`
 
 ## 工作方式
 

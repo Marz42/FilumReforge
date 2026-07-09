@@ -181,6 +181,7 @@ export interface GraphTemplateSummary {
   version: number
   run_kind?: string | null
   config?: Record<string, unknown>
+  scope_department_ids?: string[]
   run_count_total?: number | null
   run_count_30d?: number | null
   active_run_count?: number | null

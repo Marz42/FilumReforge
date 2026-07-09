@@ -55,7 +55,15 @@ const participantPolicyRefs = computed(() =>
 )
 const hasParticipantPolicy = computed(() => participantPolicyRefs.value.length > 0)
 const policyRef = computed(() => participantPolicyRefs.value[0] ?? '')
-const departmentOptions = computed(() => props.departmentOptions ?? [])
+const scopeDepartmentIds = computed(() => (props.template as unknown as { scope_department_ids?: string[] })?.scope_department_ids ?? [])
+const departmentOptions = computed(() => {
+  const options = props.departmentOptions ?? []
+  if (scopeDepartmentIds.value.length === 0) {
+    return options
+  }
+  const scopeSet = new Set(scopeDepartmentIds.value)
+  return options.filter((option) => scopeSet.has(option.id))
+})
 const showDepartmentField = computed(
   () => hasParticipantPolicy.value && departmentOptions.value.length > 0,
 )

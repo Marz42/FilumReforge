@@ -21,10 +21,10 @@ from app.api.dependencies import (
   get_settings,
 )
 from app.core.config import Settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowGraphTemplateNode, WorkflowNodeInstance
-from app.services.access_control import ensure_department_stats_access, can_manage_task_templates
+from app.services.access_control import ensure_department_stats_access, can_manage_task_templates, get_effective_managed_department_ids
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.workflow_video import (
@@ -54,6 +54,7 @@ from app.schemas.workflow_graph import (
   WorkflowGraphInstanceDetailRead,
   WorkflowGraphInstanceRead,
   WorkflowGraphTemplateCreateRequest,
+  WorkflowGraphTemplateDeleteResponse,
   WorkflowGraphTemplateDesignerRead,
   WorkflowGraphTemplateDetailRead,
   WorkflowGraphTemplateDraftSaveRequest,
@@ -233,8 +234,19 @@ async def list_graph_templates(
     templates = await admin_service.list_manageable_templates()
     stats_map = await admin_service.load_template_stats_map(template_ids=[template.id for template in templates])
   else:
-    _ = actor
     templates = await workflow_graph_service.list_active_templates()
+    managed_department_ids = await get_effective_managed_department_ids(session, actor.id)
+    if managed_department_ids:
+      managed_set = {str(did) for did in managed_department_ids}
+      templates = [
+        template
+        for template in templates
+        if not template.scope_department_ids
+        or any(
+          str(did) in managed_set
+          for did in (template.scope_department_ids or [])
+        )
+      ]
     stats_map = {}
 
   if schedulable:
@@ -259,6 +271,7 @@ async def list_graph_templates(
       version=template.version,
       run_kind=str((template.config or {}).get("run_kind") or "") or None,
       config=dict(template.config or {}),
+      scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
       run_count_total=stats_map[template.id].run_count_total if template.id in stats_map else None,
       run_count_30d=stats_map[template.id].run_count_30d if template.id in stats_map else None,
       active_run_count=stats_map[template.id].active_run_count if template.id in stats_map else None,
@@ -446,6 +459,20 @@ async def update_graph_template(
   return await admin_service.update_template(actor=actor, template_id=template_id, payload=payload)
 
 
+@router.delete(
+  "/templates/{template_id}",
+  response_model=WorkflowGraphTemplateDeleteResponse,
+  tags=["workflow-graph"],
+)
+async def delete_graph_template(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDeleteResponse:
+  await admin_service.delete_template(actor=actor, template_id=template_id)
+  return WorkflowGraphTemplateDeleteResponse(deleted=True, template_id=str(template_id))
+
+
 @router.post(
   "/templates/{template_id}/runs",
   response_model=CreateGraphTemplateRunResponse,
@@ -455,10 +482,16 @@ async def create_graph_template_run(
   template_id: UUID,
   payload: CreateGraphTemplateRunRequest,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
   instantiation_service: WorkflowVideoInstantiationService = Depends(
     get_workflow_video_instantiation_service
   ),
 ) -> CreateGraphTemplateRunResponse:
+  template = await admin_service.get_template_detail(template_id=template_id)  # type: ignore[assignment]
+  if template.scope_department_ids and payload.department_id:
+    if str(payload.department_id) not in template.scope_department_ids:
+      raise ConflictError("所选部门不在该模板的作用范围内，请联系管理员。")
   result = await instantiation_service.instantiate_graph_template(
     actor=actor,
     template_id=template_id,

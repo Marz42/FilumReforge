@@ -196,7 +196,7 @@ onMounted(() => {
     v-if="captureSchema"
     shadow="never"
     class="workflow-panel"
-    data-testid="template-capture-panel"
+    data-testid="capture-panel"
   >
     <template #header>
       <div class="workflow-panel__header">
@@ -255,7 +255,7 @@ onMounted(() => {
 
     <div class="workflow-panel__actions">
       <el-button v-if="maxRows > 1" @click="addRow">添加行</el-button>
-      <el-button type="primary" :loading="submitting" data-testid="template-capture-submit" @click="handleSubmit">
+      <el-button type="primary" :loading="submitting" data-testid="capture-submit" @click="handleSubmit">
         提交采集
       </el-button>
     </div>

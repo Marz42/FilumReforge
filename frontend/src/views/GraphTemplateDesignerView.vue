@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-import { listDepartments } from '@/api/departments'
+import { listDepartments, listDepartmentTree } from '@/api/departments'
 import {
   dryRunGraphTemplate,
   exportGraphTemplate,
@@ -66,8 +66,10 @@ const form = reactive({
   onCompleteEnabled: false,
   onCompleteNextTemplateCode: '',
   onCompleteCarryInputs: true,
+  scopeDepartmentIds: [] as string[],
 })
 
+const departmentTree = ref<Array<{ id: string; label: string; children?: Array<{ id: string; label: string; children?: unknown[] }> }>>([])
 const departmentOptions = ref<Array<{ value: string; label: string }>>([])
 const departmentPoolRows = ref<DepartmentPoolRow[]>([])
 
@@ -123,6 +125,7 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
   form.onCompleteNextTemplateCode = onComplete?.next_template_code ?? ''
   form.onCompleteCarryInputs = onComplete?.carry_inputs !== false
   form.schedulable = next.config?.schedulable === true
+  form.scopeDepartmentIds = next.scope_department_ids ?? []
   const pools = next.config?.department_pools
   departmentPoolRows.value =
     pools && typeof pools === 'object' && !Array.isArray(pools)
@@ -197,6 +200,23 @@ async function loadDepartments(): Promise<void> {
     }))
   } catch {
     departmentOptions.value = []
+  }
+}
+
+async function loadDepartmentTree(): Promise<void> {
+  try {
+    const tree = await listDepartmentTree()
+    departmentTree.value = tree.map((node) => ({
+      id: node.id,
+      label: node.name,
+      children: (node.children ?? []).map((child: { id: string; name: string; children?: unknown[] }) => ({
+        id: child.id,
+        label: child.name,
+        children: child.children ?? [],
+      })),
+    }))
+  } catch {
+    departmentTree.value = []
   }
 }
 
@@ -299,6 +319,7 @@ function buildDraftPayload() {
     name: form.name.trim(),
     description: form.description.trim() || null,
     config,
+    scope_department_ids: form.scopeDepartmentIds,
     nodes,
     edges,
   }
@@ -531,7 +552,7 @@ onMounted(async () => {
     void router.replace({ name: 'task-templates' })
     return
   }
-  await Promise.all([loadDesigner(), loadDepartments()])
+  await Promise.all([loadDesigner(), loadDepartments(), loadDepartmentTree()])
 })
 </script>
 
@@ -662,6 +683,20 @@ onMounted(async () => {
           </el-form-item>
           <el-form-item v-if="form.onCompleteEnabled" label="继承 inputs">
             <el-switch v-model="form.onCompleteCarryInputs" />
+          </el-form-item>
+          <el-form-item label="作用范围（部门可见与可发起）">
+            <el-tree-select
+              v-model="form.scopeDepartmentIds"
+              :data="departmentTree"
+              multiple
+              show-checkbox
+              check-strictly
+              clearable
+              placeholder="留空表示对所有部门可见"
+              class="designer__tree-select"
+              data-testid="designer-scope-departments"
+            />
+            <p class="designer__hint">选择对此模板可见的部门。留空则所有部门可见。影响模板列表过滤与实例化部门下拉。</p>
           </el-form-item>
           <el-form-item label="department_pools（F-26）">
             <div class="designer__pool-list">

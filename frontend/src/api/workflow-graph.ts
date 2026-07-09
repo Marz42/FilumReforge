@@ -108,7 +108,7 @@ export async function getGraphTemplateDetail(templateId: string): Promise<GraphT
 
 export async function updateGraphTemplate(
   templateId: string,
-  payload: { name?: string; description?: string | null; config?: Record<string, unknown> },
+  payload: { name?: string; description?: string | null; config?: Record<string, unknown>; scope_department_ids?: string[] },
 ): Promise<GraphTemplateDetail> {
   const { data } = await http.patch<GraphTemplateDetail>(`/workflow-graph/templates/${templateId}`, payload)
   return {
@@ -163,6 +163,7 @@ export async function saveGraphTemplateDraft(
     name: string
     description?: string | null
     config: Record<string, unknown>
+    scope_department_ids?: string[]
     nodes: Array<{
       node_key: string
       title: string
@@ -478,4 +479,8 @@ export async function runGraphTemplateScheduleNow(
     `/workflow-graph/schedules/${scheduleId}/run-now`,
   )
   return data
+}
+
+export async function deleteGraphTemplate(templateId: string): Promise<void> {
+  await http.delete(`/workflow-graph/templates/${templateId}`)
 }

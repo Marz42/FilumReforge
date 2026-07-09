@@ -166,6 +166,8 @@ class WorkflowGraphTemplateAdminService:
     template.name = payload.name.strip()
     template.description = payload.description.strip() if payload.description else None
     template.config = dict(payload.config or {})
+    if payload.scope_department_ids is not None:
+      template.scope_department_ids = payload.scope_department_ids
 
     if not structure_locked:
       if not payload.nodes:
@@ -199,11 +201,28 @@ class WorkflowGraphTemplateAdminService:
       template.description = payload.description.strip() or None
     if payload.config is not None:
       template.config = {**dict(template.config or {}), **payload.config}
+    if payload.scope_department_ids is not None:
+      template.scope_department_ids = payload.scope_department_ids
 
     await self._session.flush()
     result = await self.get_template_detail(template_id=template_id)
     await self._commit()
     return result
+
+  async def delete_template(
+    self,
+    *,
+    actor: User,
+    template_id: UUID,
+  ) -> bool:
+    await self._ensure_manage(actor)
+    template = await self._get_template_or_raise(template_id=template_id)
+    has_instances = await self._has_instances(template_id=template_id)
+    if has_instances:
+      raise ConflictError("已有运行实例的模板不可删除。请先归档相关 Run 或联系管理员。")
+    await self._session.delete(template)
+    await self._commit()
+    return True
 
   async def update_status(
     self,
@@ -758,6 +777,7 @@ class WorkflowGraphTemplateAdminService:
       version=template.version,
       run_kind=str(config.get("run_kind") or "") or None,
       config=config,
+      scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
       nodes=nodes,
     )
 
@@ -781,6 +801,7 @@ class WorkflowGraphTemplateAdminService:
       version=template.version,
       run_kind=str(config.get("run_kind") or "") or None,
       config=config,
+      scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
       has_instances=has_instances,
       structure_locked=has_instances,
       nodes=nodes,

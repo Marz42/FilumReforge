@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
 import { getProfile } from '@/api/profiles'
-import { cloneGraphTemplate, createBlankGraphTemplate, listGraphTemplates } from '@/api/workflow-graph'
+import { cloneGraphTemplate, createBlankGraphTemplate, deleteGraphTemplate, listGraphTemplates } from '@/api/workflow-graph'
 import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -141,6 +141,35 @@ async function handleClone(template: GraphTemplateSummary): Promise<void> {
   }
 }
 
+async function handleDelete(template: GraphTemplateSummary): Promise<void> {
+  if (!props.canManage) {
+    ElMessage.warning('当前账号无权维护任务模板')
+    return
+  }
+  const hasRuns = (template.run_count_total ?? 0) > 0
+  if (hasRuns) {
+    ElMessage.error('已有运行实例的模板不可删除。请先归档相关 Run。')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除模板「${template.name}」吗？此操作不可撤销。`,
+      '删除任务模板',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+    )
+    await deleteGraphTemplate(template.id)
+    ElMessage.success('模板已删除')
+    if (selectedTemplate.value?.id === template.id) {
+      selectedTemplate.value = null
+    }
+    await loadTemplates()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(getErrorMessage(error))
+    }
+  }
+}
+
 function handleCreated(payload: { instanceId: string; rootTaskId: string }): void {
   emit('instantiated', payload)
 }
@@ -197,7 +226,7 @@ onMounted(() => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="248" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }: { row: GraphTemplateSummary }">
             <el-button
               v-if="canManage"
@@ -224,6 +253,24 @@ onMounted(() => {
               @click.stop="openEdit(row)"
             >
               改名
+            </el-button>
+            <el-tooltip
+              v-if="canManage && (row.run_count_total ?? 0) > 0"
+              content="已有运行实例，不可删除"
+              placement="top"
+            >
+              <span>
+                <el-button link disabled data-testid="graph-template-delete">删除</el-button>
+              </span>
+            </el-tooltip>
+            <el-button
+              v-else-if="canManage"
+              link
+              type="danger"
+              data-testid="graph-template-delete"
+              @click.stop="handleDelete(row)"
+            >
+              删除
             </el-button>
             <el-tooltip
               v-if="row.run_kind === 'production'"

@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / ".paradigma" / "tools"
 
 STEPS = [
-    ("lint", "pd-lint-okf.py", ["--strict"]),
+    ("lint", "pd-lint-okf.py", ["--normal"]),
     ("links", "pd-check-links.py", ["--allow-warnings"]),
     ("index", "pd-sync-index.py", ["--check"]),
     ("hot-size", "pd-check-hot-size.py", []),

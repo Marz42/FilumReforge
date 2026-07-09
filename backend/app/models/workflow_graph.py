@@ -51,6 +51,7 @@ class WorkflowGraphTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   )
   context_schema: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   config: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  scope_department_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
   created_by: Mapped[UUID] = mapped_column(
     ForeignKey("users.id", name="fk_wf_graph_tpls_created_by"),
     nullable=False,

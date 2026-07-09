@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
-import { uploadAttachment } from '@/api/attachments'
-import { createTask, createTaskComment, searchTasks, updateTask, type TaskSearchResult } from '@/api/tasks'
+import { createTaskComment, searchTasks, updateTask, type TaskSearchResult } from '@/api/tasks'
 import { getTaskCenterSnapshot, fetchTaskCenterHistoryPage, fetchTaskCenterInboxPage, fetchTaskCenterTrackingPage } from '@/api/task-center'
 import TaskCenterBoardView from '@/components/task-center/TaskCenterBoardView.vue'
 import TaskCenterFilterCards from '@/components/task-center/TaskCenterFilterCards.vue'
 import TaskCenterGanttView from '@/components/task-center/TaskCenterGanttView.vue'
 import TaskCenterListView from '@/components/task-center/TaskCenterListView.vue'
 import TaskCenterStatsView from '@/components/task-center/TaskCenterStatsView.vue'
-import ScheduledDispatchForm from '@/components/task-center/ScheduledDispatchForm.vue'
+import PublishTaskDialog from '@/components/task-center/PublishTaskDialog.vue'
 import { useTaskCenterWorkspace } from '@/composables/useTaskCenterWorkspace'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import {
@@ -89,33 +88,11 @@ const authStore = useAuthStore()
 const { openPanel: openGlobalMemoPanel } = useGlobalMemoPanel()
 const loading = ref(false)
 const taskDialogVisible = ref(false)
-const taskDialogTab = ref<'single' | 'schedule'>('single')
-const scheduledDispatchFormRef = ref<InstanceType<typeof ScheduledDispatchForm> | null>(null)
 const taskSearchQuery = ref('')
 const taskSearchLoading = ref(false)
 const taskSearchResults = ref<TaskSearchResult[]>([])
 let taskSearchTimer: ReturnType<typeof setTimeout> | undefined
-const publishSubmitting = ref(false)
-const scheduleSubmitting = ref(false)
-const publishAttachmentUploading = ref(false)
 const snapshot = ref<TaskCenterSnapshot | null>(null)
-
-interface PublishDraftAttachment {
-  id: string
-  original_filename: string
-}
-
-const publishDraftAttachments = ref<PublishDraftAttachment[]>([])
-
-const publishForm = reactive({
-  title: '',
-  description: '',
-  assignee_user_id: '',
-  department_id: '',
-  priority: 'medium' as TaskPriority,
-  due_date: null as Date | null,
-  watcher_user_ids: [] as string[],
-})
 
 const activeFilter = computed<TaskCenterFilter>(() => normalizeFilter(route.query.filter ?? route.query.tab))
 const workspaceViewMode = computed<TaskCenterViewMode>(() => normalizeViewMode(route.query.view))
@@ -135,40 +112,6 @@ const permissions = computed(() => {
 })
 const publishDepartmentOptions = computed(() => snapshot.value?.publish_department_options ?? [])
 const publishUserOptions = computed(() => snapshot.value?.publish_user_options ?? [])
-
-const filteredPublishUserOptions = computed(() => {
-  if (!publishForm.department_id) {
-    return publishUserOptions.value
-  }
-  return publishUserOptions.value.filter(
-    (user) => user.department_id === publishForm.department_id,
-  )
-})
-
-const assigneeSelectPlaceholder = computed(() => {
-  if (filteredPublishUserOptions.value.length === 0) {
-    return '该部门暂无可选执行人'
-  }
-  return '请选择执行人'
-})
-
-watch(
-  () => publishForm.department_id,
-  () => {
-    if (
-      publishForm.assignee_user_id &&
-      !filteredPublishUserOptions.value.some(
-        (user) => user.user_id === publishForm.assignee_user_id,
-      )
-    ) {
-      publishForm.assignee_user_id = ''
-    }
-  },
-)
-
-const publishFormDirty = computed(
-  () => publishForm.title.trim().length > 0 || publishForm.description.trim().length > 0,
-)
 
 const filterCounts = computed(() => ({
   inbox: snapshot.value?.task_inbox.length ?? 0,
@@ -370,86 +313,22 @@ function resolveSearchUserStateTagType(
   return STATUS_TAG_TYPES[row.status]
 }
 
-function resetPublishForm(): void {
-  publishForm.title = ''
-  publishForm.description = ''
-  publishForm.assignee_user_id = ''
-  publishForm.department_id = publishDepartmentOptions.value[0]?.id ?? ''
-  publishForm.priority = 'medium'
-  publishForm.due_date = null
-  publishForm.watcher_user_ids = []
-  publishDraftAttachments.value = []
-}
-
-function removePublishDraftAttachment(id: string): void {
-  publishDraftAttachments.value = publishDraftAttachments.value.filter(
-    (attachment) => attachment.id !== id,
-  )
-}
-
-async function handlePublishDraftFileChange(uploadFile: UploadFile): Promise<void> {
-  const raw = uploadFile.raw
-  if (!raw) {
-    return
-  }
-  const err = validateAttachmentFile(raw)
-  if (err) {
-    ElMessage.error(err)
-    return
-  }
-  publishAttachmentUploading.value = true
-  try {
-    const attachment = await uploadAttachment({ file: raw })
-    publishDraftAttachments.value.push({
-      id: attachment.id,
-      original_filename: attachment.original_filename,
-    })
-    ElMessage.success('附件已加入，将在建立任务时绑定')
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    publishAttachmentUploading.value = false
-  }
-}
-
-async function requestCloseTaskDialog(): Promise<boolean> {
-  if (!publishFormDirty.value) {
-    return true
-  }
-  try {
-    await ElMessageBox.confirm('有未保存的内容，是否关闭？', '关闭建立任务', {
-      type: 'warning',
-      confirmButtonText: '关闭',
-      cancelButtonText: '继续编辑',
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function handleTaskDialogBeforeClose(done: () => void): Promise<void> {
-  if (await requestCloseTaskDialog()) {
-    resetPublishForm()
-    done()
-  }
-}
-
-async function handleCancelTaskDialog(): Promise<void> {
-  if (!(await requestCloseTaskDialog())) {
-    return
-  }
-  taskDialogVisible.value = false
-  resetPublishForm()
-}
-
 function openTaskDialog(): void {
   if (!permissions.value.can_publish_task) {
     return
   }
-  taskDialogTab.value = 'single'
-  resetPublishForm()
   taskDialogVisible.value = true
+}
+
+async function handleTaskCreated(): Promise<void> {
+  await loadSnapshot()
+  handleFilterChange('inbox')
+}
+
+async function handleScheduleCreated(): Promise<void> {
+  taskDialogVisible.value = false
+  await loadSnapshot()
+  handleFilterChange('tracking')
 }
 
 async function runTaskSearch(query: string): Promise<void> {
@@ -569,56 +448,6 @@ function masterRowClassName({
   row: TaskCenterInboxItem | TaskCenterTrackingItem | TaskCenterHistoryItem
 }): string {
   return row.task_id === selectedTaskId.value ? 'task-center-view__row--selected' : ''
-}
-
-async function handlePublishTask(): Promise<void> {
-  if (!publishForm.title.trim()) {
-    ElMessage.warning('请输入任务标题')
-    return
-  }
-  if (!publishForm.assignee_user_id) {
-    ElMessage.warning('请选择执行人')
-    return
-  }
-
-  publishSubmitting.value = true
-  try {
-    await createTask({
-      title: publishForm.title.trim(),
-      description: publishForm.description.trim() || null,
-      assignee_id: publishForm.assignee_user_id,
-      department_id: publishForm.department_id || null,
-      priority: publishForm.priority,
-      due_date: publishForm.due_date ? publishForm.due_date.toISOString() : null,
-      attachment_ids: publishDraftAttachments.value.map((attachment) => attachment.id),
-      watcher_user_ids: publishForm.watcher_user_ids,
-    })
-    ElMessage.success('任务已发布')
-    taskDialogVisible.value = false
-    resetPublishForm()
-    await loadSnapshot()
-    handleFilterChange('inbox')
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    publishSubmitting.value = false
-  }
-}
-
-async function handleScheduleCreated(): Promise<void> {
-  taskDialogVisible.value = false
-  taskDialogTab.value = 'single'
-  await loadSnapshot()
-  handleFilterChange('tracking')
-}
-
-async function handleScheduleSubmit(): Promise<void> {
-  scheduleSubmitting.value = true
-  try {
-    await scheduledDispatchFormRef.value?.submit()
-  } finally {
-    scheduleSubmitting.value = false
-  }
 }
 
 function renderRelationTypes(item: TaskCenterTrackingItem | TaskCenterHistoryItem): string {
@@ -968,187 +797,12 @@ onMounted(() => {
       </div>
     </template>
 
-    <el-dialog
+    <PublishTaskDialog
       v-model="taskDialogVisible"
-      title="建立任务"
-      width="720px"
-      align-center
-      append-to-body
-      destroy-on-close
-      :close-on-click-modal="false"
-      data-testid="task-center-task-dialog"
-      :before-close="handleTaskDialogBeforeClose"
-    >
-      <el-tabs v-model="taskDialogTab" data-testid="task-center-create-tabs">
-        <el-tab-pane label="单步任务" name="single" />
-        <el-tab-pane label="定时派发" name="schedule" />
-      </el-tabs>
-
-      <el-form
-        v-if="taskDialogTab === 'single'"
-        label-position="top"
-        class="task-center-view__form"
-      >
-        <el-form-item label="任务标题">
-          <div data-testid="task-center-task-title">
-            <el-input v-model="publishForm.title" placeholder="例如：完成四月客户复盘" />
-          </div>
-        </el-form-item>
-        <el-form-item label="任务说明">
-          <div data-testid="task-center-task-description" class="task-center-view__control-wrap">
-            <el-input
-              v-model="publishForm.description"
-              type="textarea"
-              :autosize="{ minRows: 4, maxRows: 10 }"
-              maxlength="4000"
-              show-word-limit
-              placeholder="补充背景、交付要求或参考信息（可选）"
-            />
-          </div>
-        </el-form-item>
-        <el-form-item label="所属部门">
-          <div data-testid="task-center-task-department" class="task-center-view__control-wrap">
-            <el-select
-              v-model="publishForm.department_id"
-              class="task-center-view__full-select"
-              clearable
-              placeholder="可选"
-              teleported
-              :popper-options="{ strategy: 'fixed' }"
-              popper-class="task-center-view-select-popper"
-            >
-              <el-option
-                v-for="department in publishDepartmentOptions"
-                :key="department.id"
-                :label="department.label"
-                :value="department.id"
-              />
-            </el-select>
-          </div>
-        </el-form-item>
-        <el-form-item label="执行人">
-          <div data-testid="task-center-task-assignee" class="task-center-view__control-wrap">
-            <el-select
-              v-model="publishForm.assignee_user_id"
-              class="task-center-view__full-select"
-              :placeholder="assigneeSelectPlaceholder"
-              :disabled="filteredPublishUserOptions.length === 0"
-              teleported
-              :popper-options="{ strategy: 'fixed' }"
-              popper-class="task-center-view-select-popper"
-            >
-              <el-option
-                v-for="user in filteredPublishUserOptions"
-                :key="user.user_id"
-                :label="user.label"
-                :value="user.user_id"
-              />
-            </el-select>
-          </div>
-        </el-form-item>
-        <el-form-item label="抄送人">
-          <div data-testid="task-center-task-watchers" class="task-center-view__control-wrap">
-            <el-select
-              v-model="publishForm.watcher_user_ids"
-              class="task-center-view__full-select"
-              multiple
-              filterable
-              clearable
-              collapse-tags
-              collapse-tags-tooltip
-              placeholder="选择需要抄送的同事（可选）"
-              teleported
-              :popper-options="{ strategy: 'fixed' }"
-              popper-class="task-center-view-select-popper"
-            >
-              <el-option
-                v-for="user in filteredPublishUserOptions.filter((user) => user.user_id !== publishForm.assignee_user_id)"
-                :key="user.user_id"
-                :label="user.label"
-                :value="user.user_id"
-              />
-            </el-select>
-          </div>
-        </el-form-item>
-        <el-form-item label="附件（可选）">
-          <div data-testid="task-center-task-attachments">
-            <el-upload
-              :auto-upload="false"
-              :show-file-list="false"
-              :accept="ATTACHMENT_ACCEPT"
-              :disabled="publishAttachmentUploading"
-              :on-change="handlePublishDraftFileChange"
-            >
-              <el-button :loading="publishAttachmentUploading">选择附件</el-button>
-            </el-upload>
-          </div>
-          <div v-if="publishDraftAttachments.length" class="task-center-view__draft-tags">
-            <el-tag
-              v-for="attachment in publishDraftAttachments"
-              :key="attachment.id"
-              closable
-              class="task-center-view__draft-tag"
-              @close="removePublishDraftAttachment(attachment.id)"
-            >
-              {{ attachment.original_filename }}
-            </el-tag>
-          </div>
-        </el-form-item>
-        <el-form-item label="优先级">
-          <div data-testid="task-center-task-priority" class="task-center-view__control-wrap">
-            <el-select
-              v-model="publishForm.priority"
-              class="task-center-view__full-select"
-              teleported
-              :popper-options="{ strategy: 'fixed' }"
-              popper-class="task-center-view-select-popper"
-            >
-              <el-option label="低" value="low" />
-              <el-option label="中" value="medium" />
-              <el-option label="高" value="high" />
-              <el-option label="紧急" value="urgent" />
-            </el-select>
-          </div>
-        </el-form-item>
-        <el-form-item label="截止时间">
-          <div data-testid="task-center-task-due-date" class="task-center-view__control-wrap">
-            <FilumDateTimePicker v-model="publishForm.due_date" class="task-center-view__date-picker" />
-          </div>
-        </el-form-item>
-      </el-form>
-
-      <ScheduledDispatchForm
-        v-else
-        ref="scheduledDispatchFormRef"
-        :department-options="publishDepartmentOptions"
-        :user-options="publishUserOptions"
-        @created="handleScheduleCreated"
-      />
-
-      <template #footer>
-        <div class="task-center-view__dialog-footer">
-          <el-button @click="handleCancelTaskDialog">取消</el-button>
-          <el-button
-            v-if="taskDialogTab === 'single'"
-            type="primary"
-            :loading="publishSubmitting"
-            data-testid="task-center-task-submit"
-            @click="handlePublishTask"
-          >
-            建立任务
-          </el-button>
-          <el-button
-            v-else
-            type="primary"
-            :loading="scheduleSubmitting"
-            data-testid="task-center-schedule-submit"
-            @click="handleScheduleSubmit"
-          >
-            创建周期任务
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
+      :department-options="publishDepartmentOptions"
+      :user-options="publishUserOptions"
+      @created="handleTaskCreated"
+    />
 
     <el-dialog v-model="extendDueDateDialogVisible" title="延期任务" width="480px">
       <p class="task-center-view__extend-hint">

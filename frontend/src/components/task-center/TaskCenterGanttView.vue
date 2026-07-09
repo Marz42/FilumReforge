@@ -58,7 +58,8 @@ function resolveBarStyle(row: TaskCenterWorkspaceRow): { left: string; width: st
 
 <template>
   <div v-loading="loading" class="task-center-gantt-view" data-testid="task-center-gantt-view">
-    <el-empty v-if="rowsWithDue.length === 0" description="无截止时间的任务不在甘特中显示" />
+    <el-empty v-if="rows.length === 0" description="暂无任务" />
+    <el-empty v-else-if="rowsWithDue.length === 0" description="无截止时间的任务不在甘特中显示" />
     <div v-else class="task-center-gantt-view__rows">
       <button
         v-for="row in rowsWithDue"

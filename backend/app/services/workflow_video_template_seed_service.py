@@ -216,6 +216,17 @@ class WorkflowVideoTemplateSeedService:
       template.name = name
       template.status = WorkflowGraphTemplateStatus.ACTIVE
       template.config = config
+
+    scope_ids = list({
+      str(department_id)
+      for pool_value in (config.get("department_pools") or {}).values()
+      if (department_id := str(pool_value))
+    })
+    if scope_ids:
+      template.scope_department_ids = scope_ids
+
+    if not nodes_rebuilt:
+      current_version = int(template.config.get("seed_version") or 0)
       if current_version != SEED_VERSION:
         if await self._template_has_node_instance_references(template.id):
           await self._sync_template_topology_in_place(
