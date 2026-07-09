@@ -29,6 +29,7 @@ from app.models import (
   WorkflowDeliverable,
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
+  WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
   WorkflowNodeInstance,
 )
@@ -42,29 +43,6 @@ from app.services.workflow_node_config_helpers import (
   resolve_completion_policy,
 )
 from app.services.workflow_projection_department import resolve_projection_department_id
-
-
-_EDGE_FROM_NODE_INDEX = object()
-
-
-def _resolve_upstream_node_key(
-  *,
-  instance: WorkflowGraphInstance,
-  downstream_node_key: str,
-) -> str | None:
-  """Find the direct upstream node key from template edges."""
-  edges = getattr(instance.template, "edges", None)
-  if edges is None:
-    return None
-  for edge in edges:
-    if getattr(edge, "is_reject_path", False):
-      continue
-    to_node = getattr(edge, "to_node", None)
-    from_node = getattr(edge, "from_node", None)
-    if to_node is not None and getattr(to_node, "node_key", None) == downstream_node_key:
-      if from_node is not None:
-        return getattr(from_node, "node_key", None)
-  return None
 
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
@@ -232,22 +210,49 @@ class WorkflowOrchestrationService:
     node_instance: WorkflowNodeInstance,
     target_task: Task,
   ) -> None:
-    """Copy upstream node's deliverable attachments to the downstream task."""
-    upstream_deliverable: WorkflowDeliverable | None = None
-    for ni in instance.node_instances:
-      if ni.node_key != node_instance.node_key:
-        continue
-      upstream_key = _resolve_upstream_node_key(instance=instance, downstream_node_key=ni.node_key)
-      if upstream_key is None:
-        return
-      for candidate in instance.node_instances:
-        if candidate.node_key == upstream_key and candidate.engine_state == WorkflowNodeEngineState.COMPLETED:
-          upstream_deliverable = await self._session.scalar(
-            select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == candidate.id)
-          )
-          break
-      break
+    """Copy upstream node's deliverable attachments to the downstream task (async-safe)."""
+    template_id = instance.template_id
+    if template_id is None:
+      return
 
+    # Resolve upstream node key from template edges via explicit query
+    to_node_sub = (
+      select(WorkflowGraphTemplateNode.id)
+      .where(
+        WorkflowGraphTemplateNode.template_id == template_id,
+        WorkflowGraphTemplateNode.node_key == node_instance.node_key,
+      )
+      .scalar_subquery()
+    )
+    edge = await self._session.scalar(
+      select(WorkflowGraphTemplateEdge).where(
+        WorkflowGraphTemplateEdge.template_id == template_id,
+        WorkflowGraphTemplateEdge.to_node_id == to_node_sub,
+        WorkflowGraphTemplateEdge.is_reject_path == False,
+      )
+    )
+    if edge is None:
+      return
+    from_template_node = await self._session.get(WorkflowGraphTemplateNode, edge.from_node_id)
+    if from_template_node is None:
+      return
+    upstream_node_key = from_template_node.node_key
+
+    # Find the completed upstream node instance via explicit query
+    upstream_ni = await self._session.scalar(
+      select(WorkflowNodeInstance).where(
+        WorkflowNodeInstance.instance_id == instance.id,
+        WorkflowNodeInstance.node_key == upstream_node_key,
+        WorkflowNodeInstance.engine_state == WorkflowNodeEngineState.COMPLETED,
+      )
+    )
+    if upstream_ni is None:
+      return
+
+    # Load the upstream deliverable
+    upstream_deliverable = await self._session.scalar(
+      select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == upstream_ni.id)
+    )
     if upstream_deliverable is None or not isinstance(upstream_deliverable.payload, dict):
       return
 

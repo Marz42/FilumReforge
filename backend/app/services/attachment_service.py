@@ -20,6 +20,23 @@ from app.models import Attachment, AttachmentLink, User
 from app.services.access_control import ensure_active_user
 from app.services.object_storage_service import ObjectStorageService
 
+EXTENSION_MIME_MAP: dict[str, str] = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".pdf": "application/pdf",
+  ".xlsx": XLSX_MIME,
+  ".txt": "text/plain",
+  ".md": "text/markdown",
+  ".docx": DOCX_MIME,
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+}
+
+GENERIC_CONTENT_TYPES = frozenset({"application/octet-stream", "application/unknown", ""})
+
 # MIME 白名单（归一化后存储；audio/x-wav 会映射为 audio/wav）
 MIME_ALIAS: dict[str, str] = {
   "audio/x-wav": "audio/wav",
@@ -157,6 +174,11 @@ class AttachmentService:
   @staticmethod
   def _validate_attachment_content(*, filename: str, content_type: str, content: bytes) -> str:
     normalized_content_type = _normalize_declared_mime(content_type)
+    if not normalized_content_type or normalized_content_type in GENERIC_CONTENT_TYPES:
+      ext = Path(filename).suffix.lower()
+      inferred = EXTENSION_MIME_MAP.get(ext)
+      if inferred is not None:
+        normalized_content_type = inferred
     if not normalized_content_type:
       raise AppValidationError("附件必须声明 MIME 类型。")
     if normalized_content_type not in ALLOWED_ATTACHMENT_MIME_TYPES:

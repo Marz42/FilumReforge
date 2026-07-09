@@ -16,6 +16,22 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（附件上传 MIME 推断 + orchestrator MissingGreenlet）
+
+### 2026-07-09 16:47 — 修复 .md/.docx 上传失败 + 继承附件时 MissingGreenlet
+
+**完成事项**:
+- [x] **附件 MIME 推断**: 后端 `attachment_service.py` 新增 `EXTENSION_MIME_MAP` + 通用类型推断 — 当浏览器发送 `application/octet-stream` 或空 content_type 时，从文件扩展名推断正确 MIME
+- [x] **前端 MIME 校验放宽**: `.docx` 允许 `application/octet-stream`；通用类型跳过严格 MIME 一致性校验
+- [x] **MissingGreenlet 修复**: `_inherit_upstream_deliverable_attachments` 重写为纯显式查询（`select(WorkflowNodeInstance)` + `select(WorkflowGraphTemplateEdge)` + `select(WorkflowDeliverable)`），不再依赖 lazy-loaded 关系
+- [x] 验证: `python -m compileall` PASS · `vue-tsc --noEmit` PASS · `pd-check-all` All 5 · E2E **35/35**
+
+**影响文件**: `attachment_service.py` (+23), `attachments.ts` (+5), `workflow_orchestration_service.py` (~-25/+40)
+
+**下一 actionable**：DESIGN.md 引入与界面设计更新
+
+---
+
 ## 会话摘要（关闭采集 Task 同步 + 交付物附件可见性）
 
 ### 2026-07-09 15:01 — 修复关闭采集后 Task 卡住 + 附件不可见

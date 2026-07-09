@@ -77,14 +77,17 @@ export function validateAttachmentFile(file: File): string | null {
       '.xlsx': new Set(['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']),
       '.txt': new Set(['text/plain']),
       '.md': new Set(['text/markdown', 'text/plain']),
-      '.docx': new Set(['application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+      '.docx': new Set(['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream']),
       '.mp3': new Set(['audio/mpeg']),
       '.wav': new Set(['audio/wav', 'audio/x-wav']),
     }
+    const genericTypes = new Set(['application/octet-stream', 'application/unknown', ''])
     const allowed = allowedMimeByExt[ext]
-    const declared = rawType === 'audio/x-wav' ? 'audio/wav' : rawType
-    if (allowed && !allowed.has(rawType) && !allowed.has(declared)) {
-      return '文件扩展名与浏览器声明的类型不一致，请重选文件或换用其他浏览器。'
+    if (allowed && !genericTypes.has(rawType)) {
+      const declared = rawType === 'audio/x-wav' ? 'audio/wav' : rawType
+      if (!allowed.has(rawType) && !allowed.has(declared)) {
+        return '文件扩展名与浏览器声明的类型不一致，请重选文件或换用其他浏览器。'
+      }
     }
   }
   const limit = maxBytesForMime(effective)
