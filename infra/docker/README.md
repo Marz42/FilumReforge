@@ -115,4 +115,4 @@ docker compose -f docker-compose.yml down
 - backend / worker 以 systemd 常驻
 - PostgreSQL / Redis 使用云数据库或单独的受控服务
 
-根目录 [README.md](README.md) 已补充实际云服务器部署指南，可直接按其中的 Ubuntu + Nginx + systemd 路径执行。
+根目录 [README.md](../../README.md) 已补充实际云服务器部署指南，可直接按其中的 Ubuntu + Nginx + systemd 路径执行。

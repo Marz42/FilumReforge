@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-07-10T22:00:55+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -30,10 +30,10 @@ paradigma:
 
 > 🔥 HOT — 数据库表结构、枚举、实体关系与 API 契约索引。
 >
-> **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](./architecture.md)。
+> **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
-**版本**: v3.13.0（与 [`architecture.md`](./architecture.md) 同步）  
-**最后同步**: 2026-06-23 @ F-29 归档 API · Admin 跟踪督办 · 逾期延期 · 产品基线 `0.91.0`
+**版本**: v3.14.0（与 [`architecture.md`](../architecture.md) 同步）
+**最后同步**: 2026-07-10 @ `42df37b` · 图模板部门作用范围 `scope_department_ids` · 产品基线 `0.92.0` + Unreleased
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -54,8 +54,9 @@ paradigma:
 - **视频 v1 Pydantic**: `backend/app/schemas/workflow_video.py`（`launch_schema` / `capture_schema` / `aggregate_schema` 等）
   - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409
   - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
-- **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](./domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](./domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](./domains/task-center.md)
-- **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](./domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`stats/summary|workload?department_id=`；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
+- **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](../domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](../domains/task-center.md)
+- **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](../domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`stats/summary|workload?department_id=`；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
+- **图模板部门作用范围**（@ 2026-07-09）：`workflow_graph_templates.scope_department_ids JSONB NOT NULL DEFAULT []`；空数组表示不限制部门，非空时管理列表与实例化按有效管理部门校验；迁移 `20260709_01_graph_template_scope_departments.py`
 - **F-29 管理员归档**（@ 2026-06-23）：`POST /api/v1/tasks/{task_id}/archive`（admin，`TaskArchiveRequest.reason` → `TaskArchiveResponse`）；任务 `extra_metadata.admin_archived` / `admin_archived_at` / `admin_archive_reason` / `admin_archive_source_task_id`；图实例 context `admin_archived*` + 节点 TERMINATED + instance CANCELLED
 - **任务 PATCH 逾期延期**（@ 2026-06-23）：已逾期任务 `due_date` 变更须晚于原截止时间（ConflictError）
 
@@ -122,15 +123,15 @@ paradigma:
 >
 | 业务域 | 文件 |
 |--------|------|
-| IAM / 组织 / HR | [`contracts/database/core-schema.md`](./database/core-schema.md) |
-| 任务与协同 | [`contracts/database/task-collaboration-schema.md`](./database/task-collaboration-schema.md) |
-| 工作流与审批 | [`contracts/database/workflow-schema.md`](./database/workflow-schema.md) |
-| 图引擎 | [`contracts/database/graph-engine-schema.md`](./database/graph-engine-schema.md) |
-| 消息与推送 | [`contracts/database/messaging-schema.md`](./database/messaging-schema.md) |
-| 知识库与附件 | [`contracts/database/knowledge-media-schema.md`](./database/knowledge-media-schema.md) |
-| 总览 | [`contracts/database/overview-schema.md`](./database/overview-schema.md) |
-| 汇报中心 | [`contracts/database/report-schema.md`](./database/report-schema.md) |
-| 错误诊断 | [`contracts/database/error-schema.md`](./database/error-schema.md) |
+| IAM / 组织 / HR | [`database/core-schema.md`](./database/core-schema.md) |
+| 任务与协同 | [`database/task-collaboration-schema.md`](./database/task-collaboration-schema.md) |
+| 工作流与审批 | [`database/workflow-schema.md`](./database/workflow-schema.md) |
+| 图引擎 | [`database/graph-engine-schema.md`](./database/graph-engine-schema.md) |
+| 消息与推送 | [`database/messaging-schema.md`](./database/messaging-schema.md) |
+| 知识库与附件 | [`database/knowledge-media-schema.md`](./database/knowledge-media-schema.md) |
+| 总览 | [`database/overview-schema.md`](./database/overview-schema.md) |
+| 汇报中心 | [`database/report-schema.md`](./database/report-schema.md) |
+| 错误诊断 | [`database/error-schema.md`](./database/error-schema.md) |
 
 ## 11. 关系说明
 
@@ -179,13 +180,15 @@ paradigma:
 
 ## 12. 当前验证基线
 
-权威数字见 [`progress.md`](../logs/progress/progress.md)「测试基线」表（2026-06-22 @ E2E 扩面）：
+权威数字见 [`progress.md`](../../logs/progress/progress.md)「测试基线」表（2026-06-22 @ E2E 扩面）：
 
 - backend：`pytest` **252 collected**（含设计器 **15** 项：`test_workflow_graph_template_designer_d{1,2,3}` + `test_workflow_graph_template_topology`）；`test_migrations.py` 需本机 PostgreSQL + `POSTGRES_TEST_ADMIN_DSN`（否则 1 skipped）；`compileall` PASS
 - frontend：vitest **45 文件 / 124 用例**（含 `GraphTemplateDesignerView.spec.ts`）；`type-check` / `build` PASS
 - Playwright core mock：**33/33**（`npm run test:e2e`：login / task-center* / task-center-interactions / designer / workflow-video-v1 等）
 - Playwright task-center 全集：**48/48**（`npm run test:e2e:task-center` = core 33 + multi-account mock 15）
-- 未纳入每次刷新：`test:e2e:all`（UAT + docker-gui）、`playwright_live`、Ubuntu 回滚演练；**待办清单**见 [`progress.md`](../logs/progress/progress.md)「E2E 待办（Backlog）」
+- 未纳入每次刷新：`test:e2e:all`（UAT + docker-gui）、`playwright_live`、Ubuntu 回滚演练；**待办清单**见 [`progress.md`](../../logs/progress/progress.md)「E2E 待办（Backlog）」
+
+> **2026-07-10 审查注记**：上表是最后一次已记录的完整绿色基线，不代表当前工作区已复跑。当前无 pytest/Vitest 覆盖率插件或 CI；本机 backend venv 失效，frontend 全量 Vitest 因缺少已锁定依赖而未全绿。详见 `memory-bank/history/reports/test-coverage-assessment-20260710.md`。
 
 ## 13. 维护规则
 

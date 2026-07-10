@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-07-10T22:00:55+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -33,8 +33,8 @@ paradigma:
 |------|------|
 | **当前版本** | `0.92.0`（根目录 `VERSION`） |
 | **版本主题** | Paradigma v0.5.0 三态迁移 · 文档合规 |
-| **阶段** | **内测验收** — Phase 0–3 能力已落地；S-01 待立项 |
-| **最后整理** | 2026-07-09 — **0.92.0** done |
+| **阶段** | **内测验收** — TC-Transform 产品能力已落地；S-01 待立项；F-05/测试覆盖为并行技术债 |
+| **最后整理** | 2026-07-10 — 文档/契约对齐与测试覆盖审查 |
 
 ---
 
@@ -69,37 +69,35 @@ paradigma:
 
 ---
 
-## 改造计划（TC-Transform）
+## TC-Transform 交付记录（历史）
 
-按依赖排序；细项与代码锚点见 [`domains/task-center.md`](./domains/task-center.md) §6–§13。
+以下为已执行阶段记录，不再作为当前排期；细项与代码锚点见 [`domains/task-center.md`](./domains/task-center.md) §6–§13。
 
-### Phase 0 — 架构收口（P0）· 立即
+### Phase 0 — 架构收口（产品入口已完成，技术债未清零）
+
+| ID | 交付 | 当前状态 |
+|----|------|------|
+| **B-12** | 移除 Legacy E 产品入口（API · 实例化 · 旧调度） | ✅ 图引擎为唯一产品入口；旧表/ORM 暂留历史兼容 |
+| **F-05** | `TaskDetailShell` 完整拆分 | ⚠️ 已抽取部分组件，Shell 仍约 1841 行，保留为技术债 |
+| **E2E 基线** | UAT / docker-gui / Playwright live 刷新 | ⚠️ mock 有近期验证；全量 live/docker-gui 待本轮覆盖审查 |
+
+### Phase 1 — 正确性 + 单步补齐（已完成）
 
 | ID | 交付 | 验收 |
 |----|------|------|
-| **B-12** | 删除 Legacy E runtime（`task_templates` API · `TaskTemplateService` · Legacy 定时） | 实例化/调度仅图引擎；迁移或归档历史 E 实例 |
-| **F-05** | `TaskDetailShell` 完整拆分 | 可维护性；行为不变 |
-| **E2E 基线** | UAT / docker-gui / Playwright live 与 `b3e7918` 同步 | CI/手工 runbook 绿 |
+| **F-28** | 制作 fork 时 **`copywriters` 池 = 批次发起部门**（或 `instance_department` 语义） | ✅ 已完成 |
+| **F-22** | 建立任务 Dialog + `TaskCreateRequest.watcher_user_ids` | ✅ 已完成 |
+| **F-10–F-12** | 抛光（PublishDialog 抽出等） | ✅ 已完成 @ 2026-07-09 |
 
-### Phase 1 — 正确性 + 单步补齐（P1）· Phase 0 后
-
-| ID | 交付 | 验收 |
-|----|------|------|
-| **F-28** | 制作 fork 时 **`copywriters` 池 = 批次发起部门**（或 `instance_department` 语义） | B 部 Run → N4/N12 → B 部经理；A → A；`post_production` 仍固定 C |
-| **F-22** | 建立任务 Dialog + `TaskCreateRequest.watcher_user_ids` | 创建即 `TaskWatcher` + 通知 |
-| **F-10–F-12** | 抛光（PublishDialog 抽出等） | 可选并行 |
-
-**F-28 为阻塞项**：多文案部共用模板的产品承诺；优先于 F-23。
-
-### Phase 2 — 任务流能力扩展（P2）
+### Phase 2 — 任务流能力扩展（已完成）
 
 | ID | 交付 | 验收 |
 |----|------|------|
-| **F-23** | **通用模板链**：Run/节点完成 → 配置触发下一 `WorkflowGraphTemplate`；发布时 **防环** | 不限于 video fork；拒绝 A→B→A |
-| **F-27** | 任务流 **跨部门边界 CC**（组织树 manager，不经负责人门控） | 与 F-21 共享路由内核 |
-| **F-21** | 单步 **跨部门路由 + 路径 CC** | 组织树；深树性能记 tech debt |
-| **W-08** | streaming 模式 **N2 空壳/engine skip** | ROOT-only 增量派发 UX 一致 |
-| **F-26** | 设计器 **`department_pools` 部门选择器** + 逐步去 JSON | 含 launch_schema/routing 表单化 |
+| **F-23** | **通用模板链**：Run/节点完成 → 配置触发下一 `WorkflowGraphTemplate`；发布时 **防环** | ✅ 已完成 |
+| **F-27** | 任务流 **跨部门边界 CC**（组织树 manager，不经负责人门控） | ✅ 已完成 |
+| **F-21** | 单步 **跨部门路由 + 路径 CC** | ✅ 已完成；深树性能仍是技术债 |
+| **W-08** | streaming 模式 **N2 空壳/engine skip** | ✅ 已完成 |
+| **F-26** | 设计器 **`department_pools` 部门选择器** + 逐步去 JSON | ✅ 首批结构化配置已完成 |
 
 ### Phase 3 — 体验与共用增强（P3+）
 
@@ -150,33 +148,24 @@ paradigma:
 
 ---
 
-## 🔥 当前执行顺序（推荐）
+## 🔥 当前执行顺序
 
-```
-B-12 ─┬─► F-28 ─► F-22 ──► F-23 · F-27/F-21 · W-08 · F-26 ──► F-25 · F-24 ✅
-      ├─► F-05
-      └─► E2E 基线
-              │
-              ▼
-      S-01（立项后）· F-10–F-12 抛光
-```
+1. **当前质量线**：重建可复现 dev 依赖环境，复跑全量测试，并补 0.92.0 后近期变更的直接回归。
+2. **产品主线**：S-01 周期/绩效统计，待产品立项与口径确认后启动。
+3. **并行技术债**：F-05 `TaskDetailShell` 继续拆分；Legacy E 历史表族清理策略。
+4. **运维暂缓项**：Ubuntu 最小回滚演练，上线前执行。
 
-**下一 actionable**：**内测部署验收**（[`deployment-runbook §21`](./manuals/deployment-runbook-ubuntu-2404.md)）；**S-01** 待立项。
+**下一 actionable**：恢复 backend venv 与 frontend `npm ci`，补 scope/delete/MIME/附件继承等测试；随后输出 S-01 立项所需口径清单。内测发布仍按 [`deployment-runbook §21`](./manuals/deployment-runbook-ubuntu-2404.md) 执行。
 
 ---
 
 ## 并行工作线
 
-```
-主线 ─── TC-Transform Phase 0→1→2
-  ├─ 架构 B-12 / F-05
-  ├─ 任务流 F-28 → F-23
-  ├─ 单步 F-22 → F-21
-  ├─ 设计器 F-26
-  └─ 质量 E2E / Docker live
-```
+- 产品：S-01（待立项）
+- 工程质量：F-05、测试覆盖、Legacy E 历史兼容清理
+- 业务深化：生命周期规则 UI、真实通知渠道
 
-细计划：[`plans/task-center-enhance.md`](./plans/task-center-enhance.md) · [`plans/implementation-plan.md`](./plans/implementation-plan.md)
+历史细计划：[`plans/task-center-enhance.md`](./plans/task-center-enhance.md) · 当前主线：[`plans/implementation-plan.md`](./plans/implementation-plan.md)
 
 ---
 

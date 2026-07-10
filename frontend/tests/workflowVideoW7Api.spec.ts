@@ -27,7 +27,7 @@ describe('workflow video W7 API client', () => {
     })
 
     const templates = await listGraphTemplates()
-    expect(http.get).toHaveBeenCalledWith('/workflow-graph/templates')
+    expect(http.get).toHaveBeenCalledWith('/workflow-graph/templates', { params: {} })
     expect(templates[0]?.run_kind).toBe('batch')
     expect(templates[0]?.config).toEqual({ launch_schema: { fields: [] } })
   })

@@ -16,6 +16,55 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（文档契约修复 + 测试覆盖审查）
+
+### 2026-07-10 22:11 — 修复对齐漂移并建立覆盖缺口清单
+
+**完成事项**:
+- [x] 补齐 `scope_department_ids` graph schema/data-contracts，修正三态迁移后的 HOT/WARM/README 链接
+- [x] 收拢 implementation-plan/roadmap：产品能力已完成；F-05 与全量 E2E 明确为并行技术债
+- [x] architecture/known-issue 对齐 B-12：Legacy E 产品入口已移除，旧表族/ORM 仅历史兼容
+- [x] changelog `[Unreleased]` 补记 `0.92.0` 后功能与修复；版本号保持 `0.92.0`
+- [x] 修复 W0 backend 测试与 E2E 报告中的旧 memory-bank 路径；修正 `workflowVideoW7Api.spec.ts` 旧断言，定向 **2/2 PASS**
+- [x] 输出 `memory-bank/history/reports/test-coverage-assessment-20260710.md`
+- [x] `pd-check-all`：All 5 checks passed（DESIGN.md frontmatter 仍为提示性 warning）
+
+**测试覆盖事实**:
+- Backend：42 文件 / 约 290 个声明测试函数；未执行，`.venv` 绑定的 Python 3.11 已不存在
+- Frontend Vitest：52 文件；全量运行 43 文件/102 用例通过，8 文件因 `mammoth`/`marked`/`xlsx` 未安装而加载失败；1 个真实旧断言已修复
+- Playwright：default 35、task-center 39、all 77、live 8、workflow-video UAT 24（均完成 `--list`，未执行）
+- 覆盖治理：无 `pytest-cov`、无 `@vitest/coverage-v8`、无 `.github/workflows/`；当前不能给出可信覆盖率百分比
+
+**踩坑**：本机 backend venv 指向已删除解释器；frontend lockfile 有依赖但 node_modules 不完整。未擅自联网重装依赖。
+
+**遗留/下一步**：恢复干净 dev 依赖环境并全量复跑；补 scope/delete/MIME/附件继承/关闭采集投影/新组件六组直接回归；再评估覆盖率阈值与 CI。
+
+---
+
+## 会话摘要（启动审查 · memory-bank/代码对齐）
+
+### 2026-07-10 21:56 — 确认最近主线与文档漂移
+
+**完成事项**:
+- [x] 按知识温度读取全部 HOT 文件，以及 implementation-plan、roadmap、progress、changelog、README、部署手册与最近对齐报告
+- [x] 执行 `git log --oneline -n 20`：`main` HEAD 为 `42df37b`；保留用户已有 `INIT_PROMPT.md` 修改
+- [x] 核对 B-12、图引擎已落地能力、现有任务统计 API、`20260709_01` schema 与最近四个修复提交
+- [x] 输出 `memory-bank/history/reports/alignment-assessment-20260710.md`
+- [x] `pd-check-all`：All 5 checks passed（0 errors / 0 warnings；DESIGN.md frontmatter 仅提示性 warning）
+
+**发现**:
+- `scope_department_ids` 迁移/模型/API 已落地但数据契约未同步
+- implementation-plan §6.6、roadmap 执行图、根/子 README 与三态路径存在历史漂移
+- `0.92.0` 后变更尚未进入 changelog `[Unreleased]`；测试基线口径分散
+
+**遗留**：本轮仅审查，不修改业务代码或批量修正文档漂移；版本号不变。
+
+**踩坑**：当前 shell 无全局 `python`，改用 Codex 工作区捆绑 Python 完成同一校验命令。
+
+**下一 actionable**：先补 schema 契约与计划/README 漂移；产品确认后启动 **S-01** 周期/绩效统计口径设计。
+
+---
+
 ## 会话摘要（附件上传 MIME 推断 + orchestrator MissingGreenlet）
 
 ### 2026-07-09 16:47 — 修复 .md/.docx 上传失败 + 继承附件时 MissingGreenlet

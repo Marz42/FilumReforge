@@ -39,7 +39,7 @@ export function writeUatReport(extraSections: string[] = []): void {
   const lines: string[] = [
     '# 视频工作流 v1 协同 UAT 报告（Playwright）',
     '',
-    '**对照**：[workflow-video-v1-collaborative-uat-guide.md](../../memory-bank/handbooks/workflow-video-v1-collaborative-uat-guide.md)',
+    '**对照**：[workflow-video-v1-collaborative-uat-guide.md](../../memory-bank/knowledge/manuals/workflow-video-v1-collaborative-uat-guide.md)',
     '',
     `- **输出目录**：\`verification-runs/workflow-video-uat-${runId}\``,
     `- **前端基址**：\`http://127.0.0.1:4173\`（Vite dev + mock API）`,

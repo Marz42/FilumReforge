@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "图引擎 Schema"
 description: "workflow_graph_* 表族：模板、节点、边、实例、交付物、outbox、运行事件。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-07-09T09:30:00+08:00
+timestamp: 2026-07-10T22:00:55+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -19,16 +19,16 @@ paradigma:
 ---
 # 图引擎 Schema
 
-> WARM — workflow_graph_* 表族：模板、节点、边、实例、交付物、outbox、运行事件。 完整 schema 见 [`data-contracts.md`](.../data-contracts.md)。
+> WARM — workflow_graph_* 表族：模板、节点、边、实例、交付物、outbox、运行事件。契约索引见 [`data-contracts.md`](../data-contracts.md)。
 
 ### 10.41–10.48 图引擎与运行事件（摘要）
 
-> **实现状态**: 已实现（工作流重构 Phase 2–11；视频 v1 增量见迁移 `20260522_01`、`20260523_01`）。  
+> **实现状态**: 已实现（工作流重构 Phase 2–11；视频 v1 增量见迁移 `20260522_01`、`20260523_01`；部门作用范围见 `20260709_01`）。
 > **ORM**: `backend/app/models/workflow_graph.py` · **迁移**: `20260429_04_workflow_graph_core.py` 及后续
 
 | 表 | 职责 | 关键字段 / 约束 |
 | --- | --- | --- |
-| `workflow_graph_templates` | DAG 模板定义 | `code`、`base_code`+`version`、`status`、`context_schema`、`config`、`source_template_id` |
+| `workflow_graph_templates` | DAG 模板定义 | `code`、`base_code`+`version`、`status`、`context_schema`、`config`、`source_template_id`、`scope_department_ids JSONB NOT NULL DEFAULT []`（空数组表示不限制部门） |
 | `workflow_graph_template_nodes` | 模板节点 | `node_key`、`node_type`、`assignment_mode`、`join_mode`、`assignee_rule`、`config` |
 | `workflow_graph_template_edges` | 条件边 | `from_node_id`、`to_node_id`、`condition`、`priority`、`is_reject_path` |
 | `workflow_graph_instances` | 运行实例 | `context`+`context_version`、`status`、`current_node_key`、`run_label`、`parent_instance_id`（批次/fork） |

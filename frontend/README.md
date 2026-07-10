@@ -48,7 +48,7 @@ npm run test:e2e:live
 
 - 当前前端上线可选两条路径：执行 `npm install && npm run build` 后由 Nginx 直接托管 `dist/`，或使用 `Dockerfile.prod` 配合 `infra/docker/docker-compose.prod.yml`
 - `Dockerfile` 与 `infra/docker/docker-compose.yml` 仍以开发联调为主，不建议把 Vite dev server 直接暴露到公网
-- 详细云部署方式请以仓库根目录 [README.md](README.md) 的“云服务器部署”章节或 `infra/docker/README.md` 为准
+- 详细云部署方式请以仓库根目录 [README.md](../README.md) 的“云服务器部署”章节或 `infra/docker/README.md` 为准
 
 ## 验证命令
 
@@ -70,4 +70,4 @@ npm run lint
 - `src/components/`：壳层、命令栏、Push 订阅卡片等
 - `tests/`：前端单元测试
 
-更多模块边界与当前状态见 [`README.md`](../README.md)、[`memory-bank/project-brief.md`](../memory-bank/project-brief.md)、[`memory-bank/domains/task-center.md`](../memory-bank/domains/task-center.md)。
+更多模块边界与当前状态见 [`README.md`](../README.md)、[`project-brief.md`](../memory-bank/knowledge/project-brief.md)、[`task-center.md`](../memory-bank/knowledge/domains/task-center.md)。

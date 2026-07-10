@@ -5,7 +5,7 @@ description: "FilumReforge 总体实施计划。"
 tags:
   - plan
   - 实施计划
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-07-10T22:00:55+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -33,7 +33,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **TC-Transform Phase 0–3 全部完成** @ `0.92.0`（2026-07-09）。B-12/F-28/F-22/F-23/F-21/F-27/W-08/F-26/F-25/F-24/F-29 均已落地。下一步主焦点见 [`roadmap.md`](./roadmap.md) · [`active-task.md`](../runtime/active-task.md)：**S-01** 任务统计（待产品立项）。并行：回滚演练（暂缓）、生命周期规则 UI、注册/通知深化、Paradigma OKF 合规治理。
+**当前执行位置**: **TC-Transform 产品能力 Phase 0–3 已完成** @ `0.92.0`（2026-07-09）。B-12/F-28/F-22/F-23/F-21/F-27/W-08/F-26/F-25/F-24/F-29 均已落地；F-05 `TaskDetailShell` 完整拆分与完整 E2E 基线刷新仍是并行技术债。下一产品主焦点见 [`roadmap.md`](../roadmap.md) · [`active-task.md`](../../runtime/active-task.md)：**S-01** 任务统计（待产品立项）。并行：测试覆盖治理、回滚演练（暂缓）、生命周期规则 UI、注册/通知深化、Paradigma OKF 合规治理。
 
 ## 2. 已确认约束
 
@@ -58,7 +58,7 @@ paradigma:
 - 任务协同：任务、依赖、严格状态机、评论、日志、附件、统计
 - 通知骨架：消息落库、delivery 记录、ARQ 入队、adapter 分发、逾期提醒扫描
 - Workflow & Messaging：模板、审批流、周期调度、消息中心、回执、watcher、多视图
-- 工作流重构图引擎：手动任务 graph dual-write、多节点推进、Context 写回、条件边（含 else）、Notice Node、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first**（`TASK_CENTER_V2_ENABLED` 默认 `true`，`backend/app/core/config.py`）、迁移 CLI（Phase 11-A–11-F）；详见 `memory-bank/progress.md` 与 `memory-bank/plans/workflow-refactor-implementation-plan.md`
+- 工作流重构图引擎：手动任务 graph dual-write、多节点推进、Context 写回、条件边（含 else）、Notice Node、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first**（`TASK_CENTER_V2_ENABLED` 默认 `true`，`backend/app/core/config.py`）、迁移 CLI（Phase 11-A–11-F）；详见 `memory-bank/logs/progress/progress.md` 与 `memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md`
 - Knowledge / AI：文档库、embedding、RAG、`@系统` / `/` 路由、Tool Calling
 - Push / PWA：浏览器订阅管理、Web Push adapter、manifest、service worker
 - 前端：登录、分组导航壳层、总览模块（看板 / 公告 / 待办 / 跟踪）、任务中心聚合入口、汇报中心入口、消息中心、设置模块、知识库、统一人员工作台、部门管理；Playwright mock / live E2E 基线（Phase 11-G）
@@ -70,10 +70,10 @@ paradigma:
 - **访客公开自助注册**与**审批式注册**（**明确不做**；邀请制已落地，未来接入邮箱发送邀请链接）
 - 生命周期事件的**规则化默认映射**与**前端结构化配置入口**（显式绑定 + worker 触发已落地）
 - 真实 Email / WebSocket 对外发送接入深化（当前仍为最小 / 占位适配器为主）
-- **工作流 E（`task_templates`）与图模板（`WorkflowGraphTemplate`）的产品级统一**：两套运行时并存属已知边界，不等同于“图条件 / Context / Notice 未实现”（上述已在图引擎侧落地）
+- **Legacy E 历史表族清理**：B-12 已移除 `task_templates` 对外 API、实例化入口与旧调度路径；表/ORM/未挂载服务暂保留用于历史数据兼容，后续需明确迁移和删除策略
 - 更系统的重构、集成测试、E2E 扩面；**Ubuntu 最小回滚演练**；docker-gui / Playwright 基线定期刷新（Stage 2 Phase 6 主机演练与 2026-05-21 测试基线已记入 `progress.md`）
 
-独立迭代（不并入 Stage 2 串行表内阶段）的积压主题已汇总至 `memory-bank/plans/improvements-stage2-implementation-plan.md` **§11**。
+独立迭代（不并入 Stage 2 串行表内阶段）的积压主题已汇总至 `memory-bank/knowledge/plans/improvements-stage2-implementation-plan.md` **§11**。
 
 ## 4. 执行原则
 
@@ -89,8 +89,8 @@ paradigma:
 
 ### 4.2 文档同步原则
 
-- 开始一个新阶段前，先更新 `memory-bank/data-contracts.md`（schema 预案）与 `memory-bank/architecture.md`（模块/流程事实）
-- 从 Stage 2 开始，每个阶段完成后都必须先更新 `data-contracts.md`（若有 schema 变化）与 `architecture.md`，再更新 `memory-bank/progress.md`
+- 开始一个新阶段前，先更新 `memory-bank/knowledge/contracts/data-contracts.md`（schema 预案）与 `memory-bank/knowledge/architecture.md`（模块/流程事实）
+- 从 Stage 2 开始，每个阶段完成后都必须先更新 `data-contracts.md`（若有 schema 变化）与 `architecture.md`，再更新 `memory-bank/logs/progress/progress.md`
 - 若阶段边界发生变化，先更新本文件，再开始编码
 
 ### 4.3 验收闸门
@@ -243,33 +243,29 @@ paradigma:
 - 发布前补充验证：frontend `npm run build`；如需一键收口，执行 `bash scripts/check-release.sh`
 - 前端 lint 若仅做只读校验，优先执行 `npm exec oxlint .` 与 `npm exec eslint .`，避免 `npm run lint` 的 `--fix` 副作用混入回归结果
 
-### 6.6 工作流 F：图引擎运行时深化
+### 6.6 工作流 F：图引擎运行时深化（已完成主干）
 
 **目标**
 
-在当前 Phase 6 基线上，继续把 workflow graph 从“后端可运行原型 + 兼容 Task 投影”推进到“具备条件路由、上下文写回和更完整节点类型的稳定运行时”。
+把 workflow graph 从“后端可运行原型 + 兼容 Task 投影”推进到具备条件路由、上下文写回、完整节点类型与 graph-first 读侧的稳定运行时。
 
 **当前状态**
 
-- 已完成 Phase 2-6：图模板 / 图实例 schema、单节点 dual-write、单节点交付 / 验收 / 返工、接单 / 协商 / 转办、多节点实例化、顺序流 / fan-out / wait-all join、实例列表 / 详情 / 节点完成接口
-- 当前读取侧仍未切到 graph runtime，`TaskService` / `TaskCenterService` 继续以兼容 `Task` 投影为读模型
-- `join_mode=any`、条件边求值、Workflow Context、Notice Node 与智能抄送尚未实现
+- Phase 2–11-G 主干已完成：图模板/实例 schema、dual-write、交付/验收/返工、接单/协商/转办、多节点推进、Wait-All/Wait-Any、Context 写回、条件边、Notice Node、智能抄送、深度打回、outbox、迁移 CLI 与 graph-first 读取
+- `TaskService` / `TaskCenterService` 仍使用兼容 `Task` 作为 UI 投影载体，但默认读取会优先解析 graph runtime，未命中时才 legacy fallback
+- B-12 已移除 Legacy E 对外入口；旧表族与服务代码暂留作历史兼容，不代表双产品入口仍并存
 
-**下一批顺序**
+**后续深化**
 
-1. 条件路由
-	- 让 `WorkflowGraphTemplateEdge.condition` 进入真实求值链路，补齐 reject path / forward path 的分支选择
-2. Workflow Context
-	- 为实例 `context` / `context_version` 建立受控写回与并发保护，避免节点动作直接写脏上下文
-3. Notice Node 与智能抄送
-	- 引入非任务型通知节点，把现有通知总线复用到 graph runtime
-4. 读侧切换与更强回归
-	- 评估 `TaskCenterService` 与后续模板运行态如何逐步消费 graph runtime，而不是长期停留在兼容 `Task` 投影
+1. 为 Legacy E 历史表族制定数据迁移、归档与最终删除策略
+2. 刷新全量 API、worker、前端单测与 Playwright mock/live 覆盖基线
+3. 继续降低 `TaskDetailShell.vue` 等大组件复杂度，不改变 graph-first 行为
+4. 结合内测反馈补强模板/调度管理与可观测性
 
 **测试出口**
 
-- backend：补齐条件分支、context 版本冲突、Notice Node 投递、幂等重复完成与 graph snapshot API 集成测试
-- frontend：等读取侧接入后补任务中心 / 详情页回归；当前阶段先保持 API smoke 与兼容投影回归
+- backend：保持条件分支、Context 冲突、Notice、Wait-Any、幂等完成、graph snapshot 与迁移回归
+- frontend：保持任务中心、详情、设计器和视频流程的 unit + Playwright mock/live 双轨覆盖
 
 ## 7. 跨阶段通用规则
 

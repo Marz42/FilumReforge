@@ -8,16 +8,16 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
   - 用户与会话：管理员初始化、JWT access token、HttpOnly refresh cookie 轮换 / logout 撤销、角色控制
   - 组织与 HR：部门树、一人一档、字段级权限、多岗位、虚线汇报、生命周期事件、代理授权
   - 事务与协同：任务状态机、评论留痕、任务模板、审批流、周期调度、统计；任务中心 **Quick Chips + Master-Detail**（待处理 / 跟踪 / 历史）、列表/看板/甘特视图、页头 **建立任务 Dialog**、全局备忘（列表 + 编辑 Dialog，可选标题）、附件鉴权下载与**应用内预览**（F-25）、独立 **任务模板** 路由；**Admin/HR 跟踪督办**与**逾期延期**（`0.91.0`）；**管理员任务归档** F-29（终止图 Run）；**streaming 批次 ROOT** 派发前留跟踪（`0.91.1`）
-  - 工作流图引擎重构已到 **Phase 11-G**（含 Playwright mock/live 基线）；任务中心默认 **graph-first** 读路径（`task_center_v2_enabled=true`）；详见 `memory-bank/progress.md` 与 `domains/workflow-graph-engine.md`
+  - 工作流图引擎重构已到 **Phase 11-G**（含 Playwright mock/live 基线）；任务中心默认 **graph-first** 读路径（`task_center_v2_enabled=true`）；详见 `memory-bank/logs/progress/progress.md` 与 `memory-bank/knowledge/domains/workflow-graph-engine.md`
   - 工作流 E 首批：模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚（`all` / `any`）、模板实例快照、结构化设计器首版与已有模板编辑
   - 总览与汇报：总览看板 / 公告 / 当前任务、逐级向上汇报 / 向下传达、历史归档
   - 消息与通知：通知总线、delivery 记录、消息中心、回执、浏览器推送订阅与 Web Push 链路，以及 Step 6 的来源回跳 / 用户级隔离
   - Knowledge / AI：Markdown 知识库、向量检索、`@系统` / `/` 路由、Tool Calling
   - 前端体验：分组侧栏导航、顶栏 **AI 命令 + 消息铃铛 Drawer + 截止倒计时**、总览 Dashboard 小组件、设置三分栏（资料/安全/通知）、人员宽 Drawer + 部门树 Master-Detail、邀请制登录三场景、Playwright 单元测试与 Docker GUI E2E（18 用例）
 - **仍待补齐**
-  - 访客公开自助注册与审批式注册（**邀请制注册**已落地：管理员发邀请链接、受邀人设置密码激活；与「完全无注册能力」不同）
+  - 注册边界已确定：**不做**访客公开自助注册与审批式注册；仅保留邀请制注册，未来深化邮件自动发送
   - 生命周期事件的规则化默认联动与前端结构化配置入口（后端已支持事件上**显式绑定**模板 / 审批目标并由 **worker 异步触发**）
-  - **工作流 E 与图引擎（`WorkflowGraphTemplate`）的产品级统一**、模板 / 调度管理深化、更强设计器校验（任务中心读侧已默认 graph-first）
+  - Legacy E 产品入口已由 B-12 移除；旧 `task_templates` 表族/ORM 暂留历史兼容，后续需制定迁移与清理策略
   - 通知适配器的真实外部集成深化与更完整的投递观测（当前 Email / WebSocket 为最小实现）
   - **Stage 2 Phase 6** 已收口（在线 Ubuntu 主机演练 + 2026-05-21 测试基线）；**Ubuntu 最小回滚路径**仍待演练
 
@@ -46,7 +46,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 - 列表 / 看板 / 甘特图
 - **管理员治理**（`0.91.0`）：单条任务归档（软作废 + 终止图 Run）、Admin/HR 跟踪督办、逾期延期（不阻断推进）
 
-工作流 E 首批已落地。图引擎 **Phase 11-G** 已完成；任务中心默认 graph-first（`task_center_v2_enabled=true`）。视频工作流 v1（W0–W10）已硬化，见 `memory-bank/domains/workflow-video-v1.md`。
+Legacy E 历史能力已收口，当前模板产品入口统一走图引擎。图引擎 **Phase 11-G** 已完成；任务中心默认 graph-first（`task_center_v2_enabled=true`）。视频工作流 v1（W0–W10）已硬化，见 `memory-bank/knowledge/domains/workflow-video-v1.md`。
 
 ### 消息、Push 与 AI
 
@@ -78,7 +78,7 @@ Project Filum 是一个面向 **50–100 人企业** 的模块化单体内部管
 ├── backend/        # FastAPI、服务层、模型、迁移、worker、脚本
 ├── frontend/       # Vue 3 管理后台
 ├── infra/          # Docker Compose 与 Nginx 配置
-└── memory-bank/    # 设计/架构/进度（根目录）+ knowledge/manuals/ + plans/ + history/ + archive/
+└── memory-bank/    # runtime/ 当前态 + logs/ 进度日志 + knowledge/ 长期知识 + history/ 审查历史
 ```
 
 ## 文档入口
@@ -87,15 +87,15 @@ Agent 协作见 [`AGENT_RULES.md`](AGENT_RULES.md)、[`VERSION`](VERSION)。memo
 
 | 文件 | 用途 |
 | --- | --- |
-| [`project-brief.md`](memory-bank/project-brief.md) | 产品愿景、边界、技术栈摘要（🔥） |
-| [`architecture.md`](memory-bank/architecture.md) | 工程蓝图、运行时、核心流程（🔥） |
-| [`data-contracts.md`](memory-bank/data-contracts.md) | schema、枚举、API 索引（🔥） |
-| [`conventions.md`](memory-bank/conventions.md) | 编码与协作规范（🔥） |
-| [`active-task.md`](memory-bank/active-task.md) | 当前聚焦任务（🔥） |
-| [`progress.md`](memory-bank/progress.md) | 会话摘要、阶段验收、测试基线（🔥） |
-| [`roadmap.md`](memory-bank/roadmap.md) | 宏观里程碑（🌡️） |
-| [`plans/`](memory-bank/plans/) | 细粒度实施计划（🌡️） |
-| [`domains/`](memory-bank/domains/) | 子系统领域文档（🌡️） |
+| [`project-brief.md`](memory-bank/knowledge/project-brief.md) | 产品愿景、边界、技术栈摘要（🔥） |
+| [`architecture.md`](memory-bank/knowledge/architecture.md) | 工程蓝图、运行时、核心流程（🔥） |
+| [`data-contracts.md`](memory-bank/knowledge/contracts/data-contracts.md) | schema、枚举、API 索引（🔥） |
+| [`conventions.md`](memory-bank/knowledge/conventions.md) | 编码与协作规范（🔥） |
+| [`active-task.md`](memory-bank/runtime/active-task.md) | 当前聚焦任务（🔥） |
+| [`progress.md`](memory-bank/logs/progress/progress.md) | 会话摘要、阶段验收、测试基线（日志） |
+| [`roadmap.md`](memory-bank/knowledge/roadmap.md) | 宏观里程碑（🌡️） |
+| [`plans/`](memory-bank/knowledge/plans/) | 细粒度实施计划（🌡️） |
+| [`domains/`](memory-bank/knowledge/domains/) | 子系统领域文档（🌡️） |
 | [`knowledge/manuals/`](memory-bank/knowledge/manuals/) | 运维与用户手册（🧊） |
 
 完整产品设计/技术选型叙述：[`design-document.md`](memory-bank/design-document.md)、[`tech-stack.md`](memory-bank/tech-stack.md)（摘要已迁入 project-brief）。
@@ -356,7 +356,7 @@ sudo journalctl -u filum-backend -u filum-worker -f
 
 ## 测试与验证
 
-**当前测试基线**（commit `36c6a77`，2026-05-21）：见 [`memory-bank/progress.md`](memory-bank/progress.md)「测试基线」— 后端 **153** pytest、前端 **106** vitest、Docker GUI 沿用 **18/18**（2026-05-20）。
+**测试基线**：以 [`progress.md`](memory-bank/logs/progress/progress.md) 中带 commit 与日期的最新记录为准。完整 pytest、Vitest、Playwright mock/live 与 Docker GUI 不保证在每次小修复后全量刷新；发布前需运行与变更风险相匹配的质量门。
 
 ### Backend
 
@@ -474,10 +474,10 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 下一步
 
-1. **任务中心增强 TCE Phase 1** — graph 读模型、操作后 refresh、看板可读、测试服 department 迁移（[`memory-bank/plans/task-center-enhance.md`](memory-bank/plans/task-center-enhance.md) · [`active-task.md`](memory-bank/active-task.md)）
-2. TCE Phase 2–4 — batch hydration、部门统计、多文案部门共用图模板
-3. **TCE Phase 5 / TC-P3** — 工作流 E 与图引擎统一（ADR-005）
+1. **当前质量线**：恢复可复现 backend/frontend dev 环境，复跑全量测试并补近期变更的直接回归
+2. **S-01 任务统计**：产品立项后补周期、rollup、绩效口径与权限设计（[`implementation-plan.md`](memory-bank/knowledge/plans/implementation-plan.md) · [`active-task.md`](memory-bank/runtime/active-task.md)）
+3. 并行技术债：F-05 `TaskDetailShell` 完整拆分、Legacy E 历史表族迁移/清理策略
 4. 生命周期规则 UI 与默认映射；通知适配器真实外发
 5. **Ubuntu 最小回滚路径演练** — 暂缓，上线前再补
 
-进度与验测记录见 [`memory-bank/progress.md`](memory-bank/progress.md)。
+进度与验测记录见 [`memory-bank/logs/progress/progress.md`](memory-bank/logs/progress/progress.md)。

@@ -42,7 +42,7 @@ export function writeLiveReport(meta: {
   const lines: string[] = [
     '# 视频制作全流程 · 多账号 E2E 报告',
     '',
-    '**指南**：[workflow-video-v1-multi-account-e2e-guide.md](../../memory-bank/handbooks/workflow-video-v1-multi-account-e2e-guide.md)',
+    '**指南**：[workflow-video-v1-multi-account-e2e-guide.md](../../memory-bank/knowledge/manuals/workflow-video-v1-multi-account-e2e-guide.md)',
     '',
     `- **执行模式**：${modeLabel}`,
     `- **Run 标记**：\`${meta.runTag}\``,

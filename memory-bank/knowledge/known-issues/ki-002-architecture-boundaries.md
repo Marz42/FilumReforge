@@ -1,9 +1,9 @@
 ---
 type: paradigma-known-issue
 title: "KI-002: 架构边界（易误判非 Bug）"
-description: "Legacy E 与图引擎并存、TCE 缺口、设计器状态等架构层面的已知状态。"
+description: "Legacy E 历史兼容、TCE 技术债、设计器状态等架构层面的已知状态。"
 tags: ["known-issue", "architecture", "legacy-e", "graph-engine", "tce"]
-timestamp: "2026-07-08T17:34:00+08:00"
+timestamp: "2026-07-10T22:00:55+08:00"
 paradigma:
   schema_version: "0.5.0"
   temperature: cold
@@ -22,22 +22,23 @@ en: ["architecture boundary", "legacy E", "graph engine"]
 
 # KI-002: 架构边界（易误判非 Bug）
 
-## 工作流 E 与图引擎未统一
+## Legacy E 历史兼容边界
 
-**说明**: `task_templates` 与 `WorkflowGraphTemplate` 两套运行时并存；任务中心读侧已 graph-first，**不等于** E 已合并为图模板。  
+**说明**: B-12 已移除 `task_templates` 对外 API、实例化入口和旧调度执行路径，图模板是唯一产品入口；旧表族、ORM 与未挂载服务暂留用于历史数据兼容，不应误判为仍有两个产品运行入口。
 **参考**: `decisions/adr-005-dual-track-workflow.md`、`domains/workflow-graph-engine.md`
 
-## Legacy 工作流 E 后端（待删除）
+## Legacy 工作流 E 后端（产品入口已删除，历史清理待定）
 
 **说明**（@ ADR-009 G-05 · 2026-06-23）:
 
 | 层 | 状态 |
 |----|------|
 | 前端模板页 | **已移除** Legacy E Tab / CRUD；唯一入口为图模板列表 + 实例化（用户可见名「任务模板」） |
-| 后端 `task_templates` API / `TaskTemplateService` | **P0 删除** — **B-12**；目标 **仅图引擎 runtime** |
-| 迁移 | 历史 E 实例需迁移或只读归档方案（实施 B-12 时定稿） |
+| 后端 `task_templates` API | **已移除**；API 回归测试固定返回 404 |
+| `TaskTemplateService` / ORM / 表族 | 未挂载服务与数据结构暂留历史兼容，不再承载产品入口 |
+| 迁移 | 历史 E 实例仍需迁移、只读归档或最终删除方案 |
 
-**实例化路径**（目标态）: `POST /api/v1/workflow-graph/templates/{id}/runs` **唯一**
+**实例化路径**（当前事实）: `POST /api/v1/workflow-graph/templates/{id}/runs` **唯一**
 
 ## 单步任务已知缺口（ADR-009）
 
@@ -61,7 +62,7 @@ en: ["architecture boundary", "legacy E", "graph engine"]
 
 ## 任务中心 TCE（Phase 1–5 ✅）
 
-**说明**: Task Center Enhance 已落地；仍开放 F-10–F-12、S-01 暂缓。
+**说明**: Task Center Enhance 已落地；F-10–F-12 已完成，S-01 暂缓；F-05 完整 Shell 拆分仍是技术债。
 
 ## 图模板设计器（F-18–F-20 ✅）
 
@@ -69,7 +70,7 @@ en: ["architecture boundary", "legacy E", "graph engine"]
 |----|------|
 | 前端 | `/task-templates/:id/edit` 全页设计器；DAG 预览、dry-run、JSON 导入导出 |
 | 后端 | `WorkflowGraphTemplateAdminService` + topology 校验 |
-| Legacy E 设计器 | **不恢复**；E 后端仍保留至 B-12 |
+| Legacy E 设计器 | **不恢复**；B-12 已移除产品入口，历史表族暂留兼容 |
 
 ## 图模板实例化：发起部门（TCE Phase 4 ✅）
 

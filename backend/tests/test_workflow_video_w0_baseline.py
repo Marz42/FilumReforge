@@ -13,8 +13,10 @@ from app.core.workflow_video_policy import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-VIDEO_V1_PLAN = REPO_ROOT / "memory-bank" / "plans" / "workflow-video-v1-implementation-plan.md"
-VIDEO_V1_W0_ADR = REPO_ROOT / "memory-bank" / "plans" / "workflow-video-v1-w0-adr.md"
+VIDEO_V1_PLAN = (
+  REPO_ROOT / "memory-bank" / "knowledge" / "plans" / "workflow-video-v1-implementation-plan.md"
+)
+VIDEO_V1_W0_ADR = REPO_ROOT / "memory-bank" / "knowledge" / "plans" / "workflow-video-v1-w0-adr.md"
 
 
 def test_w0_video_v1_plan_document_exists_and_covers_batch_fork_and_form_engine() -> None:

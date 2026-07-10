@@ -40,7 +40,7 @@ test.describe('Workflow Video v1 W0–W10 UAT', () => {
       '',
       '- **W0/W1** 部分能力仅能通过契约与开关验证；本套件以 UI 可观测子集 + mock API 行为代替。',
       '- **W5 打回**：前端尚无汇总表打回按钮，UAT 通过 `reject-captures` API + 事件时间线验收。',
-      '- **Live/Docker**：完整联调见 `memory-bank/handbooks/workflow-video-v1-docker-runbook.md`。',
+      '- **Live/Docker**：完整联调见 `memory-bank/knowledge/manuals/workflow-video-v1-docker-runbook.md`。',
     ])
   })
 

@@ -20,6 +20,24 @@ paradigma:
 
 ## [Unreleased]
 
+### Added
+
+- 图模板管理员删除能力；存在 Run 的模板拒绝删除
+- 图模板 `scope_department_ids` 部门作用范围（迁移 `20260709_01`），设计器与实例化入口同步按部门过滤
+- 图模板设计器补 `participant_policies`、`root_assignee_var`、`aggregate_node_key`、`run_kind` 等结构化字段
+
+### Changed
+
+- 建立任务弹窗抽取为 `PublishTaskDialog.vue`；采集组件统一为 `CapturePanel.vue`
+- `aggregate_mode` 空白模板默认值对齐为 `streaming`
+
+### Fixed
+
+- 修复模板部门池非法 UUID、种子 scope 推导与 `seed_version` 丢失等 P0/P1 配置问题
+- 修复 `PublishTaskDialog` v-model、重复 `onMounted` 与 Playwright capture 锚点
+- 关闭采集后同步兼容 Task 投影，并让下游任务继承交付物附件可见性
+- 修复 `.md` / `.docx` 通用 MIME 上传推断，以及附件继承路径的 SQLAlchemy `MissingGreenlet`
+
 ## [0.92.0] — 2026-07-08
 
 ### Added
