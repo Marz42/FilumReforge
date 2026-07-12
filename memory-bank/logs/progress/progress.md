@@ -16,6 +16,27 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（Docker 前端依赖卷自动同步）
+
+### 2026-07-13 00:19 — 修复 Compose 旧 node_modules 卷缺少 mammoth
+
+**完成事项**:
+- [x] 确认 `package.json` / `package-lock.json` 已声明 `mammoth@1.12.0`，源码导入无误
+- [x] 定位开发 Compose 的 `frontend-node-modules` 命名卷遮蔽镜像依赖，且旧卷不会随 lockfile 自动刷新
+- [x] 开发前端镜像改用确定性的 `npm ci`，新增 lockfile 哈希入口脚本
+- [x] 仅当 `package-lock.json` 变化时自动同步命名卷，避免每次启动重复安装或要求手工删卷
+
+**验证**:
+- 容器内 `npm ls mammoth --depth=0`：`mammoth@1.12.0`
+- Node 动态导入：`mammoth-import-ok`
+- Vite 8.1.4 正常启动；`http://localhost:5173` 返回 200
+- 附件预览专项：**1 file / 5 tests PASS**；`vue-tsc --build` PASS
+- 镜像构建 `npm ci`：503 packages，**0 vulnerabilities**；既有 Vite 8/devtools peer warning 仍在
+
+**遗留/下一步**：S-01 仍待用户验收；Vite 8/devtools peer warning 作为既有技术债后续单独处理。本轮为开发环境兼容修复，不调整 `VERSION`。
+
+---
+
 ## 会话摘要（S-01 最小周期统计实施）
 
 ### 2026-07-11 23:34 — 权限、周期、DB 聚合与明细闭环完成

@@ -5,7 +5,7 @@ description: "Project Filum 当前唯一聚焦任务。"
 tags:
   - runtime
   - active-task
-timestamp: 2026-07-11T23:34:27+08:00
+timestamp: 2026-07-13T00:19:00+08:00
 paradigma:
   schema_version: 0.5.0
   layer: runtime
@@ -36,6 +36,7 @@ paradigma:
 
 | 交付 | 说明 |
 |------|------|
+| Docker 前端依赖同步 @ 2026-07-13 | lockfile 哈希变化时自动 `npm ci` 刷新命名卷；修复旧卷缺少 `mammoth` |
 | S-01 实施 @ 2026-07-11 | Employee 本人/经理子树/Admin-HR 全局；上海周期；DB 聚合；5 指标、人员表、明细下钻 |
 | S-01 实施计划 @ 2026-07-11 | 权限、最小功能、周期/指标口径、API、阶段与 4–5 日预估；待审批 |
 | npm 安全基线 @ 2026-07-11 | `npm ci` / `npm audit` 0 vulnerabilities；移除无修复版 `xlsx`，Excel 预览改为安全数据渲染 |

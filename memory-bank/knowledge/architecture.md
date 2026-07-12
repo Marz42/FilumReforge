@@ -6,7 +6,7 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-07-11T23:34:27+08:00
+timestamp: 2026-07-13T00:19:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -24,8 +24,8 @@ paradigma:
 ---
 # Project Filum 架构基线
 
-**文档版本**: v3.16.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
-**最后同步**: 2026-07-10 @ `42df37b` · 下一焦点: [roadmap.md](./roadmap.md) · [domains/task-center.md](./domains/task-center.md)
+**文档版本**: v3.16.1（与产品 SemVer [`VERSION`](../../VERSION) 独立）
+**最后同步**: 2026-07-13 · 下一焦点: [roadmap.md](./roadmap.md) · [domains/task-center.md](./domains/task-center.md)
 
 ## 1. 文档定位
 
@@ -177,6 +177,7 @@ paradigma:
    - `frontend`
    - `nginx`
    - `backend` 与 `worker` 启动时都会执行 `alembic upgrade head`
+   - `frontend` 使用独立 `node_modules` 命名卷；入口脚本比较 `package-lock.json` 哈希，仅在锁文件变化时执行 `npm ci` 同步依赖
 
 2. **本地直启路径**
    - `backend/.env.example` 默认指向 `localhost`
