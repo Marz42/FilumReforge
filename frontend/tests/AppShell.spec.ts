@@ -1,13 +1,21 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { defineComponent } from 'vue'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ElementPlus from 'element-plus'
 
 import AppShell from '@/components/AppShell.vue'
+import { getTaskCenterSnapshot } from '@/api/task-center'
+import { resetTaskCenterPermissionsCache } from '@/composables/useTaskCenterPermissions'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
+
+vi.mock('@/api/task-center', () => ({
+  getTaskCenterSnapshot: vi.fn().mockResolvedValue({
+    permissions: { can_manage_templates: true, can_publish_task: true },
+  }),
+}))
 
 const RoutedViewStub = defineComponent({
   name: 'RoutedViewStub',
@@ -66,6 +74,7 @@ describe('App shell', () => {
     })
     pinia = createPinia()
     setActivePinia(pinia)
+    resetTaskCenterPermissionsCache()
   })
 
   async function seedUser(role: 'admin' | 'hr' | 'employee'): Promise<void> {
@@ -81,6 +90,12 @@ describe('App shell', () => {
       created_at: '2025-01-01T00:00:00Z',
       updated_at: '2025-01-01T00:00:00Z',
     }
+    vi.mocked(getTaskCenterSnapshot).mockResolvedValue({
+      permissions: {
+        can_manage_templates: role === 'admin' || role === 'hr',
+        can_publish_task: role === 'admin',
+      },
+    } as never)
 
     router.push('/overview')
     await router.isReady()
@@ -102,6 +117,7 @@ describe('App shell', () => {
         },
       },
     })
+    await flushPromises()
 
     expect(wrapper.text()).toContain('Project Filum')
     expect(wrapper.text()).toContain('统一协同工作台')
@@ -141,6 +157,7 @@ describe('App shell', () => {
         },
       },
     })
+    await flushPromises()
 
     expect(wrapper.text()).toContain('人员管理')
     expect(wrapper.text()).not.toContain('部门管理')
@@ -162,6 +179,7 @@ describe('App shell', () => {
         },
       },
     })
+    await flushPromises()
 
     expect(wrapper.text()).toContain('总览')
     expect(wrapper.text()).toContain('任务中心')

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Callable, Generic, TypeVar
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -59,10 +60,12 @@ from app.services.access_control import (
   MANAGEMENT_ROLES,
   can_manage_assignee,
   can_publish_org_tasks,
+  expand_department_ids,
   ensure_active_user,
-  ensure_department_stats_access,
   get_actor_department_id,
+  get_effective_managed_department_ids,
   get_managed_department_ids,
+  is_management_role,
 )
 from app.services.cross_department_routing_service import resolve_cross_department_boundary_cc_user_ids
 from app.services.notification_service import NotificationService
@@ -70,6 +73,8 @@ from app.services.condition_evaluator import evaluate_routing_rules
 from app.services.task_user_facing_state import resolve_task_run_label, resolve_task_user_facing_state
 
 MAX_BATCH_TASK_IDS = 100
+TASK_STATS_TIMEZONE = ZoneInfo("Asia/Shanghai")
+TASK_STATS_MAX_RANGE_DAYS = 366
 
 TTaskCenterEntry = TypeVar("TTaskCenterEntry")
 
@@ -102,6 +107,34 @@ def _paginate_task_center_list(
   return TaskCenterListPage(items=page_items, next_cursor=next_cursor, has_more=has_more)
 
 
+def _resolve_task_stats_period(
+  *,
+  start_date: date | None,
+  end_date: date | None,
+  now: datetime,
+) -> tuple[date, date, datetime, datetime]:
+  local_today = now.astimezone(TASK_STATS_TIMEZONE).date()
+  resolved_start = start_date or local_today.replace(day=1)
+  if end_date is None:
+    next_month = (
+      resolved_start.replace(year=resolved_start.year + 1, month=1, day=1)
+      if resolved_start.month == 12
+      else resolved_start.replace(month=resolved_start.month + 1, day=1)
+    )
+    resolved_end = next_month - timedelta(days=1)
+  else:
+    resolved_end = end_date
+
+  if resolved_end < resolved_start:
+    raise ConflictError("统计结束日期不能早于开始日期。")
+  if (resolved_end - resolved_start).days + 1 > TASK_STATS_MAX_RANGE_DAYS:
+    raise ConflictError(f"统计周期最长为 {TASK_STATS_MAX_RANGE_DAYS} 天。")
+
+  start_at = datetime.combine(resolved_start, time.min, tzinfo=TASK_STATS_TIMEZONE).astimezone(UTC)
+  end_at = datetime.combine(resolved_end + timedelta(days=1), time.min, tzinfo=TASK_STATS_TIMEZONE).astimezone(UTC)
+  return resolved_start, resolved_end, start_at, end_at
+
+
 @dataclass(slots=True)
 class CommentAttachmentInput:
   filename: str
@@ -126,6 +159,16 @@ class TaskStatsSummary:
   overdue_tasks: int
   overdue_rate: float
   tasks_by_status: dict[TaskStatus, int]
+  start_date: date
+  end_date: date
+  created_tasks: int
+  period_completed_tasks: int
+  due_tasks: int
+  matured_due_tasks: int
+  on_time_completed_tasks: int
+  on_time_completion_rate: float
+  current_open_tasks: int
+  period_overdue_tasks: int
 
 
 @dataclass(slots=True)
@@ -139,6 +182,47 @@ class TaskWorkloadEntry:
   open_tasks: int
   completed_tasks: int
   overdue_tasks: int
+  created_tasks: int
+  period_completed_tasks: int
+  due_tasks: int
+  matured_due_tasks: int
+  on_time_completed_tasks: int
+  on_time_completion_rate: float
+  period_overdue_tasks: int
+
+
+@dataclass(slots=True)
+class TaskStatsScopeOption:
+  id: UUID
+  label: str
+
+
+@dataclass(slots=True)
+class TaskStatsScopes:
+  mode: str
+  departments: list[TaskStatsScopeOption]
+
+
+@dataclass(slots=True)
+class TaskStatsDetailEntry:
+  task_id: UUID
+  title: str
+  assignee_id: UUID
+  assignee_label: str
+  department_id: UUID | None
+  department_name: str | None
+  source_type: TaskSourceType
+  run_label: str | None
+  due_date: datetime | None
+  completed_at: datetime | None
+  is_overdue: bool
+
+
+@dataclass(slots=True)
+class TaskStatsDetailsPage:
+  items: list[TaskStatsDetailEntry]
+  next_cursor: UUID | None = None
+  has_more: bool = False
 
 
 @dataclass(slots=True)
@@ -1978,7 +2062,12 @@ class TaskService:
       node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
       node_instance.completed_at = reference_time
       node_instance.business_state = force_business_state or WorkflowNodeBusinessState.DONE
-      instance.current_node_key = node_instance.node_key
+      if task.source_type == TaskSourceType.MANUAL:
+        instance.status = WorkflowGraphInstanceStatus.COMPLETED
+        instance.completed_at = reference_time
+        instance.current_node_key = None
+      else:
+        instance.current_node_key = node_instance.node_key
       return
 
   async def _sync_graph_projection_for_handshake_state(
@@ -3271,6 +3360,7 @@ class TaskService:
       added_watchers.append((watcher, watcher_user))
 
     await self._session.commit()
+    self._session.expire(task, ["watchers"])
 
     if self._notification_service is not None:
       for _, watcher_user in added_watchers:
@@ -3432,25 +3522,78 @@ class TaskService:
     *,
     actor: User,
     department_id: UUID | None = None,
+    include_subtree: bool = False,
+    start_date: date | None = None,
+    end_date: date | None = None,
   ) -> TaskStatsSummary:
-    if department_id is not None:
-      await ensure_department_stats_access(self._session, actor, department_id)
-    tasks = await self.list_tasks(actor=actor)
-    if department_id is not None:
-      tasks = [task for task in tasks if task.department_id == department_id]
     now = datetime.now(UTC)
-    total_tasks = len(tasks)
-    completed_tasks = sum(task.status == TaskStatus.DONE for task in tasks)
-    overdue_tasks = sum(
-      _is_overdue(due_date=task.due_date, now=now) and task.status != TaskStatus.DONE
-      for task in tasks
+    resolved_start, resolved_end, start_at, end_at = _resolve_task_stats_period(
+      start_date=start_date,
+      end_date=end_date,
+      now=now,
     )
-    tasks_by_status = {status: 0 for status in TaskStatus}
-    for task in tasks:
-      tasks_by_status[task.status] += 1
-
+    filters = await self._build_task_stats_filters(
+      actor=actor,
+      department_id=department_id,
+      include_subtree=include_subtree,
+    )
+    created_condition = and_(Task.created_at >= start_at, Task.created_at < end_at)
+    completed_condition = and_(Task.completed_at >= start_at, Task.completed_at < end_at)
+    due_condition = and_(Task.due_date >= start_at, Task.due_date < end_at)
+    matured_cutoff = min(now, end_at)
+    matured_due_condition = and_(due_condition, Task.due_date < matured_cutoff)
+    on_time_condition = and_(
+      matured_due_condition,
+      Task.completed_at.is_not(None),
+      Task.completed_at <= Task.due_date,
+    )
+    period_overdue_condition = and_(
+      matured_due_condition,
+      or_(Task.completed_at.is_(None), Task.completed_at > Task.due_date),
+    )
+    current_overdue_condition = and_(
+      Task.due_date.is_not(None),
+      Task.due_date < now,
+      Task.status != TaskStatus.DONE,
+    )
+    aggregate = select(
+      func.count(Task.id),
+      func.count(Task.id).filter(Task.status == TaskStatus.DONE),
+      func.count(Task.id).filter(current_overdue_condition),
+      func.count(Task.id).filter(created_condition),
+      func.count(Task.id).filter(completed_condition),
+      func.count(Task.id).filter(due_condition),
+      func.count(Task.id).filter(matured_due_condition),
+      func.count(Task.id).filter(on_time_condition),
+      func.count(Task.id).filter(period_overdue_condition),
+      func.count(Task.id).filter(Task.status != TaskStatus.DONE),
+      *[
+        func.count(Task.id).filter(Task.status == status).label(f"status_{status.value}")
+        for status in TaskStatus
+      ],
+    ).where(*filters)
+    row = (await self._session.execute(aggregate)).one()
+    (
+      total_tasks,
+      completed_tasks,
+      overdue_tasks,
+      created_tasks,
+      period_completed_tasks,
+      due_tasks,
+      matured_due_tasks,
+      on_time_completed_tasks,
+      period_overdue_tasks,
+      current_open_tasks,
+      *status_counts,
+    ) = [int(value or 0) for value in row]
+    tasks_by_status = dict(zip(TaskStatus, status_counts, strict=True))
     completion_rate = round(completed_tasks / total_tasks, 4) if total_tasks else 0.0
     overdue_rate = round(overdue_tasks / total_tasks, 4) if total_tasks else 0.0
+    on_time_completion_rate = (
+      round(on_time_completed_tasks / matured_due_tasks, 4)
+      if matured_due_tasks
+      else 0.0
+    )
     return TaskStatsSummary(
       total_tasks=total_tasks,
       completed_tasks=completed_tasks,
@@ -3458,6 +3601,16 @@ class TaskService:
       overdue_tasks=overdue_tasks,
       overdue_rate=overdue_rate,
       tasks_by_status=tasks_by_status,
+      start_date=resolved_start,
+      end_date=resolved_end,
+      created_tasks=created_tasks,
+      period_completed_tasks=period_completed_tasks,
+      due_tasks=due_tasks,
+      matured_due_tasks=matured_due_tasks,
+      on_time_completed_tasks=on_time_completed_tasks,
+      on_time_completion_rate=on_time_completion_rate,
+      current_open_tasks=current_open_tasks,
+      period_overdue_tasks=period_overdue_tasks,
     )
 
   async def get_task_workload(
@@ -3465,47 +3618,261 @@ class TaskService:
     *,
     actor: User,
     department_id: UUID | None = None,
+    include_subtree: bool = False,
+    start_date: date | None = None,
+    end_date: date | None = None,
   ) -> list[TaskWorkloadEntry]:
-    if department_id is not None:
-      await ensure_department_stats_access(self._session, actor, department_id)
-    tasks = await self.list_tasks(actor=actor)
-    if department_id is not None:
-      tasks = [task for task in tasks if task.department_id == department_id]
     now = datetime.now(UTC)
-
-    workload_map: dict[tuple[UUID, UUID | None], TaskWorkloadEntry] = {}
-    for task in tasks:
-      assignee = task.assignee
-      if assignee is None:
-        continue
-      key = (assignee.id, task.department_id)
-      workload = workload_map.get(key)
-      if workload is None:
-        workload = TaskWorkloadEntry(
-          assignee_id=assignee.id,
-          assignee_email=assignee.email,
-          assignee_label=_user_display_label(assignee) or assignee.email,
-          department_id=task.department_id,
-          department_name=task.department.name if task.department is not None else None,
-          total_tasks=0,
-          open_tasks=0,
-          completed_tasks=0,
-          overdue_tasks=0,
-        )
-        workload_map[key] = workload
-
-      workload.total_tasks += 1
-      if task.status == TaskStatus.DONE:
-        workload.completed_tasks += 1
-      else:
-        workload.open_tasks += 1
-      if _is_overdue(due_date=task.due_date, now=now) and task.status != TaskStatus.DONE:
-        workload.overdue_tasks += 1
-
-    return sorted(
-      workload_map.values(),
-      key=lambda row: (row.department_name or "", row.assignee_label),
+    _, _, start_at, end_at = _resolve_task_stats_period(
+      start_date=start_date,
+      end_date=end_date,
+      now=now,
     )
+    filters = await self._build_task_stats_filters(
+      actor=actor,
+      department_id=department_id,
+      include_subtree=include_subtree,
+    )
+    created_condition = and_(Task.created_at >= start_at, Task.created_at < end_at)
+    completed_condition = and_(Task.completed_at >= start_at, Task.completed_at < end_at)
+    due_condition = and_(Task.due_date >= start_at, Task.due_date < end_at)
+    matured_due_condition = and_(due_condition, Task.due_date < min(now, end_at))
+    on_time_condition = and_(
+      matured_due_condition,
+      Task.completed_at.is_not(None),
+      Task.completed_at <= Task.due_date,
+    )
+    period_overdue_condition = and_(
+      matured_due_condition,
+      or_(Task.completed_at.is_(None), Task.completed_at > Task.due_date),
+    )
+    current_overdue_condition = and_(
+      Task.due_date.is_not(None),
+      Task.due_date < now,
+      Task.status != TaskStatus.DONE,
+    )
+    assignee_label = func.coalesce(Profile.real_name, User.email)
+    rows = (
+      await self._session.execute(
+        select(
+          User.id,
+          User.email,
+          assignee_label,
+          Profile.department_id,
+          Department.name,
+          func.count(Task.id),
+          func.count(Task.id).filter(Task.status != TaskStatus.DONE),
+          func.count(Task.id).filter(Task.status == TaskStatus.DONE),
+          func.count(Task.id).filter(current_overdue_condition),
+          func.count(Task.id).filter(created_condition),
+          func.count(Task.id).filter(completed_condition),
+          func.count(Task.id).filter(due_condition),
+          func.count(Task.id).filter(matured_due_condition),
+          func.count(Task.id).filter(on_time_condition),
+          func.count(Task.id).filter(period_overdue_condition),
+        )
+        .join(User, User.id == Task.assignee_id)
+        .outerjoin(Profile, Profile.user_id == User.id)
+        .outerjoin(Department, Department.id == Profile.department_id)
+        .where(*filters)
+        .group_by(User.id, User.email, Profile.real_name, Profile.department_id, Department.name)
+        .order_by(Department.name.asc().nulls_first(), assignee_label.asc())
+      )
+    ).all()
+    result: list[TaskWorkloadEntry] = []
+    for row in rows:
+      matured_due_tasks = int(row[12] or 0)
+      on_time_completed_tasks = int(row[13] or 0)
+      result.append(
+        TaskWorkloadEntry(
+          assignee_id=row[0],
+          assignee_email=row[1],
+          assignee_label=row[2],
+          department_id=row[3],
+          department_name=row[4],
+          total_tasks=int(row[5] or 0),
+          open_tasks=int(row[6] or 0),
+          completed_tasks=int(row[7] or 0),
+          overdue_tasks=int(row[8] or 0),
+          created_tasks=int(row[9] or 0),
+          period_completed_tasks=int(row[10] or 0),
+          due_tasks=int(row[11] or 0),
+          matured_due_tasks=matured_due_tasks,
+          on_time_completed_tasks=on_time_completed_tasks,
+          on_time_completion_rate=(
+            round(on_time_completed_tasks / matured_due_tasks, 4)
+            if matured_due_tasks
+            else 0.0
+          ),
+          period_overdue_tasks=int(row[14] or 0),
+        )
+      )
+    return result
+
+  async def list_task_stats_scopes(self, *, actor: User) -> TaskStatsScopes:
+    ensure_active_user(actor)
+    if is_management_role(actor):
+      departments = list(
+        await self._session.scalars(
+          select(Department)
+          .where(Department.is_active.is_(True))
+          .order_by(Department.sort_order.asc(), Department.name.asc())
+        )
+      )
+      return TaskStatsScopes(
+        mode="organization",
+        departments=[TaskStatsScopeOption(id=item.id, label=item.name) for item in departments],
+      )
+
+    department_ids = await get_effective_managed_department_ids(self._session, actor.id)
+    if not department_ids:
+      return TaskStatsScopes(mode="personal", departments=[])
+    departments = list(
+      await self._session.scalars(
+        select(Department)
+        .where(Department.id.in_(department_ids), Department.is_active.is_(True))
+        .order_by(Department.sort_order.asc(), Department.name.asc())
+      )
+    )
+    return TaskStatsScopes(
+      mode="organization",
+      departments=[TaskStatsScopeOption(id=item.id, label=item.name) for item in departments],
+    )
+
+  async def list_task_stats_details(
+    self,
+    *,
+    actor: User,
+    metric: str,
+    department_id: UUID | None = None,
+    include_subtree: bool = False,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    assignee_id: UUID | None = None,
+    cursor: UUID | None = None,
+    limit: int = 50,
+  ) -> TaskStatsDetailsPage:
+    now = datetime.now(UTC)
+    _, _, start_at, end_at = _resolve_task_stats_period(
+      start_date=start_date,
+      end_date=end_date,
+      now=now,
+    )
+    filters = await self._build_task_stats_filters(
+      actor=actor,
+      department_id=department_id,
+      include_subtree=include_subtree,
+    )
+    due_condition = and_(Task.due_date >= start_at, Task.due_date < end_at)
+    matured_due_condition = and_(due_condition, Task.due_date < min(now, end_at))
+    metric_conditions = {
+      "created": and_(Task.created_at >= start_at, Task.created_at < end_at),
+      "completed": and_(Task.completed_at >= start_at, Task.completed_at < end_at),
+      "due": due_condition,
+      "overdue": and_(
+        matured_due_condition,
+        or_(Task.completed_at.is_(None), Task.completed_at > Task.due_date),
+      ),
+      "on_time": and_(
+        matured_due_condition,
+        Task.completed_at.is_not(None),
+        Task.completed_at <= Task.due_date,
+      ),
+      "open": Task.status != TaskStatus.DONE,
+    }
+    metric_condition = metric_conditions.get(metric)
+    if metric_condition is None:
+      raise ConflictError("不支持的统计明细指标。")
+    statement = select(Task).where(*filters, metric_condition)
+    if assignee_id is not None:
+      statement = statement.where(Task.assignee_id == assignee_id)
+    if cursor is not None:
+      statement = statement.where(Task.id > cursor)
+    tasks = list(
+      await self._session.scalars(
+        statement
+        .options(
+          selectinload(Task.assignee).selectinload(User.profile),
+          selectinload(Task.department),
+        )
+        .order_by(Task.id.asc())
+        .limit(limit + 1)
+      )
+    )
+    has_more = len(tasks) > limit
+    page_tasks = tasks[:limit]
+    graph_run_labels = await self._load_graph_run_label_by_task_id(tasks=page_tasks)
+    items = [
+      TaskStatsDetailEntry(
+        task_id=task.id,
+        title=task.title,
+        assignee_id=task.assignee_id,
+        assignee_label=_user_display_label(task.assignee) or task.assignee.email,
+        department_id=task.department_id,
+        department_name=task.department.name if task.department is not None else None,
+        source_type=task.source_type,
+        run_label=resolve_task_run_label(
+          title=task.title,
+          metadata=self._copy_task_metadata(task),
+          graph_run_label=graph_run_labels.get(task.id),
+        ),
+        due_date=task.due_date,
+        completed_at=task.completed_at,
+        is_overdue=bool(
+          task.due_date is not None
+          and _normalize_datetime(task.due_date) < now
+          and (
+            task.completed_at is None
+            or _normalize_datetime(task.completed_at) > _normalize_datetime(task.due_date)
+          )
+        ),
+      )
+      for task in page_tasks
+    ]
+    return TaskStatsDetailsPage(
+      items=items,
+      next_cursor=page_tasks[-1].id if has_more and page_tasks else None,
+      has_more=has_more,
+    )
+
+  async def _build_task_stats_filters(
+    self,
+    *,
+    actor: User,
+    department_id: UUID | None,
+    include_subtree: bool,
+  ):
+    ensure_active_user(actor)
+    filters: list[Any] = [
+      Task.extra_metadata["admin_archived"].as_boolean().is_not(True),
+      Task.extra_metadata["workflow_graph_root_task"].as_boolean().is_not(True),
+    ]
+    if is_management_role(actor):
+      if department_id is None:
+        return filters
+      department_ids = (
+        await expand_department_ids(self._session, {department_id})
+        if include_subtree
+        else {department_id}
+      )
+      return [*filters, Task.department_id.in_(department_ids)]
+
+    managed_department_ids = await get_effective_managed_department_ids(self._session, actor.id)
+    if not managed_department_ids:
+      if department_id is not None:
+        raise AuthorizationError("普通员工仅可查看本人任务统计。")
+      return [*filters, Task.assignee_id == actor.id]
+
+    if department_id is None:
+      return [*filters, Task.department_id.in_(managed_department_ids)]
+    if department_id not in managed_department_ids:
+      raise AuthorizationError("无权查看该部门统计。")
+    selected_ids = (
+      (await expand_department_ids(self._session, {department_id})) & managed_department_ids
+      if include_subtree
+      else {department_id}
+    )
+    return [*filters, Task.department_id.in_(selected_ids)]
 
   async def get_task_board(self, *, actor: User) -> list[TaskBoardColumn]:
     tasks = await self.list_tasks(actor=actor)

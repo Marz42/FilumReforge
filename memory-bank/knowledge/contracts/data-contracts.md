@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-10T22:00:55+08:00
+timestamp: 2026-07-11T23:34:27+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -55,7 +55,8 @@ paradigma:
   - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409
   - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
 - **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](../domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](../domains/task-center.md)
-- **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](../domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`stats/summary|workload?department_id=`；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
+- **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](../domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
+- **S-01 周期统计契约**（2026-07-11 批准）：`GET /api/v1/tasks/stats/scopes|summary|workload|details`；统一 `start_date` / `end_date`（Asia/Shanghai、含首尾日期、最长 366 天）、`department_id?`、`include_subtree`；Employee 仅本人，经理/数据代理限有效管理范围，Admin/HR 全局；排除 `metadata.admin_archived=true` 与 `metadata.workflow_graph_root_task=true`。指标为新增、完成、到期、逾期、已成熟截止任务的按期完成率、当前未完成；details 以 `metric` + UUID cursor 分页。
 - **图模板部门作用范围**（@ 2026-07-09）：`workflow_graph_templates.scope_department_ids JSONB NOT NULL DEFAULT []`；空数组表示不限制部门，非空时管理列表与实例化按有效管理部门校验；迁移 `20260709_01_graph_template_scope_departments.py`
 - **F-29 管理员归档**（@ 2026-06-23）：`POST /api/v1/tasks/{task_id}/archive`（admin，`TaskArchiveRequest.reason` → `TaskArchiveResponse`）；任务 `extra_metadata.admin_archived` / `admin_archived_at` / `admin_archive_reason` / `admin_archive_source_task_id`；图实例 context `admin_archived*` + 节点 TERMINATED + instance CANCELLED
 - **任务 PATCH 逾期延期**（@ 2026-06-23）：已逾期任务 `due_date` 变更须晚于原截止时间（ConflictError）
@@ -188,7 +189,7 @@ paradigma:
 - Playwright task-center 全集：**48/48**（`npm run test:e2e:task-center` = core 33 + multi-account mock 15）
 - 未纳入每次刷新：`test:e2e:all`（UAT + docker-gui）、`playwright_live`、Ubuntu 回滚演练；**待办清单**见 [`progress.md`](../../logs/progress/progress.md)「E2E 待办（Backlog）」
 
-> **2026-07-10 审查注记**：上表是最后一次已记录的完整绿色基线，不代表当前工作区已复跑。当前无 pytest/Vitest 覆盖率插件或 CI；本机 backend venv 失效，frontend 全量 Vitest 因缺少已锁定依赖而未全绿。详见 `memory-bank/history/reports/test-coverage-assessment-20260710.md`。
+> **2026-07-10 更新**：dev 环境已重建；当前工作区 backend **293 collected / 282 passed / 11 skipped**，Vitest **54 文件 / 143 用例**，Playwright default mock **35/35**，type-check/build PASS。仍无 pytest/Vitest 覆盖率插件或 CI；详见 `memory-bank/history/reports/test-coverage-assessment-20260710.md`。
 
 ## 13. 维护规则
 

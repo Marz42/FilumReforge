@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 4c24ad20cfde200d -->
+<!-- checksum: 344c6961b5c8285d -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -9,6 +9,7 @@
 | [implementation-plan.md](implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [improvements-stage2-implementation-plan.md](improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [paradigma-memory-bank-refactor-plan.md](paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |
+| [s01-task-statistics-plan.md](s01-task-statistics-plan.md) | `paradigma-plan` | S-01 任务统计实施计划（已批准） | S-01<br>任务统计计划<br>统计口径 ... | - | - |
 | [task-center-enhance.md](task-center-enhance.md) | `paradigma-plan` | TCE 增强计划 | TCE<br>tce | - | - |
 | [task-center-v2-implementation-plan.md](task-center-v2-implementation-plan.md) | `paradigma-plan` | TC v2 实施计划 | TC<br>v2<br>task ... | - | - |
 | [tc-p2-views-stats-plan.md](tc-p2-views-stats-plan.md) | `paradigma-plan` | TC-P2 落地计划 | TC-P2<br>tc-p2 | - | - |

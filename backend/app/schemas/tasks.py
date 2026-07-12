@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from typing import Literal
 from uuid import UUID
@@ -159,6 +159,16 @@ class TaskStatsSummaryRead(BaseModel):
   overdue_tasks: int
   overdue_rate: float
   tasks_by_status: dict[str, int]
+  start_date: date
+  end_date: date
+  created_tasks: int
+  period_completed_tasks: int
+  due_tasks: int
+  matured_due_tasks: int
+  on_time_completed_tasks: int
+  on_time_completion_rate: float
+  current_open_tasks: int
+  period_overdue_tasks: int
 
 
 class TaskWorkloadEntryRead(BaseModel):
@@ -173,6 +183,43 @@ class TaskWorkloadEntryRead(BaseModel):
   open_tasks: int
   completed_tasks: int
   overdue_tasks: int
+  created_tasks: int
+  period_completed_tasks: int
+  due_tasks: int
+  matured_due_tasks: int
+  on_time_completed_tasks: int
+  on_time_completion_rate: float
+  period_overdue_tasks: int
+
+
+class TaskStatsScopeOptionRead(BaseModel):
+  id: UUID
+  label: str
+
+
+class TaskStatsScopesRead(BaseModel):
+  mode: Literal["personal", "organization"]
+  departments: list[TaskStatsScopeOptionRead] = Field(default_factory=list)
+
+
+class TaskStatsDetailEntryRead(BaseModel):
+  task_id: UUID
+  title: str
+  assignee_id: UUID
+  assignee_label: str
+  department_id: UUID | None
+  department_name: str | None
+  source_type: TaskSourceType
+  run_label: str | None
+  due_date: datetime | None
+  completed_at: datetime | None
+  is_overdue: bool
+
+
+class TaskStatsDetailsPageRead(BaseModel):
+  items: list[TaskStatsDetailEntryRead] = Field(default_factory=list)
+  next_cursor: UUID | None = None
+  has_more: bool = False
 
 
 class TaskBoardColumnRead(BaseModel):

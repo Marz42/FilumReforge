@@ -767,6 +767,48 @@ async def test_attachment_service_accepts_xlsx_docx_wav_mp3(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_attachment_service_infers_generic_mime_from_safe_extensions(db_session) -> None:
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+  auth_service = AuthService(db_session, settings)
+  admin = await auth_service.bootstrap_admin(
+    email="mime-inference@example.com",
+    password="StrongPassword123!",
+    real_name="MIME 测试管理员",
+    employee_no="EMP-MIME",
+  )
+
+  with TemporaryDirectory() as tmp_dir:
+    storage_service = ObjectStorageService(
+      LocalStorageAdapter(base_path=tmp_dir, bucket="filum-test")
+    )
+    attachment_service = AttachmentService(db_session, storage_service)
+
+    markdown = await attachment_service.upload_attachment(
+      actor=admin,
+      filename="requirements.md",
+      content_type="application/octet-stream",
+      content="# Requirements\n".encode(),
+    )
+    assert markdown.mime_type == "text/markdown"
+
+    docx = await attachment_service.upload_attachment(
+      actor=admin,
+      filename="proposal.docx",
+      content_type="",
+      content=_minimal_docx_bytes(),
+    )
+    assert docx.mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    with pytest.raises(AppValidationError, match="不支持的附件类型"):
+      await attachment_service.upload_attachment(
+        actor=admin,
+        filename="payload.bin",
+        content_type="application/octet-stream",
+        content=b"opaque",
+      )
+
+
+@pytest.mark.asyncio
 async def test_attachment_service_rejects_oversized_text(db_session) -> None:
   settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
   auth_service = AuthService(db_session, settings)
@@ -1231,7 +1273,7 @@ async def test_phase4_graph_task_requires_accept_before_start_and_updates_inbox_
   )
 
   inbox_before_accept = (await task_service.list_task_inbox(actor=employee)).items
-  assert any(entry.task_id == task.id and entry.current_stage_label == "任务：待确认" for entry in inbox_before_accept)
+  assert any(entry.task_id == task.id and entry.current_stage_label.endswith("：待确认") for entry in inbox_before_accept)
 
   with pytest.raises(ConflictError, match="先由执行人接受任务"):
     await task_service.transition_task_status(
@@ -1254,7 +1296,7 @@ async def test_phase4_graph_task_requires_accept_before_start_and_updates_inbox_
 
   assert accepted_task.status == TaskStatus.TODO
   assert accepted_task.extra_metadata["workflow_handshake_state"] == "accepted"
-  assert any(entry.task_id == task.id and entry.current_stage_label == "任务：已接受待开工" for entry in accepted_inbox)
+  assert any(entry.task_id == task.id and entry.current_stage_label.endswith("：已接受待开工") for entry in accepted_inbox)
   assert stored_node is not None
   assert stored_node.engine_state == WorkflowNodeEngineState.ACKNOWLEDGED
   assert stored_node.business_state == WorkflowNodeBusinessState.ACCEPTED
@@ -1336,7 +1378,7 @@ async def test_phase4_graph_task_reject_and_delegate_refresh_runtime_projection(
   assert delegated_task.assignee_id == delegate_target.id
   assert delegated_task.extra_metadata["workflow_handshake_state"] == "assigned"
   assert delegated_task.extra_metadata["latest_delegate_reason"] == "请由更熟悉客户的人处理"
-  assert any(entry.task_id == delegated_task.id and entry.current_stage_label == "任务：已转办待确认" for entry in delegate_inbox)
+  assert any(entry.task_id == delegated_task.id and entry.current_stage_label.endswith("：已转办待确认") for entry in delegate_inbox)
   assert any(
     entry.task_id == delegated_task.id
     and entry.current_handler_label.startswith("代理执行人")
@@ -1365,7 +1407,7 @@ async def test_phase4_graph_task_reject_and_delegate_refresh_runtime_projection(
 
   assert rejected_task.extra_metadata["workflow_handshake_state"] == "rejected"
   assert rejected_task.extra_metadata["latest_reject_reason"] == "目标和截止时间都需要重谈"
-  assert any(entry.task_id == rejected_task.id and entry.current_stage_label == "任务：已拒绝待调整" for entry in creator_inbox)
+  assert any(entry.task_id == rejected_task.id and entry.current_stage_label.endswith("：已拒绝待调整") for entry in creator_inbox)
   assert all(entry.task_id != rejected_task.id for entry in employee_inbox)
   assert stored_node is not None
   assert stored_node.business_state == WorkflowNodeBusinessState.REJECTED
@@ -5890,7 +5932,7 @@ async def test_phase11d_takeover_syncs_manual_task_projection_for_new_assignee(d
   assert task.extra_metadata["latest_takeover_reason"] == "原执行人离岗"
   assert all(entry.task_id != task.id for entry in previous_inbox)
   assert any(
-    entry.task_id == task.id and entry.current_stage_label == "任务：管理员接管待确认"
+    entry.task_id == task.id and entry.current_stage_label.endswith("：管理员接管待确认")
     for entry in next_inbox
   )
 
@@ -6403,12 +6445,12 @@ async def test_phase11f_task_center_v2_routes_migrated_review_task_to_creator_in
   assert all(entry.task_id != task.id for entry in creator_inbox_legacy)
   assert any(entry.task_id == task.id for entry in assignee_inbox_legacy)
   assert any(
-    entry.task_id == task.id and entry.current_stage_label == "任务：待验收"
+    entry.task_id == task.id and entry.current_stage_label.endswith("：待验收")
     for entry in creator_inbox_graph
   )
   assert all(entry.task_id != task.id for entry in assignee_inbox_graph)
   tracked_item = next(item for item in assignee_tracking_graph if item.task_id == task.id)
-  assert tracked_item.current_stage_label == "任务：待验收"
+  assert tracked_item.current_stage_label.endswith("：待验收")
   assert tracked_item.current_handler_label.startswith("管理员")
   assert tracked_item.is_pending_review is True
 

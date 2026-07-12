@@ -6,7 +6,7 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-07-10T22:00:55+08:00
+timestamp: 2026-07-11T23:34:27+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -81,7 +81,7 @@ paradigma:
 - 工作流重构单节点交付闭环首轮：基于上述 Phase 3 双写链路，`TaskService` / `tasks` API 已新增“提交交付物”“通过验收”“打回返工”动作，交付快照写入 `workflow_deliverables`，兼容 `Task` 投影通过 `extra_metadata` 暴露最近交付说明、最近提交时间、返工原因、返工次数与最近质量评分；`TaskCenterService` / `task-center` API / `TaskCenterView` 已同步投影待验收、最近提交时间、返工次数、质量评分等跟踪信号；同时禁止 graph 手动任务通过通用状态流转接口直接跳过交付 / 验收动作
 - 工作流重构 Phase 4：graph 手动任务默认以 `ASSIGNED` 节点业务态创建；`TaskService` / `tasks` API / `TasksView` 已新增“接受任务”“退回协商”“转办”动作，`todo -> doing` 现在要求执行人先确认接单；兼容读取侧继续使用 `Task.extra_metadata` + `TaskCenterService` 投影当前握手阶段、当前处理人与最近协商 / 转办原因
 - 工作流重构 Phase 6-7：`WorkflowGraphService` 已支持基于 `WorkflowGraphTemplate` 创建多节点图实例、按入度激活起始节点、在节点完成后推进顺序流 / fan-out / wait-all join，并通过实例级行锁、节点版本号和稳定 `current_node_key` 解析保证幂等收口；同时已支持节点完成时 `context_updates` 写回实例 `context`、条件边求值（含 `else` 默认路由）与 `Notice Node` 触达即完成；`workflow_graph_engine` API 已提供模板实例列表、实例详情、节点完成快照与智能抄送候选计算
-- 工作流重构 Phase 8-9：Wait-Any（`join_mode=any`）并发撤权与幂等保护、深度打回（`deep_reject_to_upstream`）可达性校验与 append-only 版本链（`iteration+1` 克隆）、超出 `max_iterations` 阻止；`TasksView` 展示 V{n} 版本角标与打回原因
+- 工作流重构 Phase 8-9：Wait-Any（`join_mode=any`）并发撤权与幂等保护、被撤权 `TERMINATED` 节点按终态参与实例完成判定；深度打回（`deep_reject_to_upstream`）可达性校验与 append-only 版本链（`iteration+1` 克隆）、超出 `max_iterations` 阻止；`TasksView` 展示 V{n} 版本角标与打回原因
 - 工作流重构 Phase 10 前端化：`frontend/src/api/workflow-graph.ts` 新增 `getWorkflowGraphInstance`；`frontend/src/types/api.ts` 补充 `WorkflowGraphInstanceDetail` / `WorkflowNodeInstanceSummary` 等图引擎 TS 类型；`TasksView` 打开图任务详情时 fetch 图实例并渲染节点板块列表（标题 / engine_state 标签 / V{n} 角标 / 耗时）；`TaskCenterView` 任务跟踪表格新增逾期标签（due_date < now && status != done）与催办按钮（写入系统催办评论）；**图模板设计器**（@ 2026-06-21 功能，@ 2026-06-22 UX）：`GraphTemplateDesignerView.vue` 全页 authoring（config/节点/边/routing_rules/校验/发布/导入导出/dry-run），`GraphTemplateDagPreview.vue` 拓扑预览（横/纵、图例、打回正交圆角通道），`GraphTemplatesPanel` 列表 Run 统计 + 空白新建
 - 工作流重构 Phase 11-A / routing_rules 旧系统桥接：新建 `backend/app/services/condition_evaluator.py` 作为两套工作流系统（图引擎 + 旧模板系统）共享的条件求值模块，提供 `is_else_condition` / `evaluate_condition` / `evaluate_routing_rules` 函数，支持 `eq/neq/gt/gte/lt/lte/in/not_in/contains/exists` 与嵌套 `all/any`；`WorkflowGraphService` 的内联条件求值方法全部迁移至该模块；`TaskService._activate_ready_template_steps` 新增 `_routing_rules_allow_step_activation` 静态方法，当上游 `TaskTemplateStep.config.routing_rules` 存在时以 `instance.payload` 作为上下文评估条件，仅激活命中目标的下游步骤；无规则时保持完全向后兼容
 - 工作流重构 Phase 11-B/11-C/11-D（已完成）：`WorkflowGraphService` 新增 `takeover_node_instance()`（管理员接管节点、写 takeover 审计信息），并引入 `_write_outbox_event()` 在事务内写入 `workflow_outbox_events`；新增 `backend/app/workers/workflow_outbox_worker.py` 消费 outbox 事件，`backend/app/workers/arq_worker.py` 已注册 30 秒定时任务 `process_workflow_outbox_events_job`，对 `PENDING/RETRYING` 事件执行异步投递与指数退避重试，超上限置 `FAILED`；11-D 已补 graph 写接口事务提交、管理员接管后的手动 `Task` 投影同步（执行人 / 握手标签 / 任务中心入口）、`TaskService` 对失效 graph 节点的 accept / reject / delegate 守卫、`complete_node_instance()` 对 `COMPLETED` 重放的幂等返回与对 `TERMINATED` 迟到提交的 409 拦截，以及 Wait-All / Wait-Any 重放、stale deep-reject、complete API 重放稳定快照的回归覆盖；生产环境 `FRONTEND_APP_URL` 也已改为必填，避免邀请注册链接回落到 localhost
@@ -89,7 +89,7 @@ paradigma:
 - 工作流重构 Phase 11-G（已完成）：前端已新增 Playwright 基线与真实后端联动基线。`frontend/playwright.config.ts` 现覆盖 mock API 驱动的登录 / 会话恢复 / 任务中心标签切换 / graph-first 详情场景；`frontend/playwright.live.config.ts` 则通过 `frontend/e2e/live/docker-compose.playwright-live.yml` + 隔离 Compose 端口启动 PostgreSQL / Redis / backend / worker / frontend / nginx，并在 backend 容器内执行 `python -m app.scripts.seed_sample_data`，验证真实登录与任务中心建立任务链路。为支撑稳定浏览器断言，`LoginView.vue`、`TaskCenterView.vue`、`TasksView.vue` 已补最小 `data-testid` 锚点；`frontend/README.md` 已同步新增 mock/live 两套 E2E 命令说明
 - 汇报中心：向上汇报、向下传达（**统一「发起汇报」弹窗入口**）、逐级流转、历史归档与可选审批挂接
 - 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
-- 任务完成率 / 逾期率 / 负载统计
+- S-01 周期统计：Employee 本人、经理/数据代理部门子树、Admin/HR 全局；Asia/Shanghai 周期；SQL 聚合摘要/人员负载/分页明细，排除归档与 graph ROOT
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
 - 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；总览页已落地看板、公告、待办事项、任务跟踪与任务中心快捷入口

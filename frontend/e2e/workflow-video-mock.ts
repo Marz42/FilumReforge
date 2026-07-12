@@ -1517,7 +1517,18 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       return
     }
 
-    if (request.method() === 'GET' && apiPath === '/tasks/stats/summary') {
+    if (request.method() === 'GET' && isExactApiPath(apiPath, '/tasks/stats/scopes')) {
+      await fulfillJson(route, {
+        mode: 'organization',
+        departments: [
+          { id: 'dept-video-copy', label: '视频文案部' },
+          { id: 'dept-video-post', label: '视频后期部' },
+        ],
+      })
+      return
+    }
+
+    if (request.method() === 'GET' && isExactApiPath(apiPath, '/tasks/stats/summary')) {
       await fulfillJson(route, {
         total_tasks: 6,
         completed_tasks: 1,
@@ -1525,12 +1536,27 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
         overdue_tasks: 0,
         overdue_rate: 0,
         tasks_by_status: { todo: 0, doing: 5, review: 0, done: 1 },
+        start_date: '2026-07-01',
+        end_date: '2026-07-31',
+        created_tasks: 6,
+        period_completed_tasks: 1,
+        due_tasks: 4,
+        matured_due_tasks: 2,
+        on_time_completed_tasks: 1,
+        on_time_completion_rate: 0.5,
+        current_open_tasks: 5,
+        period_overdue_tasks: 0,
       })
       return
     }
 
-    if (request.method() === 'GET' && apiPath === '/tasks/stats/workload') {
+    if (request.method() === 'GET' && isExactApiPath(apiPath, '/tasks/stats/workload')) {
       await fulfillJson(route, [])
+      return
+    }
+
+    if (request.method() === 'GET' && isExactApiPath(apiPath, '/tasks/stats/details')) {
+      await fulfillJson(route, { items: [], next_cursor: null, has_more: false })
       return
     }
 

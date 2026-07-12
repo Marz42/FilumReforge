@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
@@ -28,6 +29,10 @@ from app.schemas.tasks import (
   TaskLogRead,
   TaskRead,
   TaskSearchResultRead,
+  TaskStatsDetailEntryRead,
+  TaskStatsDetailsPageRead,
+  TaskStatsScopeOptionRead,
+  TaskStatsScopesRead,
   TaskStatsSummaryRead,
   TaskStatusUpdateRequest,
   TaskUpdateRequest,
@@ -196,13 +201,34 @@ async def create_task(
   return TaskRead.model_validate(task)
 
 
+@router.get("/stats/scopes", response_model=TaskStatsScopesRead)
+async def read_task_stats_scopes(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskStatsScopesRead:
+  scopes = await task_service.list_task_stats_scopes(actor=actor)
+  return TaskStatsScopesRead(
+    mode=scopes.mode,
+    departments=[TaskStatsScopeOptionRead(id=item.id, label=item.label) for item in scopes.departments],
+  )
+
+
 @router.get("/stats/summary", response_model=TaskStatsSummaryRead)
 async def read_task_stats_summary(
   actor: Annotated[User, Depends(get_current_user)],
   task_service: Annotated[TaskService, Depends(get_task_service)],
   department_id: UUID | None = None,
+  include_subtree: bool = False,
+  start_date: date | None = None,
+  end_date: date | None = None,
 ) -> TaskStatsSummaryRead:
-  summary = await task_service.get_task_stats_summary(actor=actor, department_id=department_id)
+  summary = await task_service.get_task_stats_summary(
+    actor=actor,
+    department_id=department_id,
+    include_subtree=include_subtree,
+    start_date=start_date,
+    end_date=end_date,
+  )
   return TaskStatsSummaryRead(
     total_tasks=summary.total_tasks,
     completed_tasks=summary.completed_tasks,
@@ -210,6 +236,16 @@ async def read_task_stats_summary(
     overdue_tasks=summary.overdue_tasks,
     overdue_rate=summary.overdue_rate,
     tasks_by_status={status.value: count for status, count in summary.tasks_by_status.items()},
+    start_date=summary.start_date,
+    end_date=summary.end_date,
+    created_tasks=summary.created_tasks,
+    period_completed_tasks=summary.period_completed_tasks,
+    due_tasks=summary.due_tasks,
+    matured_due_tasks=summary.matured_due_tasks,
+    on_time_completed_tasks=summary.on_time_completed_tasks,
+    on_time_completion_rate=summary.on_time_completion_rate,
+    current_open_tasks=summary.current_open_tasks,
+    period_overdue_tasks=summary.period_overdue_tasks,
   )
 
 
@@ -218,9 +254,49 @@ async def read_task_workload(
   actor: Annotated[User, Depends(get_current_user)],
   task_service: Annotated[TaskService, Depends(get_task_service)],
   department_id: UUID | None = None,
+  include_subtree: bool = False,
+  start_date: date | None = None,
+  end_date: date | None = None,
 ) -> list[TaskWorkloadEntryRead]:
-  workload = await task_service.get_task_workload(actor=actor, department_id=department_id)
+  workload = await task_service.get_task_workload(
+    actor=actor,
+    department_id=department_id,
+    include_subtree=include_subtree,
+    start_date=start_date,
+    end_date=end_date,
+  )
   return [TaskWorkloadEntryRead.model_validate(row) for row in workload]
+
+
+@router.get("/stats/details", response_model=TaskStatsDetailsPageRead)
+async def read_task_stats_details(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  metric: Literal["created", "completed", "due", "overdue", "on_time", "open"],
+  department_id: UUID | None = None,
+  include_subtree: bool = False,
+  start_date: date | None = None,
+  end_date: date | None = None,
+  assignee_id: UUID | None = None,
+  cursor: UUID | None = None,
+  limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> TaskStatsDetailsPageRead:
+  page = await task_service.list_task_stats_details(
+    actor=actor,
+    metric=metric,
+    department_id=department_id,
+    include_subtree=include_subtree,
+    start_date=start_date,
+    end_date=end_date,
+    assignee_id=assignee_id,
+    cursor=cursor,
+    limit=limit,
+  )
+  return TaskStatsDetailsPageRead(
+    items=[TaskStatsDetailEntryRead.model_validate(item, from_attributes=True) for item in page.items],
+    next_cursor=page.next_cursor,
+    has_more=page.has_more,
+  )
 
 
 @router.get("/views/board", response_model=list[TaskBoardColumnRead])

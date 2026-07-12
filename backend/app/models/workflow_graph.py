@@ -16,6 +16,7 @@ from sqlalchemy import (
   UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.schema import conv
 
 from app.core.db_types import build_json_type, build_value_enum
 from app.core.enums import (
@@ -379,14 +380,14 @@ class WorkflowOutboxEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class WorkflowGraphTemplateSchedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   __tablename__ = "workflow_graph_template_schedules"
   __table_args__ = (
-    CheckConstraint("scope_mode in ('self', 'subtree')", name="wf_graph_tpl_schedules_scope_mode_chk"),
+    CheckConstraint("scope_mode in ('self', 'subtree')", name=conv("wf_graph_tpl_schedules_scope_mode_chk")),
     CheckConstraint(
       "participant_mode in ('all', 'subset')",
-      name="wf_graph_tpl_schedules_participant_mode_chk",
+      name=conv("wf_graph_tpl_schedules_participant_mode_chk"),
     ),
     CheckConstraint(
       "last_run_status IS NULL OR last_run_status in ('success', 'failed', 'partial')",
-      name="wf_graph_tpl_schedules_last_run_status_chk",
+      name=conv("wf_graph_tpl_schedules_last_run_status_chk"),
     ),
     Index("idx_wf_graph_tpl_schedules_active_next_run", "is_active", "next_run_at"),
     Index("idx_wf_graph_tpl_schedules_template", "template_id"),

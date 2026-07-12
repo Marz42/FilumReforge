@@ -1,6 +1,6 @@
 import mammoth from 'mammoth'
 import { marked } from 'marked'
-import * as XLSX from 'xlsx'
+import readXlsxFile, { type CellValue } from 'read-excel-file/browser'
 
 import { fetchAttachmentContent } from '@/api/attachments'
 import { resolveAttachmentPreviewKind } from '@/constants/attachments'
@@ -8,7 +8,8 @@ import type { Attachment } from '@/types/api'
 
 export type AttachmentPreviewSheet = {
   name: string
-  html: string
+  rows: string[][]
+  truncated: boolean
 }
 
 export type AttachmentPreviewContent =
@@ -32,6 +33,19 @@ function normalizeAudioMime(mime: string): string {
 
 async function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
   return blob.arrayBuffer()
+}
+
+const XLSX_PREVIEW_MAX_ROWS = 500
+const XLSX_PREVIEW_MAX_COLUMNS = 100
+
+function formatSpreadsheetCell(value: CellValue | null): string {
+  if (value == null) {
+    return ''
+  }
+  if (value instanceof Date) {
+    return value.toLocaleString()
+  }
+  return String(value)
 }
 
 export async function buildAttachmentPreviewContent(
@@ -82,15 +96,16 @@ export async function buildAttachmentPreviewContent(
       }
     }
     case 'xlsx': {
-      const arrayBuffer = await blobToArrayBuffer(blob)
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-      const sheets = workbook.SheetNames.map((name) => {
-        const sheet = workbook.Sheets[name]
-        return {
-          name,
-          html: sheet ? XLSX.utils.sheet_to_html(sheet) : '<table></table>',
-        }
-      })
+      const workbook = await readXlsxFile(blob)
+      const sheets = workbook.map(({ sheet, data }) => ({
+        name: sheet,
+        rows: data
+          .slice(0, XLSX_PREVIEW_MAX_ROWS)
+          .map((row) => row.slice(0, XLSX_PREVIEW_MAX_COLUMNS).map(formatSpreadsheetCell)),
+        truncated:
+          data.length > XLSX_PREVIEW_MAX_ROWS ||
+          data.some((row) => row.length > XLSX_PREVIEW_MAX_COLUMNS),
+      }))
       return {
         content: { kind: 'xlsx', sheets },
         objectUrls,

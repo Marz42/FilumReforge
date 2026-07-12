@@ -19,7 +19,14 @@ const visible = defineModel<boolean>({ required: true })
 
 const props = defineProps<{
   departmentOptions: Array<{ id: string; label: string }>
-  userOptions: Array<{ user_id: string; email: string; real_name?: string; department_id?: string; department_name?: string; label: string }>
+  userOptions: Array<{
+    user_id: string
+    email: string
+    real_name?: string | null
+    department_id?: string | null
+    department_name?: string | null
+    label: string
+  }>
 }>()
 
 const emit = defineEmits<{

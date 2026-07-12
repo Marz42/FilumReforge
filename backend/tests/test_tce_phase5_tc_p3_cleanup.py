@@ -158,12 +158,19 @@ async def test_tce_b14_close_capture_blocks_submit(db_session) -> None:
     },
   )
   db_session.add(task)
+  await db_session.flush()
+  pending_node.config = {**dict(pending_node.config or {}), "task_id": str(task.id)}
   await db_session.commit()
 
   form = WorkflowVideoFormService(db_session)
   result = await form.close_capture(actor=admin, instance_id=instance.id)
   assert result.capture_closed is True
   assert result.skipped_capture_count == 1
+  await db_session.refresh(task)
+  assert task.status == TaskStatus.DONE
+  assert task.completed_at is not None
+  assert task.extra_metadata["latest_capture_state"] == "closed_by_manager"
+  assert task.extra_metadata["capture_closed_at"]
 
   with pytest.raises(ConflictError, match="采集已结束"):
     await form.submit_capture(

@@ -5,7 +5,7 @@ description: "Project Filum 当前唯一聚焦任务。"
 tags:
   - runtime
   - active-task
-timestamp: 2026-07-10T22:00:55+08:00
+timestamp: 2026-07-11T23:34:27+08:00
 paradigma:
   schema_version: 0.5.0
   layer: runtime
@@ -17,7 +17,7 @@ paradigma:
 ---
 # 当前任务
 
-> 🔥 HOT — 文档/契约漂移修复与测试覆盖审查已完成。下一质量项是**恢复可复现测试基线并补近期回归**；产品下一项仍为 **S-01 任务统计**。见 [`roadmap.md`](../knowledge/roadmap.md)。
+> 🔥 HOT — **S-01 最小周期统计已实施，待用户验收**。见 [`s01-task-statistics-plan.md`](../knowledge/plans/s01-task-statistics-plan.md)。
 
 ---
 
@@ -25,10 +25,10 @@ paradigma:
 
 | 字段 | 内容 |
 |------|------|
-| **任务标题** | 测试覆盖基线修复（S-01 前置） |
-| **优先级** | P1（质量治理） |
-| **状态** | 审查完成 · 待实施 |
-| **关联** | `test-coverage-assessment-20260710.md` · S-01 前置质量基线 |
+| **任务标题** | **S-01** 任务统计（周期/绩效入口） |
+| **优先级** | P2 |
+| **状态** | 实施完成 · 待用户验收 |
+| **关联** | stats Tab · `GET /tasks/stats/*` |
 
 ---
 
@@ -36,6 +36,12 @@ paradigma:
 
 | 交付 | 说明 |
 |------|------|
+| S-01 实施 @ 2026-07-11 | Employee 本人/经理子树/Admin-HR 全局；上海周期；DB 聚合；5 指标、人员表、明细下钻 |
+| S-01 实施计划 @ 2026-07-11 | 权限、最小功能、周期/指标口径、API、阶段与 4–5 日预估；待审批 |
+| npm 安全基线 @ 2026-07-11 | `npm ci` / `npm audit` 0 vulnerabilities；移除无修复版 `xlsx`，Excel 预览改为安全数据渲染 |
+| 任务中心实现探索 @ 2026-07-11 | 输出 S-01 读模型/口径、搜索一致性、壳层拆分与测试建议 |
+| 测试基线恢复 @ 2026-07-10 | backend 293 collected；Vitest 54/143；Playwright 35/35；type-check/build PASS |
+| 近期直接回归 @ 2026-07-10 | scope/delete/MIME/附件继承/关闭采集投影 + PublishTaskDialog/CapturePanel |
 | 文档/契约对齐 @ 2026-07-10 | 补 `scope_department_ids` 契约；收拢主计划/路线图/README/Unreleased |
 | 测试覆盖审查 @ 2026-07-10 | 确认无覆盖率/CI；backend venv 失效；frontend 依赖缺失；近期六组回归待补 |
 | Paradigma v0.5.0 三态迁移 @ `0.92.0` | runtime/logs/knowledge 三态结构落定；OKF YAML frontmatter 全量 |
@@ -49,4 +55,4 @@ paradigma:
 
 ---
 
-**下一 actionable**：重建 backend dev venv + frontend `npm ci`，复跑全量测试；补 scope/delete/MIME/附件继承等直接回归，再启动 **S-01**。
+**下一 actionable**：用户验收 S-01 统计 Tab：切换本周/本月/上月、部门/子树，核对数字卡、人员负载和明细下钻；通过后将计划归档为 completed。

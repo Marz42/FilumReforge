@@ -16,6 +16,92 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（S-01 最小周期统计实施）
+
+### 2026-07-11 23:34 — 权限、周期、DB 聚合与明细闭环完成
+
+**完成事项**:
+- [x] 用户批准 S-01 六项决策；计划转为 implemented · pending UAT
+- [x] 新增 `/tasks/stats/scopes|details`，扩展 summary/workload 统一日期、部门与子树参数
+- [x] Employee 仅本人；经理/数据代理限有效管理范围；Admin/HR 全局
+- [x] Asia/Shanghai 本周/本月/上月/自定义周期，最长 366 天
+- [x] SQL 条件聚合新增/完成/到期/逾期/按期完成率；排除 admin archived 与 graph ROOT
+- [x] 统计 Tab 新增简洁筛选、5 个数字卡、人员负载、分页明细下钻；保留 Run 时间线
+- [x] 旧 total/completed/current overdue 字段保持兼容；S-01 周期逾期使用独立字段
+
+**验证**:
+- Backend full：**296 collected / 285 passed / 11 skipped**；compileall PASS
+- Frontend full：**55 files / 146 tests PASS**；type-check / production build PASS
+- Playwright stats 专项：**4/4 PASS**（`PLAYWRIGHT_DEV_PORT=5300`）
+- 后续 default mock 全量启动与测试临时目录清理被桌面执行额度限制拒绝，未绕过；上一基线 35/35，本轮相关 stats 专项已通过；`backend/.test-tmp/` 为未跟踪测试临时目录，后续提交时必须排除
+
+**遗留/下一步**：用户验收统计 Tab；全量 Playwright 在执行额度恢复后复跑。版本仍为 `0.92.0`，建议验收通过后评估 MINOR 版本。
+
+---
+
+## 会话摘要（S-01 计划草案）
+
+### 2026-07-11 22:34 — 输出最小任务统计计划，待审批
+
+**完成事项**:
+- [x] 基于当前 stats API、权限模型、Task/graph 投影与实现探索，形成 `knowledge/plans/s01-task-statistics-plan.md`
+- [x] 明确 Employee/经理/Admin/HR/数据代理权限范围
+- [x] 明确本周/本月/上月/自定义周期、Asia/Shanghai 与日期边界
+- [x] 明确新增/完成/到期/逾期/按期完成率/当前未完成口径及 Run ROOT 去重
+- [x] 将首版控制为数字卡 + 人员表 + 明细下钻，不做排名、评分、导出或复杂图表
+
+**状态**：仅计划与 memory-bank 更新；未修改 API、数据库或业务代码。计划须经用户审批后进入契约阶段。
+
+**下一步**：用户确认计划 §10 六项默认决策；获批后按契约测试 → DB 侧聚合 → 前端 → 全量回归推进，预计 4–5 个工作日。
+
+---
+
+## 会话摘要（npm 安全修复 + 任务中心实现探索）
+
+### 2026-07-11 22:11 — npm audit 清零并输出 S-01 建议
+
+**完成事项**:
+- [x] 精确分析 `npm audit --json` 的 11 项漏洞链；兼容升级 Axios/Vite 与传递依赖
+- [x] 移除无 registry 安全修复版本的 `xlsx@0.18.5`，改用 `read-excel-file` 读取工作簿
+- [x] Excel 预览由第三方 HTML 改为 Vue 文本插值；限制前 500 行/100 列并增加截断提示
+- [x] 新增 Excel 恶意文本按数据保留、宽表截断回归
+- [x] 探索 Task Center snapshot/hydration、搜索、统计、Run、列表/看板/甘特、详情壳层与测试覆盖
+- [x] 输出 `history/reports/task-center-assessment-20260711.md`，并修正 task-center 领域文档中 F-22/F-28/B-12/F-26 漂移
+
+**验证**:
+- 干净 `npm ci`：500 packages；`npm audit` **0 vulnerabilities**
+- Frontend unit：**54 files / 144 tests PASS**
+- Frontend type-check / production build：PASS；主 chunk 1.92 MB（gzip 558 KB）warning 仍在
+
+**踩坑**：Vite 8 与 `vite-plugin-vue-devtools` 的嵌套 inspect/rpc 仍有 peer warning；它不是 audit 漏洞，当前 build/test 可用，待插件正式声明 Vite 8 兼容或单独移除。`@vue/test-utils` 传递的 `glob@10.5.0` 有 deprecated 提示但 audit 为 0。
+
+**遗留/下一步**：先确认 S-01 时间口径、grain、组织范围、取消/归档与 graph ROOT/节点去重，再写数据契约；并行补 `TaskCenterStatsView` 直接单测、覆盖率/CI 和 F-05 拆分。版本仍为 `0.92.0`，本轮为兼容安全修复，不主动发布新版本。
+
+---
+
+## 会话摘要（测试环境重建 + 直接回归补齐）
+
+### 2026-07-10 23:06 — 全量基线恢复并修复 P0/P1 回归
+
+**完成事项**:
+- [x] 先提交上一轮对齐修复：`72751e7 docs(memory-bank): align contracts and audit test coverage`（排除用户 `INIT_PROMPT.md`）
+- [x] backend `.venv` 重建为 Python 3.12.13；`pip install -e ".[dev]"` 成功
+- [x] frontend 干净 `npm ci`：501 packages；锁文件未改
+- [x] 新增 backend 直接回归：scope 部门过滤、模板删除权限/Run 保护、MIME 推断、上游附件继承去重、关闭采集 Task 投影
+- [x] 新增 frontend `PublishTaskDialog.spec.ts` / `CapturePanel.spec.ts`，并收拢 AppShell/TaskCenter refactor 后旧断言
+- [x] 修复附件模块导入 `NameError`、Wait-Any 完成态、手动单节点实例完成态、seed 原地同步版本判断、watcher 缓存、附件继承 `AttachmentLink`、constraint 名称长度
+
+**验证**:
+- Backend：**293 collected / 282 passed / 11 skipped**；仅 1 条 httpx per-request cookies deprecation warning
+- Frontend unit：**54 files / 143 tests PASS**
+- Frontend type-check / production build：PASS；现存主 chunk 2.2 MB warning
+- Playwright default mock：**35/35 PASS**（Windows 默认 4173 被系统保留，改用 `PLAYWRIGHT_DEV_PORT=5300`）
+- `npm ci` 审计：11 vulnerabilities（1 low / 3 moderate / 6 high / 1 critical）及 Vite 8/devtools peer warnings；未自动 `npm audit fix`
+
+**遗留/下一步**：覆盖率百分比工具与 CI 尚未引入；live/docker-gui 未跑；npm audit 需单独评估。产品主线恢复为 **S-01 待立项**。
+
+---
+
 ## 会话摘要（文档契约修复 + 测试覆盖审查）
 
 ### 2026-07-10 22:11 — 修复对齐漂移并建立覆盖缺口清单

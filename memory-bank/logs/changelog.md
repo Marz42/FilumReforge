@@ -22,17 +22,27 @@ paradigma:
 
 ### Added
 
+- S-01 任务周期统计：权限范围、上海时区日期筛选、新增/完成/到期/逾期/按期完成率、人员负载和分页明细下钻
 - 图模板管理员删除能力；存在 Run 的模板拒绝删除
 - 图模板 `scope_department_ids` 部门作用范围（迁移 `20260709_01`），设计器与实例化入口同步按部门过滤
 - 图模板设计器补 `participant_policies`、`root_assignee_var`、`aggregate_node_key`、`run_kind` 等结构化字段
 
 ### Changed
 
+- 任务统计 summary/workload 从全量 ORM 加载后 Python 计数改为数据库侧条件聚合；旧总量字段保持兼容
 - 建立任务弹窗抽取为 `PublishTaskDialog.vue`；采集组件统一为 `CapturePanel.vue`
 - `aggregate_mode` 空白模板默认值对齐为 `streaming`
+- 前端安全依赖升级：Axios `1.18.1`、Vite `8.1.4`；Excel 预览从无安全修复版本的 `xlsx` 切换到 `read-excel-file`
 
 ### Fixed
 
+- Excel 附件预览改为 Vue 文本插值渲染，并限制为前 500 行/100 列，避免不可信单元格 HTML 注入与超大表格渲染阻塞
+- 修复附件服务模块导入时 MIME 常量定义顺序导致的 `NameError`，并覆盖 `.md`/`.docx` 通用 MIME 推断
+- 修复 Wait-Any 被撤权节点阻止图实例完成、手动单节点验收后实例仍 active
+- 修复图模板 seed 在覆盖 config 后错误读取当前版本，导致有历史 Run 时未执行原地拓扑同步
+- 修复同一 AsyncSession 中新增 watcher 后关系集合未刷新，以及上游交付附件继承构造无效 `AttachmentLink` 的问题
+- 修复图模板 schedule CheckConstraint 在命名约定下超过 PostgreSQL 63 字符限制
+- 修复 PublishTaskDialog 类型边界及 AppShell/TaskCenter refactor 后测试漂移；新增 PublishTaskDialog/CapturePanel 组件回归
 - 修复模板部门池非法 UUID、种子 scope 推导与 `seed_version` 丢失等 P0/P1 配置问题
 - 修复 `PublishTaskDialog` v-model、重复 `onMounted` 与 Playwright capture 锚点
 - 关闭采集后同步兼容 Task 投影，并让下游任务继承交付物附件可见性

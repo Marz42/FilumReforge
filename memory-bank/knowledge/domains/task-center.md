@@ -7,7 +7,7 @@ tags:
   - 任务中心
   - Inbox
   - 跟踪
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-07-11T23:34:27+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -27,7 +27,7 @@ paradigma:
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同全貌：**产品架构 · 单步/任务流/统计 · 实现与差距 · 改造跟踪**。  
-> **最后同步**：2026-06-23 @ **0.91.1** · 批次 ROOT 投影修复 · F-29 归档/督办/逾期 @ `0.91.0`  
+> **最后同步**：2026-07-11 @ **0.92.0** · S-01 最小周期统计 implemented · pending UAT
 > **排期**：[`roadmap.md`](../roadmap.md) · **决策**：[`decisions.md`](../decisions.md) ADR-009 · ADR-010  
 > **契约**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)
 
@@ -74,9 +74,9 @@ flowchart TB
 | **壳层**（inbox/tracking/history + 三视图 + Shell） | ✅ 生产可用 | TCE Phase 1–5 @ `0.89.0` |
 | **单步任务** | ⚠️ 基本可用 | 权限/握手可用；**F-22 抄送 ✅** · **F-21 跨部门 ✅** |
 | **任务流** | ⚠️ 视频 v1 可用 | fork/制作链 ✅ · **F-28 ✅** · **F-23 模板链 ✅** · **W-08 streaming N2 ✅** |
-| **任务统计** | ⚠️ 基础可用 | 部门 summary/workload/Run 事件 ✅；**无周期 KPI/绩效模块 S-01** |
+| **任务统计** | ✅ 待验收 | S-01 周期/权限/DB 聚合/负载/明细；Run 事件保留 |
 | **设计器** | ✅ D1–D3 | JSON 编辑为主 → **F-26** 表单化 |
-| **架构债** | ⏳ P0 | **B-12** 删 Legacy E；**F-05** Shell 拆分 |
+| **架构债** | ⏳ | Legacy E 历史表族清理；**F-05** Shell 拆分（当前 1841 行） |
 
 ---
 
@@ -140,7 +140,7 @@ Feature flags：`TASK_CENTER_V2_ENABLED` · `WORKFLOW_GRAPH_ENGINE_ENABLED` · `
 |------|------|
 | 壳层 | `TaskCenterView` · `TaskCenterFilterCards` · `TaskCenterList/Board/GanttView` |
 | 统计 | `TaskCenterStatsView` |
-| 单步发布 | `TaskCenterView` 建立任务 Dialog |
+| 单步发布 | `PublishTaskDialog`（由 `TaskCenterView` 打开） |
 | 任务流 | `TemplateInstantiateDialog` · `GraphTemplatesPanel` · `GraphTemplateDesignerView` |
 | 详情 | `TaskDetailShell` + 视频/采集面板（§9 Profile） |
 
@@ -166,8 +166,8 @@ Feature flags：`TASK_CENTER_V2_ENABLED` · `WORKFLOW_GRAPH_ENGINE_ENABLED` · `
 | 运行时 | `WORKFLOW_GRAPH_ENGINE_ENABLED` → `_create_single_node_workflow_projection` · Profile **`graph_manual`** |
 | 发布权限 | `can_publish_org_tasks` + `can_manage_assignee`（`access_control.py`） |
 | 选人 UI | `publish_department_options` + 按部门过滤 `publish_user_options` |
-| 抄送 | `TaskWatcher` + `POST /tasks/{id}/watchers` **仅事后**；创建 API **无** `watcher_user_ids` |
-| 跨部门 | 非管辖子树内 assignee → **AuthorizationError** |
+| 抄送 | 创建 API `watcher_user_ids` + `TaskWatcher`；跨部门路径经理自动 CC |
+| 跨部门 | `scope_department_ids` / 组织树权限范围内可路由；越权仍由服务层拒绝 |
 
 ### 6.3 差距
 
@@ -177,7 +177,7 @@ Feature flags：`TASK_CENTER_V2_ENABLED` · `WORKFLOW_GRAPH_ENGINE_ENABLED` · `
 | G-01 | 跨部门路由 + 路径 CC | **F-21** ✅ | — |
 | G-02 | 汇报线派活 | 不做；**P4 项目组** | 中长期 |
 | G-03 | 自派任务 | 备忘 | — |
-| G-05 | Legacy E 并存 | **B-12** | P0 |
+| G-05 | Legacy E 产品入口 | **B-12 已移除**；仅历史表族清理待定 | — |
 
 ---
 
@@ -329,7 +329,7 @@ flowchart LR
 
 ## 8. 任务统计
 
-> 本阶段：**仅记录差距**（S-01 暂不立项）
+> S-01 最小范围已实施；不含排名、评分、导出和复杂图表。
 
 ### 8.1 设计意图
 
@@ -341,20 +341,22 @@ flowchart LR
 | 能力 | 实现 |
 |------|------|
 | UI | `TaskCenterStatsView`（`filter=stats`） |
-| 汇总 | `GET /tasks/stats/summary` — 完成率/逾期率/按 status（`list_tasks` 可见集 + 可选 `department_id`） |
-| 负载 | `GET /tasks/stats/workload` — 按 assignee 聚合 |
+| 范围 | `GET /tasks/stats/scopes` — Employee 本人；经理/数据代理授权子树；Admin/HR 全局 |
+| 汇总 | `GET /tasks/stats/summary` — 新增/完成/到期/逾期/按期完成率，DB 侧聚合 |
+| 负载 | `GET /tasks/stats/workload` — 同口径按 assignee 聚合 |
+| 明细 | `GET /tasks/stats/details` — metric + assignee + UUID cursor，下钻现有任务详情 |
 | Run | `GET /workflow-graph/runs?department_id=` + `instances/{id}/events` |
-| 鉴权 | `ensure_department_stats_access` — manager 子树 + 本部门 |
-| 数据范围 | summary/workload **含单步与图投影 Task**；Run 事件 **仅图实例** |
+| 时间 | Asia/Shanghai；本周/本月/上月/自定义，最长 366 天 |
+| 数据范围 | 唯一 Task；排除 admin archived 与 graph ROOT；无 due 不进按期率 |
 
-### 8.3 差距（S-01）
+### 8.3 后续可选（不在 S-01 首版）
 
 | 缺口 | 说明 |
 |------|------|
-| 周期 rollup | 无周/月/季聚合 API |
-| 绩效模块 | 无专用 KPI 模型与入口 |
-| 全局流转视图 | 偏单 Run 时间线，非跨 Run 看板 |
-| 数据源统一 | stats 与 inbox 列表部分分裂；搜索亦独立 API |
+| 趋势/季度 rollup | 当前按任意日期区间即时聚合，无趋势图或持久化 rollup |
+| 绩效模块 | 明确未做 KPI、排名与评分 |
+| 导出/定时报表 | 明确未做 |
+| 数据源统一 | 搜索与 Task Center row 读模型仍可继续收敛 |
 
 **架构备注**：统计现为任务中心 **第四 Tab**；远期可独立模块/路由（产品再定）。
 
@@ -419,11 +421,9 @@ flowchart LR
 
 | 层 | 范围 |
 |----|------|
-| pytest | TCE phase1–5 · designer d1–d3 · `test_tce_phase4_multi_department` · W3/W4/WFK fork · Live 8080 |
-| vitest | `TaskCenterView` · `GraphTemplateDesignerView` |
-| Playwright | core 33 · task-center 全集 48 · workflow-video-v1 · live A–F |
-
-**F-28 待补**：B 部发起 → N4 assignee = B 部经理 pytest。
+| pytest | 2026-07-10 全量：293 collected / 282 passed / 11 skipped；含 stats 权限/部门范围、TCE、图运行时 |
+| vitest | 2026-07-11 全量：54 files / 144 tests；`TaskCenterView` 有壳层回归，`TaskCenterStatsView` 尚无直接组件测试 |
+| Playwright | 2026-07-10 default mock：35/35；live/docker-gui 未在本轮执行 |
 
 ---
 
@@ -431,18 +431,18 @@ flowchart LR
 
 | ID | 模块 | 说明 | 工程项 | 优先级 |
 |----|------|------|--------|--------|
-| G-05 / W-01 | 架构 | 删 Legacy E | **B-12** | P0 |
-| G-04 | 单步 | 创建抄送 | **F-22** | P1 |
-| W-09 | 任务流 | copywriters 池不串部门 | **F-28** | P1 |
+| G-05 / W-01 | 架构 | Legacy E 产品入口已删；历史表族迁移/清理 | B-12 follow-up | 待策略 |
+| G-04 | 单步 | 创建抄送 | **F-22 ✅** | — |
+| W-09 | 任务流 | copywriters 池不串部门 | **F-28 ✅** | — |
 | F-05 | 壳层 | Shell 拆分 | **F-05** | P0 |
 | G-01 / W-07 | 单步/流 | 组织树路径 CC | **F-21** · **F-27** ✅ | — |
 | W-03 | 任务流 | 通用模板链 + 防环 | **F-23** ✅ | — |
 | W-08 | 任务流 | streaming/N2 UX | **engine skip** ✅ | — |
-| W-02 / W-06 | 任务流 | pools 表单 · 去 JSON | **F-26** | P2–P3 |
+| W-02 / W-06 | 任务流 | pools 表单已落地；launch/routing 仍需去 JSON | **F-26 follow-up** | P2–P3 |
 | W-04 | 任务流 | 部门定时 | **F-24** ✅ | — |
 | W-05 | 共用 | 附件预览 | **F-25** ✅ | — |
 | **W-10** | 运维 | 管理员单条任务归档/作废 | **F-29** ✅ | — |
-| S-01 | 统计 | 周期/绩效 | 待立项 | — |
+| S-01 | 统计 | 最小周期统计 | implemented · pending UAT | — |
 | G-02 | 单步 | 项目组 | **P4** | 中长期 |
 
 ---
@@ -486,6 +486,8 @@ flowchart LR
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-11 | S-01 权限、上海周期、DB 聚合、摘要/负载/明细 implemented · pending UAT |
+| 2026-07-11 | 对齐 F-22/F-28/B-12/F-26 当前事实、测试基线与 S-01 聚合缺口 |
 | 2026-06-23 | §15 **F-29 落地** · Admin 跟踪督办 · 逾期延期 · W-10 done |
 | 2026-06-23 | **全文重组**：§0 三大模块 · §6–8 单步/任务流/统计实现与差距 · fork/多部门/F-28 · §13 总表 |
 | 2026-06-23 | §6.0–6.1 ADR-009 单步决策 |
@@ -497,5 +499,5 @@ flowchart LR
 
 - 路由：`/task-templates/:id/edit` · `WorkflowGraphTemplateAdminService`
 - 能力：clone/draft/publish/validate · 边表/routing · DAG/dry-run/import/export/stats
-- 缺口：`department_pools` 无专用 UI；`launch_schema`/routing 仍为 JSON textarea → **F-26**
+- 缺口：`department_pools` 已有结构化 UI；`launch_schema`/routing 仍为 JSON textarea → **F-26 follow-up**
 - 详细 API：见 [`plans/task-center-enhance.md`](../plans/task-center-enhance.md) · 历史 §12 契约仍有效

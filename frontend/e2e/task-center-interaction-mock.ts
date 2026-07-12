@@ -582,20 +582,39 @@ export async function handleTaskCenterInteractionRoute(
     return true
   }
 
+  if (request.method() === 'GET' && isExactApiPath(apiPath, '/tasks/stats/scopes')) {
+    await fulfillJson(route, {
+      mode: 'organization',
+      departments: extendPublishDepartmentOptions(),
+    })
+    return true
+  }
+
   if (request.method() === 'GET' && isExactApiPath(apiPath, '/tasks/stats/summary')) {
     const departmentId = parseQueryParam(apiPath, 'department_id')
+    const isPost = departmentId === 'dept-post'
     await fulfillJson(route, {
-      total_tasks: departmentId === 'dept-post' ? 8 : 4,
-      completed_tasks: departmentId === 'dept-post' ? 5 : 2,
-      completion_rate: departmentId === 'dept-post' ? 0.625 : 0.5,
-      overdue_tasks: departmentId === 'dept-post' ? 0 : 1,
-      overdue_rate: departmentId === 'dept-post' ? 0 : 0.25,
+      total_tasks: isPost ? 8 : 4,
+      completed_tasks: isPost ? 5 : 2,
+      completion_rate: isPost ? 0.625 : 0.5,
+      overdue_tasks: isPost ? 0 : 1,
+      overdue_rate: isPost ? 0 : 0.25,
       tasks_by_status: {
-        todo: departmentId === 'dept-post' ? 1 : 1,
-        doing: departmentId === 'dept-post' ? 2 : 1,
-        review: departmentId === 'dept-post' ? 0 : 1,
-        done: departmentId === 'dept-post' ? 5 : 1,
+        todo: isPost ? 1 : 1,
+        doing: isPost ? 2 : 1,
+        review: isPost ? 0 : 1,
+        done: isPost ? 5 : 1,
       },
+      start_date: '2026-07-01',
+      end_date: '2026-07-31',
+      created_tasks: isPost ? 8 : 4,
+      period_completed_tasks: isPost ? 5 : 2,
+      due_tasks: isPost ? 6 : 3,
+      matured_due_tasks: isPost ? 5 : 2,
+      on_time_completed_tasks: isPost ? 5 : 1,
+      on_time_completion_rate: isPost ? 1 : 0.5,
+      current_open_tasks: isPost ? 3 : 2,
+      period_overdue_tasks: isPost ? 0 : 1,
     })
     return true
   }
@@ -613,8 +632,20 @@ export async function handleTaskCenterInteractionRoute(
         open_tasks: departmentId === 'dept-post' ? 3 : 2,
         completed_tasks: departmentId === 'dept-post' ? 5 : 2,
         overdue_tasks: departmentId === 'dept-post' ? 0 : 1,
+        created_tasks: departmentId === 'dept-post' ? 8 : 4,
+        period_completed_tasks: departmentId === 'dept-post' ? 5 : 2,
+        due_tasks: departmentId === 'dept-post' ? 6 : 3,
+        matured_due_tasks: departmentId === 'dept-post' ? 5 : 2,
+        on_time_completed_tasks: departmentId === 'dept-post' ? 5 : 1,
+        on_time_completion_rate: departmentId === 'dept-post' ? 1 : 0.5,
+        period_overdue_tasks: departmentId === 'dept-post' ? 0 : 1,
       },
     ])
+    return true
+  }
+
+  if (request.method() === 'GET' && isExactApiPath(apiPath, '/tasks/stats/details')) {
+    await fulfillJson(route, { items: [], next_cursor: null, has_more: false })
     return true
   }
 

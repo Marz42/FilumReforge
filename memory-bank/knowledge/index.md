@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 749feb64966f798e -->
+<!-- checksum: 5b268d4f3ca5a73c -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -48,6 +48,7 @@
 | [known-issues/ki-004-production-deployment.md](known-issues/ki-004-production-deployment.md) | `paradigma-known-issue` | KI-004: 生产与部署注意事项 | 生产部署<br>环境变量<br>回滚 | - | - |
 | [known-issues/ki-005-graph-engine-issues.md](known-issues/ki-005-graph-engine-issues.md) | `paradigma-known-issue` | KI-005: 图引擎已知问题 | 图引擎<br>ORM 懒加载<br>max_iterations | - | - |
 | [known-issues/ki-006-report-center-history.md](known-issues/ki-006-report-center-history.md) | `paradigma-known-issue` | KI-006: 汇报中心历史问题 | 汇报中心<br>PostgreSQL enum<br>ORM | - | - |
+| [known-issues/ki-007-windows-playwright-excluded-port.md](known-issues/ki-007-windows-playwright-excluded-port.md) | `paradigma-known-issue` | KI-007: Windows 保留端口导致 Playwright webServer EACCES | Playwright EACCES<br>4173 端口<br>Windows 保留端口 ... | - | - |
 | [known-issues/known-issues.md](known-issues/known-issues.md) | `paradigma-known-issue` | 已知问题合辑 (已拆分) | 已知问题<br>合辑<br>known issue | - | - |
 | [manuals/deployment-runbook-ubuntu-2404.md](manuals/deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | - |
 | [manuals/e2e-gui-verification-automation-runbook.md](manuals/e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | - |
@@ -60,6 +61,7 @@
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |
+| [plans/s01-task-statistics-plan.md](plans/s01-task-statistics-plan.md) | `paradigma-plan` | S-01 任务统计实施计划（已批准） | S-01<br>任务统计计划<br>统计口径 ... | - | - |
 | [plans/task-center-enhance.md](plans/task-center-enhance.md) | `paradigma-plan` | TCE 增强计划 | TCE<br>tce | - | - |
 | [plans/task-center-v2-implementation-plan.md](plans/task-center-v2-implementation-plan.md) | `paradigma-plan` | TC v2 实施计划 | TC<br>v2<br>task ... | - | - |
 | [plans/tc-p2-views-stats-plan.md](plans/tc-p2-views-stats-plan.md) | `paradigma-plan` | TC-P2 落地计划 | TC-P2<br>tc-p2 | - | - |

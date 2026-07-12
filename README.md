@@ -356,7 +356,7 @@ sudo journalctl -u filum-backend -u filum-worker -f
 
 ## 测试与验证
 
-**测试基线**：以 [`progress.md`](memory-bank/logs/progress/progress.md) 中带 commit 与日期的最新记录为准。完整 pytest、Vitest、Playwright mock/live 与 Docker GUI 不保证在每次小修复后全量刷新；发布前需运行与变更风险相匹配的质量门。
+**当前测试基线**（2026-07-10，基于 `72751e7` 后工作区修复）：backend **293 collected / 282 passed / 11 skipped**；frontend Vitest **54 文件 / 143 用例**；Playwright default mock **35/35**；type-check / production build PASS。权威记录见 [`progress.md`](memory-bank/logs/progress/progress.md)。
 
 ### Backend
 

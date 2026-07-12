@@ -20,12 +20,12 @@ const xlsxSheets = computed(() =>
   previewContent.value?.kind === 'xlsx' ? previewContent.value.sheets : [],
 )
 
-const activeXlsxHtml = computed(() => {
+const activeXlsxSheetContent = computed(() => {
   if (previewContent.value?.kind !== 'xlsx') {
-    return ''
+    return null
   }
   const sheet = previewContent.value.sheets.find((item) => item.name === activeXlsxSheet.value)
-  return sheet?.html ?? previewContent.value.sheets[0]?.html ?? ''
+  return sheet ?? previewContent.value.sheets[0] ?? null
 })
 
 watch(
@@ -97,11 +97,26 @@ watch(
             :name="sheet.name"
           />
         </el-tabs>
+        <el-alert
+          v-if="activeXlsxSheetContent?.truncated"
+          class="attachment-preview-dialog__xlsx-warning"
+          type="info"
+          :closable="false"
+          title="表格较大，预览仅展示前 500 行、100 列。"
+        />
         <div
           class="attachment-preview-dialog__xlsx-table"
           data-testid="attachment-preview-xlsx"
-          v-html="activeXlsxHtml"
-        />
+        >
+          <table v-if="activeXlsxSheetContent?.rows.length">
+            <tbody>
+              <tr v-for="(row, rowIndex) in activeXlsxSheetContent.rows" :key="rowIndex">
+                <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <el-empty v-else description="工作表为空" :image-size="72" />
+        </div>
       </div>
       <audio
         v-else-if="previewContent.kind === 'audio'"
@@ -174,6 +189,10 @@ watch(
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+}
+
+.attachment-preview-dialog__xlsx-warning {
+  margin-bottom: 12px;
 }
 
 .attachment-preview-dialog__xlsx-table :deep(th),

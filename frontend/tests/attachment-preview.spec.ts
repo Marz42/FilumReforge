@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import readXlsxFile from 'read-excel-file/browser'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   attachmentMimeIsInlineViewable,
@@ -6,6 +7,10 @@ import {
   resolveAttachmentPreviewKind,
 } from '@/constants/attachments'
 import { buildAttachmentPreviewContent } from '@/utils/attachment-preview'
+
+vi.mock('read-excel-file/browser', () => ({
+  default: vi.fn(),
+}))
 
 describe('attachment preview kinds', () => {
   it('maps supported mime types to preview kinds', () => {
@@ -53,6 +58,36 @@ describe('buildAttachmentPreviewContent', () => {
     if (result.content.kind === 'audio') {
       expect(result.content.mime).toBe('audio/wav')
       URL.revokeObjectURL(result.content.url)
+    }
+  })
+
+  it('parses xlsx cells as escaped template data and caps oversized previews', async () => {
+    vi.mocked(readXlsxFile).mockResolvedValueOnce([
+      {
+        sheet: 'Sheet 1',
+        data: [
+          ['Name', 'Value'],
+          ['<img src=x onerror=alert(1)>', 42],
+          [true, null],
+        ],
+      },
+      {
+        sheet: 'Wide',
+        data: [Array.from({ length: 101 }, (_, index) => index)],
+      },
+    ])
+
+    const blob = new Blob(['xlsx'], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const result = await buildAttachmentPreviewContent(blob, blob.type)
+
+    expect(result.content.kind).toBe('xlsx')
+    if (result.content.kind === 'xlsx') {
+      expect(result.content.sheets[0]?.rows[1]).toEqual(['<img src=x onerror=alert(1)>', '42'])
+      expect(result.content.sheets[0]?.truncated).toBe(false)
+      expect(result.content.sheets[1]?.rows[0]).toHaveLength(100)
+      expect(result.content.sheets[1]?.truncated).toBe(true)
     }
   })
 })

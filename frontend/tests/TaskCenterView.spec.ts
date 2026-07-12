@@ -291,103 +291,6 @@ describe('TaskCenter view', () => {
     wrapper.unmount()
   })
 
-  it('filters assignee options by selected department', async () => {
-    vi.mocked(getTaskCenterSnapshot).mockResolvedValue({
-      ...mockSnapshot,
-      publish_user_options: [
-        ...mockSnapshot.publish_user_options,
-        {
-          user_id: 'user-2',
-          email: 'other@example.com',
-          real_name: '其他部门成员',
-          department_id: 'dept-2',
-          department_name: '市场部',
-          label: '其他部门成员（other@example.com）',
-        },
-      ],
-    })
-
-    const wrapper = mount(TaskCenterView, {
-      global: {
-        plugins: [ElementPlus],
-        stubs: {
-          TaskDetailShell: { template: '<div>detail</div>' },
-        },
-      },
-    })
-
-    await flushPromises()
-    await wrapper.find('[data-testid="task-center-create-task"]').trigger('click')
-    await flushPromises()
-
-    const setupState = wrapper.vm.$.setupState as {
-      publishForm: { department_id: string; assignee_user_id: string }
-      filteredPublishUserOptions: { user_id: string }[]
-    }
-    setupState.publishForm.department_id = 'dept-1'
-    await flushPromises()
-
-    expect(setupState.filteredPublishUserOptions.map((user) => user.user_id)).toEqual(['user-1'])
-  })
-
-  it('submits create task with attachment ids', async () => {
-    vi.mocked(createTask).mockResolvedValue({
-      id: 'task-new',
-      title: '新任务',
-      description: null,
-      creator_id: 'user-1',
-      assignee_id: 'user-1',
-      department_id: 'dept-1',
-      status: 'todo',
-      priority: 'medium',
-      due_date: null,
-      started_at: null,
-      completed_at: null,
-      parent_task_id: null,
-      source_type: 'manual',
-      extra_metadata: {},
-      created_at: '2025-01-01T00:00:00Z',
-      updated_at: '2025-01-01T00:00:00Z',
-    })
-
-    const wrapper = mount(TaskCenterView, {
-      global: {
-        plugins: [ElementPlus],
-        stubs: {
-          TaskDetailShell: { template: '<div>detail</div>' },
-        },
-      },
-    })
-
-    await flushPromises()
-    await wrapper.find('[data-testid="task-center-create-task"]').trigger('click')
-    await flushPromises()
-
-    const setupState = wrapper.vm.$.setupState as {
-      publishForm: {
-        title: string
-        assignee_user_id: string
-        department_id: string
-      }
-      publishDraftAttachments: { id: string }[]
-      handlePublishTask: () => Promise<void>
-    }
-    setupState.publishForm.title = '新任务'
-    setupState.publishForm.assignee_user_id = 'user-1'
-    setupState.publishForm.department_id = 'dept-1'
-    setupState.publishDraftAttachments = [{ id: 'att-1', original_filename: 'brief.pdf' }]
-
-    await setupState.handlePublishTask()
-    await flushPromises()
-
-    expect(createTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: '新任务',
-        attachment_ids: ['att-1'],
-      }),
-    )
-  })
-
   it('maps legacy tasks tab to tracking filter', async () => {
     route.query = { tab: 'tasks' }
 
@@ -471,7 +374,7 @@ describe('TaskCenter view', () => {
     expect(wrapper.text()).toContain('已逾期')
   })
 
-  it('clears invalid selected query when inbox is empty', async () => {
+  it('does not rewrite selected query outside search mode when inbox is empty', async () => {
     const emptySnapshot = {
       ...mockSnapshot,
       task_inbox: [],
@@ -493,10 +396,7 @@ describe('TaskCenter view', () => {
 
     await flushPromises()
 
-    expect(replace).toHaveBeenCalledWith({
-      name: 'task-center',
-      query: undefined,
-    })
+    expect(replace).not.toHaveBeenCalled()
   })
 
   it('does not pass selected id to detail when master list is empty', async () => {

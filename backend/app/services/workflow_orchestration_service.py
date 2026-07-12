@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import (
+  AttachmentTargetType,
   TaskDetailUiProfile,
   TaskPriority,
   TaskSourceType,
@@ -261,17 +262,30 @@ class WorkflowOrchestrationService:
     if not isinstance(attachment_ids, list) or not attachment_ids:
       return
 
+    existing_attachment_ids = set(
+      await self._session.scalars(
+        select(AttachmentLink.attachment_id).where(
+          AttachmentLink.target_type == AttachmentTargetType.TASK,
+          AttachmentLink.target_id == target_task.id,
+          AttachmentLink.relation == "inherited_deliverable",
+        )
+      )
+    )
     for att_id_str in attachment_ids:
       try:
         att_uuid = UUID(str(att_id_str))
+        if att_uuid in existing_attachment_ids:
+          continue
         self._session.add(
           AttachmentLink(
             attachment_id=att_uuid,
-            target_type="task",
-            target_id=str(target_task.id),
-            visibility="private",
+            target_type=AttachmentTargetType.TASK,
+            target_id=target_task.id,
+            relation="inherited_deliverable",
+            created_by=target_task.creator_id,
           )
         )
+        existing_attachment_ids.add(att_uuid)
       except (ValueError, AttributeError):
         continue
 

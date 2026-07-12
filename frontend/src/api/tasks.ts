@@ -7,6 +7,9 @@ import type {
   TaskGanttEntry,
   TaskPriority,
   TaskStatsSummary,
+  TaskStatsDetailsPage,
+  TaskStatsMetric,
+  TaskStatsScopes,
   TaskStatus,
   TaskWatcher,
   TaskWorkloadRow,
@@ -202,16 +205,60 @@ export async function listTaskActivity(taskId: string): Promise<TaskActivityEntr
   return data
 }
 
-export async function getTaskStatsSummary(departmentId?: string | null): Promise<TaskStatsSummary> {
+export interface TaskStatsQuery {
+  start_date: string
+  end_date: string
+  department_id?: string | null
+  include_subtree?: boolean
+}
+
+function buildTaskStatsParams(query?: TaskStatsQuery): Record<string, string | boolean> | undefined {
+  if (!query) {
+    return undefined
+  }
+  return {
+    start_date: query.start_date,
+    end_date: query.end_date,
+    ...(query.department_id ? { department_id: query.department_id } : {}),
+    ...(query.department_id && query.include_subtree ? { include_subtree: true } : {}),
+  }
+}
+
+export async function getTaskStatsScopes(): Promise<TaskStatsScopes> {
+  const { data } = await http.get<TaskStatsScopes>('/tasks/stats/scopes')
+  return data
+}
+
+export async function getTaskStatsSummary(query?: TaskStatsQuery): Promise<TaskStatsSummary> {
   const { data } = await http.get<TaskStatsSummary>('/tasks/stats/summary', {
-    params: departmentId ? { department_id: departmentId } : undefined,
+    params: buildTaskStatsParams(query),
   })
   return data
 }
 
-export async function getTaskWorkload(departmentId?: string | null): Promise<TaskWorkloadRow[]> {
+export async function getTaskWorkload(query?: TaskStatsQuery): Promise<TaskWorkloadRow[]> {
   const { data } = await http.get<TaskWorkloadRow[]>('/tasks/stats/workload', {
-    params: departmentId ? { department_id: departmentId } : undefined,
+    params: buildTaskStatsParams(query),
+  })
+  return data
+}
+
+export async function getTaskStatsDetails(
+  query: TaskStatsQuery & {
+    metric: TaskStatsMetric
+    assignee_id?: string | null
+    cursor?: string | null
+    limit?: number
+  },
+): Promise<TaskStatsDetailsPage> {
+  const { data } = await http.get<TaskStatsDetailsPage>('/tasks/stats/details', {
+    params: {
+      ...buildTaskStatsParams(query),
+      metric: query.metric,
+      assignee_id: query.assignee_id || undefined,
+      cursor: query.cursor || undefined,
+      limit: query.limit,
+    },
   })
   return data
 }

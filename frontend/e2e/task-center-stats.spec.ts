@@ -6,7 +6,7 @@ test('opens stats tab with summary cards and workload table', async ({ mockApi, 
   await page.goto('/task-center?filter=stats')
 
   await expect(page.getByTestId('task-center-stats-view')).toBeVisible()
-  await expect(page.getByText('任务总数')).toBeVisible()
+  await expect(page.getByText('新增任务')).toBeVisible()
   await expect(page.getByTestId('task-center-stats-workload')).toBeVisible()
 })
 

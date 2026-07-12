@@ -370,6 +370,16 @@ export interface TaskStatsSummary {
   overdue_tasks: number
   overdue_rate: number
   tasks_by_status: Record<string, number>
+  start_date: string
+  end_date: string
+  created_tasks: number
+  period_completed_tasks: number
+  due_tasks: number
+  matured_due_tasks: number
+  on_time_completed_tasks: number
+  on_time_completion_rate: number
+  current_open_tasks: number
+  period_overdue_tasks: number
 }
 
 export interface TaskWorkloadRow {
@@ -382,6 +392,45 @@ export interface TaskWorkloadRow {
   open_tasks: number
   completed_tasks: number
   overdue_tasks: number
+  created_tasks: number
+  period_completed_tasks: number
+  due_tasks: number
+  matured_due_tasks: number
+  on_time_completed_tasks: number
+  on_time_completion_rate: number
+  period_overdue_tasks: number
+}
+
+export type TaskStatsMetric = 'created' | 'completed' | 'due' | 'overdue' | 'on_time' | 'open'
+
+export interface TaskStatsScopeOption {
+  id: string
+  label: string
+}
+
+export interface TaskStatsScopes {
+  mode: 'personal' | 'organization'
+  departments: TaskStatsScopeOption[]
+}
+
+export interface TaskStatsDetailItem {
+  task_id: string
+  title: string
+  assignee_id: string
+  assignee_label: string
+  department_id: string | null
+  department_name: string | null
+  source_type: TaskSourceType
+  run_label: string | null
+  due_date: string | null
+  completed_at: string | null
+  is_overdue: boolean
+}
+
+export interface TaskStatsDetailsPage {
+  items: TaskStatsDetailItem[]
+  next_cursor: string | null
+  has_more: boolean
 }
 
 export interface TaskSchedule {

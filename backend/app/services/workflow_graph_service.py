@@ -867,15 +867,17 @@ class WorkflowGraphService:
     if not template_node_keys:
       return True
 
-    completed_keys = set(
+    terminal_keys = set(
       await self._session.scalars(
         select(WorkflowNodeInstance.node_key).where(
           WorkflowNodeInstance.instance_id == graph_instance.id,
-          WorkflowNodeInstance.engine_state == WorkflowNodeEngineState.COMPLETED,
+          WorkflowNodeInstance.engine_state.in_(
+            [WorkflowNodeEngineState.COMPLETED, WorkflowNodeEngineState.TERMINATED]
+          ),
         )
       )
     )
-    return template_node_keys.issubset(completed_keys)
+    return template_node_keys.issubset(terminal_keys)
 
   async def _activate_downstream(
     self,

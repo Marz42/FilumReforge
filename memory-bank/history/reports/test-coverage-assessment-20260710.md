@@ -68,3 +68,12 @@ S-01 不应只补 UI happy path，至少应先设计以下测试矩阵：
 3. 引入 `pytest-cov` 与 `@vitest/coverage-v8`，先记录 baseline，再由团队确认阈值；不建议未经基线直接拍高阈值。
 4. 新增 CI：backend tests、frontend unit/type-check/build 为必选；Playwright mock 可作为必选或独立 job；live/docker 作为定时或发布闸门。
 5. 再开始 S-01 产品口径和测试先行实现。
+
+## 7. 后续实施结果（2026-07-10 23:06）
+
+- backend `.venv` 已用 Python 3.12.13 重建，`pip install -e ".[dev]"` 成功。
+- frontend 已执行干净 `npm ci`；发现 11 个 npm audit 漏洞与 Vite/devtools peer warning，未自动改锁文件。
+- 修复后全量基线：backend **293 collected / 282 passed / 11 skipped**；Vitest **54 文件 / 143 用例**；Playwright default mock **35/35**；type-check/build PASS。
+- 已补直接回归：`scope_department_ids`、图模板删除、MIME 推断、上游附件继承、关闭采集 Task 投影、PublishTaskDialog、CapturePanel。
+- 额外修复：附件模块导入 NameError、Wait-Any 完成态、手动图实例完成态、seed 原地同步判断、watcher 缓存与 PostgreSQL constraint 名称长度。
+- 尚未实施：pytest/Vitest 覆盖率百分比工具、CI、Playwright live/docker-gui、npm audit 风险处置。

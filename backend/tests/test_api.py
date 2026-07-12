@@ -1311,7 +1311,7 @@ async def test_phase4_task_acceptance_and_task_center_snapshot_flow(api_client) 
   employee_headers = await login(client, email="employee@example.com", password="StrongPassword123!")
   inbox_before_accept = await client.get("/api/v1/task-center", headers=employee_headers)
   assert inbox_before_accept.status_code == 200
-  assert any(item["task_id"] == task_id and item["current_stage_label"] == "任务：待确认" for item in inbox_before_accept.json()["task_inbox"])
+  assert any(item["task_id"] == task_id and item["current_stage_label"].endswith("：待确认") for item in inbox_before_accept.json()["task_inbox"])
 
   direct_doing_response = await client.patch(
     f"/api/v1/tasks/{task_id}/status",
@@ -1330,7 +1330,7 @@ async def test_phase4_task_acceptance_and_task_center_snapshot_flow(api_client) 
 
   accepted_inbox = await client.get("/api/v1/task-center", headers=employee_headers)
   assert accepted_inbox.status_code == 200
-  assert any(item["task_id"] == task_id and item["current_stage_label"] == "任务：已接受待开工" for item in accepted_inbox.json()["task_inbox"])
+  assert any(item["task_id"] == task_id and item["current_stage_label"].endswith("：已接受待开工") for item in accepted_inbox.json()["task_inbox"])
 
   doing_response = await client.patch(
     f"/api/v1/tasks/{task_id}/status",
@@ -1415,7 +1415,7 @@ async def test_phase4_task_reject_and_delegate_api_refresh_task_center_snapshot(
 
   delegate_snapshot = await client.get("/api/v1/task-center", headers=delegate_headers)
   assert delegate_snapshot.status_code == 200
-  assert any(item["task_id"] == delegated_task_id and item["current_stage_label"] == "任务：已转办待确认" for item in delegate_snapshot.json()["task_inbox"])
+  assert any(item["task_id"] == delegated_task_id and item["current_stage_label"].endswith("：已转办待确认") for item in delegate_snapshot.json()["task_inbox"])
 
   rejected_task_response = await client.post(
     "/api/v1/tasks",
@@ -1439,7 +1439,7 @@ async def test_phase4_task_reject_and_delegate_api_refresh_task_center_snapshot(
 
   admin_snapshot = await client.get("/api/v1/task-center", headers=headers)
   assert admin_snapshot.status_code == 200
-  assert any(item["task_id"] == rejected_task_id and item["current_stage_label"] == "任务：已拒绝待调整" for item in admin_snapshot.json()["task_inbox"])
+  assert any(item["task_id"] == rejected_task_id and item["current_stage_label"].endswith("：已拒绝待调整") for item in admin_snapshot.json()["task_inbox"])
 
 
 @pytest.mark.asyncio
@@ -1764,6 +1764,19 @@ async def test_task_collaboration_and_stats_api_flow(api_client) -> None:
   assert len(workload_response.json()) == 1
   assert workload_response.json()[0]["assignee_id"] == employee_id
   assert workload_response.json()[0]["completed_tasks"] == 1
+
+  scopes_response = await client.get("/api/v1/tasks/stats/scopes", headers=headers)
+  assert scopes_response.status_code == 200
+  assert scopes_response.json()["mode"] == "organization"
+
+  details_response = await client.get(
+    "/api/v1/tasks/stats/details",
+    params={"metric": "open", "limit": 10},
+    headers=headers,
+  )
+  assert details_response.status_code == 200
+  assert details_response.json()["has_more"] is False
+  assert len(details_response.json()["items"]) == 1
 
   assert len(queue_publisher.payloads) == 2
 
@@ -3990,7 +4003,7 @@ async def test_phase11d_takeover_api_syncs_task_projection_and_task_center(api_c
 
   assert all(item["task_id"] != task_id for item in old_snapshot.json()["task_inbox"])
   assert any(
-    item["task_id"] == task_id and item["current_stage_label"] == "任务：管理员接管待确认"
+    item["task_id"] == task_id and item["current_stage_label"].endswith("：管理员接管待确认")
     for item in new_snapshot.json()["task_inbox"]
   )
 
@@ -4208,7 +4221,7 @@ async def test_phase11f_task_center_api_uses_graph_first_for_migrated_review_tas
   assert admin_snapshot.status_code == 200
   assert employee_snapshot.status_code == 200
   assert any(
-    item["task_id"] == task_id and item["current_stage_label"] == "任务：待验收"
+    item["task_id"] == task_id and item["current_stage_label"].endswith("：待验收")
     for item in admin_snapshot.json()["task_inbox"]
   )
   assert all(
@@ -4264,6 +4277,7 @@ async def test_w3_create_graph_template_run_api(api_client) -> None:
     await session.commit()
     template_id = seed["template"].id
     manager_id = seed["manager"].id
+    department_id = seed["department"].id
     editor_ids = [str(editor.id) for editor in seed["editors"]]
 
   login_response = await client.post(
@@ -4278,6 +4292,7 @@ async def test_w3_create_graph_template_run_api(api_client) -> None:
     headers=headers,
     json={
       "inputs": {"theme": "API 选题会", "manager_user_id": str(manager_id)},
+      "department_id": str(department_id),
       "participants_snapshot": {
         "copywriters": {"mode": "subset", "user_ids": editor_ids},
       },

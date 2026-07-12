@@ -20,6 +20,9 @@ from app.models import Attachment, AttachmentLink, User
 from app.services.access_control import ensure_active_user
 from app.services.object_storage_service import ObjectStorageService
 
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
 EXTENSION_MIME_MAP: dict[str, str] = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -41,9 +44,6 @@ GENERIC_CONTENT_TYPES = frozenset({"application/octet-stream", "application/unkn
 MIME_ALIAS: dict[str, str] = {
   "audio/x-wav": "audio/wav",
 }
-
-DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 ALLOWED_ATTACHMENT_MIME_TYPES = frozenset(
   {

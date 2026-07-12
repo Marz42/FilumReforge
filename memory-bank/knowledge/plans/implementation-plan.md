@@ -5,7 +5,7 @@ description: "FilumReforge 总体实施计划。"
 tags:
   - plan
   - 实施计划
-timestamp: 2026-07-10T22:00:55+08:00
+timestamp: 2026-07-11T23:34:27+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -33,7 +33,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **TC-Transform 产品能力 Phase 0–3 已完成** @ `0.92.0`（2026-07-09）。B-12/F-28/F-22/F-23/F-21/F-27/W-08/F-26/F-25/F-24/F-29 均已落地；F-05 `TaskDetailShell` 完整拆分与完整 E2E 基线刷新仍是并行技术债。下一产品主焦点见 [`roadmap.md`](../roadmap.md) · [`active-task.md`](../../runtime/active-task.md)：**S-01** 任务统计（待产品立项）。并行：测试覆盖治理、回滚演练（暂缓）、生命周期规则 UI、注册/通知深化、Paradigma OKF 合规治理。
+**当前执行位置**: **S-01 最小周期统计已实施，待用户验收** @ `0.92.0`（2026-07-11）。权限、上海时区周期、DB 侧聚合、摘要/人员负载/明细下钻已落地；F-05 `TaskDetailShell` 拆分与完整 E2E 基线刷新仍是并行技术债。并行：测试覆盖治理、回滚演练（暂缓）、生命周期规则 UI、注册/通知深化、Paradigma OKF 合规治理。
 
 ## 2. 已确认约束
 
