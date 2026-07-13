@@ -61,7 +61,7 @@ paradigma:
 - **F-29 管理员归档**（@ 2026-06-23）：`POST /api/v1/tasks/{task_id}/archive`（admin，`TaskArchiveRequest.reason` → `TaskArchiveResponse`）；任务 `extra_metadata.admin_archived` / `admin_archived_at` / `admin_archive_reason` / `admin_archive_source_task_id`；图实例 context `admin_archived*` + 节点 TERMINATED + instance CANCELLED
 - **任务 PATCH 逾期延期**（@ 2026-06-23）：已逾期任务 `due_date` 变更须晚于原截止时间（ConflictError）
 
-> §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.48 为图引擎与运行事件**摘要**（完整列定义以 ORM + Alembic 为准）。
+> §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.49 为图引擎九表与运行事件**摘要**（完整列定义以 ORM + Alembic 为准；领域总览见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)）。
 
 ---
 

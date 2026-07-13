@@ -16,6 +16,23 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（图引擎 as-built 文档化）
+
+### 2026-07-13 — 系统性拆解图任务引擎并写入 memory-bank
+
+**完成事项**:
+- [x] 对照 ORM / `WorkflowGraphService` / `TaskDetailShell` 整理现行图引擎 as-built
+- [x] 重写 [`knowledge/domains/workflow-graph-engine.md`](../../knowledge/domains/workflow-graph-engine.md)：九表模型、枚举、运行时、Task 投影、API、前端 authoring/runtime/`ui_profile`、时间线三层现状与差距
+- [x] 同步 [`knowledge/contracts/database/graph-engine-schema.md`](../../knowledge/contracts/database/graph-engine-schema.md) 为九表（含 schedules）并澄清 routing 语义
+
+**验证**:
+- 文档与代码路径交叉核对（模型九表、feature flag 实际门闩、前端 profile 门控）
+- 计划：`python .paradigma/tools/pd-sync-index.py` / `pd-check-all.py`
+
+**备注**: 纠正旧述「七表 + outbox」与「routing_rules 运行时桥接」；Wait-Any / Deep-Reject 客户端 flag 未闸住服务端。
+
+---
+
 ## 会话摘要（Docker 前端依赖卷自动同步）
 
 ### 2026-07-13 00:19 — 修复 Compose 旧 node_modules 卷缺少 mammoth
