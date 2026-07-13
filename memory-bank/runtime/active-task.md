@@ -5,7 +5,7 @@ description: "Project Filum 当前唯一聚焦任务。"
 tags:
   - runtime
   - active-task
-timestamp: 2026-07-13T00:19:00+08:00
+timestamp: 2026-07-13T22:11:53+08:00
 paradigma:
   schema_version: 0.5.0
   layer: runtime
@@ -17,7 +17,7 @@ paradigma:
 ---
 # 当前任务
 
-> 🔥 HOT — **S-01 最小周期统计已实施，待用户验收**。见 [`s01-task-statistics-plan.md`](../knowledge/plans/s01-task-statistics-plan.md)。
+> 🔥 HOT — **Iteration 0 已通过验收，ADR-012–016 已采纳；下一步进入 Iteration 1 安全边界与执行版本冻结。**
 
 ---
 
@@ -25,10 +25,10 @@ paradigma:
 
 | 字段 | 内容 |
 |------|------|
-| **任务标题** | **S-01** 任务统计（周期/绩效入口） |
-| **优先级** | P2 |
-| **状态** | 实施完成 · 待用户验收 |
-| **关联** | stats Tab · `GET /tasks/stats/*` |
+| **任务标题** | 工作流图引擎结构收敛与运行时正确性升级 |
+| **优先级** | P0 基线 |
+| **状态** | Iteration 0 已完成 · 准备启动 Iteration 1 |
+| **关联** | 定义冻结 · 对象级授权 · 条件 Join · 双写收口 · 投影恢复 |
 
 ---
 
@@ -36,6 +36,9 @@ paradigma:
 
 | 交付 | 说明 |
 |------|------|
+| ADR 验收 @ 2026-07-13 | 用户统一采纳 ADR-012–016；Iteration 0 决策闸门通过 |
+| Iteration 0 基线 @ 2026-07-13 | 7 个缺陷编号/11 strict xfail、PostgreSQL 并发基座、统一基线报告、ADR-012–016；无业务/schema/API/前端变更 |
+| 图引擎稳健升级方案 @ 2026-07-13 | 按项目事实重排为安全/版本冻结 → 路径语义 → 写所有权 → Handler → 投影/运维 → Legacy 清理 |
 | Docker 前端依赖同步 @ 2026-07-13 | lockfile 哈希变化时自动 `npm ci` 刷新命名卷；修复旧卷缺少 `mammoth` |
 | S-01 实施 @ 2026-07-11 | Employee 本人/经理子树/Admin-HR 全局；上海周期；DB 聚合；5 指标、人员表、明细下钻 |
 | S-01 实施计划 @ 2026-07-11 | 权限、最小功能、周期/指标口径、API、阶段与 4–5 日预估；待审批 |
@@ -56,4 +59,4 @@ paradigma:
 
 ---
 
-**下一 actionable**：用户验收 S-01 统计 Tab：切换本周/本月/上月、部门/子树，核对数字卡、人员负载和明细下钻；通过后将计划归档为 completed。
+**下一 actionable**：形成 Iteration 1 的精确实施切片，先以对象级授权和 active 定义不可变的失败测试开局，再实施 Run snapshot/hash/engine version 与 legacy executor。S-01 统计 Tab 仍保留为待用户验收事项。

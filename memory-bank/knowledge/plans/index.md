@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 344c6961b5c8285d -->
+<!-- checksum: c530d85b8160a8f5 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -15,6 +15,7 @@
 | [tc-p2-views-stats-plan.md](tc-p2-views-stats-plan.md) | `paradigma-plan` | TC-P2 落地计划 | TC-P2<br>tc-p2 | - | - |
 | [ui-information-architecture-plan.md](ui-information-architecture-plan.md) | `paradigma-plan` | UI IA 计划 | UI<br>IA<br>ui ... | - | - |
 | [ui-refactor-spec-v2.md](ui-refactor-spec-v2.md) | `paradigma-plan` | UI 重构规格 v2 | UI<br>重构<br>ui ... | - | - |
+| [workflow-graph-engine-upgrade-iteration-plan.md](workflow-graph-engine-upgrade-iteration-plan.md) | `paradigma-plan` | 工作流图引擎稳健升级迭代方案 | 图引擎升级<br>工作流边界<br>运行时正确性 ... | - | - |
 | [workflow-refactor-implementation-plan.md](workflow-refactor-implementation-plan.md) | `paradigma-plan` | 工作流重构计划 | 工作流重构<br>workflow<br>refactor | - | - |
 | [workflow-video-v1-implementation-plan.md](workflow-video-v1-implementation-plan.md) | `paradigma-plan` | 视频 v1 实施计划 | 视频<br>v1<br>video ... | - | - |
 | [workflow-video-v1-ui-simplification-design.md](workflow-video-v1-ui-simplification-design.md) | `paradigma-plan` | UI 简化设计 | UI<br>简化<br>ui ... | - | - |

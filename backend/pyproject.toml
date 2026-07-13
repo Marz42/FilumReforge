@@ -43,6 +43,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
   "postgres: requires a reachable PostgreSQL instance (see POSTGRES_TEST_ADMIN_DSN)",
+  "workflow_gap: strict executable evidence for registered workflow-engine gaps",
 ]
 
 [tool.setuptools.packages.find]

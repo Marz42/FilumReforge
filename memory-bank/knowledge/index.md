@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: e733b0bc80caa9d9 -->
+<!-- checksum: eb7a11ab3ecaeeee -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -30,6 +30,11 @@
 | [decisions/adr-009-single-step-boundary.md](decisions/adr-009-single-step-boundary.md) | `paradigma-decision` | ADR-009: 单步任务产品边界 | 单步任务<br>产品边界<br>single step ... | - | - |
 | [decisions/adr-010-task-flow-boundary.md](decisions/adr-010-task-flow-boundary.md) | `paradigma-decision` | ADR-010: 任务流产品边界 | 任务流<br>产品边界<br>task flow ... | - | - |
 | [decisions/adr-011-department-schedule.md](decisions/adr-011-department-schedule.md) | `paradigma-decision` | ADR-011: 部门周期调度 | 部门调度<br>F-24<br>department schedule ... | - | - |
+| [decisions/adr-012-immutable-definition-run-snapshot.md](decisions/adr-012-immutable-definition-run-snapshot.md) | `paradigma-decision` | ADR-012: 发布定义不可变与 Run 快照 | 发布定义不可变<br>Run 快照<br>定义哈希 ... | - | - |
+| [decisions/adr-013-edge-traversal-activation-dependency.md](decisions/adr-013-edge-traversal-activation-dependency.md) | `paradigma-decision` | ADR-013: 路径账本优先于完整 Token 引擎 | 路径账本<br>激活依赖<br>条件 Join ... | - | - |
+| [decisions/adr-014-task-work-item-link-boundary.md](decisions/adr-014-task-work-item-link-boundary.md) | `paradigma-decision` | ADR-014: 保留 Task 接口并建立正式工作项 Link | Task 工作项<br>节点 Link<br>双写收口 ... | - | - |
+| [decisions/adr-015-approval-handler-reuse.md](decisions/adr-015-approval-handler-reuse.md) | `paradigma-decision` | ADR-015: 通过 Handler 复用现有审批引擎 | 审批 Handler<br>审批引擎复用<br>approval handler ... | - | - |
+| [decisions/adr-016-object-authorization-scope-legacy-executor.md](decisions/adr-016-object-authorization-scope-legacy-executor.md) | `paradigma-decision` | ADR-016: 对象级授权、显式 scope 与 legacy executor | 对象级授权<br>scope_mode<br>legacy executor ... | - | - |
 | [decisions/decisions.md](decisions/decisions.md) | `paradigma-decision` | ADR 合集 (已拆分) | ADR<br>决策<br>合辑 ... | - | - |
 | [domains/architecture/backend-architecture.md](domains/architecture/backend-architecture.md) | `paradigma-domain` | Backend 架构细节 | 后端架构<br>FastAPI<br>service ... | - | - |
 | [domains/architecture/core-workflows.md](domains/architecture/core-workflows.md) | `paradigma-domain` | 核心流程 | 核心流程<br>运行时<br>链路 ... | - | - |
@@ -68,6 +73,7 @@
 | [plans/tc-p2-views-stats-plan.md](plans/tc-p2-views-stats-plan.md) | `paradigma-plan` | TC-P2 落地计划 | TC-P2<br>tc-p2 | - | - |
 | [plans/ui-information-architecture-plan.md](plans/ui-information-architecture-plan.md) | `paradigma-plan` | UI IA 计划 | UI<br>IA<br>ui ... | - | - |
 | [plans/ui-refactor-spec-v2.md](plans/ui-refactor-spec-v2.md) | `paradigma-plan` | UI 重构规格 v2 | UI<br>重构<br>ui ... | - | - |
+| [plans/workflow-graph-engine-upgrade-iteration-plan.md](plans/workflow-graph-engine-upgrade-iteration-plan.md) | `paradigma-plan` | 工作流图引擎稳健升级迭代方案 | 图引擎升级<br>工作流边界<br>运行时正确性 ... | - | - |
 | [plans/workflow-refactor-implementation-plan.md](plans/workflow-refactor-implementation-plan.md) | `paradigma-plan` | 工作流重构计划 | 工作流重构<br>workflow<br>refactor | - | - |
 | [plans/workflow-video-v1-implementation-plan.md](plans/workflow-video-v1-implementation-plan.md) | `paradigma-plan` | 视频 v1 实施计划 | 视频<br>v1<br>video ... | - | - |
 | [plans/workflow-video-v1-ui-simplification-design.md](plans/workflow-video-v1-ui-simplification-design.md) | `paradigma-plan` | UI 简化设计 | UI<br>简化<br>ui ... | - | - |

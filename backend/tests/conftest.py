@@ -26,6 +26,26 @@ from app.core.database import get_async_engine, get_session_factory
 from app.models import Base
 
 
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
+  """CI strict mode treats every PostgreSQL skip as a failed test."""
+  outcome = yield
+  report = outcome.get_result()
+  require_postgres = os.environ.get("FILUM_REQUIRE_POSTGRES_TESTS", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+  }
+  if require_postgres and item.get_closest_marker("postgres") is not None and report.skipped:
+    report.outcome = "failed"
+    report.longrepr = (
+      str(item.fspath),
+      0,
+      "FILUM_REQUIRE_POSTGRES_TESTS=true forbids skipped PostgreSQL tests.",
+    )
+
+
 @pytest.fixture(autouse=True)
 def clear_cached_settings(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setenv("JWT_SECRET_KEY", "test-jwt-secret-key-for-suite-123456")

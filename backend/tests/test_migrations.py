@@ -12,6 +12,7 @@ from tests.postgres_migration_support import (
   drop_ephemeral_database,
   list_public_tables,
   postgres_admin_dsn,
+  postgres_tests_required,
   provision_ephemeral_database,
   run_async,
 )
@@ -98,6 +99,8 @@ def test_alembic_upgrade_and_downgrade(monkeypatch: pytest.MonkeyPatch) -> None:
   try:
     async_dsn, sync_dsn, database_name = run_async(provision_ephemeral_database(admin_dsn))
   except Exception as exc:
+    if postgres_tests_required():
+      pytest.fail(f"Required PostgreSQL test database is unavailable: {type(exc).__name__}: {exc}")
     pytest.skip(f"PostgreSQL unavailable at {admin_dsn}: {exc}")
 
   monkeypatch.setenv("POSTGRES_DSN", async_dsn)

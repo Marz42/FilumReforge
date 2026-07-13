@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import uuid
 from collections.abc import Coroutine
 from typing import TypeVar
@@ -10,6 +11,8 @@ from urllib.parse import urlparse, urlunparse
 import asyncpg
 
 T = TypeVar("T")
+TRUE_VALUES = {"1", "true", "yes", "on"}
+DATABASE_PREFIX_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,24}$")
 
 
 def postgres_admin_dsn() -> str:
@@ -32,9 +35,19 @@ def to_asyncpg_sqlalchemy_dsn(sync_postgres_url: str) -> str:
   raise ValueError(f"Unsupported PostgreSQL URL scheme: {sync_postgres_url}")
 
 
-async def provision_ephemeral_database(admin_dsn: str) -> tuple[str, str, str]:
+def postgres_tests_required() -> bool:
+  return os.environ.get("FILUM_REQUIRE_POSTGRES_TESTS", "").strip().lower() in TRUE_VALUES
+
+
+async def provision_ephemeral_database(
+  admin_dsn: str,
+  *,
+  prefix: str = "filum_test",
+) -> tuple[str, str, str]:
   """Create an empty database and return (async_sqlalchemy_dsn, sync_dsn, db_name)."""
-  database_name = f"filum_mig_{uuid.uuid4().hex}"
+  if DATABASE_PREFIX_PATTERN.fullmatch(prefix) is None:
+    raise ValueError("PostgreSQL test database prefix must be a safe lowercase identifier.")
+  database_name = f"{prefix}_{uuid.uuid4().hex}"
   conn = await asyncpg.connect(admin_dsn)
   try:
     await conn.execute(f'CREATE DATABASE "{database_name}"')
@@ -59,6 +72,19 @@ async def drop_ephemeral_database(admin_dsn: str, database_name: str) -> None:
       database_name,
     )
     await conn.execute(f'DROP DATABASE IF EXISTS "{database_name}"')
+  finally:
+    await conn.close()
+
+
+async def database_exists(admin_dsn: str, database_name: str) -> bool:
+  conn = await asyncpg.connect(admin_dsn)
+  try:
+    return bool(
+      await conn.fetchval(
+        "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)",
+        database_name,
+      )
+    )
   finally:
     await conn.close()
 

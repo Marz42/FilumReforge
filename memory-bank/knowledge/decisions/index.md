@@ -1,7 +1,7 @@
 # Decisions Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: f5a976a29cbcc0e7 -->
+<!-- checksum: f91a55001648b612 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -17,6 +17,11 @@
 | [adr-009-single-step-boundary.md](adr-009-single-step-boundary.md) | `paradigma-decision` | ADR-009: 单步任务产品边界 | 单步任务<br>产品边界<br>single step ... | - | - |
 | [adr-010-task-flow-boundary.md](adr-010-task-flow-boundary.md) | `paradigma-decision` | ADR-010: 任务流产品边界 | 任务流<br>产品边界<br>task flow ... | - | - |
 | [adr-011-department-schedule.md](adr-011-department-schedule.md) | `paradigma-decision` | ADR-011: 部门周期调度 | 部门调度<br>F-24<br>department schedule ... | - | - |
+| [adr-012-immutable-definition-run-snapshot.md](adr-012-immutable-definition-run-snapshot.md) | `paradigma-decision` | ADR-012: 发布定义不可变与 Run 快照 | 发布定义不可变<br>Run 快照<br>定义哈希 ... | - | - |
+| [adr-013-edge-traversal-activation-dependency.md](adr-013-edge-traversal-activation-dependency.md) | `paradigma-decision` | ADR-013: 路径账本优先于完整 Token 引擎 | 路径账本<br>激活依赖<br>条件 Join ... | - | - |
+| [adr-014-task-work-item-link-boundary.md](adr-014-task-work-item-link-boundary.md) | `paradigma-decision` | ADR-014: 保留 Task 接口并建立正式工作项 Link | Task 工作项<br>节点 Link<br>双写收口 ... | - | - |
+| [adr-015-approval-handler-reuse.md](adr-015-approval-handler-reuse.md) | `paradigma-decision` | ADR-015: 通过 Handler 复用现有审批引擎 | 审批 Handler<br>审批引擎复用<br>approval handler ... | - | - |
+| [adr-016-object-authorization-scope-legacy-executor.md](adr-016-object-authorization-scope-legacy-executor.md) | `paradigma-decision` | ADR-016: 对象级授权、显式 scope 与 legacy executor | 对象级授权<br>scope_mode<br>legacy executor ... | - | - |
 | [decisions.md](decisions.md) | `paradigma-decision` | ADR 合集 (已拆分) | ADR<br>决策<br>合辑 ... | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->
