@@ -17,6 +17,9 @@ from app.api.routes.workflow_graph_engine import (
 )
 from app.core.config import Settings
 from app.core.enums import (
+  TaskPriority,
+  TaskSourceType,
+  TaskStatus,
   UserRole,
   WorkflowGraphInstanceStatus,
   WorkflowGraphTemplateStatus,
@@ -24,6 +27,9 @@ from app.core.enums import (
 )
 from app.core.exceptions import NotFoundError
 from app.models import (
+  Department,
+  Task,
+  TaskWatcher,
   User,
   WorkflowGraphTemplate,
   WorkflowGraphTemplateEdge,
@@ -33,6 +39,7 @@ from app.models import (
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_access_policy import WorkflowAccessPolicy
 from app.services.workflow_graph_template_admin_service import WorkflowGraphTemplateAdminService
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
@@ -247,8 +254,6 @@ async def _seed_authorization_case(db_session):
   return seed, unrelated, result
 
 
-@pytest.mark.workflow_gap
-@pytest.mark.xfail(strict=True, reason="AUTH-GAP-001: 无关员工可读取实例详情")
 @pytest.mark.asyncio
 async def test_auth_gap_001_unrelated_employee_cannot_read_instance(db_session) -> None:
   _, unrelated, result = await _seed_authorization_case(db_session)
@@ -256,12 +261,11 @@ async def test_auth_gap_001_unrelated_employee_cannot_read_instance(db_session) 
     await get_graph_instance(
       instance_id=result.instance.id,
       actor=unrelated,
+      session=db_session,
       workflow_graph_service=WorkflowGraphService(db_session),
     )
 
 
-@pytest.mark.workflow_gap
-@pytest.mark.xfail(strict=True, reason="AUTH-GAP-002: 无关员工可读取事件、子 Run 或 submission")
 @pytest.mark.parametrize("resource", ["events", "children", "submissions"])
 @pytest.mark.asyncio
 async def test_auth_gap_002_unrelated_employee_cannot_read_run_related_resources(
@@ -274,6 +278,7 @@ async def test_auth_gap_002_unrelated_employee_cannot_read_run_related_resources
       await list_graph_instance_events(
         instance_id=result.instance.id,
         actor=unrelated,
+        session=db_session,
         event_service=WorkflowRunEventService(db_session),
         limit=20,
         offset=0,
@@ -282,6 +287,7 @@ async def test_auth_gap_002_unrelated_employee_cannot_read_run_related_resources
       await list_graph_instance_children(
         instance_id=result.instance.id,
         actor=unrelated,
+        session=db_session,
         workflow_graph_service=WorkflowGraphService(db_session),
         limit=50,
         include_completed=False,
@@ -290,13 +296,12 @@ async def test_auth_gap_002_unrelated_employee_cannot_read_run_related_resources
       await list_instance_submissions(
         instance_id=result.instance.id,
         actor=unrelated,
+        session=db_session,
         form_service=WorkflowVideoFormService(db_session),
         node_key="A",
       )
 
 
-@pytest.mark.workflow_gap
-@pytest.mark.xfail(strict=True, reason="AUTH-GAP-003: 无模板管理权限者可读取 designer、统计或实例列表")
 @pytest.mark.parametrize("resource", ["designer", "stats", "instances"])
 @pytest.mark.asyncio
 async def test_auth_gap_003_employee_cannot_read_template_management_resources(
@@ -309,18 +314,98 @@ async def test_auth_gap_003_employee_cannot_read_template_management_resources(
       await get_graph_template_designer(
         template_id=seed.template.id,
         actor=unrelated,
+        session=db_session,
         admin_service=WorkflowGraphTemplateAdminService(db_session),
       )
     elif resource == "stats":
       await get_graph_template_stats(
         template_id=seed.template.id,
         actor=unrelated,
+        session=db_session,
         admin_service=WorkflowGraphTemplateAdminService(db_session),
       )
     else:
       await list_graph_instances_for_template(
         template_id=seed.template.id,
         actor=unrelated,
+        session=db_session,
         workflow_graph_service=WorkflowGraphService(db_session),
         limit=10,
       )
+
+
+@pytest.mark.parametrize("relationship", ["initiator", "current_assignee", "historical_actor", "manager", "watcher"])
+@pytest.mark.asyncio
+async def test_iteration1_instance_read_policy_allows_registered_relationships(
+  db_session,
+  relationship: str,
+) -> None:
+  seed, unrelated, result = await _seed_authorization_case(db_session)
+  actor = seed.admin if relationship == "initiator" else unrelated
+
+  if relationship == "current_assignee":
+    _node(result, "A").assignee_user_id = unrelated.id
+  elif relationship == "historical_actor":
+    await WorkflowRunEventService(db_session).append(
+      instance_id=result.instance.id,
+      event_type="node_completed",
+      actor_user_id=unrelated.id,
+      payload={"evidence": "iteration1-access-policy"},
+    )
+  elif relationship == "manager":
+    department = Department(
+      name=f"Iteration 1 部门 {uuid4().hex[:8]}",
+      code=f"i1-{uuid4().hex}",
+      manager_id=unrelated.id,
+    )
+    db_session.add(department)
+    await db_session.flush()
+    result.instance.department_id = department.id
+  elif relationship == "watcher":
+    task = Task(
+      title="Iteration 1 watcher evidence",
+      creator_id=seed.admin.id,
+      assignee_id=seed.admin.id,
+      status=TaskStatus.TODO,
+      priority=TaskPriority.MEDIUM,
+      source_type=TaskSourceType.MANUAL,
+      extra_metadata={"workflow_graph_instance_id": str(result.instance.id)},
+    )
+    db_session.add(task)
+    await db_session.flush()
+    db_session.add(
+      TaskWatcher(
+        task_id=task.id,
+        user_id=unrelated.id,
+        relation="cc",
+        created_by=seed.admin.id,
+      )
+    )
+  await db_session.commit()
+
+  authorized_instance = await WorkflowAccessPolicy(db_session).ensure_can_read_instance(
+    actor=actor,
+    instance_id=result.instance.id,
+  )
+  assert authorized_instance.id == result.instance.id
+
+
+@pytest.mark.asyncio
+async def test_iteration1_department_manager_can_read_template_management_resources(db_session) -> None:
+  seed, manager, _ = await _seed_authorization_case(db_session)
+  db_session.add(
+    Department(
+      name=f"Iteration 1 模板管理部门 {uuid4().hex[:8]}",
+      code=f"i1-manage-{uuid4().hex}",
+      manager_id=manager.id,
+    )
+  )
+  await db_session.commit()
+
+  detail = await get_graph_template_designer(
+    template_id=seed.template.id,
+    actor=manager,
+    session=db_session,
+    admin_service=WorkflowGraphTemplateAdminService(db_session),
+  )
+  assert detail.id == seed.template.id

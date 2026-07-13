@@ -17,7 +17,7 @@ paradigma:
 ---
 # 当前任务
 
-> 🔥 HOT — **Iteration 0 已通过验收，ADR-012–016 已采纳；下一步进入 Iteration 1 安全边界与执行版本冻结。**
+> 🔥 HOT — **Iteration 1 已启动：I1-A 对象级授权完成，准备推进模板 scope/不可变与 Run snapshot executor。**见 [`Iteration 1 实施计划`](../knowledge/plans/workflow-graph-engine-iteration1-implementation-plan.md)。
 
 ---
 
@@ -27,7 +27,7 @@ paradigma:
 |------|------|
 | **任务标题** | 工作流图引擎结构收敛与运行时正确性升级 |
 | **优先级** | P0 基线 |
-| **状态** | Iteration 0 已完成 · 准备启动 Iteration 1 |
+| **状态** | Iteration 1 · I1-A 完成 · I1-B 待实施 |
 | **关联** | 定义冻结 · 对象级授权 · 条件 Join · 双写收口 · 投影恢复 |
 
 ---
@@ -36,6 +36,7 @@ paradigma:
 
 | 交付 | 说明 |
 |------|------|
+| Iteration 1 / I1-A @ 2026-07-13 | `WorkflowAccessPolicy` 统一保护 7 类资源；AUTH-GAP 三组转正；API 44 项与后端全量通过 |
 | ADR 验收 @ 2026-07-13 | 用户统一采纳 ADR-012–016；Iteration 0 决策闸门通过 |
 | Iteration 0 基线 @ 2026-07-13 | 7 个缺陷编号/11 strict xfail、PostgreSQL 并发基座、统一基线报告、ADR-012–016；无业务/schema/API/前端变更 |
 | 图引擎稳健升级方案 @ 2026-07-13 | 按项目事实重排为安全/版本冻结 → 路径语义 → 写所有权 → Handler → 投影/运维 → Legacy 清理 |
@@ -59,4 +60,4 @@ paradigma:
 
 ---
 
-**下一 actionable**：形成 Iteration 1 的精确实施切片，先以对象级授权和 active 定义不可变的失败测试开局，再实施 Run snapshot/hash/engine version 与 legacy executor。S-01 统计 Tab 仍保留为待用户验收事项。
+**下一 actionable**：实施 I1-B active/archived 不可变；先改造会原地更新 ACTIVE 模板的 seed 路径，再加入显式 scope 和最终部门校验。S-01 统计 Tab 仍保留为待用户验收事项。

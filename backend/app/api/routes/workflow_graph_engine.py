@@ -25,6 +25,7 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.core.enums import WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowGraphTemplateNode, WorkflowNodeInstance
 from app.services.access_control import ensure_department_stats_access, can_manage_task_templates, get_effective_managed_department_ids
+from app.services.workflow_access_policy import WorkflowAccessPolicy
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.workflow_video import (
@@ -301,9 +302,10 @@ async def create_graph_template(
 async def get_graph_template_designer(
   template_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
 ) -> WorkflowGraphTemplateDesignerRead:
-  _ = actor
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(actor=actor)
   return await admin_service.get_designer_detail(template_id=template_id)
 
 
@@ -425,9 +427,10 @@ async def dry_run_graph_template(
 async def get_graph_template_stats(
   template_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
 ) -> WorkflowGraphTemplateStatsRead:
-  _ = actor
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(actor=actor)
   return await admin_service.get_template_stats(template_id=template_id)
 
 
@@ -550,9 +553,11 @@ async def preview_template_participants(
 async def list_graph_instances_for_template(
   template_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
   limit: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> list[WorkflowGraphInstanceRead]:
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(actor=actor)
   instances = await workflow_graph_service.list_instances_for_template(
     template_id=template_id,
     limit=limit,
@@ -592,10 +597,11 @@ async def submit_task_capture(
 async def list_instance_submissions(
   instance_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   form_service: Annotated[WorkflowVideoFormService, Depends(get_workflow_video_form_service)],
   node_key: Annotated[str, Query(min_length=1, max_length=64)],
 ) -> InstanceSubmissionsResponse:
-  _ = actor
+  await WorkflowAccessPolicy(session).ensure_can_read_instance(actor=actor, instance_id=instance_id)
   return await form_service.list_instance_submissions(
     instance_id=instance_id,
     node_key=node_key,
@@ -750,11 +756,12 @@ async def list_department_runs(
 async def list_graph_instance_events(
   instance_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   event_service: Annotated[WorkflowRunEventService, Depends(get_workflow_run_event_service)],
   limit: Annotated[int, Query(ge=1, le=100)] = 20,
   offset: Annotated[int, Query(ge=0)] = 0,
 ) -> WorkflowRunEventListResponse:
-  _ = actor
+  await WorkflowAccessPolicy(session).ensure_can_read_instance(actor=actor, instance_id=instance_id)
   return await event_service.list_for_instance(
     instance_id=instance_id,
     limit=limit,
@@ -770,11 +777,12 @@ async def list_graph_instance_events(
 async def list_graph_instance_children(
   instance_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
   limit: Annotated[int, Query(ge=1, le=100)] = 50,
   include_completed: Annotated[bool, Query()] = False,
 ) -> list[WorkflowGraphInstanceRead]:
-  _ = actor
+  await WorkflowAccessPolicy(session).ensure_can_read_instance(actor=actor, instance_id=instance_id)
   children = await workflow_graph_service.list_child_instances(
     parent_instance_id=instance_id,
     limit=limit,
@@ -795,9 +803,13 @@ async def list_graph_instance_children(
 async def get_graph_instance(
   instance_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
 ) -> WorkflowGraphInstanceDetailRead:
-  instance = await workflow_graph_service.get_instance(instance_id=instance_id)
+  instance = await WorkflowAccessPolicy(session).ensure_can_read_instance(
+    actor=actor,
+    instance_id=instance_id,
+  )
   node_instances = await workflow_graph_service.list_node_instances_for_graph(instance_id=instance_id)
   return _build_instance_detail(instance, node_instances)
 
