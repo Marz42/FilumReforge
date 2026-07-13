@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import delete, exists, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import WorkflowGraphTemplateStatus
@@ -14,7 +15,6 @@ from app.models import (
   WorkflowGraphTemplate,
   WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
-  WorkflowNodeInstance,
 )
 from app.services.workflow_video_template_seed_data import (
   SEED_VERSION,
@@ -102,86 +102,6 @@ class WorkflowVideoTemplateSeedService:
     nodes_rebuilt: bool
     topology_synced_in_place: bool
 
-  async def _template_has_node_instance_references(self, template_id: UUID) -> bool:
-    referenced = await self._session.scalar(
-      select(
-        exists().where(
-          WorkflowNodeInstance.template_node_id == WorkflowGraphTemplateNode.id,
-          WorkflowGraphTemplateNode.template_id == template_id,
-        )
-      )
-    )
-    return bool(referenced)
-
-  async def _sync_template_topology_in_place(
-    self,
-    *,
-    template_id: UUID,
-    nodes: list[dict],
-    edges: list[tuple[str, str, bool]],
-  ) -> None:
-    existing_nodes = list(
-      await self._session.scalars(
-        select(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.template_id == template_id)
-      )
-    )
-    by_key = {node.node_key: node for node in existing_nodes}
-    desired_keys = {spec["node_key"] for spec in nodes}
-    node_by_key: dict[str, WorkflowGraphTemplateNode] = {}
-
-    for spec in nodes:
-      node = by_key.get(spec["node_key"])
-      if node is None:
-        node = WorkflowGraphTemplateNode(
-          template_id=template_id,
-          node_key=spec["node_key"],
-          title=spec["title"],
-          sort_order=spec["sort_order"],
-          assignee_rule=spec.get("assignee_rule") or {},
-          config=spec.get("config") or {},
-        )
-        self._session.add(node)
-      else:
-        node.title = spec["title"]
-        node.sort_order = spec["sort_order"]
-        node.assignee_rule = spec.get("assignee_rule") or {}
-        node.config = spec.get("config") or {}
-      node_by_key[spec["node_key"]] = node
-
-    await self._session.flush()
-
-    for node in existing_nodes:
-      if node.node_key in desired_keys:
-        continue
-      reference_count = await self._session.scalar(
-        select(func.count())
-        .select_from(WorkflowNodeInstance)
-        .where(WorkflowNodeInstance.template_node_id == node.id)
-      )
-      if not reference_count:
-        await self._session.delete(node)
-
-    await self._session.execute(
-      delete(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template_id)
-    )
-    await self._create_edges(template_id=template_id, edge_specs=edges, node_by_key=node_by_key)
-
-  async def _rebuild_template_topology(
-    self,
-    *,
-    template_id: UUID,
-    nodes: list[dict],
-    edges: list[tuple[str, str, bool]],
-  ) -> None:
-    await self._session.execute(
-      delete(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template_id)
-    )
-    await self._session.execute(
-      delete(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.template_id == template_id)
-    )
-    node_by_key = await self._create_nodes(template_id=template_id, node_specs=nodes)
-    await self._create_edges(template_id=template_id, edge_specs=edges, node_by_key=node_by_key)
-
   async def _upsert_template(
     self,
     *,
@@ -192,31 +112,6 @@ class WorkflowVideoTemplateSeedService:
     nodes: list[dict],
     edges: list[tuple[str, str, bool]],
   ) -> _UpsertResult:
-    template = await self._session.scalar(select(WorkflowGraphTemplate).where(WorkflowGraphTemplate.code == code))
-    created = template is None
-    nodes_rebuilt = False
-    topology_synced_in_place = False
-
-    if template is None:
-      template = WorkflowGraphTemplate(
-        code=code,
-        base_code=code,
-        version=1,
-        name=name,
-        status=WorkflowGraphTemplateStatus.ACTIVE,
-        config=config,
-        context_schema={},
-        created_by=actor.id,
-      )
-      self._session.add(template)
-      await self._session.flush()
-      nodes_rebuilt = True
-    else:
-      current_version = int(template.config.get("seed_version") or 0)
-      template.name = name
-      template.status = WorkflowGraphTemplateStatus.ACTIVE
-      template.config = config
-
     scope_ids = list({
       str(department_id)
       for pool_value in (config.get("department_pools") or {}).values()
@@ -226,36 +121,69 @@ class WorkflowVideoTemplateSeedService:
       for policy in (config.get("participant_policies") or {}).values()
       if isinstance(policy, dict) and "department_id" in policy
     })
-    if scope_ids:
-      template.scope_department_ids = scope_ids
 
-    if not nodes_rebuilt:
-      if current_version != SEED_VERSION:
-        if await self._template_has_node_instance_references(template.id):
-          await self._sync_template_topology_in_place(
-            template_id=template.id,
-            nodes=nodes,
-            edges=edges,
-          )
-          topology_synced_in_place = True
-        else:
-          await self._rebuild_template_topology(
-            template_id=template.id,
-            nodes=nodes,
-            edges=edges,
-          )
-          nodes_rebuilt = True
+    template = await self._session.scalar(
+      select(WorkflowGraphTemplate)
+      .where(WorkflowGraphTemplate.base_code == code)
+      .order_by(WorkflowGraphTemplate.version.desc())
+      .limit(1)
+    )
+    if template is None:
+      template = await self._session.scalar(
+        select(WorkflowGraphTemplate).where(WorkflowGraphTemplate.code == code)
+      )
 
-    if created:
-      node_by_key = await self._create_nodes(template_id=template.id, node_specs=nodes)
-      await self._create_edges(template_id=template.id, edge_specs=edges, node_by_key=node_by_key)
+    if template is not None and int((template.config or {}).get("seed_version") or 0) == SEED_VERSION:
+      return self._UpsertResult(
+        template_id=template.id,
+        created=False,
+        nodes_rebuilt=False,
+        topology_synced_in_place=False,
+      )
+
+    base_code = template.base_code if template is not None else code
+    if template is None:
+      version = 1
+      version_code = code
+      source_template_id = None
+    else:
+      latest_version = await self._session.scalar(
+        select(func.max(WorkflowGraphTemplate.version)).where(
+          WorkflowGraphTemplate.base_code == base_code
+        )
+      )
+      version = int(latest_version or template.version) + 1
+      version_code = re.sub(r"_v\d+$", f"_v{version}", base_code)
+      if version_code == base_code:
+        version_code = f"{base_code}_v{version}"
+      source_template_id = template.id
+      if template.status == WorkflowGraphTemplateStatus.ACTIVE:
+        template.status = WorkflowGraphTemplateStatus.ARCHIVED
+
+    template = WorkflowGraphTemplate(
+      code=version_code,
+      base_code=base_code,
+      version=version,
+      name=name,
+      status=WorkflowGraphTemplateStatus.ACTIVE,
+      config=config,
+      context_schema={},
+      scope_mode="departments" if scope_ids else "global",
+      scope_department_ids=scope_ids,
+      created_by=actor.id,
+      source_template_id=source_template_id,
+    )
+    self._session.add(template)
+    await self._session.flush()
+    node_by_key = await self._create_nodes(template_id=template.id, node_specs=nodes)
+    await self._create_edges(template_id=template.id, edge_specs=edges, node_by_key=node_by_key)
 
     await self._session.flush()
     return self._UpsertResult(
       template_id=template.id,
-      created=created,
-      nodes_rebuilt=nodes_rebuilt,
-      topology_synced_in_place=topology_synced_in_place,
+      created=True,
+      nodes_rebuilt=True,
+      topology_synced_in_place=False,
     )
 
   async def _create_nodes(self, *, template_id: UUID, node_specs: list[dict]) -> dict[str, WorkflowGraphTemplateNode]:

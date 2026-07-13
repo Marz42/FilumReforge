@@ -76,6 +76,7 @@ async def test_graph_template_department_scope_filters_active_templates(db_sessi
         version=1,
         name="开放模板",
         status=WorkflowGraphTemplateStatus.ACTIVE,
+        scope_mode="global",
         scope_department_ids=[],
         created_by=admin.id,
       ),
@@ -85,6 +86,7 @@ async def test_graph_template_department_scope_filters_active_templates(db_sessi
         version=1,
         name="管理部门模板",
         status=WorkflowGraphTemplateStatus.ACTIVE,
+        scope_mode="departments",
         scope_department_ids=[str(managed.id)],
         created_by=admin.id,
       ),
@@ -94,6 +96,7 @@ async def test_graph_template_department_scope_filters_active_templates(db_sessi
         version=1,
         name="其他部门模板",
         status=WorkflowGraphTemplateStatus.ACTIVE,
+        scope_mode="departments",
         scope_department_ids=[str(other.id)],
         created_by=admin.id,
       ),
@@ -152,7 +155,7 @@ async def test_graph_template_delete_guards_permissions_and_existing_runs(db_ses
 
   with pytest.raises(AuthorizationError):
     await service.delete_template(actor=employee, template_id=deletable.id)
-  with pytest.raises(ConflictError, match="已有运行实例"):
+  with pytest.raises(ConflictError, match="已发布版本只能归档"):
     await service.delete_template(actor=admin, template_id=protected.id)
   assert await service.delete_template(actor=admin, template_id=deletable.id) is True
   assert await db_session.get(WorkflowGraphTemplate, deletable.id) is None

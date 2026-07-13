@@ -33,7 +33,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **工作流图引擎 Iteration 1 已启动，I1-A 对象级授权实施中**（2026-07-13），见 [`workflow-graph-engine-iteration1-implementation-plan.md`](./workflow-graph-engine-iteration1-implementation-plan.md)。Iteration 0 已验收，ADR-012–016 已采纳。**S-01 最小周期统计已实施，仍待用户验收**；F-05 `TaskDetailShell` 拆分与完整 E2E 基线刷新保持为并行技术债。
+**当前执行位置**: **工作流图引擎 Iteration 1（I1-A–E）已实施，等待用户验收**（2026-07-13），见 [`workflow-graph-engine-iteration1-implementation-plan.md`](./workflow-graph-engine-iteration1-implementation-plan.md)。Iteration 0 已验收，ADR-012–016 已采纳；未获批准前不进入 Iteration 2 路径语义修复。**S-01 最小周期统计已实施，仍待用户验收**；F-05 `TaskDetailShell` 拆分与完整 E2E 基线刷新保持为并行技术债。
 
 ## 2. 已确认约束
 

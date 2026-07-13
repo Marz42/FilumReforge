@@ -15,6 +15,11 @@ from app.schemas.workflow_video import (
   parse_on_complete_config,
   validate_on_complete_config,
 )
+from app.services.workflow_definition_snapshot import (
+  RuntimeDefinitionTemplate,
+  SNAPSHOT_EXECUTOR_KIND,
+  runtime_template,
+)
 from pydantic import ValidationError as PydanticValidationError
 
 
@@ -122,7 +127,7 @@ async def _resolve_next_active_template(
 def _build_chained_context(
   *,
   parent_instance: WorkflowGraphInstance,
-  parent_template: WorkflowGraphTemplate,
+  parent_template: WorkflowGraphTemplate | RuntimeDefinitionTemplate,
   on_complete: OnCompleteTemplateChainSchema,
 ) -> dict[str, Any]:
   parent_context = parent_instance.context if isinstance(parent_instance.context, dict) else {}
@@ -152,7 +157,11 @@ async def maybe_trigger_template_chain(
   if instance.template_id is None:
     return None
 
-  parent_template = await session.get(WorkflowGraphTemplate, instance.template_id)
+  parent_template: WorkflowGraphTemplate | RuntimeDefinitionTemplate | None
+  if instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+    parent_template = runtime_template(instance.definition_snapshot)
+  else:
+    parent_template = await session.get(WorkflowGraphTemplate, instance.template_id)
   if parent_template is None:
     return None
 

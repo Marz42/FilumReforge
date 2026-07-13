@@ -18,6 +18,11 @@ from app.schemas.workflow_video import (
 )
 from app.services.access_control import ensure_active_user
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+from app.services.workflow_definition_snapshot import (
+  SNAPSHOT_EXECUTOR_KIND,
+  runtime_nodes,
+  runtime_template,
+)
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
 
@@ -68,7 +73,22 @@ class WorkflowVideoForkService:
     if override_code:
       return override_code.strip()
 
-    if batch_instance.template_id is not None:
+    if batch_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      template = runtime_template(batch_instance.definition_snapshot)
+      if template is not None:
+        configured = template.config.get("child_template_code")
+        if isinstance(configured, str) and configured.strip():
+          return configured.strip()
+      nodes = runtime_nodes(batch_instance.definition_snapshot)
+      for node in nodes:
+        aggregate = node.config.get("aggregate_schema")
+        if isinstance(aggregate, dict):
+          on_confirm = aggregate.get("on_confirm")
+          if isinstance(on_confirm, dict):
+            child_code = on_confirm.get("child_template_code")
+            if isinstance(child_code, str) and child_code.strip():
+              return child_code.strip()
+    elif batch_instance.template_id is not None:
       template = await self._session.get(WorkflowGraphTemplate, batch_instance.template_id)
       if template is not None:
         config = template.config if isinstance(template.config, dict) else {}

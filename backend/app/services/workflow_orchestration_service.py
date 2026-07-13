@@ -38,6 +38,14 @@ from app.schemas.workflow_video import validate_node_config
 from app.services.cross_department_routing_service import resolve_cross_department_boundary_cc_user_ids
 from app.services.task_service import TaskService
 from app.services.workflow_assignee_resolver import resolve_node_assignee_id
+from app.services.workflow_definition_snapshot import (
+  RuntimeDefinitionNode,
+  RuntimeDefinitionTemplate,
+  SNAPSHOT_EXECUTOR_KIND,
+  runtime_edges,
+  runtime_nodes,
+  runtime_template,
+)
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_node_config_helpers import (
   is_streaming_aggregate_node,
@@ -69,7 +77,13 @@ class WorkflowOrchestrationService:
       return None
     return UUID(str(raw_task_id))
 
-  async def _load_template(self, *, instance: WorkflowGraphInstance) -> WorkflowGraphTemplate | None:
+  async def _load_template(
+    self,
+    *,
+    instance: WorkflowGraphInstance,
+  ) -> WorkflowGraphTemplate | RuntimeDefinitionTemplate | None:
+    if instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      return runtime_template(instance.definition_snapshot)
     if instance.template_id is None:
       return None
     return await self._session.get(WorkflowGraphTemplate, instance.template_id)
@@ -77,8 +91,18 @@ class WorkflowOrchestrationService:
   async def _load_template_node(
     self,
     *,
+    instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
-  ) -> WorkflowGraphTemplateNode | None:
+  ) -> WorkflowGraphTemplateNode | RuntimeDefinitionNode | None:
+    if instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      return next(
+        (
+          node
+          for node in runtime_nodes(instance.definition_snapshot)
+          if node.node_key == node_instance.node_key
+        ),
+        None,
+      )
     if node_instance.template_node_id is None:
       return None
     return await self._session.get(WorkflowGraphTemplateNode, node_instance.template_node_id)
@@ -89,7 +113,7 @@ class WorkflowOrchestrationService:
     instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
     task: Task,
-    template_node: WorkflowGraphTemplateNode | None,
+    template_node: WorkflowGraphTemplateNode | RuntimeDefinitionNode | None,
   ) -> None:
     """Review nodes activated after upstream deliverable should enter REVIEW immediately."""
     if resolve_completion_policy(node_instance=node_instance, template_node=template_node) != "on_review_approved":
@@ -117,7 +141,7 @@ class WorkflowOrchestrationService:
     self,
     *,
     actor: User,
-    template: WorkflowGraphTemplate,
+    template: WorkflowGraphTemplate | RuntimeDefinitionTemplate,
     instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
   ) -> Task:
@@ -170,7 +194,10 @@ class WorkflowOrchestrationService:
       )
       if task.status != TaskStatus.DOING:
         task.status = TaskStatus.DOING
-      template_node = await self._load_template_node(node_instance=node_instance)
+      template_node = await self._load_template_node(
+        instance=instance,
+        node_instance=node_instance,
+      )
       await self._apply_review_projection_state(
         instance=instance,
         node_instance=node_instance,
@@ -194,7 +221,10 @@ class WorkflowOrchestrationService:
     )
     self._session.add(task)
     await self._session.flush()
-    template_node = await self._load_template_node(node_instance=node_instance)
+    template_node = await self._load_template_node(
+      instance=instance,
+      node_instance=node_instance,
+    )
     await self._apply_review_projection_state(
       instance=instance,
       node_instance=node_instance,
@@ -212,32 +242,41 @@ class WorkflowOrchestrationService:
     target_task: Task,
   ) -> None:
     """Copy upstream node's deliverable attachments to the downstream task (async-safe)."""
-    template_id = instance.template_id
-    if template_id is None:
-      return
-
-    # Resolve upstream node key from template edges via explicit query
-    to_node_sub = (
-      select(WorkflowGraphTemplateNode.id)
-      .where(
-        WorkflowGraphTemplateNode.template_id == template_id,
-        WorkflowGraphTemplateNode.node_key == node_instance.node_key,
+    if instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      edge = next(
+        (
+          item
+          for item in runtime_edges(instance.definition_snapshot)
+          if item.to_node_key == node_instance.node_key and not item.is_reject_path
+        ),
+        None,
       )
-      .scalar_subquery()
-    )
-    edge = await self._session.scalar(
-      select(WorkflowGraphTemplateEdge).where(
-        WorkflowGraphTemplateEdge.template_id == template_id,
-        WorkflowGraphTemplateEdge.to_node_id == to_node_sub,
-        WorkflowGraphTemplateEdge.is_reject_path == False,
+      upstream_node_key = edge.from_node_key if edge is not None else None
+    else:
+      template_id = instance.template_id
+      if template_id is None:
+        return
+      to_node_sub = (
+        select(WorkflowGraphTemplateNode.id)
+        .where(
+          WorkflowGraphTemplateNode.template_id == template_id,
+          WorkflowGraphTemplateNode.node_key == node_instance.node_key,
+        )
+        .scalar_subquery()
       )
-    )
-    if edge is None:
+      edge = await self._session.scalar(
+        select(WorkflowGraphTemplateEdge).where(
+          WorkflowGraphTemplateEdge.template_id == template_id,
+          WorkflowGraphTemplateEdge.to_node_id == to_node_sub,
+          WorkflowGraphTemplateEdge.is_reject_path.is_(False),
+        )
+      )
+      if edge is None:
+        return
+      from_template_node = await self._session.get(WorkflowGraphTemplateNode, edge.from_node_id)
+      upstream_node_key = from_template_node.node_key if from_template_node is not None else None
+    if upstream_node_key is None:
       return
-    from_template_node = await self._session.get(WorkflowGraphTemplateNode, edge.from_node_id)
-    if from_template_node is None:
-      return
-    upstream_node_key = from_template_node.node_key
 
     # Find the completed upstream node instance via explicit query
     upstream_ni = await self._session.scalar(
@@ -306,7 +345,10 @@ class WorkflowOrchestrationService:
         continue
       if self._task_id_from_node_config(node_instance) is not None:
         continue
-      template_node = await self._load_template_node(node_instance=node_instance)
+      template_node = await self._load_template_node(
+        instance=instance,
+        node_instance=node_instance,
+      )
       if is_streaming_aggregate_node(
         instance=instance,
         node_instance=node_instance,
@@ -423,18 +465,16 @@ class WorkflowOrchestrationService:
     self,
     *,
     actor: User,
-    template: WorkflowGraphTemplate,
+    template: WorkflowGraphTemplate | RuntimeDefinitionTemplate,
     instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
   ) -> None:
     if node_instance.assignee_user_id is not None:
       return
-    template_node = None
-    if node_instance.template_node_id is not None:
-      template_node = await self._session.get(
-        WorkflowGraphTemplateNode,
-        node_instance.template_node_id,
-      )
+    template_node = await self._load_template_node(
+      instance=instance,
+      node_instance=node_instance,
+    )
     if template_node is None:
       return
     context = instance.context if isinstance(instance.context, dict) else {}

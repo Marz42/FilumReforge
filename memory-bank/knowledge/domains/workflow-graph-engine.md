@@ -8,7 +8,7 @@ tags:
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-07-13T16:00:00+08:00
+timestamp: 2026-07-13T23:50:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -111,7 +111,8 @@ erDiagram
 
 - 身份：`code`（唯一）· `base_code` + `version`（版本链）· `source_template_id`
 - 结构元数据：`context_schema` · `config`（JSON：`run_kind`、`launch_schema`、`participant_policies`、`on_complete`、`aggregate_mode` 等）
-- 作用域：`scope_department_ids`（空数组 = 不限制）
+- 作用域：显式 `scope_mode=global|departments`；`global` 禁止非空部门列表，`departments` 至少一个部门。创建 Run 解析最终部门后再校验 scope
+- 生命周期：仅 `DRAFT` 可编辑；`ACTIVE` 只能归档或派生新 draft；`ARCHIVED` 不可恢复/编辑。内置 seed 升级同样派生新版本
 
 **Node**
 
@@ -130,6 +131,8 @@ erDiagram
 - 锚点：`source_type` / `source_id`（常指向 ROOT 或手动 Task）
 - 状态：`status` · `current_node_key` · `context` + `context_version` · `max_iterations`（默认 5）
 - 视频/批次：`run_label` · `parent_instance_id`（fork 子 Run）
+- 定义冻结：新 Run 写 `definition_snapshot` + canonical SHA-256 `definition_hash`，并标记 `executor_kind=snapshot`、`engine_version=graph-v2`
+- 兼容路由：存量 Run 保持 `legacy/legacy-v1` 且 snapshot/hash 为 null；旧实时补节点逻辑仅 legacy executor 使用
 
 **NodeInstance**
 
@@ -176,6 +179,7 @@ flowchart TD
 | 能力 | 实现要点 |
 |------|----------|
 | **实例化** | 单节点：`create_single_node_instance` · 多节点：`create_multi_node_instance` / 视频 `WorkflowVideoInstantiationService` |
+| **定义选择** | 新模板 Run 全程从创建时 snapshot 读取模板 config、节点、边、链式配置与投影编排；执行前校验 snapshot hash；legacy Run 继续读实时模板 |
 | **完成** | 行锁 + 版本；已 `completed` 幂等返回；`TERMINATED` 迟到提交 409 |
 | **Join** | `all` = Wait-All；`any` = Wait-Any 并 `_terminate_wait_any_peer_nodes`；上游 `multi_instance` 要求同模板节点全部 peer `completed` |
 | **深度打回** | `deep_reject_to_upstream`：克隆新 `iteration`，旧节点 `TERMINATED`；超 `max_iterations` 拒绝 |
@@ -272,7 +276,7 @@ Schema：`backend/app/schemas/workflow_graph.py`（+ `workflow_graph_schedule.py
        └─ /task-center?filter=tracking&selected={rootTaskId}
 ```
 
-设计器能力：模板 `config`（含 `run_kind`、launch_schema JSON、participant_policies…）· 节点/边表 · 选中节点 raw `config` + `routing_rules` JSON（**无可视化规则构造器**）· DAG 预览 · validate / save draft / publish / fork / import-export / dry-run。已发布且有实例时可锁结构、仅改设置。
+设计器能力：模板 `config`（含 `run_kind`、launch_schema JSON、participant_policies…）· 节点/边表 · 选中节点 raw `config` + `routing_rules` JSON（**无可视化规则构造器**）· DAG 预览 · validate / save draft / publish / fork / import-export / dry-run。发布后定义与设置均不可原地修改，须派生 draft 新版本。
 
 ### 8.3 Runtime UX 与 `ui_profile`
 

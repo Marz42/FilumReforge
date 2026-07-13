@@ -22,7 +22,6 @@ from app.models import (
   User,
   WorkflowDeliverable,
   WorkflowGraphInstance,
-  WorkflowGraphTemplate,
   WorkflowNodeInstance,
 )
 from app.schemas.workflow_video import (
@@ -392,13 +391,11 @@ class WorkflowVideoReworkService:
       .limit(1)
     )
     if target_node is not None:
-      template = await self._session.get(WorkflowGraphTemplate, instance.template_id)
-      if template is not None:
-        await self._orchestration_service.ensure_projection_tasks(
-          actor=actor,
-          instance=instance,
-          node_instances=[target_node],
-        )
+      await self._orchestration_service.ensure_projection_tasks(
+        actor=actor,
+        instance=instance,
+        node_instances=[target_node],
+      )
 
     await WorkflowRunEventService(self._session).append(
       instance_id=instance.id,

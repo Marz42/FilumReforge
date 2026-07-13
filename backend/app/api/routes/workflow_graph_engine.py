@@ -272,6 +272,7 @@ async def list_graph_templates(
       version=template.version,
       run_kind=str((template.config or {}).get("run_kind") or "") or None,
       config=dict(template.config or {}),
+      scope_mode=template.scope_mode,
       scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
       run_count_total=stats_map[template.id].run_count_total if template.id in stats_map else None,
       run_count_30d=stats_map[template.id].run_count_30d if template.id in stats_map else None,
@@ -305,7 +306,10 @@ async def get_graph_template_designer(
   session: Annotated[AsyncSession, Depends(get_db_session)],
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
 ) -> WorkflowGraphTemplateDesignerRead:
-  await WorkflowAccessPolicy(session).ensure_can_manage_templates(actor=actor)
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(
+    actor=actor,
+    template_id=template_id,
+  )
   return await admin_service.get_designer_detail(template_id=template_id)
 
 
@@ -430,7 +434,10 @@ async def get_graph_template_stats(
   session: Annotated[AsyncSession, Depends(get_db_session)],
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
 ) -> WorkflowGraphTemplateStatsRead:
-  await WorkflowAccessPolicy(session).ensure_can_manage_templates(actor=actor)
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(
+    actor=actor,
+    template_id=template_id,
+  )
   return await admin_service.get_template_stats(template_id=template_id)
 
 
@@ -485,16 +492,10 @@ async def create_graph_template_run(
   template_id: UUID,
   payload: CreateGraphTemplateRunRequest,
   actor: Annotated[User, Depends(get_current_user)],
-  session: Annotated[AsyncSession, Depends(get_db_session)],
-  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
   instantiation_service: WorkflowVideoInstantiationService = Depends(
     get_workflow_video_instantiation_service
   ),
 ) -> CreateGraphTemplateRunResponse:
-  template = await admin_service.get_template_detail(template_id=template_id)  # type: ignore[assignment]
-  if template.scope_department_ids and payload.department_id:
-    if str(payload.department_id) not in template.scope_department_ids:
-      raise ConflictError("所选部门不在该模板的作用范围内，请联系管理员。")
   result = await instantiation_service.instantiate_graph_template(
     actor=actor,
     template_id=template_id,
@@ -557,7 +558,10 @@ async def list_graph_instances_for_template(
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
   limit: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> list[WorkflowGraphInstanceRead]:
-  await WorkflowAccessPolicy(session).ensure_can_manage_templates(actor=actor)
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(
+    actor=actor,
+    template_id=template_id,
+  )
   instances = await workflow_graph_service.list_instances_for_template(
     template_id=template_id,
     limit=limit,

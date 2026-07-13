@@ -29,6 +29,18 @@ from app.services.condition_evaluator import (
 )
 from app.services.notification_service import NotificationService
 from app.services.workflow_assignee_resolver import resolve_node_assignee_id
+from app.services.workflow_definition_snapshot import (
+  SNAPSHOT_ENGINE_VERSION,
+  SNAPSHOT_EXECUTOR_KIND,
+  RuntimeDefinitionEdge,
+  RuntimeDefinitionNode,
+  build_definition_snapshot,
+  definition_snapshot_hash,
+  ensure_template_scope_allows_department,
+  runtime_edges,
+  runtime_nodes,
+  runtime_template,
+)
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.models import (
   Task,
@@ -78,6 +90,17 @@ class WorkflowGraphService:
   ) -> None:
     self._session = session
     self._notification_service = notification_service
+
+  @staticmethod
+  def _ensure_snapshot_integrity(graph_instance: WorkflowGraphInstance) -> None:
+    if graph_instance.executor_kind != SNAPSHOT_EXECUTOR_KIND:
+      return
+    snapshot = graph_instance.definition_snapshot
+    expected_hash = graph_instance.definition_hash
+    if not isinstance(snapshot, dict) or not expected_hash:
+      raise ConflictError("当前 Run 缺少有效的定义快照，已停止执行。")
+    if definition_snapshot_hash(snapshot) != expected_hash:
+      raise ConflictError("当前 Run 的定义快照校验失败，已停止执行。")
 
   async def _write_outbox_event(
     self,
@@ -280,6 +303,7 @@ class WorkflowGraphService:
       raise NotFoundError("节点实例不存在。")
 
     graph_instance = await self._lock_graph_instance(instance_id=current_node_instance.instance_id)
+    self._ensure_snapshot_integrity(graph_instance)
     if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
       raise ConflictError("当前工作流图实例已结束，不能发起深度打回。")
     if current_node_instance.template_node_id is None or graph_instance.template_id is None:
@@ -295,13 +319,29 @@ class WorkflowGraphService:
     ):
       raise ConflictError("只有当前受理人才能发起深度打回。")
 
-    template_nodes = list(
-      await self._session.scalars(
-        select(WorkflowGraphTemplateNode)
-        .where(WorkflowGraphTemplateNode.template_id == graph_instance.template_id)
-        .order_by(WorkflowGraphTemplateNode.sort_order.asc())
+    if graph_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      template_nodes = runtime_nodes(graph_instance.definition_snapshot)
+      edges = [
+        edge
+        for edge in runtime_edges(graph_instance.definition_snapshot)
+        if not edge.is_reject_path
+      ]
+    else:
+      template_nodes = list(
+        await self._session.scalars(
+          select(WorkflowGraphTemplateNode)
+          .where(WorkflowGraphTemplateNode.template_id == graph_instance.template_id)
+          .order_by(WorkflowGraphTemplateNode.sort_order.asc())
+        )
       )
-    )
+      edges = list(
+        await self._session.scalars(
+          select(WorkflowGraphTemplateEdge).where(
+            WorkflowGraphTemplateEdge.template_id == graph_instance.template_id,
+            WorkflowGraphTemplateEdge.is_reject_path.is_(False),
+          )
+        )
+      )
     if not template_nodes:
       raise ConflictError("当前模板没有可用节点，无法执行深度打回。")
 
@@ -309,15 +349,6 @@ class WorkflowGraphService:
     target_template_node = template_node_by_key.get(target_node_key)
     if target_template_node is None:
       raise ConflictError("目标节点不存在于当前模板中。")
-
-    edges = list(
-      await self._session.scalars(
-        select(WorkflowGraphTemplateEdge).where(
-          WorkflowGraphTemplateEdge.template_id == graph_instance.template_id,
-          WorkflowGraphTemplateEdge.is_reject_path.is_(False),
-        )
-      )
-    )
 
     reachable_from_target = self._collect_reachable_template_node_ids(
       start_node_id=target_template_node.id,
@@ -424,7 +455,7 @@ class WorkflowGraphService:
     self,
     *,
     start_node_id: UUID,
-    edges: list[WorkflowGraphTemplateEdge],
+    edges: list[WorkflowGraphTemplateEdge | RuntimeDefinitionEdge],
   ) -> set[UUID]:
     adjacency: dict[UUID, list[UUID]] = {}
     for edge in edges:
@@ -504,7 +535,12 @@ class WorkflowGraphService:
       raise NotFoundError("工作流图实例不存在。")
     return instance
 
-  async def _resolve_current_node_key(self, *, instance_id: UUID) -> str | None:
+  async def _resolve_current_node_key(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+  ) -> str | None:
+    instance_id = graph_instance.id
     active_nodes = list(
       await self._session.scalars(
         select(WorkflowNodeInstance)
@@ -516,6 +552,20 @@ class WorkflowGraphService:
     )
     if not active_nodes:
       return None
+
+    if graph_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      sort_order_by_node_key = {
+        node.node_key: node.sort_order
+        for node in runtime_nodes(graph_instance.definition_snapshot)
+      }
+      active_nodes.sort(
+        key=lambda node_instance: (
+          sort_order_by_node_key.get(node_instance.node_key, 0),
+          node_instance.created_at,
+          node_instance.node_key,
+        )
+      )
+      return active_nodes[0].node_key
 
     template_node_ids = [
       node_instance.template_node_id
@@ -613,6 +663,10 @@ class WorkflowGraphService:
     if template is None:
       raise NotFoundError("工作流图模板不存在。")
 
+    if template.status != WorkflowGraphTemplateStatus.ACTIVE:
+      raise ConflictError("仅可实例化已发布的图模板。")
+    ensure_template_scope_allows_department(template=template, department_id=department_id)
+
     nodes: list[WorkflowGraphTemplateNode] = list(
       await self._session.scalars(
         select(WorkflowGraphTemplateNode)
@@ -628,6 +682,11 @@ class WorkflowGraphService:
         select(WorkflowGraphTemplateEdge)
         .where(WorkflowGraphTemplateEdge.template_id == template_id)
       )
+    )
+    definition_snapshot = build_definition_snapshot(
+      template=template,
+      nodes=nodes,
+      edges=edges,
     )
 
     # 计算每个节点的入度
@@ -646,6 +705,10 @@ class WorkflowGraphService:
       source_type="template",
       status=WorkflowGraphInstanceStatus.ACTIVE,
       context=dict(context or {}),
+      definition_snapshot=definition_snapshot,
+      definition_hash=definition_snapshot_hash(definition_snapshot),
+      engine_version=SNAPSHOT_ENGINE_VERSION,
+      executor_kind=SNAPSHOT_EXECUTOR_KIND,
       context_version=1,
       max_iterations=5,
     )
@@ -714,6 +777,7 @@ class WorkflowGraphService:
     if node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
       await self._session.commit()
       return  # 幂等保护
+    self._ensure_snapshot_integrity(graph_instance)
     if node_instance.engine_state == WorkflowNodeEngineState.TERMINATED:
       raise ConflictError("当前节点已被系统撤权，不能继续提交。")
     if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
@@ -763,8 +827,15 @@ class WorkflowGraphService:
     *,
     graph_instance: WorkflowGraphInstance,
     completed_node_instance: WorkflowNodeInstance,
-  ) -> list[WorkflowGraphTemplateEdge]:
+  ) -> list[WorkflowGraphTemplateEdge | RuntimeDefinitionEdge]:
     """Resolve forward edges; realign stale template_node_id via node_key when seed topology syncs."""
+    if graph_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      return [
+        edge
+        for edge in runtime_edges(graph_instance.definition_snapshot)
+        if edge.from_node_key == completed_node_instance.node_key and not edge.is_reject_path
+      ]
+
     template_node_id = completed_node_instance.template_node_id
     if template_node_id is not None:
       outgoing_edges = list(
@@ -808,6 +879,8 @@ class WorkflowGraphService:
     graph_instance: WorkflowGraphInstance,
   ) -> None:
     """Materialize PENDING node instances when template tail nodes were added after fork."""
+    if graph_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      return
     if graph_instance.template_id is None:
       return
 
@@ -854,16 +927,20 @@ class WorkflowGraphService:
     *,
     graph_instance: WorkflowGraphInstance,
   ) -> bool:
-    if graph_instance.template_id is None:
+    if graph_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      template_node_keys = {
+        node.node_key for node in runtime_nodes(graph_instance.definition_snapshot)
+      }
+    elif graph_instance.template_id is None:
       return True
-
-    template_node_keys = set(
-      await self._session.scalars(
-        select(WorkflowGraphTemplateNode.node_key).where(
-          WorkflowGraphTemplateNode.template_id == graph_instance.template_id,
+    else:
+      template_node_keys = set(
+        await self._session.scalars(
+          select(WorkflowGraphTemplateNode.node_key).where(
+            WorkflowGraphTemplateNode.template_id == graph_instance.template_id,
+          )
         )
       )
-    )
     if not template_node_keys:
       return True
 
@@ -917,8 +994,17 @@ class WorkflowGraphService:
 
     activated_notice_nodes: list[WorkflowNodeInstance] = []
     initiator: User | None = None
-    template: WorkflowGraphTemplate | None = None
-    if graph_instance.template_id is not None:
+    template: WorkflowGraphTemplate | Any | None = None
+    snapshot_node_by_id: dict[UUID, RuntimeDefinitionNode] = {}
+    if graph_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      template = runtime_template(graph_instance.definition_snapshot)
+      snapshot_node_by_id = {
+        node.id: node for node in runtime_nodes(graph_instance.definition_snapshot)
+      }
+      initiator = await self._session.get(User, graph_instance.initiator_user_id)
+      if initiator is not None:
+        ensure_active_user(initiator)
+    elif graph_instance.template_id is not None:
       template = await self._session.get(WorkflowGraphTemplate, graph_instance.template_id)
       initiator = await self._session.get(User, graph_instance.initiator_user_id)
       if initiator is not None:
@@ -927,9 +1013,12 @@ class WorkflowGraphService:
     instance_context = graph_instance.context if isinstance(graph_instance.context, dict) else {}
 
     for downstream_template_node_id in downstream_node_ids:
-      downstream_template_node: WorkflowGraphTemplateNode | None = await self._session.get(
-        WorkflowGraphTemplateNode, downstream_template_node_id
-      )
+      if graph_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+        downstream_template_node = snapshot_node_by_id.get(downstream_template_node_id)
+      else:
+        downstream_template_node = await self._session.get(
+          WorkflowGraphTemplateNode, downstream_template_node_id
+        )
       if downstream_template_node is None:
         continue
 
@@ -962,15 +1051,22 @@ class WorkflowGraphService:
         continue
 
       # Wait-All: 检查所有上游节点是否均已完成
-      incoming_edges: list[WorkflowGraphTemplateEdge] = list(
-        await self._session.scalars(
-          select(WorkflowGraphTemplateEdge)
-          .where(
-            WorkflowGraphTemplateEdge.to_node_id == downstream_template_node_id,
-            WorkflowGraphTemplateEdge.is_reject_path.is_(False),
+      if graph_instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+        incoming_edges = [
+          edge
+          for edge in runtime_edges(graph_instance.definition_snapshot)
+          if edge.to_node_id == downstream_template_node_id and not edge.is_reject_path
+        ]
+      else:
+        incoming_edges = list(
+          await self._session.scalars(
+            select(WorkflowGraphTemplateEdge)
+            .where(
+              WorkflowGraphTemplateEdge.to_node_id == downstream_template_node_id,
+              WorkflowGraphTemplateEdge.is_reject_path.is_(False),
+            )
           )
         )
-      )
       upstream_template_node_ids = {edge.from_node_id for edge in incoming_edges}
 
       can_activate = await self._upstream_join_satisfied(
@@ -1016,7 +1112,9 @@ class WorkflowGraphService:
       if downstream_template_node.node_type == WorkflowGraphNodeType.NOTICE:
         activated_notice_nodes.append(downstream_ni)
 
-    graph_instance.current_node_key = await self._resolve_current_node_key(instance_id=instance_id)
+    graph_instance.current_node_key = await self._resolve_current_node_key(
+      graph_instance=graph_instance,
+    )
 
     await self._session.flush()
     await self._auto_complete_notice_nodes(
@@ -1030,8 +1128,8 @@ class WorkflowGraphService:
     self,
     *,
     instance_id: UUID,
-    downstream_template_node: WorkflowGraphTemplateNode,
-    incoming_edges: list[WorkflowGraphTemplateEdge],
+    downstream_template_node: WorkflowGraphTemplateNode | RuntimeDefinitionNode,
+    incoming_edges: list[WorkflowGraphTemplateEdge | RuntimeDefinitionEdge],
   ) -> bool:
     """Evaluate join gates; multi_instance upstream requires every peer instance completed (W4)."""
     upstream_template_node_ids = {edge.from_node_id for edge in incoming_edges}
@@ -1058,10 +1156,11 @@ class WorkflowGraphService:
         branch_results.append(False)
         continue
 
-      upstream_tpl_node = await self._session.get(WorkflowGraphTemplateNode, upstream_tpl_id)
       upstream_kind = "single"
-      if upstream_tpl_node is not None and isinstance(upstream_tpl_node.config, dict):
-        upstream_kind = str(upstream_tpl_node.config.get("kind") or "single")
+      for upstream_instance in upstream_instances:
+        if isinstance(upstream_instance.config, dict):
+          upstream_kind = str(upstream_instance.config.get("kind") or "single")
+          break
 
       completed_count = sum(
         1
@@ -1092,6 +1191,7 @@ class WorkflowGraphService:
       raise NotFoundError("节点实例不存在。")
 
     graph_instance = await self._lock_graph_instance(instance_id=node_instance.instance_id)
+    self._ensure_snapshot_integrity(graph_instance)
     if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
       return []
     if node_instance.engine_state != WorkflowNodeEngineState.COMPLETED:
@@ -1196,11 +1296,11 @@ class WorkflowGraphService:
   def _resolve_routable_downstream_node_ids(
     self,
     *,
-    outgoing_edges: list[WorkflowGraphTemplateEdge],
+    outgoing_edges: list[WorkflowGraphTemplateEdge | RuntimeDefinitionEdge],
     context: dict[str, Any],
   ) -> set[UUID]:
-    matched_edges: list[WorkflowGraphTemplateEdge] = []
-    else_edges: list[WorkflowGraphTemplateEdge] = []
+    matched_edges: list[WorkflowGraphTemplateEdge | RuntimeDefinitionEdge] = []
+    else_edges: list[WorkflowGraphTemplateEdge | RuntimeDefinitionEdge] = []
 
     for edge in sorted(outgoing_edges, key=lambda item: item.priority):
       condition = dict(edge.condition or {})

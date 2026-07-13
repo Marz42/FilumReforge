@@ -200,6 +200,7 @@ async def test_two_upstreams_complete_concurrently_activate_join_once(pg_session
   )
 
   async with pg_session_factory() as session:
+    instance = await session.get(WorkflowGraphInstance, seed.instance_id)
     downstream = await session.scalar(
       select(WorkflowNodeInstance).where(WorkflowNodeInstance.id == seed.nodes["D"])
     )
@@ -210,6 +211,10 @@ async def test_two_upstreams_complete_concurrently_activate_join_once(pg_session
         WorkflowNodeInstance.iteration == 1,
       )
     )
+    assert instance is not None and instance.executor_kind == "snapshot"
+    assert instance.engine_version == "graph-v2"
+    assert (instance.definition_snapshot or {}).get("format_version") == 1
+    assert len(instance.definition_hash or "") == 64
     assert downstream is not None
     assert downstream.engine_state == WorkflowNodeEngineState.ACTIVATED
     assert downstream.node_instance_version == 2

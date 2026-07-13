@@ -492,10 +492,14 @@ async def test_w4p_n10_upload_activates_n11_instead_of_archiving(db_session) -> 
 
 
 @pytest.mark.asyncio
-async def test_w4p_n10_materializes_missing_tail_nodes_after_template_upgrade(db_session) -> None:
+async def test_w4p_legacy_n10_materializes_missing_tail_nodes_after_template_upgrade(db_session) -> None:
   seed = await _seed_production_workspace(db_session)
   run = await _instantiate_production_run(db_session, seed=seed)
   instance = run.instance
+  instance.executor_kind = "legacy"
+  instance.engine_version = "legacy-v1"
+  instance.definition_snapshot = None
+  instance.definition_hash = None
   task_service = TaskService(db_session, settings=_enabled_settings())
 
   await _progress_through_n9(db_session, seed=seed, instance=instance)
@@ -533,10 +537,14 @@ async def test_w4p_n10_materializes_missing_tail_nodes_after_template_upgrade(db
 
 
 @pytest.mark.asyncio
-async def test_w4p_n10_resolves_outgoing_edges_when_template_node_id_is_stale(db_session) -> None:
+async def test_w4p_legacy_n10_resolves_outgoing_edges_when_template_node_id_is_stale(db_session) -> None:
   seed = await _seed_production_workspace(db_session)
   run = await _instantiate_production_run(db_session, seed=seed)
   instance = run.instance
+  instance.executor_kind = "legacy"
+  instance.engine_version = "legacy-v1"
+  instance.definition_snapshot = None
+  instance.definition_hash = None
   task_service = TaskService(db_session, settings=_enabled_settings())
 
   await _progress_through_n9(db_session, seed=seed, instance=instance)

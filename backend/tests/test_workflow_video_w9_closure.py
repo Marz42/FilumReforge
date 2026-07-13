@@ -113,9 +113,10 @@ async def test_w9_graph_template_patch_config(db_session) -> None:
   assert template is not None
 
   admin_service = WorkflowGraphTemplateAdminService(db_session)
+  draft = await admin_service.fork_template_version(actor=admin, template_id=template.id)
   detail = await admin_service.update_template(
     actor=admin,
-    template_id=template.id,
+    template_id=draft.id,
     payload=WorkflowGraphTemplateUpdateRequest(description="W9 维护说明"),
   )
   assert detail.description == "W9 维护说明"

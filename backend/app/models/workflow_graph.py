@@ -38,6 +38,7 @@ class WorkflowGraphTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     UniqueConstraint("base_code", "version", name="uq_wf_graph_tpls_base_ver"),
     Index("idx_wf_graph_tpls_status", "status"),
     Index("idx_wf_graph_tpls_base_code", "base_code"),
+    CheckConstraint("scope_mode in ('global', 'departments')", name="wf_graph_tpls_scope_mode_chk"),
   )
 
   code: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -52,6 +53,7 @@ class WorkflowGraphTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   )
   context_schema: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   config: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  scope_mode: Mapped[str] = mapped_column(String(16), default="global", nullable=False)
   scope_department_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
   created_by: Mapped[UUID] = mapped_column(
     ForeignKey("users.id", name="fk_wf_graph_tpls_created_by"),
@@ -168,6 +170,7 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   __table_args__ = (
     CheckConstraint("context_version > 0", name="wf_graph_instances_ctx_ver_chk"),
     CheckConstraint("max_iterations > 0", name="wf_graph_instances_max_iter_chk"),
+    CheckConstraint("executor_kind in ('legacy', 'snapshot')", name="wf_graph_instances_executor_chk"),
     Index("idx_wf_graph_instances_status", "status"),
     Index("idx_wf_graph_instances_template", "template_id", "status"),
     Index("idx_wf_graph_instances_source", "source_type", "source_id"),
@@ -200,6 +203,10 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     nullable=True,
   )
   context: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  definition_snapshot: Mapped[dict[str, Any] | None] = mapped_column(build_json_type(), nullable=True)
+  definition_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+  engine_version: Mapped[str] = mapped_column(String(32), default="legacy-v1", nullable=False)
+  executor_kind: Mapped[str] = mapped_column(String(16), default="legacy", nullable=False)
   context_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
   max_iterations: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
   completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

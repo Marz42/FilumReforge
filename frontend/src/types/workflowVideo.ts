@@ -181,6 +181,7 @@ export interface GraphTemplateSummary {
   version: number
   run_kind?: string | null
   config?: Record<string, unknown>
+  scope_mode?: 'global' | 'departments'
   scope_department_ids?: string[]
   run_count_total?: number | null
   run_count_30d?: number | null
@@ -229,6 +230,8 @@ export interface GraphTemplateExportBundle {
     description?: string | null
     config?: Record<string, unknown>
     context_schema?: Record<string, unknown>
+    scope_mode?: 'global' | 'departments'
+    scope_department_ids?: string[]
     nodes: GraphTemplateNodeDetail[]
     edges?: GraphTemplateEdgeDetail[]
   }

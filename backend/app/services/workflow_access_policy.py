@@ -11,6 +11,7 @@ from app.models import (
   TaskWatcher,
   User,
   WorkflowGraphInstance,
+  WorkflowGraphTemplate,
   WorkflowNodeInstance,
   WorkflowRunEvent,
 )
@@ -44,10 +45,32 @@ class WorkflowAccessPolicy:
     # Object reads deliberately conceal whether the instance exists.
     raise NotFoundError("工作流图实例不存在。")
 
-  async def ensure_can_manage_templates(self, *, actor: User) -> None:
+  async def ensure_can_manage_templates(
+    self,
+    *,
+    actor: User,
+    template_id: UUID | None = None,
+  ) -> None:
     ensure_active_user(actor)
-    if await can_manage_task_templates(self._session, actor):
+    if is_management_role(actor):
       return
+    if not await can_manage_task_templates(self._session, actor):
+      raise NotFoundError("工作流图模板不存在。")
+    if template_id is None:
+      return
+
+    template = await self._session.get(WorkflowGraphTemplate, template_id)
+    if template is None:
+      raise NotFoundError("工作流图模板不存在。")
+    if template.scope_mode == "departments":
+      managed_department_ids = await get_effective_managed_department_ids(
+        self._session,
+        actor.id,
+      )
+      managed = {str(item) for item in managed_department_ids}
+      scoped = {str(item) for item in (template.scope_department_ids or [])}
+      if scoped and scoped.issubset(managed):
+        return
     # Template designer/stats/run-list are management resources. Use 404 for reads.
     raise NotFoundError("工作流图模板不存在。")
 

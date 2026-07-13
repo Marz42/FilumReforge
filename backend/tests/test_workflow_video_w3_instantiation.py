@@ -214,6 +214,10 @@ async def test_w3_instantiate_three_copywriters_three_n1_tasks(db_session) -> No
   assert len(result.activated_tasks) == 3
   assert result.instance.current_node_key == "N1_PROPOSE"
   assert result.instance.source_id == result.root_task.id
+  assert result.instance.executor_kind == "snapshot"
+  assert result.instance.engine_version == "graph-v2"
+  assert result.instance.definition_snapshot is not None
+  assert len(result.instance.definition_hash or "") == 64
 
   assignee_ids = {task.assignee_id for task in result.activated_tasks}
   assert assignee_ids == {editor.id for editor in editors}
@@ -238,6 +242,34 @@ async def test_w3_instantiate_three_copywriters_three_n1_tasks(db_session) -> No
     if str((task.extra_metadata or {}).get("workflow_node_instance_id")) == str(n2_nodes[0].id)
   ]
   assert tasks_for_n2 == []
+
+
+@pytest.mark.asyncio
+async def test_w3_scope_check_uses_resolved_final_department_when_request_omits_it(db_session) -> None:
+  seed = await _seed_topic_meeting_batch_template(db_session)
+  other_department = await DepartmentService(db_session).create_department(
+    actor=seed["admin"],
+    name="Scope 外部门",
+    code="w3-scope-other",
+  )
+  seed["template"].scope_mode = "departments"
+  seed["template"].scope_department_ids = [str(other_department.id)]
+  await db_session.flush()
+
+  service = WorkflowVideoInstantiationService(db_session, settings=_enabled_settings())
+  with pytest.raises(ConflictError, match="不在该模板的作用范围"):
+    await service.instantiate_graph_template(
+      actor=seed["admin"],
+      template_id=seed["template"].id,
+      inputs={"theme": "Scope", "manager_user_id": str(seed["manager"].id)},
+      participants_snapshot={
+        "copywriters": ParticipantsSnapshotEntry(
+          mode="subset",
+          user_ids=[editor.id for editor in seed["editors"]],
+        )
+      },
+      department_id=None,
+    )
 
 
 @pytest.mark.asyncio

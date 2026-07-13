@@ -54,6 +54,13 @@ from app.services.workflow_assignee_resolver import (
 from app.services.workflow_rule_resolver import resolve_actor_department_id
 from app.services.task_service import TaskService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_definition_snapshot import (
+  SNAPSHOT_ENGINE_VERSION,
+  SNAPSHOT_EXECUTOR_KIND,
+  build_definition_snapshot,
+  definition_snapshot_hash,
+  ensure_template_scope_allows_department,
+)
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_projection_department import resolve_projection_department_id
 
@@ -353,8 +360,6 @@ class WorkflowVideoInstantiationService:
     """Instantiate a graph template run with multi_instance expansion and ROOT task."""
     self._require_engine_enabled()
     ensure_active_user(actor)
-    if not skip_publish_permission and not await can_publish_org_tasks(self._session, actor):
-      raise AuthorizationError("当前账号不能发布组织任务。")
 
     template, nodes, edges = await self._load_template_graph(template_id=template_id)
     normalized_inputs = self._validate_launch_inputs(template=template, inputs=dict(inputs or {}))
@@ -381,6 +386,10 @@ class WorkflowVideoInstantiationService:
                 department_id = UUID(str(raw_department_id))
               except ValueError:
                 department_id = None
+
+    if not skip_publish_permission and not await can_publish_org_tasks(self._session, actor):
+      raise AuthorizationError("当前账号不能发布组织任务。")
+    ensure_template_scope_allows_department(template=template, department_id=department_id)
 
     snapshot_payload = await self._resolve_participant_snapshot(
       actor=actor,
@@ -415,6 +424,11 @@ class WorkflowVideoInstantiationService:
         in_degree[edge.to_node_id] += 1
 
     now = datetime.now(UTC)
+    definition_snapshot = build_definition_snapshot(
+      template=template,
+      nodes=nodes,
+      edges=edges,
+    )
     instance = WorkflowGraphInstance(
       template_id=template.id,
       initiator_user_id=actor.id,
@@ -423,6 +437,10 @@ class WorkflowVideoInstantiationService:
       status=WorkflowGraphInstanceStatus.ACTIVE,
       run_label=str(resolved_run_label),
       context=context,
+      definition_snapshot=definition_snapshot,
+      definition_hash=definition_snapshot_hash(definition_snapshot),
+      engine_version=SNAPSHOT_ENGINE_VERSION,
+      executor_kind=SNAPSHOT_EXECUTOR_KIND,
       context_version=1,
       max_iterations=5,
     )
@@ -676,6 +694,10 @@ class WorkflowVideoInstantiationService:
     ensure_active_user(actor)
 
     _template, nodes, edges = await self._load_template_graph(template_id=template.id)
+    ensure_template_scope_allows_department(
+      template=_template,
+      department_id=parent_instance.department_id,
+    )
     schema_snapshot = self._build_schema_snapshot(template=_template, nodes=nodes)
 
     context: dict[str, Any] = {
@@ -719,6 +741,11 @@ class WorkflowVideoInstantiationService:
         in_degree[edge.to_node_id] += 1
 
     now = datetime.now(UTC)
+    definition_snapshot = build_definition_snapshot(
+      template=_template,
+      nodes=nodes,
+      edges=edges,
+    )
     instance = WorkflowGraphInstance(
       template_id=_template.id,
       initiator_user_id=actor.id,
@@ -728,6 +755,10 @@ class WorkflowVideoInstantiationService:
       status=WorkflowGraphInstanceStatus.ACTIVE,
       run_label=topic.title,
       context=context,
+      definition_snapshot=definition_snapshot,
+      definition_hash=definition_snapshot_hash(definition_snapshot),
+      engine_version=SNAPSHOT_ENGINE_VERSION,
+      executor_kind=SNAPSHOT_EXECUTOR_KIND,
       context_version=1,
       max_iterations=5,
     )

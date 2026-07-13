@@ -29,7 +29,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 1 实施计划
 
-> **状态**：已启动。I1-A 对象级读取授权已实施并通过全量回归；下一切片为 I1-B 发布定义不可变与作用域顺序。Iteration 1 不改造路径/Join 语义；`WG-GAP-001`–`003` 留给 Iteration 2。
+> **状态**：I1-A–E 已实施并通过 SQLite/PostgreSQL 全量验证，待用户验收 Iteration 1。Iteration 1 未改造路径/Join 语义；`WG-GAP-001`–`003` 留给 Iteration 2。
 
 ## 0. 实施进度
 
@@ -37,8 +37,12 @@ paradigma:
 - [x] `AUTH-GAP-001`–`003` 从 7 个 strict xfail 参数实例转为正常回归。
 - [x] 正向覆盖发起人、当前/历史办理人、部门经理、正式 watcher 与模板管理经理。
 - [x] API 专项 44 项、后端全量回归通过；`workflow_gap` 仅剩 `WG-GAP-001`–`004`。
-- [ ] I1-B：active/archived 不可变、seed 升级改为派生版本、最终部门 scope 校验。
-- [ ] I1-C–E：schema expand、canonical snapshot、executor 路由与回填。
+- [x] I1-B：active/archived 不可变、seed 升级改为派生版本、最终部门 scope 校验。
+- [x] I1-C：迁移 `20260713_01` expand scope/snapshot/hash/engine/executor 字段并回填 legacy 标识。
+- [x] I1-D：canonical snapshot builder、node-key 边、SHA-256、发布与 Run 创建共用构建器。
+- [x] I1-E：新 Run snapshot executor、旧 Run legacy executor、快照完整性闸门和只读盘点脚本。
+
+验证结果：后端非 PostgreSQL 全量通过；`FILUM_REQUIRE_POSTGRES_TESTS=true` 下 5/5 通过且无 skip；`workflow_gap` 仅保留 `WG-GAP-001`–`003` strict xfail。
 
 ## 1. 目标与完成定义
 

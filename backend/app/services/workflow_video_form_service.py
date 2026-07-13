@@ -44,6 +44,10 @@ from app.schemas.workflow_video import (
 )
 from app.services.access_control import ensure_active_user
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_definition_snapshot import (
+  SNAPSHOT_EXECUTOR_KIND,
+  runtime_template,
+)
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_run_event_service import WorkflowRunEventService
@@ -465,7 +469,11 @@ class WorkflowVideoFormService:
       )
 
     template_config: dict[str, object] = {}
-    if instance.template_id is not None:
+    if instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      snapshot_template = runtime_template(instance.definition_snapshot)
+      if snapshot_template is not None:
+        template_config = snapshot_template.config
+    elif instance.template_id is not None:
       template = await self._session.get(WorkflowGraphTemplate, instance.template_id)
       if template is not None and isinstance(template.config, dict):
         template_config = template.config
@@ -514,7 +522,13 @@ class WorkflowVideoFormService:
     *,
     instance: WorkflowGraphInstance,
   ) -> str:
-    if instance.template_id is not None:
+    if instance.executor_kind == SNAPSHOT_EXECUTOR_KIND:
+      snapshot_template = runtime_template(instance.definition_snapshot)
+      if snapshot_template is not None:
+        configured = snapshot_template.config.get("capture_node_key")
+        if isinstance(configured, str) and configured.strip():
+          return configured.strip()
+    elif instance.template_id is not None:
       template = await self._session.get(WorkflowGraphTemplate, instance.template_id)
       if template is not None and isinstance(template.config, dict):
         configured = template.config.get("capture_node_key")

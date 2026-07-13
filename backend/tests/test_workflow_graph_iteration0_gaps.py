@@ -207,7 +207,6 @@ async def test_wg_gap_003_no_matching_route_fails_with_diagnostic(db_session) ->
 
 
 @pytest.mark.workflow_gap
-@pytest.mark.xfail(strict=True, reason="WG-GAP-004: active 模板修改改变在途 Run")
 @pytest.mark.asyncio
 async def test_wg_gap_004_in_flight_run_uses_instantiation_snapshot(db_session) -> None:
   seed = await _seed_graph(
@@ -393,13 +392,15 @@ async def test_iteration1_instance_read_policy_allows_registered_relationships(
 @pytest.mark.asyncio
 async def test_iteration1_department_manager_can_read_template_management_resources(db_session) -> None:
   seed, manager, _ = await _seed_authorization_case(db_session)
-  db_session.add(
-    Department(
-      name=f"Iteration 1 模板管理部门 {uuid4().hex[:8]}",
-      code=f"i1-manage-{uuid4().hex}",
-      manager_id=manager.id,
-    )
+  department = Department(
+    name=f"Iteration 1 模板管理部门 {uuid4().hex[:8]}",
+    code=f"i1-manage-{uuid4().hex}",
+    manager_id=manager.id,
   )
+  db_session.add(department)
+  await db_session.flush()
+  seed.template.scope_mode = "departments"
+  seed.template.scope_department_ids = [str(department.id)]
   await db_session.commit()
 
   detail = await get_graph_template_designer(

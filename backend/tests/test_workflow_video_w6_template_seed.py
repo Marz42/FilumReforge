@@ -101,7 +101,7 @@ async def test_w6_seed_templates_idempotent(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_w6_seed_refresh_syncs_in_place_when_node_instances_exist(db_session) -> None:
+async def test_w6_seed_refresh_derives_new_version_when_node_instances_exist(db_session) -> None:
   from app.core.enums import (
     WorkflowGraphInstanceStatus,
     WorkflowGraphNodeType,
@@ -169,11 +169,24 @@ async def test_w6_seed_refresh_syncs_in_place_when_node_instances_exist(db_sessi
       "video-post": await db_session.scalar(select(Department).where(Department.code == "video-post")),
     },
   )
-  assert refreshed.batch_topology_synced_in_place is True
-  assert refreshed.batch_nodes_rebuilt is False
+  assert refreshed.batch_topology_synced_in_place is False
+  assert refreshed.batch_nodes_rebuilt is True
 
   await db_session.refresh(batch)
-  assert batch.config.get("seed_version") == SEED_VERSION
+  assert batch.status == WorkflowGraphTemplateStatus.ARCHIVED
+  assert batch.config.get("seed_version") == 1
+
+  replacement = await db_session.scalar(
+    select(WorkflowGraphTemplate).where(
+      WorkflowGraphTemplate.base_code == batch.base_code,
+      WorkflowGraphTemplate.status == WorkflowGraphTemplateStatus.ACTIVE,
+    )
+  )
+  assert replacement is not None
+  assert replacement.id != batch.id
+  assert replacement.version == batch.version + 1
+  assert replacement.source_template_id == batch.id
+  assert replacement.config.get("seed_version") == SEED_VERSION
 
   preserved_node = await db_session.scalar(
     select(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.id == original_node_id)

@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app.core.config import Settings
 from app.core.enums import WorkflowGraphTemplateStatus
+from app.core.exceptions import ConflictError
 from app.models import WorkflowGraphInstance, WorkflowGraphTemplate, WorkflowGraphTemplateNode
 from app.schemas.workflow_graph import (
   WorkflowGraphTemplateCreateRequest,
@@ -164,9 +165,9 @@ async def test_d1_structure_locked_when_instances_exist(db_session) -> None:
   assert designer.has_instances is True
   assert designer.structure_locked is True
 
-  detail = await service.update_template(
-    actor=admin,
-    template_id=source.id,
-    payload=WorkflowGraphTemplateUpdateRequest(description="仍有实例但可改说明"),
-  )
-  assert detail.description == "仍有实例但可改说明"
+  with pytest.raises(ConflictError, match="不可原地修改"):
+    await service.update_template(
+      actor=admin,
+      template_id=source.id,
+      payload=WorkflowGraphTemplateUpdateRequest(description="仍有实例但可改说明"),
+    )

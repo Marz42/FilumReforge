@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -46,6 +47,7 @@ class WorkflowGraphTemplateSummaryRead(BaseModel):
   version: int
   run_kind: str | None = None
   config: dict[str, object] = {}
+  scope_mode: Literal["global", "departments"] = "global"
   scope_department_ids: list[str] = Field(default_factory=list)
   run_count_total: int | None = None
   run_count_30d: int | None = None
@@ -118,6 +120,7 @@ class WorkflowGraphTemplateDraftSaveRequest(BaseModel):
   name: str = Field(min_length=1, max_length=120)
   description: str | None = Field(default=None, max_length=2000)
   config: dict[str, object] = Field(default_factory=dict)
+  scope_mode: Literal["global", "departments"] | None = None
   scope_department_ids: list[str] | None = None
   nodes: list[WorkflowGraphTemplateNodeDraftWrite] = Field(default_factory=list)
   edges: list[WorkflowGraphTemplateEdgeDraftWrite] | None = None
@@ -142,6 +145,8 @@ class WorkflowGraphTemplateExportBody(BaseModel):
   description: str | None = None
   config: dict[str, object] = Field(default_factory=dict)
   context_schema: dict[str, object] = Field(default_factory=dict)
+  scope_mode: Literal["global", "departments"] = "global"
+  scope_department_ids: list[str] = Field(default_factory=list)
   nodes: list[WorkflowGraphTemplateNodeDraftWrite] = Field(default_factory=list)
   edges: list[WorkflowGraphTemplateEdgeDraftWrite] = Field(default_factory=list)
 
@@ -188,6 +193,7 @@ class WorkflowGraphTemplateUpdateRequest(BaseModel):
   name: str | None = Field(default=None, min_length=1, max_length=120)
   description: str | None = Field(default=None, max_length=2000)
   config: dict[str, object] | None = None
+  scope_mode: Literal["global", "departments"] | None = None
   scope_department_ids: list[str] | None = None
 
 
@@ -204,6 +210,9 @@ class WorkflowGraphInstanceRead(BaseModel):
   run_label: str | None = None
   parent_instance_id: UUID | None = None
   context: dict[str, object]
+  definition_hash: str | None = None
+  engine_version: str = "legacy-v1"
+  executor_kind: str = "legacy"
   context_version: int
   max_iterations: int
   completed_at: datetime | None

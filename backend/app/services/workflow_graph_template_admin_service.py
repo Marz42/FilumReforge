@@ -48,6 +48,11 @@ from app.schemas.workflow_video import (
   validate_on_complete_config,
 )
 from app.services.workflow_graph_template_chain_service import validate_on_complete_for_publish
+from app.services.workflow_definition_snapshot import (
+  build_definition_snapshot,
+  definition_snapshot_hash,
+  normalize_scope,
+)
 from app.services.access_control import can_manage_task_templates, ensure_active_user
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_template_topology import (
@@ -166,8 +171,21 @@ class WorkflowGraphTemplateAdminService:
     template.name = payload.name.strip()
     template.description = payload.description.strip() if payload.description else None
     template.config = dict(payload.config or {})
-    if payload.scope_department_ids is not None:
-      template.scope_department_ids = payload.scope_department_ids
+    if payload.scope_mode is not None or payload.scope_department_ids is not None:
+      scope_mode, scope_ids = normalize_scope(
+        scope_mode=(
+          payload.scope_mode
+          if payload.scope_mode is not None
+          else (None if payload.scope_department_ids is not None else template.scope_mode)
+        ),
+        scope_department_ids=(
+          payload.scope_department_ids
+          if payload.scope_department_ids is not None
+          else template.scope_department_ids
+        ),
+      )
+      template.scope_mode = scope_mode
+      template.scope_department_ids = scope_ids
 
     if not structure_locked:
       if not payload.nodes:
@@ -194,6 +212,8 @@ class WorkflowGraphTemplateAdminService:
   ) -> WorkflowGraphTemplateDetailRead:
     await self._ensure_manage(actor)
     template = await self._get_template_or_raise(template_id=template_id)
+    if template.status != WorkflowGraphTemplateStatus.DRAFT:
+      raise ConflictError("已发布或已归档模板不可原地修改，请派生新 draft 版本。")
 
     if payload.name is not None:
       template.name = payload.name.strip()
@@ -201,8 +221,21 @@ class WorkflowGraphTemplateAdminService:
       template.description = payload.description.strip() or None
     if payload.config is not None:
       template.config = {**dict(template.config or {}), **payload.config}
-    if payload.scope_department_ids is not None:
-      template.scope_department_ids = payload.scope_department_ids
+    if payload.scope_mode is not None or payload.scope_department_ids is not None:
+      scope_mode, scope_ids = normalize_scope(
+        scope_mode=(
+          payload.scope_mode
+          if payload.scope_mode is not None
+          else (None if payload.scope_department_ids is not None else template.scope_mode)
+        ),
+        scope_department_ids=(
+          payload.scope_department_ids
+          if payload.scope_department_ids is not None
+          else template.scope_department_ids
+        ),
+      )
+      template.scope_mode = scope_mode
+      template.scope_department_ids = scope_ids
 
     await self._session.flush()
     result = await self.get_template_detail(template_id=template_id)
@@ -217,6 +250,8 @@ class WorkflowGraphTemplateAdminService:
   ) -> bool:
     await self._ensure_manage(actor)
     template = await self._get_template_or_raise(template_id=template_id)
+    if template.status != WorkflowGraphTemplateStatus.DRAFT:
+      raise ConflictError("仅 draft 模板可删除；已发布版本只能归档。")
     has_instances = await self._has_instances(template_id=template_id)
     if has_instances:
       raise ConflictError("已有运行实例的模板不可删除。请先归档相关 Run 或联系管理员。")
@@ -246,8 +281,8 @@ class WorkflowGraphTemplateAdminService:
     elif target_status == WorkflowGraphTemplateStatus.ARCHIVED:
       template.status = WorkflowGraphTemplateStatus.ARCHIVED
     elif target_status == WorkflowGraphTemplateStatus.DRAFT:
-      if template.status == WorkflowGraphTemplateStatus.ACTIVE:
-        raise ConflictError("已发布的 active 模板请通过另存新版本编辑，不可回退为 draft。")
+      if template.status != WorkflowGraphTemplateStatus.DRAFT:
+        raise ConflictError("已发布或已归档模板请派生新版本，不可回退为 draft。")
       template.status = WorkflowGraphTemplateStatus.DRAFT
     else:
       template.status = target_status
@@ -263,6 +298,30 @@ class WorkflowGraphTemplateAdminService:
     edges = await self._load_edge_details(template_id=template_id)
     errors = self._collect_validation_errors(template=template, nodes=nodes, edges=edges)
     errors.extend(await validate_on_complete_for_publish(self._session, template=template))
+    persisted_nodes = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateNode).where(
+          WorkflowGraphTemplateNode.template_id == template_id
+        )
+      )
+    )
+    persisted_edges = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateEdge).where(
+          WorkflowGraphTemplateEdge.template_id == template_id
+        )
+      )
+    )
+    try:
+      definition_snapshot_hash(
+        build_definition_snapshot(
+          template=template,
+          nodes=persisted_nodes,
+          edges=persisted_edges,
+        )
+      )
+    except (ConflictError, KeyError, TypeError, ValueError) as exc:
+      errors.append(f"模板无法生成 canonical snapshot：{exc}")
     return WorkflowGraphTemplateValidateResponse(valid=not errors, errors=errors)
 
   async def export_template(self, *, actor: User, template_id: UUID) -> WorkflowGraphTemplateExportBundle:
@@ -275,6 +334,8 @@ class WorkflowGraphTemplateAdminService:
         description=designer.description,
         config=dict(designer.config or {}),
         context_schema={},
+        scope_mode=designer.scope_mode,
+        scope_department_ids=list(designer.scope_department_ids),
         nodes=[
           WorkflowGraphTemplateNodeDraftWrite(
             node_key=node.node_key,
@@ -329,6 +390,10 @@ class WorkflowGraphTemplateAdminService:
     base_code = f"imported_{uuid4().hex[:12]}"
     version = await self._get_next_template_version(base_code=base_code)
     code = self._derive_template_code(base_code=base_code, version=version)
+    scope_mode, scope_ids = normalize_scope(
+      scope_mode=body.scope_mode,
+      scope_department_ids=body.scope_department_ids,
+    )
     template = WorkflowGraphTemplate(
       code=code,
       base_code=base_code,
@@ -338,6 +403,8 @@ class WorkflowGraphTemplateAdminService:
       status=WorkflowGraphTemplateStatus.DRAFT,
       context_schema=dict(body.context_schema or {}),
       config=dict(body.config or {}),
+      scope_mode=scope_mode,
+      scope_department_ids=scope_ids,
       created_by=actor.id,
       source_template_id=None,
     )
@@ -454,6 +521,8 @@ class WorkflowGraphTemplateAdminService:
       status=WorkflowGraphTemplateStatus.DRAFT,
       context_schema=dict(source.context_schema or {}),
       config=dict(source.config or {}),
+      scope_mode=source.scope_mode,
+      scope_department_ids=list(source.scope_department_ids or []),
       created_by=actor.id,
       source_template_id=source.id,
     )
@@ -522,6 +591,8 @@ class WorkflowGraphTemplateAdminService:
       status=WorkflowGraphTemplateStatus.DRAFT,
       context_schema={},
       config={"run_kind": "batch", "aggregate_mode": "streaming"},
+      scope_mode="global",
+      scope_department_ids=[],
       created_by=actor.id,
       source_template_id=None,
     )
@@ -777,6 +848,7 @@ class WorkflowGraphTemplateAdminService:
       version=template.version,
       run_kind=str(config.get("run_kind") or "") or None,
       config=config,
+      scope_mode=template.scope_mode,
       scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
       nodes=nodes,
     )
@@ -801,6 +873,7 @@ class WorkflowGraphTemplateAdminService:
       version=template.version,
       run_kind=str(config.get("run_kind") or "") or None,
       config=config,
+      scope_mode=template.scope_mode,
       scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
       has_instances=has_instances,
       structure_locked=has_instances,
@@ -890,6 +963,12 @@ class WorkflowGraphTemplateAdminService:
     template.description = body.description
     template.config = dict(body.config or {})
     template.context_schema = dict(body.context_schema or {})
+    scope_mode, scope_ids = normalize_scope(
+      scope_mode=body.scope_mode,
+      scope_department_ids=body.scope_department_ids,
+    )
+    template.scope_mode = scope_mode
+    template.scope_department_ids = scope_ids
     await self._replace_structure(
       template=template,
       node_payloads=body.nodes,

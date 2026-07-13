@@ -373,10 +373,13 @@ function buildDraftPayload() {
       priority: edge.priority ?? 0,
     }
   })
+  const scopeMode: 'global' | 'departments' =
+    form.scopeDepartmentIds.length > 0 ? 'departments' : 'global'
   return {
     name: form.name.trim(),
     description: form.description.trim() || null,
     config,
+    scope_mode: scopeMode,
     scope_department_ids: form.scopeDepartmentIds,
     nodes,
     edges,

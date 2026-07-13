@@ -17,7 +17,7 @@ paradigma:
 ---
 # 当前任务
 
-> 🔥 HOT — **Iteration 1 已启动：I1-A 对象级授权完成，准备推进模板 scope/不可变与 Run snapshot executor。**见 [`Iteration 1 实施计划`](../knowledge/plans/workflow-graph-engine-iteration1-implementation-plan.md)。
+> 🔥 HOT — **Iteration 1 I1-A–E 已实施并通过全量验证，当前等待用户验收。**见 [`Iteration 1 实施计划`](../knowledge/plans/workflow-graph-engine-iteration1-implementation-plan.md)。
 
 ---
 
@@ -27,7 +27,7 @@ paradigma:
 |------|------|
 | **任务标题** | 工作流图引擎结构收敛与运行时正确性升级 |
 | **优先级** | P0 基线 |
-| **状态** | Iteration 1 · I1-A 完成 · I1-B 待实施 |
+| **状态** | Iteration 1 · I1-A–E 实施完成 · 待验收 |
 | **关联** | 定义冻结 · 对象级授权 · 条件 Join · 双写收口 · 投影恢复 |
 
 ---
@@ -36,6 +36,7 @@ paradigma:
 
 | 交付 | 说明 |
 |------|------|
+| Iteration 1 / I1-B–E @ 2026-07-13 | active/archived 不可变、显式 scope、seed 派生版本、Run canonical snapshot/hash、snapshot/legacy 双 executor、只读 legacy 盘点；SQLite 全量与 PostgreSQL 5/5 通过 |
 | Iteration 1 / I1-A @ 2026-07-13 | `WorkflowAccessPolicy` 统一保护 7 类资源；AUTH-GAP 三组转正；API 44 项与后端全量通过 |
 | ADR 验收 @ 2026-07-13 | 用户统一采纳 ADR-012–016；Iteration 0 决策闸门通过 |
 | Iteration 0 基线 @ 2026-07-13 | 7 个缺陷编号/11 strict xfail、PostgreSQL 并发基座、统一基线报告、ADR-012–016；无业务/schema/API/前端变更 |
@@ -60,4 +61,4 @@ paradigma:
 
 ---
 
-**下一 actionable**：实施 I1-B active/archived 不可变；先改造会原地更新 ACTIVE 模板的 seed 路径，再加入显式 scope 和最终部门校验。S-01 统计 Tab 仍保留为待用户验收事项。
+**下一 actionable**：用户验收 Iteration 1；通过后再设计/批准 Iteration 2 的 exclusive/Join/no-route 语义修复。S-01 统计 Tab 仍保留为待用户验收事项。
