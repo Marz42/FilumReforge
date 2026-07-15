@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import Settings, get_settings
 from app.core.enums import (
+  TaskPriority,
+  TaskSourceType,
   WorkflowGraphInstanceStatus,
   WorkflowGraphTemplateStatus,
   WorkflowNodeEngineState,
@@ -22,6 +24,8 @@ from app.core.enums import (
 from app.core.exceptions import ConflictError
 from app.models import (
   User,
+  Task,
+  WorkflowCommandReceipt,
   WorkflowEdgeTraversal,
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
@@ -32,6 +36,8 @@ from app.models import (
 )
 from app.services.auth_service import AuthService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.human_task_coordinator import HumanTaskCoordinator
+from app.services.workflow_command_receipt_service import WorkflowCommandReceiptService
 from tests.postgres_migration_support import (
   database_exists,
   drop_ephemeral_database,
@@ -191,6 +197,81 @@ async def _complete(factory, node_instance_id: UUID, actor_id: UUID) -> None:
       node_instance_id=node_instance_id,
       actor_id=actor_id,
     )
+
+
+@pytest.mark.asyncio
+async def test_command_receipt_concurrent_claim_creates_one_record(pg_session_factory) -> None:
+  seed = await _seed_graph(
+    pg_session_factory,
+    node_keys=("A",),
+    edges=(),
+  )
+  command_id = f"pg-command-{uuid4().hex}"
+  payload = {"node_instance_id": seed.nodes["A"], "result": "completed"}
+
+  async def claim_once() -> bool:
+    async with pg_session_factory() as session:
+      service = WorkflowCommandReceiptService(session)
+      claim = await service.claim(
+        command_id=command_id,
+        command_type="complete_node",
+        payload=payload,
+        actor_user_id=seed.actor_id,
+      )
+      if not claim.is_replay:
+        await service.complete(receipt=claim.receipt, result={"status": "completed"})
+      await session.commit()
+      return claim.is_replay
+
+  replay_flags = await asyncio.gather(claim_once(), claim_once())
+  assert sorted(replay_flags) == [False, True]
+  async with pg_session_factory() as session:
+    count = await session.scalar(
+      select(func.count(WorkflowCommandReceipt.id)).where(
+        WorkflowCommandReceipt.command_id == command_id
+      )
+    )
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_human_task_link_concurrent_primary_claim_allows_one(pg_session_factory) -> None:
+  seed = await _seed_graph(
+    pg_session_factory,
+    node_keys=("A",),
+    edges=(),
+  )
+  task_ids: list[UUID] = []
+  async with pg_session_factory() as session:
+    for title in ("primary-a", "primary-b"):
+      task = Task(
+        title=title,
+        creator_id=seed.actor_id,
+        assignee_id=seed.actor_id,
+        priority=TaskPriority.MEDIUM,
+        source_type=TaskSourceType.TEMPLATE,
+        extra_metadata={},
+      )
+      session.add(task)
+      await session.flush()
+      task_ids.append(task.id)
+    await session.commit()
+
+  async def link_once(task_id: UUID) -> str:
+    async with pg_session_factory() as session:
+      try:
+        await HumanTaskCoordinator(session).ensure_link(
+          task_id=task_id,
+          node_instance_id=seed.nodes["A"],
+        )
+        await session.commit()
+        return "created"
+      except ConflictError:
+        await session.rollback()
+        return "conflict"
+
+  outcomes = await asyncio.gather(*(link_once(task_id) for task_id in task_ids))
+  assert sorted(outcomes) == ["conflict", "created"]
 
 
 @pytest.mark.asyncio

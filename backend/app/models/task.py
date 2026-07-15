@@ -80,6 +80,11 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   logs = relationship("TaskLog", back_populates="task", cascade="all, delete-orphan")
   watchers = relationship("TaskWatcher", back_populates="task", cascade="all, delete-orphan")
   memos = relationship("TaskMemo", back_populates="related_task")
+  workflow_human_task_links = relationship(
+    "WorkflowHumanTaskLink",
+    back_populates="task",
+    cascade="all, delete-orphan",
+  )
 
 
 class TaskDependency(Base):

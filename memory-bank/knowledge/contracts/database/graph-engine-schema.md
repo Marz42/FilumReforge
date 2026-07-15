@@ -1,9 +1,9 @@
 ---
 type: paradigma-contract
 title: "图引擎 Schema"
-description: "workflow_graph_* 十一表：定义、运行、路径账本、交付、outbox、运行事件与周期调度。"
+description: "图引擎十三表：定义、运行、路径账本、HumanTask Link、命令回执、outbox、事件与调度。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-07-15T19:39:44+08:00
+timestamp: 2026-07-15T20:38:43+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -19,11 +19,11 @@ paradigma:
 ---
 # 图引擎 Schema
 
-> WARM — **十一表** as-built：定义 / 运行 / traversal / activation dependency / 交付 / outbox / 运行事件 / 周期调度。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。契约索引见 [`data-contracts.md`](../data-contracts.md)。
+> WARM — **十三表** as-built：定义 / 运行 / traversal / activation dependency / HumanTask Link / command receipt / 交付 / outbox / 运行事件 / 周期调度。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。契约索引见 [`data-contracts.md`](../data-contracts.md)。
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
-> **实现状态**: 已实现（工作流重构 Phase 2–11；视频 v1 增量见迁移 `20260522_01`、`20260523_01`；显式 scope 与 Run 定义快照见 `20260713_01`；周期调度 F-24）。
+> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3A 迁移见 `20260713_01`、`20260715_01`、`20260715_02`；周期调度 F-24）。
 > **ORM**: `backend/app/models/workflow_graph.py` · **迁移**: `20260429_04_workflow_graph_core.py` 及后续
 
 | 表 | 职责 | 关键字段 / 约束 |
@@ -35,6 +35,8 @@ paradigma:
 | `workflow_node_instances` | 节点运行态 | 唯一 `(instance_id,node_key,instance_key,iteration)`；engine state 含 `skipped/failed/suspended`；`instance_key` 为不可变分支身份 |
 | `workflow_edge_traversals` | 实际路径账本 | 源 NodeInstance + iteration + from/to key；`taken/not_taken/invalidated`；条件、Context 摘要/version、选择证据 |
 | `workflow_node_activation_dependencies` | 激活依赖账本 | 目标/源 NodeInstance + traversal；`waiting/satisfied/cancelled/invalidated`；解释 Join 实际等待来源 |
+| `workflow_human_task_links` | Work Item ↔ NodeExecution 正式关系 | FK 到 Run/Node/Task；一个 Task 唯一归属一个 Node；每 Node 仅一个 active primary，支持 supporting/observer；lifecycle 保留历史 |
+| `workflow_command_receipts` | 工作流命令幂等账本 | 唯一 `(actor_key,command_type,command_id)`；canonical payload SHA-256；`processing/succeeded/failed` 与首次 result/error |
 | `workflow_deliverables` | 节点交付快照 | `node_instance_id`（UNIQUE）、`summary`、`payload`、`submitted_at` |
 | `workflow_outbox_events` | 可靠异步投递 | `event_type`、`status`、`attempt_count`、`available_at`、`last_error` |
 | `workflow_run_events` | Append-only 运行事件 | `instance_id`、`event_type`、`actor_user_id`、`payload`、`created_at`（W8） |
@@ -43,11 +45,12 @@ paradigma:
 **关系补充**
 
 - `workflow_graph_templates 1:N workflow_graph_template_nodes / edges / instances / schedules`
-- `workflow_graph_instances 1:N workflow_node_instances / edge_traversals / activation_dependencies / outbox_events / run_events`
+- `workflow_graph_instances 1:N workflow_node_instances / edge_traversals / activation_dependencies / human_task_links / outbox_events / run_events`
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run fork）
 - `workflow_node_instances 1:1 workflow_deliverables`（按节点快照）
-- 兼容 `Task` 投影通过 `extra_metadata` / `source_id` 与 graph 锚点互链（见 [`core-workflows.md`](../../domains/architecture/core-workflows.md) §6.13B）
+- 新写 HumanTask 投影同时写 `workflow_human_task_links` 与兼容 `Task.extra_metadata` / `Node.config.task_id`；读取 Link-first、JSON fallback。存量回填须三锚点交叉校验，不猜测修复（见 [`core-workflows.md`](../../domains/architecture/core-workflows.md) §6.13B）
 - **TC-P2** 模板节点 `config.ui_profile`（可选）：`video_n1_capture` \| `video_n2_aggregate` \| `video_production_step` \| `video_batch_root` \| `graph_manual` 等；实例化写入 `Task.extra_metadata.ui_profile`，前端 `profile.ts` 优先读取
 - **运行时路由**用边 `condition`（`condition_evaluator`）；节点 `config.routing_rules` 仅设计时拓扑校验，不驱动图前进
 - Snapshot 内节点按 `(sort_order,node_key)`、边按 `(from_node_key,priority,to_node_key)` 排序；边以 node key 表达运行语义，canonical JSON 使用 UTF-8/排序键/紧凑分隔符后计算 SHA-256
 - `definition_snapshot` 对存量 legacy Run 保持 nullable；不得猜测性回填。只读盘点入口：`python -m app.scripts.report_workflow_legacy_runs`
+- Iteration 3-A 已建 `workflow_human_task_links` 与 `workflow_command_receipts`；新手动兼容/模板投影双写 Link，Task 图投影 Link-first。Receipt service 已验证同 payload 重放、异 payload 冲突与 PostgreSQL 并发单记录；关键 API 命令接入仍属 I3-D。

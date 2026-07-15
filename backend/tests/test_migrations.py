@@ -48,6 +48,8 @@ EXPECTED_UPGRADED_TABLES = {
   "workflow_node_instances",
   "workflow_edge_traversals",
   "workflow_node_activation_dependencies",
+  "workflow_human_task_links",
+  "workflow_command_receipts",
   "workflow_deliverables",
   "workflow_outbox_events",
   "workflow_run_events",

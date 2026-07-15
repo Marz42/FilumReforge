@@ -14,6 +14,7 @@ from sqlalchemy import (
   String,
   Text,
   UniqueConstraint,
+  text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.schema import conv
@@ -257,6 +258,11 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     back_populates="instance",
     cascade="all, delete-orphan",
   )
+  human_task_links = relationship(
+    "WorkflowHumanTaskLink",
+    back_populates="instance",
+    cascade="all, delete-orphan",
+  )
 
 
 class WorkflowRunEvent(UUIDPrimaryKeyMixin, Base):
@@ -349,6 +355,111 @@ class WorkflowNodeInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     cascade="all, delete-orphan",
   )
   outbox_events = relationship("WorkflowOutboxEvent", back_populates="node_instance")
+  human_task_links = relationship(
+    "WorkflowHumanTaskLink",
+    back_populates="node_instance",
+    cascade="all, delete-orphan",
+  )
+
+
+class WorkflowHumanTaskLink(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  """Formal ownership boundary between a human Work Item and a runtime node."""
+
+  __tablename__ = "workflow_human_task_links"
+  __table_args__ = (
+    UniqueConstraint("task_id", name="uq_wf_human_task_links_task"),
+    UniqueConstraint(
+      "node_instance_id",
+      "task_id",
+      name="uq_wf_human_task_links_node_task",
+    ),
+    CheckConstraint(
+      "link_role in ('primary', 'supporting', 'observer')",
+      name="wf_human_task_links_role_chk",
+    ),
+    CheckConstraint(
+      "lifecycle in ('active', 'completed', 'cancelled', 'invalidated')",
+      name="wf_human_task_links_lifecycle_chk",
+    ),
+    CheckConstraint(
+      "source in ('runtime', 'manual_compat', 'backfill')",
+      name="wf_human_task_links_source_chk",
+    ),
+    Index("idx_wf_human_task_links_node_lifecycle", "node_instance_id", "lifecycle"),
+    Index("idx_wf_human_task_links_instance_lifecycle", "instance_id", "lifecycle"),
+    Index(
+      "uq_wf_human_task_links_active_primary",
+      "node_instance_id",
+      unique=True,
+      postgresql_where=text("link_role = 'primary' AND lifecycle = 'active'"),
+      sqlite_where=text("link_role = 'primary' AND lifecycle = 'active'"),
+    ),
+  )
+
+  instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_graph_instances.id", name="fk_wf_human_task_links_instance", ondelete="CASCADE"),
+    nullable=False,
+  )
+  node_instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_node_instances.id", name="fk_wf_human_task_links_node", ondelete="CASCADE"),
+    nullable=False,
+  )
+  task_id: Mapped[UUID] = mapped_column(
+    ForeignKey("tasks.id", name="fk_wf_human_task_links_task", ondelete="CASCADE"),
+    nullable=False,
+  )
+  link_role: Mapped[str] = mapped_column(String(16), default="primary", nullable=False)
+  lifecycle: Mapped[str] = mapped_column(String(16), default="active", nullable=False)
+  source: Mapped[str] = mapped_column(String(16), default="runtime", nullable=False)
+  link_metadata: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+  instance = relationship("WorkflowGraphInstance", back_populates="human_task_links")
+  node_instance = relationship("WorkflowNodeInstance", back_populates="human_task_links")
+  task = relationship("Task", back_populates="workflow_human_task_links")
+
+
+class WorkflowCommandReceipt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  """Durable idempotency record for externally repeatable workflow commands."""
+
+  __tablename__ = "workflow_command_receipts"
+  __table_args__ = (
+    UniqueConstraint(
+      "actor_key",
+      "command_type",
+      "command_id",
+      name="uq_wf_command_receipts_identity",
+    ),
+    CheckConstraint(
+      "status in ('processing', 'succeeded', 'failed')",
+      name="wf_command_receipts_status_chk",
+    ),
+    CheckConstraint("length(trim(actor_key)) > 0", name="wf_command_receipts_actor_key_chk"),
+    CheckConstraint(
+      "length(payload_hash) = 64",
+      name=conv("wf_command_receipts_payload_hash_chk"),
+    ),
+    Index("idx_wf_command_receipts_aggregate", "aggregate_type", "aggregate_id"),
+    Index("idx_wf_command_receipts_status", "status", "created_at"),
+  )
+
+  command_id: Mapped[str] = mapped_column(String(128), nullable=False)
+  command_type: Mapped[str] = mapped_column(String(64), nullable=False)
+  actor_key: Mapped[str] = mapped_column(String(64), nullable=False)
+  actor_user_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("users.id", name="fk_wf_command_receipts_actor", ondelete="SET NULL"),
+    nullable=True,
+  )
+  payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+  status: Mapped[str] = mapped_column(String(16), default="processing", nullable=False)
+  aggregate_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+  aggregate_id: Mapped[UUID | None] = mapped_column(nullable=True)
+  result: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  error: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+  actor = relationship("User", foreign_keys=[actor_user_id])
 
 
 class WorkflowEdgeTraversal(UUIDPrimaryKeyMixin, TimestampMixin, Base):

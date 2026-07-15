@@ -16,6 +16,28 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（工作流图引擎 Iteration 3）
+
+### 2026-07-15 20:38 — 提交 Iteration 2 并完成 I3-A 基座
+
+**完成事项**:
+- [x] 用户验收 Iteration 2；提交 `853fca1 feat(workflow): implement iteration 2 path semantics`
+- [x] 新增迁移 `20260715_02`：`workflow_human_task_links` 与 `workflow_command_receipts`
+- [x] 新增 `HumanTaskCoordinator`：Link 幂等创建、Link-first/JSON fallback、三锚点 dry-run 回填报告
+- [x] 新增 `WorkflowCommandReceiptService`：canonical payload SHA-256、claim/replay/complete/fail、异 payload 冲突
+- [x] 新手动兼容任务和模板 HumanTask 投影双写正式 Link；Task 图投影优先读取 Link
+- [x] PostgreSQL 并发验证：相同 command 只生成一条 receipt；同 Node 只允许一个 active primary Link
+
+**验证**:
+- Backend full（隔离 `--basetemp`）：PASS；普通执行仅跳过已登记 PostgreSQL 用例
+- PostgreSQL 强制执行：**12/12 PASS**，含 Alembic head↔base 和两项 I3 并发闸门
+- `compileall`、模型建表探针与 focused services/models/migrations：PASS
+- 临时 PostgreSQL 容器已删除，Docker Desktop 已恢复停止；原有 `backend/.test-tmp/` 未改动
+
+**遗留/下一步**：I3-B 执行存量 dry-run/异常处置与受控回填；同步 Link lifecycle、补 fallback 聚合指标；随后以 Coordinator 切断 TaskService/Runtime 双主写并灰度 standalone Task。当前 I3 变更尚未提交。
+
+---
+
 ## 会话摘要（工作流图引擎稳健升级方案）
 
 ### 2026-07-13 19:13 — 基于实际代码形成渐进升级迭代计划

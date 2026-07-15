@@ -22,6 +22,8 @@ paradigma:
 
 ### Added
 
+- Iteration 3-A 写所有权/幂等基座：`workflow_human_task_links`、`workflow_command_receipts`、`HumanTaskCoordinator` 与 command receipt service（迁移 `20260715_02`）
+- 新手动兼容任务与模板 HumanTask 投影双写正式 Link；Task 图投影读取 Link-first、JSON fallback
 - 工作流 graph-v3 路径账本：`workflow_edge_traversals`、`workflow_node_activation_dependencies`、显式 routing mode、Run result/diagnostics（迁移 `20260715_01`）
 - graph-v3 Context expected version/diff event、Deep-Reject 路径失效与不可变 fan-out branch identity
 - 工作流模板显式 `scope_mode`；Run canonical definition snapshot、SHA-256、`engine_version` 与 snapshot/legacy executor 双路由（迁移 `20260713_01`）

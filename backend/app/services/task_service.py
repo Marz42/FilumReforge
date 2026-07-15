@@ -46,6 +46,7 @@ from app.models import (
   WorkflowDeliverable,
   WorkflowGraphInstance,
   WorkflowGraphTemplateNode,
+  WorkflowHumanTaskLink,
   WorkflowInstance,
   WorkflowNodeInstance,
   WorkflowStep,
@@ -54,6 +55,7 @@ from app.models import (
 from app.schemas.messages import NotificationMessage
 from app.services.notification_source import build_task_source_payload
 from app.services.workflow_graph_service import SingleNodeWorkflowSeed, WorkflowGraphService
+from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_node_config_helpers import resolve_completion_policy
 from app.services.workflow_rule_resolver import resolve_user_targets_from_rule
 from app.services.access_control import (
@@ -374,6 +376,7 @@ class TaskService:
     self._attachment_service = attachment_service
     self._settings = settings
     self._workflow_graph_service = workflow_graph_service
+    self._human_task_coordinator = HumanTaskCoordinator(session)
 
   def _workflow_graph_engine_enabled(self) -> bool:
     return bool(self._settings is not None and self._settings.workflow_graph_engine_enabled)
@@ -586,6 +589,28 @@ class TaskService:
     task_map = {task.id: task for task in tasks}
     projections: dict[UUID, GraphTaskProjection] = {}
 
+    links = list(
+      await self._session.scalars(
+        select(WorkflowHumanTaskLink)
+        .options(
+          selectinload(WorkflowHumanTaskLink.instance),
+          selectinload(WorkflowHumanTaskLink.node_instance).selectinload(
+            WorkflowNodeInstance.deliverables
+          ),
+        )
+        .where(WorkflowHumanTaskLink.task_id.in_(list(task_map.keys())))
+      )
+    )
+    for link in links:
+      task = task_map.get(link.task_id)
+      if task is None or link.instance is None or link.node_instance is None:
+        continue
+      projections[task.id] = self._build_graph_projection(
+        task=task,
+        instance=link.instance,
+        node_instance=link.node_instance,
+      )
+
     instances = list(
       await self._session.scalars(
         select(WorkflowGraphInstance)
@@ -599,7 +624,7 @@ class TaskService:
       if instance.source_id is None:
         continue
       task = task_map.get(instance.source_id)
-      if task is None:
+      if task is None or task.id in projections:
         continue
       node_instance = self._select_graph_task_node(task=task, instance=instance)
       if node_instance is None:
@@ -858,6 +883,12 @@ class TaskService:
       **node_instance.config,
       "task_id": str(task.id),
     }
+    await self._human_task_coordinator.ensure_link(
+      task_id=task.id,
+      node_instance_id=node_instance.id,
+      source="manual_compat",
+      link_metadata={"compatibility_json_written": True},
+    )
 
     if dependency_ids:
       dependency_task_ids = set(await self._session.scalars(select(Task.id).where(Task.id.in_(dependency_ids))))
@@ -1705,6 +1736,10 @@ class TaskService:
     *,
     task: Task,
   ) -> tuple[WorkflowGraphInstance | None, WorkflowNodeInstance | None]:
+    resolution = await self._human_task_coordinator.resolve_for_task(task=task)
+    if resolution.instance is not None and resolution.node_instance is not None:
+      return resolution.instance, resolution.node_instance
+
     metadata = self._copy_task_metadata(task)
     instance_id = self._read_uuid_metadata(metadata, "workflow_graph_instance_id")
     node_id = self._read_uuid_metadata(metadata, "workflow_node_instance_id")

@@ -1,14 +1,14 @@
 ---
 type: paradigma-domain
 title: "领域：工作流图引擎 (Workflow Graph Engine)"
-description: "现行图任务引擎 as-built：十一表数据模型、graph-v3 路径推进、Task 投影、API 与前端 authoring/runtime。"
+description: "现行图任务引擎 as-built：十三表数据模型、graph-v3 路径推进、HumanTask Link、Task 投影与命令幂等基座。"
 tags:
   - domain
   - 图引擎
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-07-15T19:39:44+08:00
+timestamp: 2026-07-15T20:38:43+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -45,7 +45,7 @@ paradigma:
 | **是什么** | DAG 模板 → 图实例 → 节点实例的执行内核；条件边、fan-out / join、Notice 自动完成、深度打回（append-only 迭代）、outbox 通知、run event 审计 |
 | **用户可见入口** | `/task-templates`（列表 + 设计器）· 任务中心详情 `TaskDetailShell` · 统计 Tab 的 Run 事件 |
 | **读载体** | 任务中心仍以兼容 `Task` 行为列表/详情载体；有图锚点时 **graph-first** 解析状态（`TASK_CENTER_V2_ENABLED`） |
-| **写真相** | 图实例 / 节点引擎态为运行真相；`Task.extra_metadata` 与 `WorkflowNodeInstance.config.task_id` 互链 |
+| **写真相** | 图实例 / 节点引擎态为运行真相；新写以 `WorkflowHumanTaskLink` 为正式关系并兼容双写 JSON，读取 Link-first；存量仍允许 JSON fallback |
 | **不是** | Legacy E 产品入口（B-12 已移除对外 API；`task_templates` 表族仅历史兼容）· 轻量审批 `WorkflowDefinition`（`/workflows`）· Phase 10 完整「节点级评论/交付/日志时间线」（尚未落地） |
 
 两条主实例化路径：
@@ -55,7 +55,7 @@ paradigma:
 
 ---
 
-## 2. 实体关系（十一表）
+## 2. 实体关系（十三表）
 
 ```mermaid
 erDiagram
@@ -70,6 +70,7 @@ erDiagram
   WorkflowGraphInstance ||--o{ WorkflowNodeActivationDependency : activation_dependencies
   WorkflowGraphInstance ||--o{ WorkflowOutboxEvent : outbox_events
   WorkflowGraphInstance ||--o{ WorkflowRunEvent : run_events
+  WorkflowGraphInstance ||--o{ WorkflowHumanTaskLink : human_task_links
   WorkflowGraphInstance ||--o| WorkflowGraphInstance : parent_instance_id
 
   WorkflowGraphTemplateNode ||--o{ WorkflowNodeInstance : template_node_id
@@ -77,6 +78,9 @@ erDiagram
   WorkflowNodeInstance ||--o{ WorkflowNodeActivationDependency : target_or_source
   WorkflowEdgeTraversal ||--o{ WorkflowNodeActivationDependency : traversal_id
   WorkflowNodeInstance ||--o| WorkflowDeliverable : deliverables
+  WorkflowNodeInstance ||--o{ WorkflowHumanTaskLink : human_task_links
+  Task ||--o| WorkflowHumanTaskLink : work_item
+  User ||--o{ WorkflowCommandReceipt : actor
 ```
 
 | 表 | 模型 | 职责 |
@@ -88,12 +92,14 @@ erDiagram
 | `workflow_node_instances` | `WorkflowNodeInstance` | 节点运行态：引擎态/业务态、迭代、办理人 |
 | `workflow_edge_traversals` | `WorkflowEdgeTraversal` | 每次实际出边求值：taken/not_taken/invalidated 与 Context 证据 |
 | `workflow_node_activation_dependencies` | `WorkflowNodeActivationDependency` | 目标节点由哪条 traversal/哪个上游产生，供 Join 判定 |
+| `workflow_human_task_links` | `WorkflowHumanTaskLink` | Work Item 与 NodeExecution 正式关系、角色与生命周期；取代 JSON 作为新写真相 |
+| `workflow_command_receipts` | `WorkflowCommandReceipt` | actor/type/id 幂等身份、payload hash 与首次结果 |
 | `workflow_deliverables` | `WorkflowDeliverable` | 节点交付快照（1:1） |
 | `workflow_outbox_events` | `WorkflowOutboxEvent` | 事务内可靠投递队列 |
 | `workflow_run_events` | `WorkflowRunEvent` | Append-only 运行审计（与 outbox 分离） |
 | `workflow_graph_template_schedules` | `WorkflowGraphTemplateSchedule` | 图模板周期调度（F-24 / ADR-011） |
 
-> 旧文档「九表」已过时：Iteration 2 已增加 traversal 与 activation dependency。字段权威见 ORM 与 [`graph-engine-schema.md`](../contracts/database/graph-engine-schema.md)。
+> 旧文档「九表/十一表」已过时：Iteration 2 增加路径账本，Iteration 3-A 增加 HumanTask Link 与 command receipt。字段权威见 ORM 与 [`graph-engine-schema.md`](../contracts/database/graph-engine-schema.md)。
 
 ---
 
@@ -148,7 +154,13 @@ erDiagram
 - 双态：`engine_state`（引擎）· `business_state`（握手/交付投影）
 - 乐观控制：`node_instance_version`
 - 时间戳：`activated_at` / `acknowledged_at` / `completed_at` / `terminated_at`
-- `config.task_id`：绑定投影 Task
+- `human_task_links`：新写正式关系；`config.task_id` 仅在 I3 兼容期继续双写
+
+**HumanTask Link / Command Receipt（Iteration 3-A）**
+
+- `HumanTaskCoordinator.ensure_link/resolve_for_task/backfill_existing_links` 负责 Link 幂等创建、Link-first 解析与只对三锚点一致的数据生成回填报告。
+- 一个 Task 最多一个 Link；一个 Node 最多一个 active primary，可有多个 supporting/observer；完成/失效保留历史行。
+- `WorkflowCommandReceiptService` 以 canonical JSON SHA-256 判定 payload；同 command 同 payload 重放首次结果，异 payload 冲突。I3-A 仅提供服务基座，create run/complete/deep-reject/takeover/schedule 的 API 接入尚未完成。
 
 **Deliverable / Outbox / RunEvent / Schedule** — 见契约摘要；run_event 已知类型含：`run_instantiated`、`node_completed`、`capture_submitted`、`aggregate_confirmed`、`capture_closed`、`topic_dispatched`、`capture_rejected`、`production_deep_reject`、`admin_cancelled` 等。
 

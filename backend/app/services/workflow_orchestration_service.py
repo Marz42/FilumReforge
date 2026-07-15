@@ -37,6 +37,7 @@ from app.models import (
 from app.schemas.workflow_video import validate_node_config
 from app.services.cross_department_routing_service import resolve_cross_department_boundary_cc_user_ids
 from app.services.task_service import TaskService
+from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_assignee_resolver import resolve_node_assignee_id
 from app.services.workflow_definition_snapshot import (
   RuntimeDefinitionNode,
@@ -68,6 +69,7 @@ class WorkflowOrchestrationService:
     self._session = session
     self._workflow_graph_service = workflow_graph_service or WorkflowGraphService(session)
     self._task_service = task_service
+    self._human_task_coordinator = HumanTaskCoordinator(session)
 
   @staticmethod
   def _task_id_from_node_config(node_instance: WorkflowNodeInstance) -> UUID | None:
@@ -387,6 +389,12 @@ class WorkflowOrchestrationService:
         **dict(node_instance.config or {}),
         "task_id": str(task.id),
       }
+      await self._human_task_coordinator.ensure_link(
+        task_id=task.id,
+        node_instance_id=node_instance.id,
+        source="runtime",
+        link_metadata={"compatibility_json_written": True},
+      )
       if node_instance.business_state == WorkflowNodeBusinessState.ASSIGNED:
         node_instance.business_state = WorkflowNodeBusinessState.DOING
       created.append(task)

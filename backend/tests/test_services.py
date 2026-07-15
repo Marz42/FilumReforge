@@ -59,6 +59,7 @@ from app.models import (
   TaskTemplateStepRun,
   User,
   WorkflowGraphInstance,
+  WorkflowHumanTaskLink,
   WorkflowInstance,
   WorkflowNodeInstance,
 )
@@ -1019,6 +1020,9 @@ async def test_phase3_single_node_workflow_creation_projects_task_and_graph_enti
   stored_dependency = await db_session.scalar(
     select(TaskDependency).where(TaskDependency.task_id == task.id, TaskDependency.depends_on_task_id == dependency.id)
   )
+  stored_link = await db_session.scalar(
+    select(WorkflowHumanTaskLink).where(WorkflowHumanTaskLink.task_id == task.id)
+  )
 
   assert stored_task is not None
   assert stored_task.extra_metadata["workflow_graph_instance_id"] == str(stored_instance.id)
@@ -1031,6 +1035,10 @@ async def test_phase3_single_node_workflow_creation_projects_task_and_graph_enti
   assert stored_node.business_state == WorkflowNodeBusinessState.ASSIGNED
   assert stored_node.assignee_user_id == employee.id
   assert stored_node.config["task_id"] == str(task.id)
+  assert stored_link is not None
+  assert stored_link.instance_id == stored_instance.id
+  assert stored_link.node_instance_id == stored_node.id
+  assert stored_link.source == "manual_compat"
   assert stored_dependency is not None
   assert len(notification_queue.payloads) == 2
 
