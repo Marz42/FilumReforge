@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: ea273293ed273680 -->
+<!-- checksum: 8940cf1a8de4a6b5 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -74,6 +74,7 @@
 | [plans/ui-information-architecture-plan.md](plans/ui-information-architecture-plan.md) | `paradigma-plan` | UI IA 计划 | UI<br>IA<br>ui ... | - | - |
 | [plans/ui-refactor-spec-v2.md](plans/ui-refactor-spec-v2.md) | `paradigma-plan` | UI 重构规格 v2 | UI<br>重构<br>ui ... | - | - |
 | [plans/workflow-graph-engine-iteration1-implementation-plan.md](plans/workflow-graph-engine-iteration1-implementation-plan.md) | `paradigma-plan` | 工作流图引擎 Iteration 1 实施计划 | Iteration 1<br>对象级授权<br>Run 快照 ... | - | - |
+| [plans/workflow-graph-engine-iteration2-implementation-plan.md](plans/workflow-graph-engine-iteration2-implementation-plan.md) | `paradigma-plan` | 工作流图引擎 Iteration 2 实施计划 | Iteration 2<br>路径语义<br>traversal ... | - | - |
 | [plans/workflow-graph-engine-upgrade-iteration-plan.md](plans/workflow-graph-engine-upgrade-iteration-plan.md) | `paradigma-plan` | 工作流图引擎稳健升级迭代方案 | 图引擎升级<br>工作流边界<br>运行时正确性 ... | - | - |
 | [plans/workflow-refactor-implementation-plan.md](plans/workflow-refactor-implementation-plan.md) | `paradigma-plan` | 工作流重构计划 | 工作流重构<br>workflow<br>refactor | - | - |
 | [plans/workflow-video-v1-implementation-plan.md](plans/workflow-video-v1-implementation-plan.md) | `paradigma-plan` | 视频 v1 实施计划 | 视频<br>v1<br>video ... | - | - |

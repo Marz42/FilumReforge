@@ -343,6 +343,7 @@ class WorkflowGraphTemplateAdminService:
             sort_order=node.sort_order,
             assignment_mode=node.assignment_mode,
             join_mode=node.join_mode,
+            routing_mode=node.routing_mode,
             assignee_rule=dict(node.assignee_rule or {}),
             config=dict(node.config or {}),
           )
@@ -539,6 +540,7 @@ class WorkflowGraphTemplateAdminService:
         node_type=node.node_type,
         assignment_mode=node.assignment_mode,
         join_mode=node.join_mode,
+        routing_mode=node.routing_mode,
         assignee_rule=dict(node.assignee_rule or {}),
         config=dict(node.config or {}),
         sort_order=node.sort_order,
@@ -606,6 +608,7 @@ class WorkflowGraphTemplateAdminService:
         title="开始",
         assignment_mode="single",
         join_mode="all",
+        routing_mode="inclusive",
         assignee_rule={},
         config={"kind": "single"},
         sort_order=1,
@@ -693,6 +696,7 @@ class WorkflowGraphTemplateAdminService:
         title=node_payload.title.strip(),
         assignment_mode=assignment_mode,
         join_mode=join_mode,
+        routing_mode=node_payload.routing_mode,
         assignee_rule=dict(node_payload.assignee_rule or {}),
         config=dict(node_payload.config or {}),
         sort_order=int(node_payload.sort_order if node_payload.sort_order else index),
@@ -801,6 +805,7 @@ class WorkflowGraphTemplateAdminService:
         node_type=node.node_type,
         assignment_mode=node.assignment_mode,
         join_mode=node.join_mode,
+        routing_mode=node.routing_mode,
         assignee_rule=dict(node.assignee_rule or {}),
         config=dict(node.config or {}),
       )
@@ -1013,6 +1018,7 @@ class WorkflowGraphTemplateAdminService:
         sort_order=node.sort_order,
         assignment_mode=node.assignment_mode,
         join_mode=node.join_mode,
+        routing_mode=node.routing_mode,
         assignee_rule=dict(node.assignee_rule or {}),
         config=dict(node.config or {}),
       )

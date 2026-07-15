@@ -48,7 +48,9 @@ type GraphInstanceListItem = {
 
 function mapGraphInstanceSummary(item: GraphInstanceListItem): WorkflowGraphInstanceSummary {
   const total = item.node_instances.length
-  const completed = item.node_instances.filter((node) => node.engine_state === 'completed').length
+  const completed = item.node_instances.filter((node) =>
+    ['completed', 'skipped', 'terminated'].includes(node.engine_state),
+  ).length
   const nodeInstances = item.node_instances.map((node) => ({
     ...node,
     task_id: node.task_id ?? null,
@@ -177,6 +179,7 @@ export async function saveGraphTemplateDraft(
       sort_order: number
       assignment_mode?: string
       join_mode?: string
+      routing_mode?: 'exclusive' | 'inclusive' | 'parallel' | 'first_match'
       assignee_rule?: Record<string, unknown>
       config?: Record<string, unknown>
     }>

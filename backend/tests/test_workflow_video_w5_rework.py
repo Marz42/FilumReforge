@@ -56,6 +56,11 @@ async def test_w5_reject_topic_reopens_only_submitter(db_session) -> None:
   editor_a = editors[0]
   editor_b = editors[1]
   rejected_topic_id = topic_ids[editor_a.id]
+  instance_key_by_assignee = {
+    node.assignee_user_id: node.instance_key
+    for node in seed["run"].node_instances
+    if node.node_key == "N1_PROPOSE"
+  }
 
   reject_result = await rework.apply_capture_rejections(
     actor=seed["manager"],
@@ -63,16 +68,16 @@ async def test_w5_reject_topic_reopens_only_submitter(db_session) -> None:
     rejections=[RejectedCaptureItem(topic_id=rejected_topic_id, reason="选题方向需调整")],
   )
   assert reject_result.reopened_count == 1
-  assert reject_result.reopened_instance_keys == [str(editor_a.id)]
+  assert reject_result.reopened_instance_keys == [instance_key_by_assignee[editor_a.id]]
 
   n1_nodes = await rework._list_latest_propose_nodes(
     instance_id=seed["run"].instance.id,
     source_node_key="N1_PROPOSE",
   )
   by_key = {node.instance_key: node for node in n1_nodes}
-  assert by_key[str(editor_a.id)].engine_state == WorkflowNodeEngineState.ACTIVATED
-  assert by_key[str(editor_b.id)].engine_state == WorkflowNodeEngineState.COMPLETED
-  assert by_key[str(editors[2].id)].engine_state == WorkflowNodeEngineState.COMPLETED
+  assert by_key[instance_key_by_assignee[editor_a.id]].engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert by_key[instance_key_by_assignee[editor_b.id]].engine_state == WorkflowNodeEngineState.COMPLETED
+  assert by_key[instance_key_by_assignee[editors[2].id]].engine_state == WorkflowNodeEngineState.COMPLETED
 
   task_a = seed["editor_tasks"][editor_a.id]
   task_b = seed["editor_tasks"][editor_b.id]

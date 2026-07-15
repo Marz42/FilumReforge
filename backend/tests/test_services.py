@@ -4625,6 +4625,7 @@ async def test_phase7_context_conditional_routing_and_notice_auto_completion(db_
     node_instance_id=node_a_instance.id,
     actor_id=admin.id,
     context_updates={"amount": 200000, "request_type": "purchase"},
+    expected_context_version=1,
   )
 
   await db_session.refresh(instance)
@@ -4637,7 +4638,7 @@ async def test_phase7_context_conditional_routing_and_notice_auto_completion(db_
   assert instance.context_version == 2
   assert notice_instance.engine_state == WorkflowNodeEngineState.COMPLETED
   assert node_b_instance.engine_state == WorkflowNodeEngineState.ACTIVATED
-  assert node_c_instance.engine_state == WorkflowNodeEngineState.PENDING
+  assert node_c_instance.engine_state == WorkflowNodeEngineState.SKIPPED
 
 
 @pytest.mark.asyncio
@@ -4792,7 +4793,8 @@ async def test_phase8_wait_any_activates_downstream_and_terminates_peer_nodes(db
   assert ni_c.engine_state == WorkflowNodeEngineState.TERMINATED
   assert ni_c.business_state == WorkflowNodeBusinessState.CANCELLED
   assert ni_c.terminated_at is not None
-  assert dict(ni_c.config).get("system_resolution", {}).get("reason") == "wait_any_race_cancelled"
+  assert dict(ni_c.config).get("system_resolution", {}).get("reason") == "wait_any_resolved"
+  assert dict(ni_c.config).get("system_resolution", {}).get("cancel_policy") == "revoke"
 
   with pytest.raises(ConflictError, match="已被系统撤权"):
     await wg_service.complete_node_instance(node_instance_id=ni_c.id, actor_id=admin.id)

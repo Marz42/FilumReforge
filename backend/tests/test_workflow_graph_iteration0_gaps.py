@@ -139,7 +139,6 @@ async def test_iteration0_gap_fixture_builds_isolated_graph(db_session) -> None:
 
 
 @pytest.mark.workflow_gap
-@pytest.mark.xfail(strict=True, reason="WG-GAP-001: exclusive 未选分支阻止实例完成")
 @pytest.mark.asyncio
 async def test_wg_gap_001_unselected_exclusive_branch_does_not_block_completion(db_session) -> None:
   seed = await _seed_graph(
@@ -161,7 +160,6 @@ async def test_wg_gap_001_unselected_exclusive_branch_does_not_block_completion(
 
 
 @pytest.mark.workflow_gap
-@pytest.mark.xfail(strict=True, reason="WG-GAP-002: exclusive 汇合 Wait-All 等待未产生分支")
 @pytest.mark.asyncio
 async def test_wg_gap_002_wait_all_joins_only_produced_exclusive_branch(db_session) -> None:
   seed = await _seed_graph(
@@ -186,7 +184,6 @@ async def test_wg_gap_002_wait_all_joins_only_produced_exclusive_branch(db_sessi
 
 
 @pytest.mark.workflow_gap
-@pytest.mark.xfail(strict=True, reason="WG-GAP-003: no-route 缺少失败状态和诊断")
 @pytest.mark.asyncio
 async def test_wg_gap_003_no_matching_route_fails_with_diagnostic(db_session) -> None:
   seed = await _seed_graph(

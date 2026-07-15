@@ -22,11 +22,13 @@ from app.core.enums import (
 from app.core.exceptions import ConflictError
 from app.models import (
   User,
+  WorkflowEdgeTraversal,
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
   WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
   WorkflowNodeInstance,
+  WorkflowNodeActivationDependency,
 )
 from app.services.auth_service import AuthService
 from app.services.workflow_graph_service import WorkflowGraphService
@@ -113,9 +115,11 @@ class SeedIds:
 async def _seed_graph(
   factory: async_sessionmaker[AsyncSession],
   *,
-  edges: tuple[tuple[str, str], ...],
+  edges: tuple[tuple, ...],
   node_keys: tuple[str, ...],
   join_modes: dict[str, str] | None = None,
+  routing_modes: dict[str, str] | None = None,
+  context: dict | None = None,
 ) -> SeedIds:
   async with factory() as session:
     admin = await session.scalar(select(User).order_by(User.created_at.asc()).limit(1))
@@ -142,6 +146,7 @@ async def _seed_graph(
     await session.flush()
 
     join_modes = join_modes or {}
+    routing_modes = routing_modes or {}
     template_nodes = {
       key: WorkflowGraphTemplateNode(
         template_id=template.id,
@@ -149,6 +154,7 @@ async def _seed_graph(
         title=key,
         sort_order=index,
         join_mode=join_modes.get(key, "all"),
+        routing_mode=routing_modes.get(key, "inclusive"),
       )
       for index, key in enumerate(node_keys, start=1)
     }
@@ -157,16 +163,19 @@ async def _seed_graph(
     session.add_all(
       WorkflowGraphTemplateEdge(
         template_id=template.id,
-        from_node_id=template_nodes[from_key].id,
-        to_node_id=template_nodes[to_key].id,
+        from_node_id=template_nodes[edge[0]].id,
+        to_node_id=template_nodes[edge[1]].id,
+        condition=dict(edge[2]) if len(edge) > 2 else {},
+        priority=int(edge[3]) if len(edge) > 3 else 0,
       )
-      for from_key, to_key in edges
+      for edge in edges
     )
     await session.flush()
 
     result = await WorkflowGraphService(session).create_multi_node_instance(
       template_id=template.id,
       initiator_id=admin.id,
+      context=context,
     )
     await session.commit()
     return SeedIds(
@@ -211,14 +220,21 @@ async def test_two_upstreams_complete_concurrently_activate_join_once(pg_session
         WorkflowNodeInstance.iteration == 1,
       )
     )
+    dependency_count = await session.scalar(
+      select(func.count(WorkflowNodeActivationDependency.id)).where(
+        WorkflowNodeActivationDependency.node_instance_id == seed.nodes["D"],
+        WorkflowNodeActivationDependency.status == "satisfied",
+      )
+    )
     assert instance is not None and instance.executor_kind == "snapshot"
-    assert instance.engine_version == "graph-v2"
-    assert (instance.definition_snapshot or {}).get("format_version") == 1
+    assert instance.engine_version == "graph-v3"
+    assert (instance.definition_snapshot or {}).get("format_version") == 2
     assert len(instance.definition_hash or "") == 64
     assert downstream is not None
     assert downstream.engine_state == WorkflowNodeEngineState.ACTIVATED
     assert downstream.node_instance_version == 2
     assert downstream_count == 1
+    assert dependency_count == 2
 
 
 @pytest.mark.asyncio
@@ -244,12 +260,135 @@ async def test_same_node_concurrent_duplicate_completion_advances_once(pg_sessio
         WorkflowNodeInstance.iteration == 1,
       )
     )
+    traversal_count = await session.scalar(
+      select(func.count(WorkflowEdgeTraversal.id)).where(
+        WorkflowEdgeTraversal.source_node_instance_id == seed.nodes["A"],
+      )
+    )
+    dependency_count = await session.scalar(
+      select(func.count(WorkflowNodeActivationDependency.id)).where(
+        WorkflowNodeActivationDependency.node_instance_id == seed.nodes["B"],
+      )
+    )
     assert upstream is not None and downstream is not None
     assert upstream.engine_state == WorkflowNodeEngineState.COMPLETED
     assert upstream.node_instance_version == 2
     assert downstream.engine_state == WorkflowNodeEngineState.ACTIVATED
     assert downstream.node_instance_version == 2
     assert downstream_count == 1
+    assert traversal_count == 1
+    assert dependency_count == 1
+
+
+@pytest.mark.asyncio
+async def test_exclusive_join_ignores_unproduced_branch_on_postgres(pg_session_factory) -> None:
+  seed = await _seed_graph(
+    pg_session_factory,
+    node_keys=("A", "B", "C", "D"),
+    edges=(
+      ("A", "B", {"field": "route", "operator": "eq", "value": "B"}, 0),
+      ("A", "C", {"else": True}, 1),
+      ("B", "D"),
+      ("C", "D"),
+    ),
+    join_modes={"D": "all"},
+    routing_modes={"A": "exclusive"},
+    context={"route": "B"},
+  )
+  await _complete(pg_session_factory, seed.nodes["A"], seed.actor_id)
+  await _complete(pg_session_factory, seed.nodes["B"], seed.actor_id)
+
+  async with pg_session_factory() as session:
+    skipped = await session.get(WorkflowNodeInstance, seed.nodes["C"])
+    downstream = await session.get(WorkflowNodeInstance, seed.nodes["D"])
+    assert skipped is not None and skipped.engine_state == WorkflowNodeEngineState.SKIPPED
+    assert downstream is not None and downstream.engine_state == WorkflowNodeEngineState.ACTIVATED
+
+
+@pytest.mark.asyncio
+async def test_no_route_fails_with_diagnostic_on_postgres(pg_session_factory) -> None:
+  seed = await _seed_graph(
+    pg_session_factory,
+    node_keys=("A", "B"),
+    edges=(("A", "B", {"field": "route", "operator": "eq", "value": "B"}, 0),),
+    routing_modes={"A": "exclusive"},
+    context={"route": "none"},
+  )
+  await _complete(pg_session_factory, seed.nodes["A"], seed.actor_id)
+
+  async with pg_session_factory() as session:
+    instance = await session.get(WorkflowGraphInstance, seed.instance_id)
+    assert instance is not None and instance.status == WorkflowGraphInstanceStatus.FAILED
+    assert instance.result == "failed"
+    assert instance.diagnostics["code"] == "no_route"
+
+
+async def _complete_with_context_patch(
+  factory,
+  node_instance_id: UUID,
+  actor_id: UUID,
+  value: str,
+) -> None:
+  async with factory() as session:
+    await WorkflowGraphService(session).complete_node_instance(
+      node_instance_id=node_instance_id,
+      actor_id=actor_id,
+      context_updates={"decision": value},
+      expected_context_version=1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_context_patches_conflict_on_same_version(pg_session_factory) -> None:
+  seed = await _seed_graph(
+    pg_session_factory,
+    node_keys=("A", "B", "C"),
+    edges=(("A", "B"), ("A", "C")),
+  )
+  await _complete(pg_session_factory, seed.nodes["A"], seed.actor_id)
+
+  results = await asyncio.gather(
+    _complete_with_context_patch(pg_session_factory, seed.nodes["B"], seed.actor_id, "B"),
+    _complete_with_context_patch(pg_session_factory, seed.nodes["C"], seed.actor_id, "C"),
+    return_exceptions=True,
+  )
+  assert sum(not isinstance(result, BaseException) for result in results) == 1
+  conflicts = [result for result in results if isinstance(result, BaseException)]
+  assert len(conflicts) == 1 and isinstance(conflicts[0], ConflictError)
+
+  async with pg_session_factory() as session:
+    instance = await session.get(WorkflowGraphInstance, seed.instance_id)
+    assert instance is not None and instance.context_version == 2
+
+
+@pytest.mark.asyncio
+async def test_wait_any_winner_revokes_late_concurrent_submit(pg_session_factory) -> None:
+  seed = await _seed_graph(
+    pg_session_factory,
+    node_keys=("A", "B", "C", "D"),
+    edges=(("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")),
+    join_modes={"D": "any"},
+  )
+  await _complete(pg_session_factory, seed.nodes["A"], seed.actor_id)
+  results = await asyncio.gather(
+    _complete(pg_session_factory, seed.nodes["B"], seed.actor_id),
+    _complete(pg_session_factory, seed.nodes["C"], seed.actor_id),
+    return_exceptions=True,
+  )
+  assert sum(not isinstance(result, BaseException) for result in results) == 1
+  assert any(isinstance(result, ConflictError) for result in results)
+
+  async with pg_session_factory() as session:
+    downstream = await session.get(WorkflowNodeInstance, seed.nodes["D"])
+    upstreams = [
+      await session.get(WorkflowNodeInstance, seed.nodes[node_key])
+      for node_key in ("B", "C")
+    ]
+    assert downstream is not None and downstream.engine_state == WorkflowNodeEngineState.ACTIVATED
+    assert {node.engine_state for node in upstreams if node is not None} == {
+      WorkflowNodeEngineState.COMPLETED,
+      WorkflowNodeEngineState.TERMINATED,
+    }
 
 
 async def _deep_reject(factory, seed: SeedIds) -> UUID:
@@ -305,6 +444,44 @@ async def test_deep_reject_and_completion_race_leaves_one_consistent_result(pg_s
       assert next(item for item in node_instances if item.id == seed.nodes["B"]).engine_state == (
         WorkflowNodeEngineState.TERMINATED
       )
+
+
+@pytest.mark.asyncio
+async def test_deep_reject_invalidates_path_and_blocks_old_iteration_on_postgres(
+  pg_session_factory,
+) -> None:
+  seed = await _seed_graph(
+    pg_session_factory,
+    node_keys=("A", "B", "C"),
+    edges=(("A", "B"), ("B", "C")),
+  )
+  await _complete(pg_session_factory, seed.nodes["A"], seed.actor_id)
+  await _complete(pg_session_factory, seed.nodes["B"], seed.actor_id)
+  async with pg_session_factory() as session:
+    await WorkflowGraphService(session).deep_reject_to_upstream(
+      node_instance_id=seed.nodes["C"],
+      actor_id=seed.actor_id,
+      target_node_key="B",
+      reason="Iteration 2 stale iteration proof",
+    )
+
+  with pytest.raises(ConflictError, match="旧 iteration"):
+    await _complete(pg_session_factory, seed.nodes["C"], seed.actor_id)
+
+  async with pg_session_factory() as session:
+    traversal = await session.scalar(
+      select(WorkflowEdgeTraversal).where(
+        WorkflowEdgeTraversal.source_node_instance_id == seed.nodes["B"],
+      )
+    )
+    stale_dependency_count = await session.scalar(
+      select(func.count(WorkflowNodeActivationDependency.id)).where(
+        WorkflowNodeActivationDependency.instance_id == seed.instance_id,
+        WorkflowNodeActivationDependency.status == "invalidated",
+      )
+    )
+    assert traversal is not None and traversal.status == "invalidated"
+    assert stale_dependency_count and stale_dependency_count >= 1
 
 
 def test_ephemeral_database_drop_leaves_no_residue(postgres_database: PostgresDatabase) -> None:

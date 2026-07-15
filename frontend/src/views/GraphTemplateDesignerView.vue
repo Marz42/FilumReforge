@@ -158,6 +158,7 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
     ...node,
     assignment_mode: node.assignment_mode ?? 'single',
     join_mode: node.join_mode ?? 'all',
+    routing_mode: node.routing_mode ?? 'inclusive',
     configJson: JSON.stringify(node.config ?? {}, null, 2),
     routingRulesJson: JSON.stringify((node.config?.routing_rules as unknown) ?? [], null, 2),
   }))
@@ -354,6 +355,7 @@ function buildDraftPayload() {
       sort_order: node.sort_order || index + 1,
       assignment_mode: assignmentMode,
       join_mode: assignmentMode === 'single' ? 'all' : (node.join_mode === 'any' ? 'any' : 'all'),
+      routing_mode: node.routing_mode ?? 'inclusive',
       assignee_rule: node.assignee_rule ?? {},
       config: nodeConfig,
     }
@@ -895,6 +897,21 @@ onMounted(async () => {
               >
                 <el-option label="all" value="all" />
                 <el-option label="any" value="any" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="路由" width="126">
+            <template #default="{ row }">
+              <el-select
+                v-model="row.routing_mode"
+                :disabled="structureLocked"
+                size="small"
+                class="designer__cell-select"
+              >
+                <el-option label="exclusive" value="exclusive" />
+                <el-option label="inclusive" value="inclusive" />
+                <el-option label="parallel" value="parallel" />
+                <el-option label="first_match" value="first_match" />
               </el-select>
             </template>
           </el-table-column>

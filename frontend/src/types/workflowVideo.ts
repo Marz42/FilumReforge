@@ -196,6 +196,7 @@ export interface GraphTemplateNodeDetail {
   node_type?: string
   assignment_mode?: string
   join_mode?: string
+  routing_mode?: 'exclusive' | 'inclusive' | 'parallel' | 'first_match'
   assignee_rule?: Record<string, unknown>
   config?: Record<string, unknown>
 }

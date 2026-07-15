@@ -598,6 +598,9 @@ function resolveNodeEngineStateLabel(state: WorkflowNodeInstanceSummary['engine_
     acknowledged: '已确认',
     completed: '已完成',
     terminated: '已终止',
+    skipped: '已跳过',
+    failed: '失败',
+    suspended: '已挂起',
   }
   return labels[state] ?? state
 }
@@ -607,7 +610,8 @@ function resolveNodeEngineStateTagType(
 ): 'info' | 'primary' | 'success' | 'danger' | 'warning' {
   if (state === 'completed') return 'success'
   if (state === 'activated' || state === 'acknowledged') return 'primary'
-  if (state === 'terminated') return 'danger'
+  if (state === 'terminated' || state === 'failed') return 'danger'
+  if (state === 'suspended') return 'warning'
   return 'info'
 }
 

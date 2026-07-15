@@ -22,6 +22,8 @@ paradigma:
 
 ### Added
 
+- 工作流 graph-v3 路径账本：`workflow_edge_traversals`、`workflow_node_activation_dependencies`、显式 routing mode、Run result/diagnostics（迁移 `20260715_01`）
+- graph-v3 Context expected version/diff event、Deep-Reject 路径失效与不可变 fan-out branch identity
 - 工作流模板显式 `scope_mode`；Run canonical definition snapshot、SHA-256、`engine_version` 与 snapshot/legacy executor 双路由（迁移 `20260713_01`）
 - 工作流 active legacy Run 只读盘点脚本 `report_workflow_legacy_runs`
 - S-01 任务周期统计：权限范围、上海时区日期筛选、新增/完成/到期/逾期/按期完成率、人员负载和分页明细下钻
@@ -39,6 +41,8 @@ paradigma:
 
 ### Fixed
 
+- 条件分支未选节点不再永久 pending；Join 不再等待未产生分支；no-route 进入 failed 并写结构化诊断
+- 统一 Run→Node 行锁顺序，消除 PostgreSQL Wait-Any 并发完成死锁
 - Excel 附件预览改为 Vue 文本插值渲染，并限制为前 500 行/100 列，避免不可信单元格 HTML 注入与超大表格渲染阻塞
 - 修复附件服务模块导入时 MIME 常量定义顺序导致的 `NameError`，并覆盖 `.md`/`.docx` 通用 MIME 推断
 - 修复 Wait-Any 被撤权节点阻止图实例完成、手动单节点验收后实例仍 active

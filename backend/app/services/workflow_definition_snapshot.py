@@ -10,8 +10,9 @@ from app.core.enums import WorkflowGraphNodeType
 from app.core.exceptions import ConflictError
 from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
 
-SNAPSHOT_FORMAT_VERSION = 1
-SNAPSHOT_ENGINE_VERSION = "graph-v2"
+SNAPSHOT_FORMAT_VERSION = 2
+SNAPSHOT_ENGINE_VERSION = "graph-v3"
+PATH_SEMANTICS_ENGINE_VERSION = "graph-v3"
 SNAPSHOT_EXECUTOR_KIND = "snapshot"
 LEGACY_ENGINE_VERSION = "legacy-v1"
 LEGACY_EXECUTOR_KIND = "legacy"
@@ -25,6 +26,7 @@ class RuntimeDefinitionNode:
   node_type: WorkflowGraphNodeType
   assignment_mode: str
   join_mode: str
+  routing_mode: str
   assignee_rule: dict[str, Any]
   config: dict[str, Any]
   sort_order: int
@@ -115,6 +117,9 @@ def build_definition_snapshot(
       node_by_id[item.to_node_id].node_key,
     ),
   )
+  forward_edges = [edge for edge in edges if not edge.is_reject_path]
+  incoming_keys = {edge.to_node_id for edge in forward_edges}
+  outgoing_keys = {edge.from_node_id for edge in forward_edges}
   return {
     "format_version": SNAPSHOT_FORMAT_VERSION,
     "template": {
@@ -128,6 +133,10 @@ def build_definition_snapshot(
       "scope_mode": scope_mode,
       "scope_department_ids": scope_department_ids,
     },
+    "compatibility": {
+      "start_node_keys": [node.node_key for node in ordered_nodes if node.id not in incoming_keys],
+      "end_node_keys": [node.node_key for node in ordered_nodes if node.id not in outgoing_keys],
+    },
     "nodes": [
       {
         "id": str(node.id),
@@ -136,6 +145,7 @@ def build_definition_snapshot(
         "node_type": node.node_type.value,
         "assignment_mode": node.assignment_mode,
         "join_mode": node.join_mode,
+        "routing_mode": getattr(node, "routing_mode", "inclusive") or "inclusive",
         "assignee_rule": dict(node.assignee_rule or {}),
         "config": dict(node.config or {}),
         "sort_order": node.sort_order,
@@ -180,6 +190,7 @@ def runtime_nodes(snapshot: dict[str, Any] | None) -> list[RuntimeDefinitionNode
       node_type=WorkflowGraphNodeType(str(raw.get("node_type") or "task")),
       assignment_mode=str(raw.get("assignment_mode") or "single"),
       join_mode=str(raw.get("join_mode") or "all"),
+      routing_mode=str(raw.get("routing_mode") or "inclusive"),
       assignee_rule=dict(raw.get("assignee_rule") or {}),
       config=dict(raw.get("config") or {}),
       sort_order=int(raw.get("sort_order") or 0),

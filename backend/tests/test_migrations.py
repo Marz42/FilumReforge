@@ -46,6 +46,8 @@ EXPECTED_UPGRADED_TABLES = {
   "workflow_graph_template_edges",
   "workflow_graph_instances",
   "workflow_node_instances",
+  "workflow_edge_traversals",
+  "workflow_node_activation_dependencies",
   "workflow_deliverables",
   "workflow_outbox_events",
   "workflow_run_events",

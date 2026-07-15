@@ -204,6 +204,7 @@ class WorkflowGraphInstanceStatus(StrEnum):
   COMPLETED = "completed"
   CANCELLED = "cancelled"
   TERMINATED = "terminated"
+  FAILED = "failed"
 
 
 class WorkflowNodeEngineState(StrEnum):
@@ -212,6 +213,9 @@ class WorkflowNodeEngineState(StrEnum):
   ACKNOWLEDGED = "acknowledged"
   COMPLETED = "completed"
   TERMINATED = "terminated"
+  SKIPPED = "skipped"
+  FAILED = "failed"
+  SUSPENDED = "suspended"
 
 
 class WorkflowNodeBusinessState(StrEnum):

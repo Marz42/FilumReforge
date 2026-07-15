@@ -1029,6 +1029,7 @@ export type WorkflowGraphInstanceStatus =
   | 'completed'
   | 'cancelled'
   | 'terminated'
+  | 'failed'
 
 export type WorkflowNodeEngineState =
   | 'pending'
@@ -1036,6 +1037,9 @@ export type WorkflowNodeEngineState =
   | 'acknowledged'
   | 'completed'
   | 'terminated'
+  | 'skipped'
+  | 'failed'
+  | 'suspended'
 
 export type WorkflowGraphNodeType = 'task' | 'approval' | 'notice'
 
@@ -1081,6 +1085,8 @@ export interface WorkflowGraphInstanceDetail {
   run_label?: string | null
   parent_instance_id?: string | null
   context: Record<string, unknown>
+  result: 'success' | 'approved' | 'rejected' | 'cancelled' | 'terminated' | 'failed' | null
+  diagnostics: Record<string, unknown>
   context_version: number
   max_iterations: number
   completed_at: string | null

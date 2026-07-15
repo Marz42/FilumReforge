@@ -357,6 +357,7 @@ class WorkflowGraphTemplateNodeConfigSchema(BaseModel):
   acceptance_spec: AcceptanceSpecSchema | None = None
   handshake_required: bool = False
   completion_policy: str | None = None
+  wait_any_cancel_policy: Literal["revoke", "business_cancel", "compensate"] = "revoke"
 
   @model_validator(mode="after")
   def _validate_multi_instance(self) -> WorkflowGraphTemplateNodeConfigSchema:

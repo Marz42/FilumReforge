@@ -92,6 +92,10 @@ class WorkflowGraphTemplateNode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     Index("idx_wf_graph_tpl_nodes_order", "template_id", "sort_order"),
     CheckConstraint("assignment_mode in ('single', 'fan_out')", name="wf_graph_tpl_nodes_assign_chk"),
     CheckConstraint("join_mode in ('all', 'any')", name="wf_graph_tpl_nodes_join_chk"),
+    CheckConstraint(
+      "routing_mode in ('exclusive', 'inclusive', 'parallel', 'first_match')",
+      name="wf_graph_tpl_nodes_route_chk",
+    ),
   )
 
   template_id: Mapped[UUID] = mapped_column(
@@ -108,6 +112,7 @@ class WorkflowGraphTemplateNode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   )
   assignment_mode: Mapped[str] = mapped_column(String(32), default="single", nullable=False)
   join_mode: Mapped[str] = mapped_column(String(32), default="all", nullable=False)
+  routing_mode: Mapped[str] = mapped_column(String(16), default="inclusive", nullable=False)
   assignee_rule: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   config: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -171,6 +176,10 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     CheckConstraint("context_version > 0", name="wf_graph_instances_ctx_ver_chk"),
     CheckConstraint("max_iterations > 0", name="wf_graph_instances_max_iter_chk"),
     CheckConstraint("executor_kind in ('legacy', 'snapshot')", name="wf_graph_instances_executor_chk"),
+    CheckConstraint(
+      "result IS NULL OR result in ('success', 'approved', 'rejected', 'cancelled', 'terminated', 'failed')",
+      name="wf_graph_instances_result_chk",
+    ),
     Index("idx_wf_graph_instances_status", "status"),
     Index("idx_wf_graph_instances_template", "template_id", "status"),
     Index("idx_wf_graph_instances_source", "source_type", "source_id"),
@@ -207,6 +216,8 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   definition_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
   engine_version: Mapped[str] = mapped_column(String(32), default="legacy-v1", nullable=False)
   executor_kind: Mapped[str] = mapped_column(String(16), default="legacy", nullable=False)
+  result: Mapped[str | None] = mapped_column(String(32), nullable=True)
+  diagnostics: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   context_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
   max_iterations: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
   completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -235,6 +246,16 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     back_populates="instance",
     cascade="all, delete-orphan",
     order_by="WorkflowRunEvent.created_at",
+  )
+  edge_traversals = relationship(
+    "WorkflowEdgeTraversal",
+    back_populates="instance",
+    cascade="all, delete-orphan",
+  )
+  activation_dependencies = relationship(
+    "WorkflowNodeActivationDependency",
+    back_populates="instance",
+    cascade="all, delete-orphan",
   )
 
 
@@ -328,6 +349,89 @@ class WorkflowNodeInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     cascade="all, delete-orphan",
   )
   outbox_events = relationship("WorkflowOutboxEvent", back_populates="node_instance")
+
+
+class WorkflowEdgeTraversal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "workflow_edge_traversals"
+  __table_args__ = (
+    UniqueConstraint(
+      "source_node_instance_id",
+      "to_node_key",
+      name="uq_wf_edge_traversals_source_target",
+    ),
+    CheckConstraint(
+      "status in ('taken', 'not_taken', 'invalidated')",
+      name="wf_edge_traversals_status_chk",
+    ),
+    CheckConstraint("iteration > 0", name="wf_edge_traversals_iter_chk"),
+    CheckConstraint("context_version > 0", name="wf_edge_traversals_ctx_ver_chk"),
+    Index("idx_wf_edge_traversals_instance_iter", "instance_id", "iteration"),
+    Index("idx_wf_edge_traversals_source", "source_node_instance_id"),
+  )
+
+  instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_graph_instances.id", name="fk_wf_edge_traversals_instance", ondelete="CASCADE"),
+    nullable=False,
+  )
+  source_node_instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_node_instances.id", name="fk_wf_edge_traversals_source", ondelete="CASCADE"),
+    nullable=False,
+  )
+  iteration: Mapped[int] = mapped_column(Integer, nullable=False)
+  from_node_key: Mapped[str] = mapped_column(String(64), nullable=False)
+  to_node_key: Mapped[str] = mapped_column(String(64), nullable=False)
+  status: Mapped[str] = mapped_column(String(16), nullable=False)
+  condition: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  evidence: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  context_version: Mapped[int] = mapped_column(Integer, nullable=False)
+  invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+  instance = relationship("WorkflowGraphInstance", back_populates="edge_traversals")
+  source_node_instance = relationship("WorkflowNodeInstance", foreign_keys=[source_node_instance_id])
+
+
+class WorkflowNodeActivationDependency(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "workflow_node_activation_dependencies"
+  __table_args__ = (
+    UniqueConstraint(
+      "node_instance_id",
+      "source_node_instance_id",
+      name="uq_wf_node_activation_deps_pair",
+    ),
+    CheckConstraint(
+      "status in ('waiting', 'satisfied', 'cancelled', 'invalidated')",
+      name=conv("wf_node_activation_deps_status_chk"),
+    ),
+    CheckConstraint("iteration > 0", name=conv("wf_node_activation_deps_iter_chk")),
+    Index("idx_wf_node_activation_deps_instance_iter", "instance_id", "iteration"),
+    Index("idx_wf_node_activation_deps_node", "node_instance_id", "status"),
+  )
+
+  instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_graph_instances.id", name="fk_wf_node_activation_deps_instance", ondelete="CASCADE"),
+    nullable=False,
+  )
+  node_instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_node_instances.id", name="fk_wf_node_activation_deps_node", ondelete="CASCADE"),
+    nullable=False,
+  )
+  source_node_instance_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_node_instances.id", name="fk_wf_node_activation_deps_source", ondelete="CASCADE"),
+    nullable=False,
+  )
+  traversal_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_edge_traversals.id", name="fk_wf_node_activation_deps_traversal", ondelete="CASCADE"),
+    nullable=False,
+  )
+  iteration: Mapped[int] = mapped_column(Integer, nullable=False)
+  target_node_key: Mapped[str] = mapped_column(String(64), nullable=False)
+  status: Mapped[str] = mapped_column(String(16), default="waiting", nullable=False)
+  invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+  instance = relationship("WorkflowGraphInstance", back_populates="activation_dependencies")
+  node_instance = relationship("WorkflowNodeInstance", foreign_keys=[node_instance_id])
+  source_node_instance = relationship("WorkflowNodeInstance", foreign_keys=[source_node_instance_id])
+  traversal = relationship("WorkflowEdgeTraversal", foreign_keys=[traversal_id])
 
 
 class WorkflowDeliverable(UUIDPrimaryKeyMixin, TimestampMixin, Base):

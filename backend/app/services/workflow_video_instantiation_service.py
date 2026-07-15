@@ -468,13 +468,19 @@ class WorkflowVideoInstantiationService:
         if not user_ids:
           raise ConflictError(f"策略 {expand_from} 未包含任何参与人。")
 
-        for raw_user_id in user_ids:
+        for branch_index, raw_user_id in enumerate(user_ids, start=1):
           assignee_id = UUID(str(raw_user_id))
+          branch_identity = f"branch:{branch_index:04d}"
+          branch_config = {
+            **node_config,
+            "branch_identity": branch_identity,
+            "initial_assignee_user_id": str(assignee_id),
+          }
           ni = WorkflowNodeInstance(
             instance_id=instance.id,
             template_node_id=node.id,
             node_key=node.node_key,
-            instance_key=str(assignee_id),
+            instance_key=branch_identity,
             title=node.title,
             node_type=node.node_type,
             engine_state=engine_state,
@@ -482,7 +488,7 @@ class WorkflowVideoInstantiationService:
             assignee_user_id=assignee_id,
             iteration=1,
             node_instance_version=1,
-            config=node_config,
+            config=branch_config,
             activated_at=now if is_start else None,
           )
           self._session.add(ni)

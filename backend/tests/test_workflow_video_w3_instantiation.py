@@ -209,13 +209,20 @@ async def test_w3_instantiate_three_copywriters_three_n1_tasks(db_session) -> No
   n2_nodes = [ni for ni in result.node_instances if ni.node_key == "N2_AGGREGATE"]
   assert len(n1_nodes) == 3
   assert all(ni.engine_state == WorkflowNodeEngineState.ACTIVATED for ni in n1_nodes)
+  assert {ni.instance_key for ni in n1_nodes} == {
+    "branch:0001",
+    "branch:0002",
+    "branch:0003",
+  }
+  assert all(ni.instance_key != str(ni.assignee_user_id) for ni in n1_nodes)
   assert len(n2_nodes) == 1
   assert n2_nodes[0].engine_state == WorkflowNodeEngineState.PENDING
   assert len(result.activated_tasks) == 3
   assert result.instance.current_node_key == "N1_PROPOSE"
   assert result.instance.source_id == result.root_task.id
   assert result.instance.executor_kind == "snapshot"
-  assert result.instance.engine_version == "graph-v2"
+  assert result.instance.engine_version == "graph-v3"
+  assert (result.instance.definition_snapshot or {}).get("format_version") == 2
   assert result.instance.definition_snapshot is not None
   assert len(result.instance.definition_hash or "") == 64
 

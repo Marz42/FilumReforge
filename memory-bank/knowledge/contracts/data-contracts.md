@@ -57,11 +57,12 @@ paradigma:
 - **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](../domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](../domains/task-center.md)
 - **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](../domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
 - **S-01 周期统计契约**（2026-07-11 批准）：`GET /api/v1/tasks/stats/scopes|summary|workload|details`；统一 `start_date` / `end_date`（Asia/Shanghai、含首尾日期、最长 366 天）、`department_id?`、`include_subtree`；Employee 仅本人，经理/数据代理限有效管理范围，Admin/HR 全局；排除 `metadata.admin_archived=true` 与 `metadata.workflow_graph_root_task=true`。指标为新增、完成、到期、逾期、已成熟截止任务的按期完成率、当前未完成；details 以 `metric` + UUID cursor 分页。
-- **图模板部门作用范围**（@ 2026-07-09）：`workflow_graph_templates.scope_department_ids JSONB NOT NULL DEFAULT []`；空数组表示不限制部门，非空时管理列表与实例化按有效管理部门校验；迁移 `20260709_01_graph_template_scope_departments.py`
+- **图模板部门作用范围**：显式 `scope_mode=global|departments`；`global` 不允许部门列表，`departments` 至少一个部门；Run 创建先解析最终部门再校验 scope（迁移 `20260713_01`）。
+- **graph-v3 路径契约**（@ 2026-07-15）：节点 `routing_mode`；Run `result`/`diagnostics`；`workflow_edge_traversals` 与 `workflow_node_activation_dependencies` 保存实际路径和激活原因；complete Context patch 可携带 `expected_context_version`，graph-v3 有 patch 时必填。
 - **F-29 管理员归档**（@ 2026-06-23）：`POST /api/v1/tasks/{task_id}/archive`（admin，`TaskArchiveRequest.reason` → `TaskArchiveResponse`）；任务 `extra_metadata.admin_archived` / `admin_archived_at` / `admin_archive_reason` / `admin_archive_source_task_id`；图实例 context `admin_archived*` + 节点 TERMINATED + instance CANCELLED
 - **任务 PATCH 逾期延期**（@ 2026-06-23）：已逾期任务 `due_date` 变更须晚于原截止时间（ConflictError）
 
-> §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41–10.49 为图引擎九表与运行事件**摘要**（完整列定义以 ORM + Alembic 为准；领域总览见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)）。
+> §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41 起为图引擎十一表与运行事件**摘要**（完整列定义以 ORM + Alembic 为准；领域总览见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)）。
 
 ---
 
@@ -113,8 +114,8 @@ paradigma:
 | `document_status` | `draft`, `published`, `archived` | 已实现（Phase 5） |
 | `workflow_graph_template_status` | `draft`, `active`, `archived` | 已实现（图引擎 Phase 2） |
 | `workflow_graph_node_type` | `task`, `approval`, `notice` | 已实现 |
-| `workflow_graph_instance_status` | `pending`, `active`, `completed`, `cancelled`, `terminated` | 已实现 |
-| `workflow_node_engine_state` | `pending`, `activated`, `acknowledged`, `completed`, `terminated` | 已实现 |
+| `workflow_graph_instance_status` | `pending`, `active`, `completed`, `cancelled`, `terminated`, `failed` | 已实现 |
+| `workflow_node_engine_state` | `pending`, `activated`, `acknowledged`, `completed`, `terminated`, `skipped`, `failed`, `suspended` | 已实现 |
 | `workflow_node_business_state` | `draft`, `assigned`, `accepted`, `rejected`, `delegated`, `doing`, `pending_review`, `done`, `returned_for_rework`, `cancelled` | 已实现 |
 | `workflow_outbox_event_status` | `pending`, `retrying`, `dispatched`, `failed` | 已实现（Phase 11-C） |
 
@@ -175,7 +176,7 @@ paradigma:
 - `announcements 1:1 announcement_archives`
 - `attachments N:N 业务对象` 通过 `attachment_links`
 - `workflow_graph_templates 1:N workflow_graph_instances`
-- `workflow_graph_instances 1:N workflow_node_instances` / `workflow_run_events` / `workflow_outbox_events`
+- `workflow_graph_instances 1:N workflow_node_instances` / `workflow_edge_traversals` / `workflow_node_activation_dependencies` / `workflow_run_events` / `workflow_outbox_events`
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run）
 - `workflow_node_instances 1:1 workflow_deliverables`
 

@@ -128,8 +128,22 @@ def _build_instance_detail(
   node_instances: list[WorkflowNodeInstance],
 ) -> WorkflowGraphInstanceDetailRead:
   total = len(node_instances)
-  completed = sum(1 for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.COMPLETED)
-  active = sum(1 for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.ACTIVATED)
+  completed = sum(
+    1
+    for ni in node_instances
+    if ni.engine_state
+    in {
+      WorkflowNodeEngineState.COMPLETED,
+      WorkflowNodeEngineState.SKIPPED,
+      WorkflowNodeEngineState.TERMINATED,
+    }
+  )
+  active = sum(
+    1
+    for ni in node_instances
+    if ni.engine_state
+    in {WorkflowNodeEngineState.ACTIVATED, WorkflowNodeEngineState.ACKNOWLEDGED}
+  )
   pending = sum(1 for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.PENDING)
   progress = int((completed / total) * 100) if total else 0
 
@@ -833,6 +847,7 @@ async def complete_node_instance(
     node_instance_id=node_instance_id,
     actor_id=actor.id,
     context_updates=payload.context_updates,
+    expected_context_version=payload.expected_context_version,
   )
   # 重新查询实例以返回最新快照
   node_instance: WorkflowNodeInstance | None = await workflow_graph_service._session.get(

@@ -153,7 +153,8 @@ async def test_new_run_uses_snapshot_executor_and_legacy_report_is_read_only(db_
   await db_session.commit()
 
   assert result.instance.executor_kind == "snapshot"
-  assert result.instance.engine_version == "graph-v2"
+  assert result.instance.engine_version == "graph-v3"
+  assert (result.instance.definition_snapshot or {}).get("format_version") == 2
   assert result.instance.definition_snapshot is not None
   assert len(result.instance.definition_hash or "") == 64
 

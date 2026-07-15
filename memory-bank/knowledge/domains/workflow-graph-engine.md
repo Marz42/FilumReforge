@@ -1,14 +1,14 @@
 ---
 type: paradigma-domain
 title: "领域：工作流图引擎 (Workflow Graph Engine)"
-description: "现行图任务引擎 as-built：九表数据模型、运行时推进、Task 投影、API 与前端 authoring/runtime。"
+description: "现行图任务引擎 as-built：十一表数据模型、graph-v3 路径推进、Task 投影、API 与前端 authoring/runtime。"
 tags:
   - domain
   - 图引擎
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-07-13T23:50:00+08:00
+timestamp: 2026-07-15T19:39:44+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -32,7 +32,7 @@ paradigma:
 # 领域：工作流图引擎 (Workflow Graph Engine)
 
 > 🌡️ WARM — **现行 as-built 总览**（非历史提案）。涉及模板、实例化、节点推进、Task 投影、详情页布局时优先读本文件。  
-> **最后同步**：2026-07-13 · 对照代码：`backend/app/models/workflow_graph.py`、`WorkflowGraphService`、`TaskDetailShell.vue`  
+> **最后同步**：2026-07-15 · 对照代码：`backend/app/models/workflow_graph.py`、`WorkflowGraphService`、`TaskDetailShell.vue`
 > **计划**：[`plans/workflow-refactor-implementation-plan.md`](../plans/workflow-refactor-implementation-plan.md) · **ADR**：[`decisions/adr-005-dual-track-workflow.md`](../decisions/adr-005-dual-track-workflow.md) · [`adr-008-graph-template-designer.md`](../decisions/adr-008-graph-template-designer.md)  
 > **契约**：[`contracts/database/graph-engine-schema.md`](../contracts/database/graph-engine-schema.md) · **视频增量**：[`workflow-video-v1.md`](./workflow-video-v1.md) · **运行时链路**：[`architecture/core-workflows.md`](./architecture/core-workflows.md) §6.13B
 
@@ -55,7 +55,7 @@ paradigma:
 
 ---
 
-## 2. 实体关系（九表）
+## 2. 实体关系（十一表）
 
 ```mermaid
 erDiagram
@@ -66,11 +66,16 @@ erDiagram
   WorkflowGraphTemplate ||--o| WorkflowGraphTemplate : source_template_id
 
   WorkflowGraphInstance ||--o{ WorkflowNodeInstance : node_instances
+  WorkflowGraphInstance ||--o{ WorkflowEdgeTraversal : edge_traversals
+  WorkflowGraphInstance ||--o{ WorkflowNodeActivationDependency : activation_dependencies
   WorkflowGraphInstance ||--o{ WorkflowOutboxEvent : outbox_events
   WorkflowGraphInstance ||--o{ WorkflowRunEvent : run_events
   WorkflowGraphInstance ||--o| WorkflowGraphInstance : parent_instance_id
 
   WorkflowGraphTemplateNode ||--o{ WorkflowNodeInstance : template_node_id
+  WorkflowNodeInstance ||--o{ WorkflowEdgeTraversal : source_node_instance_id
+  WorkflowNodeInstance ||--o{ WorkflowNodeActivationDependency : target_or_source
+  WorkflowEdgeTraversal ||--o{ WorkflowNodeActivationDependency : traversal_id
   WorkflowNodeInstance ||--o| WorkflowDeliverable : deliverables
 ```
 
@@ -81,12 +86,14 @@ erDiagram
 | `workflow_graph_template_edges` | `WorkflowGraphTemplateEdge` | 条件边：`condition`、`priority`、`is_reject_path` |
 | `workflow_graph_instances` | `WorkflowGraphInstance` | 运行实例：context、当前节点、父子 Run、来源锚点 |
 | `workflow_node_instances` | `WorkflowNodeInstance` | 节点运行态：引擎态/业务态、迭代、办理人 |
+| `workflow_edge_traversals` | `WorkflowEdgeTraversal` | 每次实际出边求值：taken/not_taken/invalidated 与 Context 证据 |
+| `workflow_node_activation_dependencies` | `WorkflowNodeActivationDependency` | 目标节点由哪条 traversal/哪个上游产生，供 Join 判定 |
 | `workflow_deliverables` | `WorkflowDeliverable` | 节点交付快照（1:1） |
 | `workflow_outbox_events` | `WorkflowOutboxEvent` | 事务内可靠投递队列 |
 | `workflow_run_events` | `WorkflowRunEvent` | Append-only 运行审计（与 outbox 分离） |
 | `workflow_graph_template_schedules` | `WorkflowGraphTemplateSchedule` | 图模板周期调度（F-24 / ADR-011） |
 
-> 旧文档「七表 + outbox」已过时：须计入 **run_events** 与 **schedules**。字段权威见 ORM 与 [`graph-engine-schema.md`](../contracts/database/graph-engine-schema.md)。
+> 旧文档「九表」已过时：Iteration 2 已增加 traversal 与 activation dependency。字段权威见 ORM 与 [`graph-engine-schema.md`](../contracts/database/graph-engine-schema.md)。
 
 ---
 
@@ -98,12 +105,12 @@ erDiagram
 |------|-----|
 | `WorkflowGraphTemplateStatus` | `draft` · `active` · `archived` |
 | `WorkflowGraphNodeType` | `task` · `approval` · `notice` |
-| `WorkflowGraphInstanceStatus` | `pending` · `active` · `completed` · `cancelled` · `terminated` |
-| `WorkflowNodeEngineState` | `pending` · `activated` · `acknowledged` · `completed` · `terminated` |
+| `WorkflowGraphInstanceStatus` | `pending` · `active` · `completed` · `cancelled` · `terminated` · `failed` |
+| `WorkflowNodeEngineState` | `pending` · `activated` · `acknowledged` · `completed` · `terminated` · `skipped` · `failed` · `suspended` |
 | `WorkflowNodeBusinessState` | `draft` · `assigned` · `accepted` · `rejected` · `delegated` · `doing` · `pending_review` · `done` · `returned_for_rework` · `cancelled` |
 | `WorkflowOutboxEventStatus` | `pending` · `retrying` · `dispatched` · `failed` |
 
-模板节点 DB 约束：`assignment_mode ∈ {single, fan_out}` · `join_mode ∈ {all, any}`。
+模板节点 DB 约束：`assignment_mode ∈ {single, fan_out}` · `join_mode ∈ {all, any}` · `routing_mode ∈ {exclusive, inclusive, parallel, first_match}`。
 
 ### 3.2 模板层字段要点
 
@@ -117,7 +124,7 @@ erDiagram
 **Node**
 
 - `node_key`（模板内唯一）· `title` · `node_type`
-- `assignment_mode` / `join_mode` · `assignee_rule` · `config`（可含 `ui_profile`、`routing_rules` 设计时校验）· `sort_order`
+- `assignment_mode` / `join_mode` / `routing_mode` · `assignee_rule` · `config`（可含 `ui_profile`、`routing_rules` 设计时校验）· `sort_order`
 
 **Edge**
 
@@ -129,15 +136,15 @@ erDiagram
 **Instance**
 
 - 锚点：`source_type` / `source_id`（常指向 ROOT 或手动 Task）
-- 状态：`status` · `current_node_key` · `context` + `context_version` · `max_iterations`（默认 5）
+- 状态：`status` · `result` · `diagnostics` · `current_node_key`（仅展示投影）· `context` + `context_version` · `max_iterations`（默认 5）
 - 视频/批次：`run_label` · `parent_instance_id`（fork 子 Run）
-- 定义冻结：新 Run 写 `definition_snapshot` + canonical SHA-256 `definition_hash`，并标记 `executor_kind=snapshot`、`engine_version=graph-v2`
-- 兼容路由：存量 Run 保持 `legacy/legacy-v1` 且 snapshot/hash 为 null；旧实时补节点逻辑仅 legacy executor 使用
+- 定义冻结：新 Run 写 snapshot format v2 + canonical SHA-256 hash，标记 `snapshot/graph-v3`；快照兼容派生 Start/End 集合
+- 兼容路由：既有 `snapshot/graph-v2` 与 `legacy/legacy-v1` 保持原 executor，不补写推测性 traversal
 
 **NodeInstance**
 
 - 唯一键：`(instance_id, node_key, instance_key, iteration)`
-- `instance_key`：默认 `"singleton"`；`multi_instance` fan-out 时为办理人 UUID 字符串
+- `instance_key`：默认 `"singleton"`；新 `multi_instance` fan-out 为不可变 `branch:NNNN`，初始办理人单独记录，takeover 不改变分支身份
 - 双态：`engine_state`（引擎）· `business_state`（握手/交付投影）
 - 乐观控制：`node_instance_version`
 - 时间戳：`activated_at` / `acknowledged_at` / `completed_at` / `terminated_at`
@@ -164,25 +171,32 @@ flowchart TD
   A[实例化] --> B[零入度节点 ACTIVATED]
   B --> C[办理 / 握手 / 交付]
   C --> D[complete_node_instance]
-  D --> E[context_updates 合并]
-  E --> F[解析出边 condition]
-  F --> G{join_mode}
-  G -->|all| H[全部上游完成才激活]
-  G -->|any| I[任一完成 + 终止同批 peer]
-  H --> J[激活下游 / Notice 自动完成]
-  I --> J
-  J --> K{仍有活跃节点?}
-  K -->|是| C
-  K -->|否| L[instance COMPLETED]
+  D --> E[expected version Context patch]
+  E --> F[持久化 taken / not_taken traversal]
+  F --> G{有匹配路由?}
+  G -->|否| H[Run FAILED + no_route diagnostic]
+  G -->|是| I[未选专属路径 SKIPPED]
+  I --> J[写 activation dependency]
+  J --> K{join_mode}
+  K -->|all| L[等待实际产生的全部上游]
+  K -->|any| M[首个完成 + 按策略撤权 peer]
+  L --> N[激活下游 / Notice 自动完成]
+  M --> N
+  N --> O{合法 End 且无悬挂状态?}
+  O -->|否，仍有活动节点| C
+  O -->|否，无法推进| P[Run FAILED + diagnostic]
+  O -->|是| Q[Run COMPLETED / result=success]
 ```
 
 | 能力 | 实现要点 |
 |------|----------|
 | **实例化** | 单节点：`create_single_node_instance` · 多节点：`create_multi_node_instance` / 视频 `WorkflowVideoInstantiationService` |
 | **定义选择** | 新模板 Run 全程从创建时 snapshot 读取模板 config、节点、边、链式配置与投影编排；执行前校验 snapshot hash；legacy Run 继续读实时模板 |
-| **完成** | 行锁 + 版本；已 `completed` 幂等返回；`TERMINATED` 迟到提交 409 |
-| **Join** | `all` = Wait-All；`any` = Wait-Any 并 `_terminate_wait_any_peer_nodes`；上游 `multi_instance` 要求同模板节点全部 peer `completed` |
-| **深度打回** | `deep_reject_to_upstream`：克隆新 `iteration`，旧节点 `TERMINATED`；超 `max_iterations` 拒绝 |
+| **完成** | graph-v3 到达合法 End、无 active/pending/failed/suspended/等待 dependency 才成功；no-route/死 Join 写 `failed` 诊断 |
+| **Join** | graph-v3 只等待本 iteration 实际产生且未 skipped/terminated 的 activation；Wait-Any 记录 cancel policy 并撤权 peer |
+| **深度打回** | 克隆新 iteration，旧节点终止，相关 traversal/dependency invalidated；旧 iteration 永不再推进 |
+| **Context** | graph-v3 patch 要求 `expected_context_version`，受控 merge 并写 `context_patched` diff event |
+| **并发** | 所有节点命令统一先锁 Run、再锁 NodeInstance；唯一约束保证 traversal/dependency 不重复 |
 | **接管** | `takeover_node_instance`：改办理人 + outbox + 同步手动 Task 投影 |
 | **编排钩子** | `WorkflowOrchestrationService`：模板投影 Task 的 ensure / after_node_completed / handshake → engine_state |
 | **通知** | `_write_outbox_event` → ARQ `workflow_outbox_worker`（非同步强依赖触达） |

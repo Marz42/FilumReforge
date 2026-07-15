@@ -1,9 +1,9 @@
 ---
 type: paradigma-contract
 title: "图引擎 Schema"
-description: "workflow_graph_* 九表：模板、节点、边、实例、交付物、outbox、运行事件、周期调度。"
+description: "workflow_graph_* 十一表：定义、运行、路径账本、交付、outbox、运行事件与周期调度。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-07-13T23:50:00+08:00
+timestamp: 2026-07-15T19:39:44+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -19,7 +19,7 @@ paradigma:
 ---
 # 图引擎 Schema
 
-> WARM — **九表** as-built：模板 / 节点 / 边 / 实例 / 交付物 / outbox / 运行事件 / 周期调度。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。契约索引见 [`data-contracts.md`](../data-contracts.md)。
+> WARM — **十一表** as-built：定义 / 运行 / traversal / activation dependency / 交付 / outbox / 运行事件 / 周期调度。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。契约索引见 [`data-contracts.md`](../data-contracts.md)。
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
@@ -29,10 +29,12 @@ paradigma:
 | 表 | 职责 | 关键字段 / 约束 |
 | --- | --- | --- |
 | `workflow_graph_templates` | DAG 模板定义 | `code`、`base_code`+`version`、`status`、`context_schema`、`config`、`source_template_id`、`scope_mode ∈ {global,departments}`、`scope_department_ids`；ACTIVE/ARCHIVED 定义不可原地编辑 |
-| `workflow_graph_template_nodes` | 模板节点 | `node_key`、`node_type`、`assignment_mode ∈ {single,fan_out}`、`join_mode ∈ {all,any}`、`assignee_rule`、`config` |
+| `workflow_graph_template_nodes` | 模板节点 | 上述字段 + `routing_mode ∈ {exclusive,inclusive,parallel,first_match}` |
 | `workflow_graph_template_edges` | 条件边 | `from_node_id`、`to_node_id`、`condition`、`priority`、`is_reject_path`（前进路由排除 reject 边） |
-| `workflow_graph_instances` | 运行实例 | 上述运行字段 + `definition_snapshot`、canonical `definition_hash`、`engine_version`、`executor_kind ∈ {legacy,snapshot}`；新 Run=`snapshot/graph-v2`，存量 Run=`legacy/legacy-v1` |
-| `workflow_node_instances` | 节点运行态 | 唯一 `(instance_id,node_key,instance_key,iteration)`；`engine_state`、`business_state`、`assignee_user_id`、`node_instance_version` |
+| `workflow_graph_instances` | 运行实例 | 上述运行字段 + snapshot/hash、executor/engine、`result`、`diagnostics`；新 Run=`snapshot/graph-v3`，既有 graph-v2/legacy 不原地切换 |
+| `workflow_node_instances` | 节点运行态 | 唯一 `(instance_id,node_key,instance_key,iteration)`；engine state 含 `skipped/failed/suspended`；`instance_key` 为不可变分支身份 |
+| `workflow_edge_traversals` | 实际路径账本 | 源 NodeInstance + iteration + from/to key；`taken/not_taken/invalidated`；条件、Context 摘要/version、选择证据 |
+| `workflow_node_activation_dependencies` | 激活依赖账本 | 目标/源 NodeInstance + traversal；`waiting/satisfied/cancelled/invalidated`；解释 Join 实际等待来源 |
 | `workflow_deliverables` | 节点交付快照 | `node_instance_id`（UNIQUE）、`summary`、`payload`、`submitted_at` |
 | `workflow_outbox_events` | 可靠异步投递 | `event_type`、`status`、`attempt_count`、`available_at`、`last_error` |
 | `workflow_run_events` | Append-only 运行事件 | `instance_id`、`event_type`、`actor_user_id`、`payload`、`created_at`（W8） |
@@ -41,7 +43,7 @@ paradigma:
 **关系补充**
 
 - `workflow_graph_templates 1:N workflow_graph_template_nodes / edges / instances / schedules`
-- `workflow_graph_instances 1:N workflow_node_instances / outbox_events / run_events`
+- `workflow_graph_instances 1:N workflow_node_instances / edge_traversals / activation_dependencies / outbox_events / run_events`
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run fork）
 - `workflow_node_instances 1:1 workflow_deliverables`（按节点快照）
 - 兼容 `Task` 投影通过 `extra_metadata` / `source_id` 与 graph 锚点互链（见 [`core-workflows.md`](../../domains/architecture/core-workflows.md) §6.13B）

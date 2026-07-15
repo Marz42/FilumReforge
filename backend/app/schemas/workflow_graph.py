@@ -71,6 +71,7 @@ class WorkflowGraphTemplateNodeDetailRead(WorkflowGraphTemplateNodeSummaryRead):
   node_type: WorkflowGraphNodeType = WorkflowGraphNodeType.TASK
   assignment_mode: str = "single"
   join_mode: str = "all"
+  routing_mode: Literal["exclusive", "inclusive", "parallel", "first_match"] = "inclusive"
   assignee_rule: dict[str, object] = Field(default_factory=dict)
   config: dict[str, object] = Field(default_factory=dict)
 
@@ -104,6 +105,7 @@ class WorkflowGraphTemplateNodeDraftWrite(BaseModel):
   sort_order: int = Field(default=0, ge=0)
   assignment_mode: str = Field(default="single", max_length=32)
   join_mode: str = Field(default="all", max_length=32)
+  routing_mode: Literal["exclusive", "inclusive", "parallel", "first_match"] = "inclusive"
   assignee_rule: dict[str, object] = Field(default_factory=dict)
   config: dict[str, object] = Field(default_factory=dict)
 
@@ -213,6 +215,8 @@ class WorkflowGraphInstanceRead(BaseModel):
   definition_hash: str | None = None
   engine_version: str = "legacy-v1"
   executor_kind: str = "legacy"
+  result: Literal["success", "approved", "rejected", "cancelled", "terminated", "failed"] | None = None
+  diagnostics: dict[str, object] = Field(default_factory=dict)
   context_version: int
   max_iterations: int
   completed_at: datetime | None
@@ -231,6 +235,7 @@ class WorkflowGraphInstanceDetailRead(WorkflowGraphInstanceRead):
 class WorkflowNodeCompleteRequest(BaseModel):
   summary: str | None = None
   context_updates: dict[str, object] | None = None
+  expected_context_version: int | None = Field(default=None, ge=1)
 
 
 class WorkflowNodeDeepRejectRequest(BaseModel):

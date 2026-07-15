@@ -551,11 +551,13 @@ class WorkflowOrchestrationService:
       )
     )
     now = datetime.now(UTC)
+    completed_nodes: list[WorkflowNodeInstance] = []
     for node_instance in aggregate_nodes:
       if node_instance.engine_state != WorkflowNodeEngineState.COMPLETED:
         node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
         node_instance.business_state = WorkflowNodeBusinessState.DONE
         node_instance.completed_at = now
+      completed_nodes.append(node_instance)
 
       task_id = self._task_id_from_node_config(node_instance)
       if task_id is None:
@@ -570,30 +572,11 @@ class WorkflowOrchestrationService:
       metadata["aggregate_confirmed_at"] = now.isoformat()
       aggregate_task.extra_metadata = metadata
 
-    if instance.status == WorkflowGraphInstanceStatus.ACTIVE:
-      downstream_pending = await self._session.scalar(
-        select(WorkflowNodeInstance.id)
-        .where(
-          WorkflowNodeInstance.instance_id == instance.id,
-          WorkflowNodeInstance.engine_state.in_(
-            [
-              WorkflowNodeEngineState.PENDING,
-              WorkflowNodeEngineState.ACTIVATED,
-              WorkflowNodeEngineState.ACKNOWLEDGED,
-            ]
-          ),
-        )
-        .limit(1)
-      )
-      if downstream_pending is None:
-        instance.status = WorkflowGraphInstanceStatus.COMPLETED
-        instance.completed_at = now
-        await self._session.flush()
-        from app.services.workflow_graph_template_chain_service import maybe_trigger_template_chain
-
-        await maybe_trigger_template_chain(self._session, instance=instance)
-
     await self._session.flush()
+    for node_instance in completed_nodes:
+      await self._workflow_graph_service.progress_from_completed_node(
+        node_instance_id=node_instance.id,
+      )
 
   async def on_task_accepted(self, *, actor: User, task: Task) -> None:
     """Handshake acceptance for template graph projection tasks (W4-3)."""
