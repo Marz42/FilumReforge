@@ -963,6 +963,7 @@ async def test_phase3_single_node_workflow_creation_projects_task_and_graph_enti
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
   )
   auth_service = AuthService(db_session, settings)
   admin = await auth_service.bootstrap_admin(
@@ -1048,6 +1049,7 @@ async def test_phase5_graph_task_supports_deliverable_review_and_rework_cycle(db
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
   )
   auth_service = AuthService(db_session, settings)
   admin = await auth_service.bootstrap_admin(
@@ -1241,6 +1243,7 @@ async def test_phase4_graph_task_requires_accept_before_start_and_updates_inbox_
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
   )
   auth_service = AuthService(db_session, settings)
   admin = await auth_service.bootstrap_admin(
@@ -1322,6 +1325,7 @@ async def test_phase4_graph_task_reject_and_delegate_refresh_runtime_projection(
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
   )
   auth_service = AuthService(db_session, settings)
   admin = await auth_service.bootstrap_admin(
@@ -5862,6 +5866,7 @@ async def test_phase11d_takeover_syncs_manual_task_projection_for_new_assignee(d
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
   )
   auth_service = AuthService(db_session, settings)
   admin = await auth_service.bootstrap_admin(
@@ -5952,6 +5957,7 @@ async def test_phase11d_delegate_blocks_when_graph_node_is_terminated(db_session
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
   )
   auth_service = AuthService(db_session, settings)
   admin = await auth_service.bootstrap_admin(
@@ -6028,6 +6034,7 @@ async def test_phase11d_accept_blocks_when_graph_node_is_terminated(db_session) 
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
   )
   auth_service = AuthService(db_session, settings)
   admin = await auth_service.bootstrap_admin(
@@ -6092,6 +6099,7 @@ async def test_phase11d_reject_blocks_when_graph_instance_is_completed(db_sessio
   settings = Settings(
     jwt_secret_key=TEST_JWT_SECRET,
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
   )
   auth_service = AuthService(db_session, settings)
   admin = await auth_service.bootstrap_admin(

@@ -272,8 +272,14 @@ export interface WorkflowRunEventItem {
   id: string
   instance_id: string
   event_type: string
+  event_version: number
+  aggregate_version: number | null
+  command_id: string | null
+  causation_id: string | null
+  correlation_id: string | null
   actor_user_id: string | null
   payload: Record<string, unknown>
+  occurred_at: string
   created_at: string
 }
 

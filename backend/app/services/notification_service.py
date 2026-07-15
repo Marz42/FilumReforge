@@ -48,34 +48,51 @@ class NotificationService:
       ]
     return channels
 
-  async def send(self, message: NotificationMessage) -> NotificationMessageModel:
-    channels = await self._resolve_channels(message=message)
-    notification_message = NotificationMessageModel(
-      source_type=message.source_type,
-      source_id=message.source_id,
-      recipient_user_id=message.recipient_user_id,
-      recipient_email=message.recipient_email,
-      message_type=message.message_type,
-      title=message.title,
-      body_text=message.body_text,
-      body_html=message.body_html,
-      payload=message.payload,
-      enqueued_at=datetime.now(UTC),
-    )
-    self._session.add(notification_message)
-    await self._session.flush()
-
+  async def send(
+    self,
+    message: NotificationMessage,
+    *,
+    deduplication_key: str | None = None,
+  ) -> NotificationMessageModel:
+    notification_message = None
     deliveries: list[NotificationDelivery] = []
-    for channel in channels:
-      delivery = NotificationDelivery(
-        message_id=notification_message.id,
-        channel=channel,
-        adapter_name=channel.value,
+    if deduplication_key:
+      notification_message = await self._session.scalar(
+        select(NotificationMessageModel)
+        .options(selectinload(NotificationMessageModel.deliveries))
+        .where(NotificationMessageModel.deduplication_key == deduplication_key)
       )
-      deliveries.append(delivery)
-    self._session.add_all(deliveries)
-    await self._session.commit()
-    await self._session.refresh(notification_message)
+      if notification_message is not None:
+        deliveries = list(notification_message.deliveries)
+
+    if notification_message is None:
+      channels = await self._resolve_channels(message=message)
+      notification_message = NotificationMessageModel(
+        source_type=message.source_type,
+        source_id=message.source_id,
+        recipient_user_id=message.recipient_user_id,
+        recipient_email=message.recipient_email,
+        message_type=message.message_type,
+        deduplication_key=deduplication_key,
+        title=message.title,
+        body_text=message.body_text,
+        body_html=message.body_html,
+        payload=message.payload,
+        enqueued_at=datetime.now(UTC),
+      )
+      self._session.add(notification_message)
+      await self._session.flush()
+
+      for channel in channels:
+        delivery = NotificationDelivery(
+          message_id=notification_message.id,
+          channel=channel,
+          adapter_name=channel.value,
+        )
+        deliveries.append(delivery)
+      self._session.add_all(deliveries)
+      await self._session.commit()
+      await self._session.refresh(notification_message)
 
     if self._queue_publisher is not None:
       payload = {
@@ -84,6 +101,15 @@ class NotificationService:
         "source_type": notification_message.source_type,
         "message_type": notification_message.message_type,
       }
+      if notification_message.status == NotificationMessageStatus.FAILED:
+        notification_message.status = NotificationMessageStatus.QUEUED
+        notification_message.completed_at = None
+        for delivery in deliveries:
+          if delivery.status == NotificationDeliveryStatus.FAILED:
+            delivery.status = NotificationDeliveryStatus.PENDING
+            delivery.error_message = None
+        # Persist retryability before publishing so the consumer never observes stale FAILED rows.
+        await self._session.commit()
       try:
         await self._queue_publisher.publish(payload)
       except Exception as exc:  # noqa: BLE001

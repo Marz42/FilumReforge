@@ -551,12 +551,14 @@ class WorkflowGraphTemplateScheduleService:
     *,
     actor: User,
     schedule_id: UUID,
+    commit: bool = True,
   ) -> GraphTemplateScheduleRunNowResponse:
     schedule = await self._get_schedule_or_raise(actor=actor, schedule_id=schedule_id)
     return await self._execute_schedule(
       schedule=schedule,
       current_time=datetime.now(dt_timezone.utc),
       advance_next_run=False,
+      commit=commit,
     )
 
   async def _execute_schedule(
@@ -565,6 +567,7 @@ class WorkflowGraphTemplateScheduleService:
     schedule: WorkflowGraphTemplateSchedule,
     current_time: datetime,
     advance_next_run: bool,
+    commit: bool = True,
   ) -> GraphTemplateScheduleRunNowResponse:
     if self._instantiation_service is None:
       raise ConflictError("图模板实例化服务未配置。")
@@ -633,6 +636,7 @@ class WorkflowGraphTemplateScheduleService:
           department_id=department.id,
           run_label=self._render_run_label(schedule=schedule, department=department, now=current_time),
           skip_publish_permission=True,
+          commit=False,
         )
         context = dict(result.instance.context or {})
         context["schedule_id"] = str(schedule.id)
@@ -662,7 +666,10 @@ class WorkflowGraphTemplateScheduleService:
         timezone_name=schedule.timezone,
         base_time=current_time,
       )
-    await self._session.commit()
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
 
     return GraphTemplateScheduleRunNowResponse(
       created_count=created_count,
@@ -693,6 +700,7 @@ class WorkflowGraphTemplateScheduleService:
         schedule=schedule,
         current_time=current_time,
         advance_next_run=True,
+        commit=True,
       )
       executed += 1
     return executed

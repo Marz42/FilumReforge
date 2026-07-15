@@ -33,11 +33,13 @@ from app.models import (
   WorkflowGraphTemplateNode,
   WorkflowNodeInstance,
   WorkflowNodeActivationDependency,
+  WorkflowRunEvent,
 )
 from app.services.auth_service import AuthService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_command_receipt_service import WorkflowCommandReceiptService
+from app.services.workflow_command_executor import WorkflowCommandExecutor
 from tests.postgres_migration_support import (
   database_exists,
   drop_ephemeral_database,
@@ -232,6 +234,61 @@ async def test_command_receipt_concurrent_claim_creates_one_record(pg_session_fa
       )
     )
     assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_command_executor_concurrent_replay_applies_node_once(pg_session_factory) -> None:
+  seed = await _seed_graph(pg_session_factory, node_keys=("A",), edges=())
+  command_id = f"pg-execute-{uuid4().hex}"
+  payload = {"node_instance_id": str(seed.nodes["A"])}
+
+  async def execute_once() -> dict[str, object]:
+    async with pg_session_factory() as session:
+      async def operation() -> dict[str, object]:
+        await WorkflowGraphService(session).complete_node_instance(
+          node_instance_id=seed.nodes["A"],
+          actor_id=seed.actor_id,
+          commit=False,
+        )
+        return {
+          "instance_id": str(seed.instance_id),
+          "node_instance_id": str(seed.nodes["A"]),
+        }
+
+      return await WorkflowCommandExecutor(session).execute(
+        command_id=command_id,
+        command_type="complete_node",
+        payload=payload,
+        operation=operation,
+        actor_user_id=seed.actor_id,
+        aggregate_type="workflow_run",
+      )
+
+  results = await asyncio.gather(execute_once(), execute_once())
+  assert results[0] == results[1]
+
+  async with pg_session_factory() as session:
+    node = await session.get(WorkflowNodeInstance, seed.nodes["A"])
+    receipt_count = await session.scalar(
+      select(func.count(WorkflowCommandReceipt.id)).where(
+        WorkflowCommandReceipt.command_id == command_id
+      )
+    )
+    events = list(
+      await session.scalars(
+        select(WorkflowRunEvent).where(
+          WorkflowRunEvent.instance_id == seed.instance_id,
+          WorkflowRunEvent.event_type == "node_completed",
+        )
+      )
+    )
+
+  assert node is not None
+  assert node.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert node.node_instance_version == 2
+  assert receipt_count == 1
+  assert len(events) == 1
+  assert events[0].command_id == command_id
 
 
 @pytest.mark.asyncio

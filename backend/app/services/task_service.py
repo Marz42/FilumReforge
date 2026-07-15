@@ -1381,7 +1381,13 @@ class TaskService:
       department_id=department_id,
     )
 
-    if self._workflow_graph_engine_enabled() and source_type == TaskSourceType.MANUAL:
+    use_legacy_manual_graph = (
+      self._workflow_graph_engine_enabled()
+      and source_type == TaskSourceType.MANUAL
+      and self._settings is not None
+      and not self._settings.workflow_standalone_manual_tasks_enabled
+    )
+    if use_legacy_manual_graph:
       task = await self._create_single_node_workflow_projection(
         actor=actor,
         title=title,
@@ -2070,40 +2076,12 @@ class TaskService:
     reference_time: datetime,
     force_business_state: WorkflowNodeBusinessState | None = None,
   ) -> None:
-    instance, node_instance = await self._load_workflow_graph_projection(task=task)
-    if instance is None or node_instance is None:
-      return
-
-    instance.status = WorkflowGraphInstanceStatus.ACTIVE
-    instance.completed_at = None
-    instance.current_node_key = node_instance.node_key
-
-    if target_status == TaskStatus.DOING:
-      node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
-      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
-      node_instance.completed_at = None
-      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.DOING
-      return
-
-    if target_status == TaskStatus.REVIEW:
-      node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
-      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
-      node_instance.completed_at = None
-      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.PENDING_REVIEW
-      return
-
-    if target_status == TaskStatus.DONE:
-      node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
-      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
-      node_instance.completed_at = reference_time
-      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.DONE
-      if task.source_type == TaskSourceType.MANUAL:
-        instance.status = WorkflowGraphInstanceStatus.COMPLETED
-        instance.completed_at = reference_time
-        instance.current_node_key = None
-      else:
-        instance.current_node_key = node_instance.node_key
-      return
+    await self._human_task_coordinator.sync_runtime_for_task_status(
+      task=task,
+      target_status=target_status,
+      reference_time=reference_time,
+      force_business_state=force_business_state,
+    )
 
   async def _sync_graph_projection_for_handshake_state(
     self,
@@ -2114,34 +2092,13 @@ class TaskService:
     assignee_id: UUID | None = None,
     reset_acknowledged_at: bool = False,
   ) -> None:
-    instance, node_instance = await self._load_workflow_graph_projection(task=task)
-    if instance is None or node_instance is None:
-      return
-    if instance.status != WorkflowGraphInstanceStatus.ACTIVE:
-      raise ConflictError("当前工作流图实例已结束，不能继续执行握手动作。")
-    if node_instance.engine_state in {
-      WorkflowNodeEngineState.COMPLETED,
-      WorkflowNodeEngineState.TERMINATED,
-    }:
-      raise ConflictError("当前图节点已失效，不能继续执行握手动作。")
-
-    instance.status = WorkflowGraphInstanceStatus.ACTIVE
-    instance.completed_at = None
-    instance.current_node_key = node_instance.node_key
-    node_instance.completed_at = None
-    if assignee_id is not None:
-      node_instance.assignee_user_id = assignee_id
-
-    if business_state == WorkflowNodeBusinessState.ASSIGNED:
-      node_instance.engine_state = WorkflowNodeEngineState.ACTIVATED
-      node_instance.business_state = WorkflowNodeBusinessState.ASSIGNED
-      if reset_acknowledged_at:
-        node_instance.acknowledged_at = None
-      return
-
-    node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
-    node_instance.business_state = business_state
-    node_instance.acknowledged_at = reference_time
+    await self._human_task_coordinator.sync_runtime_for_handshake_state(
+      task=task,
+      business_state=business_state,
+      reference_time=reference_time,
+      assignee_id=assignee_id,
+      reset_acknowledged_at=reset_acknowledged_at,
+    )
 
   async def _ensure_task_assignee_or_manager(self, *, actor: User, task: Task) -> None:
     if actor.role in MANAGEMENT_ROLES or actor.id == task.assignee_id:
@@ -2953,7 +2910,33 @@ class TaskService:
       return task
 
     if not self._uses_graph_handshake_cycle(task=task):
-      raise ConflictError("当前任务不使用图引擎握手流程。")
+      await self._ensure_task_handshake_actor(actor=actor, task=task)
+      if task.status != TaskStatus.TODO:
+        raise ConflictError("只有待处理任务才能执行接受动作。")
+      now = datetime.now(UTC)
+      metadata = self._copy_task_metadata(task)
+      metadata.update(
+        {
+          "work_item_acceptance_state": HANDSHAKE_ACCEPTED,
+          "latest_acceptance_actor_user_id": str(actor.id),
+          "latest_acceptance_at": now.isoformat(),
+        }
+      )
+      task.extra_metadata = metadata
+      task.updated_at = now
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=actor.id,
+        action_type=TaskActionType.ASSIGNED,
+        detail={
+          "action": HANDSHAKE_ACCEPTED,
+          "status": task.status.value,
+          "source": "standalone_work_item",
+        },
+      )
+      await self._session.commit()
+      await self._session.refresh(task)
+      return task
     await self._ensure_task_handshake_actor(actor=actor, task=task)
     if task.status != TaskStatus.TODO:
       raise ConflictError("只有待处理任务才能执行接受动作。")

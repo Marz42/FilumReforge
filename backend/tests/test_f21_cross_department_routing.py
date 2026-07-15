@@ -94,7 +94,11 @@ async def test_f21_cross_department_create_task_with_path_cc(db_session) -> None
 
   task_service = TaskService(
     db_session,
-    settings=Settings(jwt_secret_key=TEST_JWT_SECRET, workflow_graph_engine_enabled=True),
+    settings=Settings(
+      jwt_secret_key=TEST_JWT_SECRET,
+      workflow_graph_engine_enabled=True,
+      workflow_standalone_manual_tasks_enabled=False,
+    ),
     workflow_graph_service=WorkflowGraphService(db_session),
   )
   task = await task_service.create_task(

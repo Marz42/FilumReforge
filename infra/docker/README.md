@@ -20,7 +20,7 @@ docker compose -f docker-compose.yml up --build -d
 Compose 已为 `backend` / `worker` 注入与当前代码基线一致的环境变量（可在 `.env` 覆盖）：
 
 - `FRONTEND_APP_URL`：默认 `http://127.0.0.1:8080`，与 **Nginx 统一入口**一致，便于邀请注册、外链回跳演练；若只使用 Vite `:5173` 直连，请在 `.env` 中改为 `http://127.0.0.1:5173`。
-- `WORKFLOW_GRAPH_ENGINE_ENABLED` / `TASK_CENTER_V2_ENABLED`：默认 `true`，与 `backend/app/core/config.py` 及生产 Compose 对齐。
+- `WORKFLOW_GRAPH_ENGINE_ENABLED` / `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED` / `TASK_CENTER_V2_ENABLED`：默认 `true`；standalone 开关关闭时仅让后续新建普通任务回到兼容单节点图路径。
 - `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`：默认 `false`；**图模板 Tab 实例化**须在 `.env` 设为 `true` 并重启 `backend`（`worker` 可选同步）。
 - `WORKFLOW_WAIT_ANY_ENABLED` / `WORKFLOW_DEEP_REJECTION_ENABLED`：默认 `false`，与 Settings 默认一致；需要演练或签 / 深度打回时可改为 `true`。
 

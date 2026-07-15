@@ -1,13 +1,13 @@
 ---
 type: paradigma-plan
 title: 工作流图引擎稳健升级迭代方案
-description: "基于现行九表图引擎、Task 双写与视频工作流的渐进式升级方案。"
+description: "基于现行十三表图引擎、Task/Node 写边界与视频工作流的渐进式升级方案。"
 tags:
   - plan
   - workflow-graph
   - runtime
   - migration
-timestamp: 2026-07-13T22:11:53+08:00
+timestamp: 2026-07-15T21:22:42+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -28,7 +28,7 @@ paradigma:
 ---
 # Project Filum 工作流图引擎稳健升级迭代方案
 
-> **状态**：Iteration 0–1 已完成；Iteration 2 已实施并通过自动化验证，等待用户验收后再进入 Iteration 3。
+> **状态**：Iteration 0–2 已完成并验收；Iteration 3 A–E 已完成代码实施，等待生产回填/观测与用户验收闸门。
 > **输入**：根目录 `workflow-graph-engine-upgrade-guidance-report.md`、现行 ORM / Service / API / 测试，以及 [`workflow-graph-engine.md`](../domains/workflow-graph-engine.md) as-built。  
 > **与旧计划关系**：[`workflow-refactor-implementation-plan.md`](./workflow-refactor-implementation-plan.md) 记录 Phase 1–11 的历史实施主线；本文只规划其后的结构收敛与正确性升级，不回写历史阶段。
 
@@ -229,7 +229,7 @@ paradigma:
 - [x] 条件 Join 只等待实际产生分支；no-route 失败诊断；合法 End 与悬挂状态完成检查。
 - [x] Deep-Reject 失效旧路径证据；Context expected version/diff event；不可变 branch identity。
 - [x] PostgreSQL 10/10：Alembic 往返、并发激活/去重、exclusive/inclusive、no-route、Wait-Any、Deep-Reject 与 Context 冲突。
-- [ ] 用户验收闸门；未验收前不进入 Iteration 3。
+- [x] 用户验收闸门；Iteration 2 提交为 `853fca1` 后进入 Iteration 3。
 
 ### 目标
 

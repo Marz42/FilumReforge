@@ -121,23 +121,17 @@ class WorkflowOrchestrationService:
     if resolve_completion_policy(node_instance=node_instance, template_node=template_node) != "on_review_approved":
       return
 
-    now = datetime.now(UTC)
-    task.status = TaskStatus.REVIEW
-    task.completed_at = None
-    task.updated_at = now
-    node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
-    node_instance.business_state = WorkflowNodeBusinessState.PENDING_REVIEW
-    node_instance.acknowledged_at = node_instance.acknowledged_at or now
-    node_instance.completed_at = None
-
-    if instance.source_id is None:
-      return
-    root_task = await self._session.get(Task, instance.source_id)
-    if root_task is None:
-      return
-    root_task.status = TaskStatus.REVIEW
-    root_task.completed_at = None
-    root_task.updated_at = now
+    root_task = (
+      await self._session.get(Task, instance.source_id)
+      if instance.source_id is not None
+      else None
+    )
+    await self._human_task_coordinator.apply_review_projection_state(
+      task=task,
+      node_instance=node_instance,
+      root_task=root_task,
+      reference_time=datetime.now(UTC),
+    )
 
   async def _create_projection_task(
     self,
@@ -385,18 +379,12 @@ class WorkflowOrchestrationService:
         task=task,
         assignee_id=node_instance.assignee_user_id or actor.id,
       )
-      node_instance.config = {
-        **dict(node_instance.config or {}),
-        "task_id": str(task.id),
-      }
-      await self._human_task_coordinator.ensure_link(
-        task_id=task.id,
-        node_instance_id=node_instance.id,
+      await self._human_task_coordinator.bind_projection_task(
+        task=task,
+        node_instance=node_instance,
         source="runtime",
-        link_metadata={"compatibility_json_written": True},
+        mark_doing=True,
       )
-      if node_instance.business_state == WorkflowNodeBusinessState.ASSIGNED:
-        node_instance.business_state = WorkflowNodeBusinessState.DOING
       created.append(task)
     if created:
       await self._workflow_graph_service.enqueue_node_activated_notifications(
@@ -561,24 +549,15 @@ class WorkflowOrchestrationService:
     now = datetime.now(UTC)
     completed_nodes: list[WorkflowNodeInstance] = []
     for node_instance in aggregate_nodes:
-      if node_instance.engine_state != WorkflowNodeEngineState.COMPLETED:
-        node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
-        node_instance.business_state = WorkflowNodeBusinessState.DONE
-        node_instance.completed_at = now
       completed_nodes.append(node_instance)
 
       task_id = self._task_id_from_node_config(node_instance)
-      if task_id is None:
-        continue
-      aggregate_task = await self._session.get(Task, task_id)
-      if aggregate_task is None:
-        continue
-      aggregate_task.status = TaskStatus.DONE
-      aggregate_task.completed_at = now
-      aggregate_task.updated_at = now
-      metadata = dict(aggregate_task.extra_metadata or {})
-      metadata["aggregate_confirmed_at"] = now.isoformat()
-      aggregate_task.extra_metadata = metadata
+      aggregate_task = await self._session.get(Task, task_id) if task_id is not None else None
+      await self._human_task_coordinator.apply_aggregate_confirmation(
+        node_instance=node_instance,
+        task=aggregate_task,
+        reference_time=now,
+      )
 
     await self._session.flush()
     for node_instance in completed_nodes:
@@ -605,22 +584,12 @@ class WorkflowOrchestrationService:
     if not node_config.handshake_required:
       return
 
-    now = datetime.now(UTC)
-    node_instance.business_state = WorkflowNodeBusinessState.ACCEPTED
-    node_instance.acknowledged_at = now
-    metadata.update(
-      {
-        "workflow_handshake_state": "accepted",
-        "latest_handshake_action": "accepted",
-        "latest_handshake_actor_user_id": str(actor.id),
-        "latest_handshake_at": now.isoformat(),
-      }
+    await self._human_task_coordinator.apply_handshake_acceptance(
+      task=task,
+      node_instance=node_instance,
+      actor_id=actor.id,
+      reference_time=datetime.now(UTC),
     )
-    task.extra_metadata = metadata
-    if task.status == TaskStatus.TODO:
-      task.status = TaskStatus.DOING
-      task.started_at = now
-    task.updated_at = now
     await self._session.flush()
 
   @staticmethod

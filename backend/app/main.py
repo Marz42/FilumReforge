@@ -52,6 +52,7 @@ def _configure_cors(application: FastAPI) -> None:
     allow_credentials=settings.cors_allow_credentials,
     allow_methods=settings.cors_allowed_methods,
     allow_headers=settings.cors_allowed_headers,
+    expose_headers=settings.cors_exposed_headers,
   )
 
 

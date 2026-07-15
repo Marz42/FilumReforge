@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 5
 BATCH_SIZE = 50
+PROCESSING_VISIBILITY_TIMEOUT = timedelta(minutes=5)
 
 
 def _backoff_seconds(attempt: int) -> int:
@@ -69,7 +70,8 @@ async def _dispatch_event(
             for k, v in payload.items()
             if k not in {"recipient_user_id", "recipient_email", "title", "body_text"}
           },
-        )
+        ),
+        deduplication_key=f"workflow_outbox:{event.id}",
       )
     elif event.event_type == "workflow_node_activated":
       recipient_user_id = payload.get("recipient_user_id")
@@ -92,13 +94,15 @@ async def _dispatch_event(
             for k, v in payload.items()
             if k not in {"recipient_user_id", "recipient_email", "title", "body_text"}
           },
-        )
+        ),
+        deduplication_key=f"workflow_outbox:{event.id}",
       )
     else:
       logger.warning("未知的 outbox event_type=%s，跳过", event.event_type)
 
     event.status = WorkflowOutboxEventStatus.DISPATCHED
     event.dispatched_at = now
+    event.available_at = None
     event.last_error = None
   except Exception as exc:  # noqa: BLE001
     attempt = event.attempt_count
@@ -175,8 +179,11 @@ async def process_workflow_outbox_events(
       ):
         continue
 
-      # 先递增 attempt_count（在同一 session 中）
+      # NotificationService persists the notification before queue publish. Persist a visibility
+      # lease in that same commit so another worker cannot pick this event during the gap.
       event.attempt_count += 1
+      event.status = WorkflowOutboxEventStatus.RETRYING
+      event.available_at = datetime.now(UTC) + PROCESSING_VISIBILITY_TIMEOUT
       await session.flush()
 
       # notification_service.send() 内部会 commit；_dispatch_event 结束后再 commit 一次

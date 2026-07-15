@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import (
   TaskPriority,
-  TaskSourceType,
   UserRole,
   UserStatus,
   WorkflowGraphInstanceStatus,
@@ -43,8 +42,8 @@ from app.services.workflow_definition_snapshot import (
   runtime_template,
 )
 from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.models import (
-  Task,
   User,
   WorkflowGraphInstance,
   WorkflowEdgeTraversal,
@@ -171,38 +170,6 @@ class WorkflowGraphService:
         },
       )
 
-  async def _sync_manual_task_projection_after_takeover(
-    self,
-    *,
-    graph_instance: WorkflowGraphInstance,
-    new_assignee_id: UUID,
-    reason: str,
-    actor_id: UUID,
-  ) -> None:
-    """手动图任务：管理员接管节点后同步兼容读模型上的 assignee 与握手元数据。"""
-    if graph_instance.source_id is None:
-      return
-    # 与 TaskService._create_single_node_workflow_projection 对齐：source_type 存枚举 value（如 manual）
-    if graph_instance.source_type not in {TaskSourceType.MANUAL.value, "task"}:
-      return
-    task = await self._session.get(Task, graph_instance.source_id)
-    if task is None or task.source_type != TaskSourceType.MANUAL:
-      return
-    metadata = dict(task.extra_metadata or {})
-    if not metadata.get("workflow_node_instance_id"):
-      return
-    task.assignee_id = new_assignee_id
-    metadata.update(
-      {
-        "workflow_handshake_state": "assigned",
-        "latest_handshake_action": "takeover",
-        "latest_handshake_actor_user_id": str(actor_id),
-        "latest_takeover_reason": reason,
-      }
-    )
-    task.extra_metadata = metadata
-    task.updated_at = datetime.now(UTC)
-
   async def takeover_node_instance(
     self,
     *,
@@ -211,6 +178,7 @@ class WorkflowGraphService:
     actor_role: UserRole,
     assignee_id: UUID,
     reason: str,
+    commit: bool = True,
   ) -> UUID:
     """管理员强制接管运行中节点，写入审计信息并通知原执行人。"""
     if actor_role != UserRole.ADMIN:
@@ -280,13 +248,29 @@ class WorkflowGraphService:
           },
         )
 
-    await self._sync_manual_task_projection_after_takeover(
+    await HumanTaskCoordinator(self._session).sync_work_item_after_takeover(
       graph_instance=graph_instance,
+      node_instance=node_instance,
       new_assignee_id=assignee.id,
       reason=normalized_reason,
       actor_id=actor_id,
     )
-    await self._session.commit()
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type="node_taken_over",
+      actor_user_id=actor_id,
+      aggregate_version=node_instance.node_instance_version,
+      payload={
+        "node_instance_id": str(node_instance.id),
+        "from_assignee_user_id": str(previous_assignee_id) if previous_assignee_id else None,
+        "to_assignee_user_id": str(assignee.id),
+        "reason": normalized_reason,
+      },
+    )
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
     return graph_instance.id
 
   async def deep_reject_to_upstream(
@@ -296,6 +280,7 @@ class WorkflowGraphService:
     actor_id: UUID,
     target_node_key: str,
     reason: str | None = None,
+    commit: bool = True,
   ) -> UUID:
     """将当前节点深度打回到任意上游节点，并采用 Append-Only 方式重放尾链。"""
     graph_instance, current_node_instance = await self._lock_graph_and_node_instance(
@@ -487,7 +472,26 @@ class WorkflowGraphService:
     graph_instance.completed_at = None
     await self._session.flush()
 
-    await self._session.commit()
+    await HumanTaskCoordinator(self._session).sync_link_lifecycles_for_instance(
+      instance_id=graph_instance.id,
+    )
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type="node_deep_rejected",
+      actor_user_id=actor_id,
+      aggregate_version=graph_instance.context_version,
+      payload={
+        "node_instance_id": str(current_node_instance.id),
+        "target_node_key": target_node_key,
+        "reason": reason,
+        "iteration": next_iteration,
+      },
+    )
+
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
     return graph_instance.id
 
   def _collect_reachable_template_node_ids(
@@ -824,6 +828,7 @@ class WorkflowGraphService:
     actor_id: UUID,
     context_updates: dict[str, Any] | None = None,
     expected_context_version: int | None = None,
+    commit: bool = True,
   ) -> None:
     """标记节点实例为已完成，并在事务中检查 / 激活下游节点。
 
@@ -843,7 +848,8 @@ class WorkflowGraphService:
       if latest_iteration is not None and node_instance.iteration < int(latest_iteration):
         raise ConflictError("旧 iteration 节点已失效，不能修改 Context 或推进工作流。")
     if node_instance.engine_state == WorkflowNodeEngineState.COMPLETED:
-      await self._session.commit()
+      if commit:
+        await self._session.commit()
       return  # 幂等保护
     self._ensure_snapshot_integrity(graph_instance)
     if node_instance.engine_state == WorkflowNodeEngineState.TERMINATED:
@@ -897,25 +903,30 @@ class WorkflowGraphService:
     node_instance.node_instance_version += 1
     await self._session.flush()
 
-    context = graph_instance.context if isinstance(graph_instance.context, dict) else {}
-    if context.get("run_kind"):
-      await WorkflowRunEventService(self._session).append(
-        instance_id=graph_instance.id,
-        event_type="node_completed",
-        actor_user_id=actor_id,
-        payload={
-          "node_instance_id": str(node_instance.id),
-          "node_key": node_instance.node_key,
-          "instance_key": node_instance.instance_key,
-        },
-      )
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type="node_completed",
+      actor_user_id=actor_id,
+      aggregate_version=node_instance.node_instance_version,
+      payload={
+        "node_instance_id": str(node_instance.id),
+        "node_key": node_instance.node_key,
+        "instance_key": node_instance.instance_key,
+      },
+    )
 
     await self._activate_downstream(
       graph_instance=graph_instance,
       completed_node_instance=node_instance,
       now=now,
     )
-    await self._session.commit()
+    await HumanTaskCoordinator(self._session).sync_link_lifecycles_for_instance(
+      instance_id=graph_instance.id,
+    )
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
 
   async def _resolve_outgoing_edges(
     self,
@@ -2247,6 +2258,11 @@ class WorkflowGraphService:
       graph_instance.completed_at = graph_instance.completed_at or now
       graph_instance.current_node_key = None
       await self._session.flush()
+
+      await HumanTaskCoordinator(self._session).sync_link_lifecycles_for_instance(
+        instance_id=graph_instance.id,
+        cancelled=True,
+      )
 
       await WorkflowRunEventService(self._session).append(
         instance_id=graph_instance.id,

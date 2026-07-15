@@ -5,6 +5,7 @@ Graph template instantiation (batch / production runs) is gated by
 
 Environment variables (W9-3):
 - ``WORKFLOW_GRAPH_ENGINE_ENABLED`` → ``workflow_graph_engine_enabled`` (default true)
+- ``WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED`` → standalone Work Item creation (default true)
 - ``WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`` → ``workflow_graph_template_engine_enabled`` (default false)
 - ``TASK_CENTER_V2_ENABLED`` → ``task_center_v2_enabled`` (default true)
 - ``WORKFLOW_WAIT_ANY_ENABLED`` → ``workflow_wait_any_enabled`` (default false)
@@ -39,6 +40,7 @@ def workflow_feature_flags(settings: Settings | None = None) -> dict[str, bool]:
   resolved = settings or get_settings()
   return {
     "workflow_graph_engine_enabled": resolved.workflow_graph_engine_enabled,
+    "workflow_standalone_manual_tasks_enabled": resolved.workflow_standalone_manual_tasks_enabled,
     "workflow_graph_template_engine_enabled": resolved.workflow_graph_template_engine_enabled,
     "task_center_v2_enabled": resolved.task_center_v2_enabled,
     "workflow_wait_any_enabled": resolved.workflow_wait_any_enabled,

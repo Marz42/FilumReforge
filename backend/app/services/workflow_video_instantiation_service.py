@@ -54,6 +54,7 @@ from app.services.workflow_assignee_resolver import (
 from app.services.workflow_rule_resolver import resolve_actor_department_id
 from app.services.task_service import TaskService
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_definition_snapshot import (
   SNAPSHOT_ENGINE_VERSION,
   SNAPSHOT_EXECUTOR_KIND,
@@ -85,6 +86,7 @@ class WorkflowVideoInstantiationService:
     self._task_service = task_service
     self._settings = settings or get_settings()
     self._workflow_graph_service = WorkflowGraphService(session)
+    self._human_task_coordinator = HumanTaskCoordinator(session)
 
   def _require_engine_enabled(self) -> None:
     if not use_graph_template_instantiation(self._settings):
@@ -356,6 +358,7 @@ class WorkflowVideoInstantiationService:
     department_id: UUID | None = None,
     run_label: str | None = None,
     skip_publish_permission: bool = False,
+    commit: bool = True,
   ) -> GraphTemplateRunResult:
     """Instantiate a graph template run with multi_instance expansion and ROOT task."""
     self._require_engine_enabled()
@@ -563,10 +566,11 @@ class WorkflowVideoInstantiationService:
         node_instance=node_instance,
         template_nodes_by_key=nodes_by_key,
       )
-      node_instance.config = {
-        **dict(node_instance.config or {}),
-        "task_id": str(task.id),
-      }
+      await self._human_task_coordinator.bind_projection_task(
+        task=task,
+        node_instance=node_instance,
+        source="runtime",
+      )
       activated_tasks.append(task)
 
     activated_nodes = [ni for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.ACTIVATED]
@@ -587,7 +591,10 @@ class WorkflowVideoInstantiationService:
       },
     )
     await self._session.flush()
-    await self._session.commit()
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
     return GraphTemplateRunResult(
       instance=instance,
       root_task=root_task,
@@ -863,10 +870,11 @@ class WorkflowVideoInstantiationService:
         node_instance=node_instance,
         template_nodes_by_key=production_nodes_by_key,
       )
-      node_instance.config = {
-        **dict(node_instance.config or {}),
-        "task_id": str(task.id),
-      }
+      await self._human_task_coordinator.bind_projection_task(
+        task=task,
+        node_instance=node_instance,
+        source="runtime",
+      )
       activated_tasks.append(task)
 
     activated_nodes = [ni for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.ACTIVATED]

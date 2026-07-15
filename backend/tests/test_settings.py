@@ -16,12 +16,15 @@ def test_default_settings_align_with_phase_a_baseline() -> None:
   assert settings.redis_dsn.startswith("redis://")
   assert "http://127.0.0.1:5173" in settings.cors_allowed_origins
   assert settings.cors_allow_credentials is True
+  assert "X-Command-ID" in settings.cors_allowed_headers
+  assert "X-Command-ID" in settings.cors_exposed_headers
   assert settings.auth_refresh_cookie_name == "filum_refresh_token"
   assert settings.auth_refresh_cookie_samesite == "strict"
   assert settings.auth_refresh_cookie_secure is False
   assert settings.auth_invitation_expiry_hours == 72
   assert settings.frontend_app_url == "http://localhost:5173"
   assert settings.workflow_graph_engine_enabled is True
+  assert settings.workflow_standalone_manual_tasks_enabled is True
   assert settings.task_center_v2_enabled is True
   assert settings.workflow_wait_any_enabled is False
   assert settings.workflow_deep_rejection_enabled is False
@@ -78,6 +81,7 @@ def test_settings_parse_workflow_feature_flags() -> None:
   settings = Settings(
     jwt_secret_key="test-jwt-secret-key-for-suite-123456",
     workflow_graph_engine_enabled=True,
+    workflow_standalone_manual_tasks_enabled=False,
     workflow_graph_template_engine_enabled=False,
     task_center_v2_enabled=True,
     workflow_wait_any_enabled=True,
@@ -85,6 +89,7 @@ def test_settings_parse_workflow_feature_flags() -> None:
   )
 
   assert settings.workflow_graph_engine_enabled is True
+  assert settings.workflow_standalone_manual_tasks_enabled is False
   assert settings.workflow_graph_template_engine_enabled is False
   assert settings.task_center_v2_enabled is True
   assert settings.workflow_wait_any_enabled is True

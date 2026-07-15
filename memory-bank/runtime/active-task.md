@@ -5,7 +5,7 @@ description: "Project Filum 当前唯一聚焦任务。"
 tags:
   - runtime
   - active-task
-timestamp: 2026-07-15T20:38:43+08:00
+timestamp: 2026-07-15T21:22:42+08:00
 paradigma:
   schema_version: 0.5.0
   layer: runtime
@@ -17,7 +17,7 @@ paradigma:
 ---
 # 当前任务
 
-> 🔥 HOT — **Iteration 2 已验收并提交；Iteration 3 已启动，I3-A 基座完成、I3-B 双写/Link-first 已开始。**见 [`Iteration 3 实施计划`](../knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md)。
+> 🔥 HOT — **Iteration 3 A–E 代码已落地；当前停在生产回填/观测与用户验收闸门。**见 [`Iteration 3 实施计划`](../knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md)。
 
 ---
 
@@ -27,7 +27,7 @@ paradigma:
 |------|------|
 | **任务标题** | 工作流图引擎结构收敛与运行时正确性升级 |
 | **优先级** | P0 基线 |
-| **状态** | Iteration 3 · I3-A 完成 · I3-B 双写/回填进行中 |
+| **状态** | Iteration 3 · A–E 代码完成 · 部署/验收闸门 |
 | **关联** | 定义冻结 · 对象级授权 · 条件 Join · 双写收口 · 投影恢复 |
 
 ---
@@ -36,6 +36,7 @@ paradigma:
 
 | 交付 | 说明 |
 |------|------|
+| Iteration 3 B–E @ 2026-07-15 | dry-run 回填器、Link 生命周期/观测、Coordinator 写边界、standalone 默认路径、五类 command receipt、事件信封、Outbox event-id 去重；Backend 全量、PostgreSQL 13/13、前端类型检查通过 |
 | Iteration 3-A @ 2026-07-15 | HumanTask Link/command receipt 两张真相表与服务基座；新手动兼容/模板投影双写 Link；Task 投影 Link-first；SQLite 全量、PostgreSQL 12/12 通过 |
 | Iteration 2 @ 2026-07-15 | 新 Run 切换 `snapshot/graph-v3`；持久化 traversal/activation dependency；显式 routing mode；skip/no-route/End 完成语义；Deep-Reject 失效旧路径；Context expected version；不可变 branch identity；后端全量、PostgreSQL 10/10、前端 type-check 通过 |
 | Iteration 1 / I1-B–E @ 2026-07-13 | active/archived 不可变、显式 scope、seed 派生版本、Run canonical snapshot/hash、snapshot/legacy 双 executor、只读 legacy 盘点；SQLite 全量与 PostgreSQL 5/5 通过 |
@@ -63,4 +64,4 @@ paradigma:
 
 ---
 
-**下一 actionable**：继续 I3-B：对存量关系执行 dry-run 异常报告与受控回填，补 lifecycle 同步和 fallback 指标；之后进入 Coordinator 写所有权切换与 standalone Task。S-01 统计 Tab 仍保留为待用户验收事项。
+**下一 actionable**：在目标环境运行 Link backfill dry-run，处置歧义后受控 `--apply`；接入/观察 fallback 指标直至长期为零并做恢复演练。用户验收 Iteration 3 后才进入 Iteration 4 Handler 化。S-01 统计 Tab 仍保留为待用户验收事项。

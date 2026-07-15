@@ -1,14 +1,14 @@
 ---
 type: paradigma-domain
 title: "领域：工作流图引擎 (Workflow Graph Engine)"
-description: "现行图任务引擎 as-built：十三表数据模型、graph-v3 路径推进、HumanTask Link、Task 投影与命令幂等基座。"
+description: "现行图任务引擎 as-built：十三表数据模型、graph-v3 路径推进、HumanTask Link、standalone Work Item 与命令幂等。"
 tags:
   - domain
   - 图引擎
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-07-15T20:38:43+08:00
+timestamp: 2026-07-15T21:22:42+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -48,10 +48,10 @@ paradigma:
 | **写真相** | 图实例 / 节点引擎态为运行真相；新写以 `WorkflowHumanTaskLink` 为正式关系并兼容双写 JSON，读取 Link-first；存量仍允许 JSON fallback |
 | **不是** | Legacy E 产品入口（B-12 已移除对外 API；`task_templates` 表族仅历史兼容）· 轻量审批 `WorkflowDefinition`（`/workflows`）· Phase 10 完整「节点级评论/交付/日志时间线」（尚未落地） |
 
-两条主实例化路径：
+运行与 Work Item 创建路径：
 
-1. **手动单节点** — `WORKFLOW_GRAPH_ENGINE_ENABLED` 下 `TaskService.create_task_record` → `create_single_node_instance`
-2. **图模板 Run** — `POST /workflow-graph/templates/{id}/runs`（需 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`）→ 视频/通用模板实例化 + 编排投影 Task
+1. **普通 Task** — 默认 standalone；仅在 standalone 开关关闭时，新建任务走旧 `create_single_node_instance` 兼容路径
+2. **图模板 Run** — `POST /workflow-graph/templates/{id}/runs`（需 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`）→ 视频/通用模板实例化 + HumanTask Link 投影
 
 ---
 
@@ -156,11 +156,13 @@ erDiagram
 - 时间戳：`activated_at` / `acknowledged_at` / `completed_at` / `terminated_at`
 - `human_task_links`：新写正式关系；`config.task_id` 仅在 I3 兼容期继续双写
 
-**HumanTask Link / Command Receipt（Iteration 3-A）**
+**HumanTask Link / Command Receipt（Iteration 3）**
 
 - `HumanTaskCoordinator.ensure_link/resolve_for_task/backfill_existing_links` 负责 Link 幂等创建、Link-first 解析与只对三锚点一致的数据生成回填报告。
 - 一个 Task 最多一个 Link；一个 Node 最多一个 active primary，可有多个 supporting/observer；完成/失效保留历史行。
-- `WorkflowCommandReceiptService` 以 canonical JSON SHA-256 判定 payload；同 command 同 payload 重放首次结果，异 payload 冲突。I3-A 仅提供服务基座，create run/complete/deep-reject/takeover/schedule 的 API 接入尚未完成。
+- `WorkflowCommandReceiptService` 以 canonical JSON SHA-256 判定 payload；create run、complete、deep-reject、takeover、schedule run-now 均由 `WorkflowCommandExecutor` 在业务事务内落首次结果，同 command/同 payload 重放，异 payload 409。
+- 新普通任务在 `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED=true` 时不创建单节点 Run；兼容开关只影响后续新建。Task/Runtime 跨域同步集中到 `HumanTaskCoordinator`。
+- RunEvent 信封含 event/aggregate version、command/causation/correlation、actor、occurred_at；Outbox event id 映射通知唯一 dedup key，崩溃重试复用稳定 message/delivery id。
 
 **Deliverable / Outbox / RunEvent / Schedule** — 见契约摘要；run_event 已知类型含：`run_instantiated`、`node_completed`、`capture_submitted`、`aggregate_confirmed`、`capture_closed`、`topic_dispatched`、`capture_rejected`、`production_deep_reject`、`admin_cancelled` 等。
 
@@ -220,20 +222,20 @@ flowchart TD
 
 ## 5. Task 投影契约（Dual-Write）
 
-### 5.1 写路径（`WORKFLOW_GRAPH_ENGINE_ENABLED`，默认 true）
+### 5.1 写路径
 
 | 路径 | 锚点 |
 |------|------|
-| 手动任务 | `Task.extra_metadata`：`workflow_graph_instance_id`、`workflow_node_instance_id`、`workflow_node_iteration`、握手字段；Instance `source_type=manual`、`source_id=task.id`；Node `config.task_id` |
-| 模板 Run | 每激活节点投影 Task + 可选 ROOT shell（`workflow_graph_root_task`）；metadata 含 `template_id`/`template_code`/`run_kind`/`ui_profile` 等 |
+| 普通手动任务 | `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED=true` 时仅创建 standalone Task，不创建 Run；关闭开关时新建任务回到兼容单节点图 |
+| 模板 Run | 每激活 HumanTask 节点创建 Task + 正式 Link + 可选 ROOT shell；兼容期继续写 metadata / `Node.config.task_id` |
 
-`TaskService` 在 accept / reject / delegate / 状态流转 / 交付验收时双向同步 graph 节点态与 `WorkflowDeliverable`。
+既有兼容图任务仍可自然结束；Task/Node 跨域同步由 `HumanTaskCoordinator` 协调。
 
 ### 5.2 读路径（`TASK_CENTER_V2_ENABLED`，默认 true）
 
 `list_task_inbox` / `tracking` / `history` → `_graph_task_projection_map`：
 
-1. 按 `Instance.source_id` 或 `extra_metadata.workflow_node_instance_id` 解析
+1. 按 `workflow_human_task_links` 解析，未命中时才回退 JSON 锚点并累计 fallback 指标
 2. 用图态生成 `GraphTaskProjection`（覆盖裸 `Task.status`）
 3. 与无锚点 legacy 任务合并排序
 
@@ -247,7 +249,8 @@ flowchart TD
 
 | 开关 | 默认 | 实际约束 |
 |------|------|----------|
-| `WORKFLOW_GRAPH_ENGINE_ENABLED` | `true` | 手动任务 dual-write |
+| `WORKFLOW_GRAPH_ENGINE_ENABLED` | `true` | 保留图引擎与旧手动图兼容能力 |
+| `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED` | `true` | 新普通任务不创建单节点 Run；关闭只影响后续新建 |
 | `TASK_CENTER_V2_ENABLED` | `true` | 任务中心 graph-first 读 |
 | `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED` | `false` | **阻断** `POST .../templates/{id}/runs` |
 | `WORKFLOW_WAIT_ANY_ENABLED` | `false` | 仅暴露给前端；**服务端 join_mode=any 仍按模板执行** |

@@ -268,8 +268,15 @@ class WorkflowGraphInstance(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class WorkflowRunEvent(UUIDPrimaryKeyMixin, Base):
   __tablename__ = "workflow_run_events"
   __table_args__ = (
+    CheckConstraint("event_version > 0", name="wf_run_events_event_ver_chk"),
+    CheckConstraint(
+      "aggregate_version IS NULL OR aggregate_version > 0",
+      name="wf_run_events_aggregate_ver_chk",
+    ),
     Index("idx_wf_run_events_instance_created", "instance_id", "created_at"),
     Index("idx_wf_run_events_instance_type", "instance_id", "event_type"),
+    Index("idx_wf_run_events_command", "command_id"),
+    Index("idx_wf_run_events_correlation", "correlation_id", "occurred_at"),
   )
 
   instance_id: Mapped[UUID] = mapped_column(
@@ -277,11 +284,21 @@ class WorkflowRunEvent(UUIDPrimaryKeyMixin, Base):
     nullable=False,
   )
   event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+  event_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+  aggregate_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+  command_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+  causation_id: Mapped[UUID | None] = mapped_column(nullable=True)
+  correlation_id: Mapped[UUID | None] = mapped_column(nullable=True)
   actor_user_id: Mapped[UUID | None] = mapped_column(
     ForeignKey("users.id", name="fk_wf_run_events_actor", ondelete="SET NULL"),
     nullable=True,
   )
   payload: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  occurred_at: Mapped[datetime] = mapped_column(
+    DateTime(timezone=True),
+    default=lambda: datetime.now(UTC),
+    nullable=False,
+  )
   created_at: Mapped[datetime] = mapped_column(
     DateTime(timezone=True),
     default=lambda: datetime.now(UTC),

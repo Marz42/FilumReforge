@@ -6,7 +6,7 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-07-13T00:19:00+08:00
+timestamp: 2026-07-15T21:22:42+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -76,7 +76,7 @@ paradigma:
 - Stage 2 Phase 6 补丁增强：人员工作台账号页已明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；管理员可删除未建档且未被业务数据引用的账号
 - Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
 - Inbox-first 任务中心：主筛选 **待处理 / 跟踪 / 历史**；页头 **建立任务** 为居中 **Dialog**（含未保存关闭确认）；筛选摘要卡；`GET /api/v1/tasks/search`；`FilumDateTimePicker` / `FilumDateTimeRangePicker`；全局 **个人备忘** 为右下角浮窗（列表 + 新建/编辑 Dialog，可选 `title`）；任务模板在 `/task-templates`
-- 工作流图引擎 schema 现为 **十三表**：十一表运行时基线 + `workflow_human_task_links` + `workflow_command_receipts`。新模板 Run 使用 snapshot format v2 / `graph-v3`，按实际经过边与产生的 activation 推进；既有 `graph-v2` 与 `legacy-v1` 不原地升级。Iteration 3-A 已让新手动兼容任务和新模板投影双写正式 Link，Task 投影 Link-first/JSON fallback；跨域写所有权和关键命令 receipt 接入仍在 Iteration 3 后续批次
+- 工作流图引擎 schema 现为 **十三表**：十一表运行时基线 + `workflow_human_task_links` + `workflow_command_receipts`。新模板 Run 使用 snapshot format v2 / `graph-v3`；既有 executor 不原地升级。Iteration 3 由 `HumanTaskCoordinator` 协调 Work Item/NodeExecution，新普通任务默认 standalone；五类关键命令通过 receipt 与 `X-Command-ID` 一次执行，RunEvent 带统一信封，Outbox 以 event id 复用稳定通知身份。兼容 JSON 仍双写，待生产 fallback 长期归零后再独立收缩
 - 工作流重构 Phase 3：后端已新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` 等 feature flag、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在手动创建任务且开关开启时走“graph instance + node instance + 兼容 Task 投影”双写路径；兼容 `Task` 行仍是列表与详情载体，`TaskCenterService` 仍委托 `TaskService.list_task_inbox()` 等三接口，但在 `TASK_CENTER_V2_ENABLED=true`（`backend/app/core/config.py` 默认）时上述列表优先使用 `_graph_task_projection_map` 解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，未命中图投影时回落既有 legacy 规则
 - 工作流重构单节点交付闭环首轮：基于上述 Phase 3 双写链路，`TaskService` / `tasks` API 已新增“提交交付物”“通过验收”“打回返工”动作，交付快照写入 `workflow_deliverables`，兼容 `Task` 投影通过 `extra_metadata` 暴露最近交付说明、最近提交时间、返工原因、返工次数与最近质量评分；`TaskCenterService` / `task-center` API / `TaskCenterView` 已同步投影待验收、最近提交时间、返工次数、质量评分等跟踪信号；同时禁止 graph 手动任务通过通用状态流转接口直接跳过交付 / 验收动作
 - 工作流重构 Phase 4：graph 手动任务默认以 `ASSIGNED` 节点业务态创建；`TaskService` / `tasks` API / `TasksView` 已新增“接受任务”“退回协商”“转办”动作，`todo -> doing` 现在要求执行人先确认接单；兼容读取侧继续使用 `Task.extra_metadata` + `TaskCenterService` 投影当前握手阶段、当前处理人与最近协商 / 转办原因

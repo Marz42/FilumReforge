@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-11T23:34:27+08:00
+timestamp: 2026-07-15T21:22:42+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -72,7 +72,7 @@ paradigma:
 - 时间统一使用 `timestamptz`
 - 动态业务字段使用 `jsonb`
 - 附件统一采用 `attachments + attachment_links`
-- 通知统一采用 `notification_messages + notification_deliveries`
+- 通知统一采用 `notification_messages + notification_deliveries`；工作流 Outbox 通过 `notification_messages.deduplication_key` 按 event id 去重
 - 任务相关沟通固定绑定 `task_comments`
 - 高敏档案字段继续允许存放在 `profiles.custom_fields`，但必须由字段定义与权限表驱动展示
 - `Leader` 优先通过组织关系与授权推导，不强制引入新的全局角色枚举
@@ -176,7 +176,8 @@ paradigma:
 - `announcements 1:1 announcement_archives`
 - `attachments N:N 业务对象` 通过 `attachment_links`
 - `workflow_graph_templates 1:N workflow_graph_instances`
-- `workflow_graph_instances 1:N workflow_node_instances` / `workflow_edge_traversals` / `workflow_node_activation_dependencies` / `workflow_run_events` / `workflow_outbox_events`
+- `workflow_graph_instances 1:N workflow_node_instances` / `workflow_edge_traversals` / `workflow_node_activation_dependencies` / `workflow_human_task_links` / `workflow_run_events` / `workflow_outbox_events`
+- `workflow_command_receipts` 以 `(actor_key,command_type,command_id)` 唯一；五类关键 API 命令与业务写同事务提交
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run）
 - `workflow_node_instances 1:1 workflow_deliverables`
 

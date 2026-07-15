@@ -22,6 +22,7 @@ paradigma:
 
 ### Added
 
+- Iteration 3 B–E：Link dry-run 回填/生命周期/观测、standalone Work Item 默认路径、统一 command executor 与 RunEvent 信封、Outbox event-id 通知去重（迁移 `20260715_03`）
 - Iteration 3-A 写所有权/幂等基座：`workflow_human_task_links`、`workflow_command_receipts`、`HumanTaskCoordinator` 与 command receipt service（迁移 `20260715_02`）
 - 新手动兼容任务与模板 HumanTask 投影双写正式 Link；Task 图投影读取 Link-first、JSON fallback
 - 工作流 graph-v3 路径账本：`workflow_edge_traversals`、`workflow_node_activation_dependencies`、显式 routing mode、Run result/diagnostics（迁移 `20260715_01`）

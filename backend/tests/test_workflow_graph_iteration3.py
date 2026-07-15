@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import inspect
+import re
 from uuid import uuid4
 
 import pytest
@@ -8,6 +10,7 @@ from sqlalchemy import select
 from app.core.enums import (
   TaskPriority,
   TaskSourceType,
+  TaskStatus,
   UserRole,
   UserStatus,
   WorkflowGraphInstanceStatus,
@@ -15,7 +18,8 @@ from app.core.enums import (
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
 )
-from app.core.exceptions import ConflictError
+from app.core.config import Settings
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models import (
   Task,
   User,
@@ -23,12 +27,17 @@ from app.models import (
   WorkflowGraphInstance,
   WorkflowHumanTaskLink,
   WorkflowNodeInstance,
+  WorkflowRunEvent,
 )
 from app.services.human_task_coordinator import HumanTaskCoordinator
+from app.services.workflow_command_executor import WorkflowCommandExecutor
 from app.services.workflow_command_receipt_service import (
   WorkflowCommandReceiptService,
   canonical_command_payload,
 )
+from app.services.task_service import TaskService
+from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.workflow_run_event_service import WorkflowRunEventService
 
 
 async def _actor(db_session, *, email: str) -> User:  # noqa: ANN001
@@ -174,6 +183,15 @@ async def test_human_task_backfill_requires_cross_checked_anchors(db_session) ->
   assert [issue.code for issue in dry_run.issues] == ["invalid_json_anchor"]
 
   report = await coordinator.backfill_existing_links(dry_run=False)
+  assert report.created == 0
+  assert report.issues
+  assert await db_session.scalar(
+    select(WorkflowHumanTaskLink).where(WorkflowHumanTaskLink.task_id == task.id)
+  ) is None
+
+  await db_session.delete(invalid)
+  await db_session.flush()
+  report = await coordinator.backfill_existing_links(dry_run=False)
   assert report.created == 1
   link = await db_session.scalar(
     select(WorkflowHumanTaskLink).where(WorkflowHumanTaskLink.task_id == task.id)
@@ -224,3 +242,171 @@ def test_command_payload_is_canonical() -> None:
   assert canonical_command_payload({"b": 2, "a": entity_id}) == canonical_command_payload(
     {"a": entity_id, "b": 2}
   )
+
+
+@pytest.mark.asyncio
+async def test_command_executor_replays_result_and_stamps_event_envelope(db_session) -> None:  # noqa: ANN001
+  actor = await _actor(db_session, email="i3-executor@example.com")
+  _task, instance, _node = await _legacy_projection(db_session, actor=actor)
+  executions = 0
+
+  async def operation() -> dict[str, object]:
+    nonlocal executions
+    executions += 1
+    await WorkflowRunEventService(db_session).append(
+      instance_id=instance.id,
+      event_type="test_command_applied",
+      actor_user_id=actor.id,
+      aggregate_version=2,
+      payload={"execution": executions},
+    )
+    return {"instance_id": str(instance.id), "execution": executions}
+
+  executor = WorkflowCommandExecutor(db_session)
+  first = await executor.execute(
+    command_id="command-envelope-001",
+    command_type="test_command",
+    payload={"instance_id": instance.id},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_run",
+  )
+  replay = await executor.execute(
+    command_id="command-envelope-001",
+    command_type="test_command",
+    payload={"instance_id": instance.id},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_run",
+  )
+
+  assert replay == first
+  assert executions == 1
+  events = list(
+    await db_session.scalars(
+      select(WorkflowRunEvent).where(WorkflowRunEvent.instance_id == instance.id)
+    )
+  )
+  assert len(events) == 1
+  assert events[0].event_version == 1
+  assert events[0].aggregate_version == 2
+  assert events[0].command_id == "command-envelope-001"
+  assert events[0].correlation_id is not None
+  assert events[0].occurred_at is not None
+
+  receipt = await db_session.scalar(
+    select(WorkflowCommandReceipt).where(
+      WorkflowCommandReceipt.command_id == "command-envelope-001"
+    )
+  )
+  assert receipt is not None
+  assert receipt.status == "succeeded"
+  assert receipt.aggregate_id == instance.id
+
+
+@pytest.mark.asyncio
+async def test_command_executor_replays_first_domain_failure(db_session) -> None:  # noqa: ANN001
+  actor = await _actor(db_session, email="i3-failed-command@example.com")
+  executions = 0
+
+  async def operation() -> dict[str, object]:
+    nonlocal executions
+    executions += 1
+    raise NotFoundError("目标节点不存在。")
+
+  executor = WorkflowCommandExecutor(db_session)
+  missing_node_id = uuid4()
+  for _attempt in range(2):
+    with pytest.raises(NotFoundError, match="目标节点不存在"):
+      await executor.execute(
+        command_id="failed-command-001",
+        command_type="complete_node",
+        payload={"node_instance_id": str(missing_node_id)},
+        operation=operation,
+        actor_user_id=actor.id,
+      )
+
+  assert executions == 1
+  receipt = await db_session.scalar(
+    select(WorkflowCommandReceipt).where(
+      WorkflowCommandReceipt.command_id == "failed-command-001"
+    )
+  )
+  assert receipt is not None
+  assert receipt.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_human_task_link_lifecycle_follows_runtime_resolution(db_session) -> None:  # noqa: ANN001
+  actor = await _actor(db_session, email="i3-lifecycle@example.com")
+  task, _instance, node = await _legacy_projection(db_session, actor=actor)
+  coordinator = HumanTaskCoordinator(db_session)
+  link = await coordinator.ensure_link(task_id=task.id, node_instance_id=node.id)
+  now = node.created_at
+
+  node.engine_state = WorkflowNodeEngineState.COMPLETED
+  node.completed_at = now
+  await coordinator.sync_link_lifecycles_for_instance(instance_id=node.instance_id)
+  assert link.lifecycle == "completed"
+  assert link.completed_at == now
+  assert link.invalidated_at is None
+
+  node.engine_state = WorkflowNodeEngineState.TERMINATED
+  await coordinator.sync_link_lifecycles_for_instance(instance_id=node.instance_id)
+  assert link.lifecycle == "invalidated"
+  assert link.completed_at is None
+  assert link.invalidated_at is not None
+
+
+@pytest.mark.asyncio
+async def test_manual_task_defaults_to_standalone_full_lifecycle(db_session) -> None:  # noqa: ANN001
+  actor = await _actor(db_session, email="i3-standalone@example.com")
+  service = TaskService(
+    db_session,
+    settings=Settings(jwt_secret_key="test-jwt-secret-key-for-suite-123456"),
+    workflow_graph_service=WorkflowGraphService(db_session),
+  )
+
+  task, _ = await service.create_task_record(
+    actor=actor,
+    title="standalone work item",
+    assignee_id=actor.id,
+    commit=True,
+  )
+  assert await db_session.scalar(
+    select(WorkflowGraphInstance).where(WorkflowGraphInstance.source_id == task.id)
+  ) is None
+  assert await db_session.scalar(
+    select(WorkflowHumanTaskLink).where(WorkflowHumanTaskLink.task_id == task.id)
+  ) is None
+
+  task = await service.transition_task_status(
+    actor=actor,
+    task_id=task.id,
+    target_status=TaskStatus.DOING,
+  )
+  task = await service.transition_task_status(
+    actor=actor,
+    task_id=task.id,
+    target_status=TaskStatus.REVIEW,
+  )
+  task = await service.transition_task_status(
+    actor=actor,
+    task_id=task.id,
+    target_status=TaskStatus.DONE,
+  )
+  assert task.status == TaskStatus.DONE
+
+
+def test_iteration3_cross_domain_write_ownership_guard() -> None:
+  task_service_source = inspect.getsource(TaskService)
+  runtime_service_source = inspect.getsource(WorkflowGraphService)
+
+  assert re.search(
+    r"node_instance\.(engine_state|business_state|assignee_user_id)\s*=(?!=)",
+    task_service_source,
+  ) is None
+  assert re.search(
+    r"\btask\.(status|assignee_id|extra_metadata)\s*=(?!=)",
+    runtime_service_source,
+  ) is None

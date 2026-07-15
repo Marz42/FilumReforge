@@ -18,6 +18,25 @@ paradigma:
 
 ## 会话摘要（工作流图引擎 Iteration 3）
 
+### 2026-07-15 21:22 — 提交 I3-A 并完成 I3-B–E 代码实施
+
+**完成事项**:
+- [x] 先提交既有 I3-A/双写基座：`79b8c42 feat(workflow): establish iteration 3 ownership foundation`
+- [x] I3-B：默认 dry-run/显式 `--apply` 的 Link 回填器；Link-first fallback 计数；完成、撤权、取消生命周期同步
+- [x] I3-C：跨域状态同步收口到 `HumanTaskCoordinator`；普通任务默认 standalone，兼容开关可只回退后续新建；standalone 接受及完整状态/交付闭环不依赖 Run
+- [x] I3-D：create run、complete、deep reject、takeover、schedule run-now 接入 `X-Command-ID` 与同事务 command receipt；RunEvent 统一信封
+- [x] I3-E：Outbox processing visibility lease + event-id 通知唯一 dedup key；崩溃重试复用相同 message/delivery id
+
+**验证**:
+- Backend 非 PostgreSQL 全量：PASS；`compileall` 与 API/worker/Iteration 3 专项：PASS
+- PostgreSQL 强制执行：**13/13 PASS**，含 Alembic head↔base、并发 command 一次执行与 Link/图约束
+- Frontend `vue-tsc --build`：PASS；临时 PostgreSQL 容器已删除并关闭 Docker Desktop
+- 原有 `backend/.test-tmp/` 保持未跟踪且未改动
+
+**遗留/下一步**：Iteration 3 A–E 已形成两个连续提交。目标环境仍需先跑 backfill dry-run、处置歧义后受控 apply，并观察 fallback 长期为零；用户验收前不进入 Iteration 4。SemVer 属向下兼容能力与 schema 扩展，建议后续发布时按 MINOR 评估，本轮不擅自修改 `VERSION`。
+
+---
+
 ### 2026-07-15 20:38 — 提交 Iteration 2 并完成 I3-A 基座
 
 **完成事项**:

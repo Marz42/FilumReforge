@@ -698,6 +698,74 @@ async def test_phase11c_outbox_worker_dispatches_pending_event() -> None:
 
 
 @pytest.mark.asyncio
+async def test_iteration3_outbox_retry_reuses_event_notification_identity() -> None:
+  """Simulate crash after notification commit but before outbox dispatch commit."""
+  from app.models.workflow_graph import WorkflowGraphInstance, WorkflowOutboxEvent
+  from app.workers.workflow_outbox_worker import process_workflow_outbox_events
+  from app.core.enums import WorkflowGraphInstanceStatus
+
+  engine = create_async_engine(
+    "sqlite+aiosqlite:///:memory:",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+  )
+  async with engine.begin() as conn:
+    await conn.run_sync(Base.metadata.create_all)
+  session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+  settings = Settings(jwt_secret_key=TEST_JWT_SECRET)
+
+  async with session_factory() as session:
+    admin = await AuthService(session, settings).bootstrap_admin(
+      email="i3-outbox@example.com",
+      password="StrongPassword123!",
+      real_name="I3 Outbox",
+      employee_no="I3-OUTBOX",
+    )
+    instance = WorkflowGraphInstance(
+      initiator_user_id=admin.id,
+      source_type="task",
+      status=WorkflowGraphInstanceStatus.ACTIVE,
+      context={},
+    )
+    session.add(instance)
+    await session.flush()
+    event = WorkflowOutboxEvent(
+      instance_id=instance.id,
+      event_type="workflow_node_activated",
+      status=WorkflowOutboxEventStatus.PENDING,
+      payload={
+        "recipient_user_id": str(admin.id),
+        "recipient_email": admin.email,
+        "title": "稳定通知",
+        "body_text": "重复消费不得创建第二条通知。",
+      },
+    )
+    session.add(event)
+    await session.flush()
+    event_id = event.id
+    await session.commit()
+
+  queue = InMemoryQueuePublisher()
+  assert await process_workflow_outbox_events(session_factory, queue) == 1
+  async with session_factory() as session:
+    event = await session.get(WorkflowOutboxEvent, event_id)
+    assert event is not None
+    event.status = WorkflowOutboxEventStatus.RETRYING
+    event.dispatched_at = None
+    await session.commit()
+  assert await process_workflow_outbox_events(session_factory, queue) == 1
+
+  async with session_factory() as session:
+    messages = list(await session.scalars(select(NotificationMessage)))
+  assert len(messages) == 1
+  assert messages[0].deduplication_key == f"workflow_outbox:{event_id}"
+  assert len(queue.payloads) == 2
+  assert queue.payloads[0]["message_id"] == queue.payloads[1]["message_id"]
+  assert queue.payloads[0]["delivery_ids"] == queue.payloads[1]["delivery_ids"]
+  await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_phase11c_outbox_worker_retries_on_notification_failure() -> None:
   """投递失败时应递增 attempt_count，状态退回 RETRYING；达上限后标记 FAILED。"""
   from app.models.workflow_graph import WorkflowOutboxEvent

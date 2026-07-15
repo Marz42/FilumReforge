@@ -66,7 +66,10 @@ class Settings(BaseSettings):
     default_factory=lambda: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
   )
   cors_allowed_headers: Annotated[list[str], NoDecode] = Field(
-    default_factory=lambda: ["Authorization", "Content-Type", "X-Request-ID"]
+    default_factory=lambda: ["Authorization", "Content-Type", "X-Request-ID", "X-Command-ID"]
+  )
+  cors_exposed_headers: Annotated[list[str], NoDecode] = Field(
+    default_factory=lambda: ["X-Request-ID", "X-Command-ID"]
   )
   auth_rate_limit_window_seconds: int = 60
   auth_login_rate_limit: int = 10
@@ -74,6 +77,7 @@ class Settings(BaseSettings):
   auth_bootstrap_rate_limit: int = 5
   redis_notification_queue: str = "notification:outbox"
   workflow_graph_engine_enabled: bool = True
+  workflow_standalone_manual_tasks_enabled: bool = True
   workflow_graph_template_engine_enabled: bool = False
   task_center_v2_enabled: bool = True
   workflow_wait_any_enabled: bool = False
@@ -94,6 +98,7 @@ class Settings(BaseSettings):
     "cors_allowed_origins",
     "cors_allowed_methods",
     "cors_allowed_headers",
+    "cors_exposed_headers",
     mode="before",
   )
   @classmethod

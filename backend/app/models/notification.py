@@ -23,6 +23,7 @@ class NotificationMessage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
   __table_args__ = (
     Index("idx_notification_messages_status_scheduled_at", "status", "scheduled_at"),
     Index("idx_notification_messages_recipient_user_id", "recipient_user_id"),
+    UniqueConstraint("deduplication_key", name="uq_notification_messages_dedup_key"),
   )
 
   source_type: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -30,6 +31,7 @@ class NotificationMessage(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
   recipient_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
   recipient_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
   message_type: Mapped[str] = mapped_column(String(64), nullable=False)
+  deduplication_key: Mapped[str | None] = mapped_column(String(160), nullable=True)
   title: Mapped[str] = mapped_column(String(255), nullable=False)
   body_text: Mapped[str] = mapped_column(Text, nullable=False)
   body_html: Mapped[str | None] = mapped_column(Text, nullable=True)

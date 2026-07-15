@@ -7,7 +7,7 @@ tags:
   - 任务中心
   - Inbox
   - 跟踪
-timestamp: 2026-07-11T23:34:27+08:00
+timestamp: 2026-07-15T21:22:42+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -130,7 +130,7 @@ flowchart TB
 
 Legacy（待删）：`TaskTemplateService` · `TaskAutomationService` · `/api/v1/task-templates/*`。
 
-Feature flags：`TASK_CENTER_V2_ENABLED` · `WORKFLOW_GRAPH_ENGINE_ENABLED` · `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`（图模板实例化 API，默认 `false`）。
+Feature flags：`TASK_CENTER_V2_ENABLED` · `WORKFLOW_GRAPH_ENGINE_ENABLED` · `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED`（默认 `true`）· `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`（图模板实例化 API，默认 `false`）。
 
 ---
 
@@ -163,7 +163,7 @@ Feature flags：`TASK_CENTER_V2_ENABLED` · `WORKFLOW_GRAPH_ENGINE_ENABLED` · `
 | 能力 | 实现 |
 |------|------|
 | 入口 | `POST /api/v1/tasks` · `source_type=MANUAL` |
-| 运行时 | `WORKFLOW_GRAPH_ENGINE_ENABLED` → `_create_single_node_workflow_projection` · Profile **`graph_manual`** |
+| 运行时 | 新建普通任务默认 standalone Work Item；关闭 standalone 开关时才走 `_create_single_node_workflow_projection` 兼容路径 |
 | 发布权限 | `can_publish_org_tasks` + `can_manage_assignee`（`access_control.py`） |
 | 选人 UI | `publish_department_options` + 按部门过滤 `publish_user_options` |
 | 抄送 | 创建 API `watcher_user_ids` + `TaskWatcher`；跨部门路径经理自动 CC |

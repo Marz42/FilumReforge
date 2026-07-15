@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 
 from app.api.dependencies import (
   get_current_user,
@@ -89,10 +89,17 @@ from app.services.workflow_graph_template_schedule_service import (
   template_is_schedulable,
 )
 from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.workflow_command_executor import WorkflowCommandExecutor
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
 
 router = APIRouter(prefix="/workflow-graph")
+
+
+def _resolve_command_id(raw_command_id: str | None, response: Response) -> str:
+  command_id = (raw_command_id or "").strip() or str(uuid4())
+  response.headers["X-Command-ID"] = command_id
+  return command_id
 
 _WORKFLOW_GRAPH_INSTANCE_READ_COLUMNS: frozenset[str] = frozenset(
   name for name in WorkflowGraphInstanceRead.model_fields if name != "node_instances"
@@ -505,20 +512,37 @@ async def delete_graph_template(
 async def create_graph_template_run(
   template_id: UUID,
   payload: CreateGraphTemplateRunRequest,
+  response: Response,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   instantiation_service: WorkflowVideoInstantiationService = Depends(
     get_workflow_video_instantiation_service
   ),
+  command_id_header: Annotated[str | None, Header(alias="X-Command-ID", max_length=128)] = None,
 ) -> CreateGraphTemplateRunResponse:
-  result = await instantiation_service.instantiate_graph_template(
-    actor=actor,
-    template_id=template_id,
-    inputs=payload.inputs,
-    participants_snapshot=payload.participants_snapshot,
-    department_id=payload.department_id,
-    run_label=payload.run_label,
+  command_id = _resolve_command_id(command_id_header, response)
+
+  async def operation() -> dict[str, object]:
+    result = await instantiation_service.instantiate_graph_template(
+      actor=actor,
+      template_id=template_id,
+      inputs=payload.inputs,
+      participants_snapshot=payload.participants_snapshot,
+      department_id=payload.department_id,
+      run_label=payload.run_label,
+      commit=False,
+    )
+    return instantiation_service.to_response(result).model_dump(mode="json")
+
+  result_payload = await WorkflowCommandExecutor(session).execute(
+    command_id=command_id,
+    command_type="create_run",
+    payload={"template_id": str(template_id), **payload.model_dump(mode="json")},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_run",
   )
-  return instantiation_service.to_response(result)
+  return CreateGraphTemplateRunResponse.model_validate(result_payload)
 
 
 @router.post(
@@ -840,27 +864,41 @@ async def get_graph_instance(
 async def complete_node_instance(
   node_instance_id: UUID,
   payload: WorkflowNodeCompleteRequest,
+  response: Response,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+  command_id_header: Annotated[str | None, Header(alias="X-Command-ID", max_length=128)] = None,
 ) -> WorkflowGraphInstanceDetailRead:
-  await workflow_graph_service.complete_node_instance(
-    node_instance_id=node_instance_id,
-    actor_id=actor.id,
-    context_updates=payload.context_updates,
-    expected_context_version=payload.expected_context_version,
+  command_id = _resolve_command_id(command_id_header, response)
+
+  async def operation() -> dict[str, object]:
+    await workflow_graph_service.complete_node_instance(
+      node_instance_id=node_instance_id,
+      actor_id=actor.id,
+      context_updates=payload.context_updates,
+      expected_context_version=payload.expected_context_version,
+      commit=False,
+    )
+    node_instance = await session.get(WorkflowNodeInstance, node_instance_id)
+    if node_instance is None:
+      raise NotFoundError("节点实例不存在。")
+    instance = await workflow_graph_service.get_instance(instance_id=node_instance.instance_id)
+    node_instances = await workflow_graph_service.list_node_instances_for_graph(
+      instance_id=node_instance.instance_id
+    )
+    return _build_instance_detail(instance, node_instances).model_dump(mode="json")
+
+  result_payload = await WorkflowCommandExecutor(session).execute(
+    command_id=command_id,
+    command_type="complete_node",
+    payload={"node_instance_id": str(node_instance_id), **payload.model_dump(mode="json")},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_node",
+    aggregate_id=node_instance_id,
   )
-  # 重新查询实例以返回最新快照
-  node_instance: WorkflowNodeInstance | None = await workflow_graph_service._session.get(
-    WorkflowNodeInstance, node_instance_id
-  )
-  if node_instance is None:
-    from app.core.exceptions import NotFoundError
-    raise NotFoundError("节点实例不存在。")
-  instance = await workflow_graph_service.get_instance(instance_id=node_instance.instance_id)
-  node_instances = await workflow_graph_service.list_node_instances_for_graph(
-    instance_id=node_instance.instance_id
-  )
-  return _build_instance_detail(instance, node_instances)
+  return WorkflowGraphInstanceDetailRead.model_validate(result_payload)
 
 
 @router.post(
@@ -871,20 +909,36 @@ async def complete_node_instance(
 async def deep_reject_node_instance(
   node_instance_id: UUID,
   payload: WorkflowNodeDeepRejectRequest,
+  response: Response,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+  command_id_header: Annotated[str | None, Header(alias="X-Command-ID", max_length=128)] = None,
 ) -> WorkflowGraphInstanceDetailRead:
-  instance_id = await workflow_graph_service.deep_reject_to_upstream(
-    node_instance_id=node_instance_id,
-    actor_id=actor.id,
-    target_node_key=payload.target_node_key,
-    reason=payload.reason,
+  command_id = _resolve_command_id(command_id_header, response)
+
+  async def operation() -> dict[str, object]:
+    instance_id = await workflow_graph_service.deep_reject_to_upstream(
+      node_instance_id=node_instance_id,
+      actor_id=actor.id,
+      target_node_key=payload.target_node_key,
+      reason=payload.reason,
+      commit=False,
+    )
+    instance = await workflow_graph_service.get_instance(instance_id=instance_id)
+    node_instances = await workflow_graph_service.list_node_instances_for_graph(instance_id=instance_id)
+    return _build_instance_detail(instance, node_instances).model_dump(mode="json")
+
+  result_payload = await WorkflowCommandExecutor(session).execute(
+    command_id=command_id,
+    command_type="deep_reject",
+    payload={"node_instance_id": str(node_instance_id), **payload.model_dump(mode="json")},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_node",
+    aggregate_id=node_instance_id,
   )
-  instance = await workflow_graph_service.get_instance(instance_id=instance_id)
-  node_instances = await workflow_graph_service.list_node_instances_for_graph(
-    instance_id=instance_id,
-  )
-  return _build_instance_detail(instance, node_instances)
+  return WorkflowGraphInstanceDetailRead.model_validate(result_payload)
 
 
 @router.post(
@@ -895,21 +949,37 @@ async def deep_reject_node_instance(
 async def takeover_node_instance(
   node_instance_id: UUID,
   payload: WorkflowNodeTakeoverRequest,
+  response: Response,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+  command_id_header: Annotated[str | None, Header(alias="X-Command-ID", max_length=128)] = None,
 ) -> WorkflowGraphInstanceDetailRead:
-  instance_id = await workflow_graph_service.takeover_node_instance(
-    node_instance_id=node_instance_id,
-    actor_id=actor.id,
-    actor_role=actor.role,
-    assignee_id=payload.assignee_user_id,
-    reason=payload.reason,
+  command_id = _resolve_command_id(command_id_header, response)
+
+  async def operation() -> dict[str, object]:
+    instance_id = await workflow_graph_service.takeover_node_instance(
+      node_instance_id=node_instance_id,
+      actor_id=actor.id,
+      actor_role=actor.role,
+      assignee_id=payload.assignee_user_id,
+      reason=payload.reason,
+      commit=False,
+    )
+    instance = await workflow_graph_service.get_instance(instance_id=instance_id)
+    node_instances = await workflow_graph_service.list_node_instances_for_graph(instance_id=instance_id)
+    return _build_instance_detail(instance, node_instances).model_dump(mode="json")
+
+  result_payload = await WorkflowCommandExecutor(session).execute(
+    command_id=command_id,
+    command_type="takeover",
+    payload={"node_instance_id": str(node_instance_id), **payload.model_dump(mode="json")},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_node",
+    aggregate_id=node_instance_id,
   )
-  instance = await workflow_graph_service.get_instance(instance_id=instance_id)
-  node_instances = await workflow_graph_service.list_node_instances_for_graph(
-    instance_id=instance_id,
-  )
-  return _build_instance_detail(instance, node_instances)
+  return WorkflowGraphInstanceDetailRead.model_validate(result_payload)
 
 
 @router.post(
@@ -992,10 +1062,32 @@ async def update_graph_template_schedule(
 )
 async def run_graph_template_schedule_now(
   schedule_id: UUID,
+  response: Response,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   schedule_service: Annotated[
     WorkflowGraphTemplateScheduleService,
     Depends(get_workflow_graph_template_schedule_service),
   ],
+  command_id_header: Annotated[str | None, Header(alias="X-Command-ID", max_length=128)] = None,
 ) -> GraphTemplateScheduleRunNowResponse:
-  return await schedule_service.run_schedule_now(actor=actor, schedule_id=schedule_id)
+  command_id = _resolve_command_id(command_id_header, response)
+
+  async def operation() -> dict[str, object]:
+    result = await schedule_service.run_schedule_now(
+      actor=actor,
+      schedule_id=schedule_id,
+      commit=False,
+    )
+    return result.model_dump(mode="json")
+
+  result_payload = await WorkflowCommandExecutor(session).execute(
+    command_id=command_id,
+    command_type="schedule_run_now",
+    payload={"schedule_id": str(schedule_id)},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_schedule",
+    aggregate_id=schedule_id,
+  )
+  return GraphTemplateScheduleRunNowResponse.model_validate(result_payload)

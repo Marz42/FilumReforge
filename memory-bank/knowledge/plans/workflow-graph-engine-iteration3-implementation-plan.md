@@ -8,7 +8,7 @@ tags:
   - iteration-3
   - human-task
   - idempotency
-timestamp: 2026-07-15T20:38:43+08:00
+timestamp: 2026-07-15T21:22:42+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -21,7 +21,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 3 实施计划
 
-> **状态**：2026-07-15 已完成 I3-A 基座并启动 I3-B 的新写双写/Link-first；Iteration 2 已由用户验收并提交为 `853fca1`。本迭代采用 expand → dual-write/backfill → Link-first → ownership cutover 的顺序，不在同一批次删除 JSON 兼容锚点。
+> **状态**：2026-07-15 已完成并提交 I3-A–E 代码实施；I3-A 基座提交为 `79b8c42`，B–E 已作为后续 Iteration 3 提交落库。生产存量 dry-run/受控回填、fallback 长期归零与恢复演练仍是退出闸门，不在本批删除 JSON 兼容锚点。
 
 ## 1. 目标与不变量
 
@@ -51,30 +51,37 @@ Iteration 3 把 `Task`（Work Item）与 `WorkflowNodeInstance`（Node Execution
 
 - [x] Runtime 新激活 HumanTask 时创建 Task + Link，并继续写 `Task.metadata` / `Node.config.task_id`。
 - [x] 新建旧手动图任务时补 `source=manual_compat` Link。
-- 回填器交叉校验 Task metadata、Node config、Instance source；异常只报告，不猜测修复。
+- [x] 回填器交叉校验 Task metadata、Node config、Instance source；默认 dry-run，异常只报告，不猜测修复。
 - [x] Task 图投影读侧 Link-first、JSON fallback；fallback 记录结构化日志。
-- [ ] 对存量数据执行 dry-run 报告、人工处置歧义后正式回填，并建立 fallback 命中率聚合指标。
-- 完成、取消、Deep-Reject 时同步 Link lifecycle，不删除历史 Link。
+- [x] Link-first/JSON fallback 记录进程内聚合计数，供观测接入；生产存量 dry-run、人工处置与正式回填待部署执行。
+- [x] 完成、取消、Deep-Reject 时同步 Link lifecycle，不删除历史 Link。
 
 ### I3-C · 写所有权与 standalone Task
 
-- `HumanTaskCoordinator` 成为唯一跨域协调入口。
-- Task 完成产生 capability result，由 Coordinator 调 Runtime command；TaskService 不再直接写 Node。
-- Runtime 激活/接管/撤权产生协调命令；Runtime service 不再直接写 Task。
-- `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED` 独立开关先灰度、后默认开启；已创建的 standalone Task 不因回滚开关被删除。
+- [x] `HumanTaskCoordinator` 承接 Task 状态/握手与 Runtime 状态、接管、review/aggregate 等跨域同步。
+- [x] TaskService 不再直接修改既有 NodeInstance；Runtime 的 Task 更新通过 Coordinator。
+- [x] `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED` 独立开关默认开启；关闭时仅让新任务回到兼容图路径，既有 standalone Task 不受影响。
+- [x] Standalone Task 支持接受、Todo → Doing → Review → Done、交付/验收，不依赖 Run。
 
 ### I3-D · 命令与事件幂等
 
-- command receipt 覆盖 create run、complete node、deep reject、takeover、schedule run-now。
-- 事件补齐 event/aggregate version、command、causation、correlation、actor、occurred_at。
-- API 接收稳定 command id；未提供时由边界层生成，但客户端重试只有复用 id 才获得幂等保证。
+- [x] command receipt 覆盖 create run、complete node、deep reject、takeover、schedule run-now。
+- [x] 事件补齐 event/aggregate version、command、causation、correlation、actor、occurred_at（迁移 `20260715_03`）。
+- [x] API 接收/回显 `X-Command-ID`；未提供时由边界层生成，客户端重试须复用 id。
 
 ### I3-E · Outbox 去重与收口
 
-- Outbox 以 event id 建立消费去重账本。
-- 去除 `NotificationService.send()` 内部 commit 与 Outbox 状态提交之间的重复窗口。
-- 演练通知已发送但 worker 崩溃、重复 worker、重试耗尽和恢复。
+- [x] Outbox event id 映射为 `notification_messages.deduplication_key` 唯一键。
+- [x] Worker 在通知持久化提交中同时写 processing visibility lease；若仍落入崩溃窗口，重试复用同一 message/delivery identity，队列下游可按 delivery id 幂等。
+- [x] 自动化演练上述崩溃窗口及既有重试耗尽路径。
 - fallback 长期为零且恢复演练通过后，才停止新写 JSON；删除兼容字段属于后续独立 contract 阶段。
+
+### 自动化证据（2026-07-15）
+
+- Backend 非 PostgreSQL 全量：PASS（仅跳过已登记 PostgreSQL用例）。
+- PostgreSQL 强制执行：13/13 PASS，含 Alembic head↔base、并发 command 一次执行、Link primary 约束与图并发。
+- API 命令重放、standalone 生命周期、事件信封、Outbox 稳定身份专项：PASS。
+- 前端 `vue-tsc --build`：PASS。
 
 ## 3. 迁移与回滚边界
 

@@ -291,8 +291,14 @@ class WorkflowRunEventRead(BaseModel):
   id: UUID
   instance_id: UUID
   event_type: str
+  event_version: int = 1
+  aggregate_version: int | None = None
+  command_id: str | None = None
+  causation_id: UUID | None = None
+  correlation_id: UUID | None = None
   actor_user_id: UUID | None
   payload: dict[str, Any] = Field(default_factory=dict)
+  occurred_at: datetime
   created_at: datetime
 
 

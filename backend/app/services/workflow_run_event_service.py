@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.models import WorkflowGraphInstance, WorkflowRunEvent
+from app.services.workflow_event_context import current_workflow_event_context
 from app.schemas.workflow_video import WorkflowRunEventListResponse, WorkflowRunEventRead
 
 
@@ -24,14 +25,23 @@ class WorkflowRunEventService:
     event_type: str,
     actor_user_id: UUID | None,
     payload: dict[str, Any] | None = None,
+    event_version: int = 1,
+    aggregate_version: int | None = None,
+    causation_id: UUID | None = None,
   ) -> WorkflowRunEvent:
     instance = await self._session.get(WorkflowGraphInstance, instance_id)
     if instance is None:
       raise NotFoundError("图实例不存在。")
 
+    envelope = current_workflow_event_context()
     event = WorkflowRunEvent(
       instance_id=instance_id,
       event_type=event_type,
+      event_version=event_version,
+      aggregate_version=aggregate_version or instance.context_version,
+      command_id=envelope.command_id,
+      causation_id=causation_id or envelope.causation_id,
+      correlation_id=envelope.correlation_id,
       actor_user_id=actor_user_id,
       payload=dict(payload or {}),
     )

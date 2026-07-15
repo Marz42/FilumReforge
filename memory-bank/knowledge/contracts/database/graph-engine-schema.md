@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "图引擎 Schema"
 description: "图引擎十三表：定义、运行、路径账本、HumanTask Link、命令回执、outbox、事件与调度。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-07-15T20:38:43+08:00
+timestamp: 2026-07-15T21:22:42+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -23,7 +23,7 @@ paradigma:
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
-> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3A 迁移见 `20260713_01`、`20260715_01`、`20260715_02`；周期调度 F-24）。
+> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3 迁移见 `20260713_01`、`20260715_01`、`20260715_02`、`20260715_03`；周期调度 F-24）。
 > **ORM**: `backend/app/models/workflow_graph.py` · **迁移**: `20260429_04_workflow_graph_core.py` 及后续
 
 | 表 | 职责 | 关键字段 / 约束 |
@@ -39,7 +39,7 @@ paradigma:
 | `workflow_command_receipts` | 工作流命令幂等账本 | 唯一 `(actor_key,command_type,command_id)`；canonical payload SHA-256；`processing/succeeded/failed` 与首次 result/error |
 | `workflow_deliverables` | 节点交付快照 | `node_instance_id`（UNIQUE）、`summary`、`payload`、`submitted_at` |
 | `workflow_outbox_events` | 可靠异步投递 | `event_type`、`status`、`attempt_count`、`available_at`、`last_error` |
-| `workflow_run_events` | Append-only 运行事件 | `instance_id`、`event_type`、`actor_user_id`、`payload`、`created_at`（W8） |
+| `workflow_run_events` | Append-only 运行事件 | `event_type` + event/aggregate version、command/causation/correlation、actor、payload、`occurred_at`/`created_at` |
 | `workflow_graph_template_schedules` | 图模板周期调度 | `cron_expr`、`timezone`、`scope_department_id`、`scope_mode ∈ {self,subtree}`、`participant_mode`、`next_run_at`、last-run 元数据 |
 
 **关系补充**
@@ -53,4 +53,4 @@ paradigma:
 - **运行时路由**用边 `condition`（`condition_evaluator`）；节点 `config.routing_rules` 仅设计时拓扑校验，不驱动图前进
 - Snapshot 内节点按 `(sort_order,node_key)`、边按 `(from_node_key,priority,to_node_key)` 排序；边以 node key 表达运行语义，canonical JSON 使用 UTF-8/排序键/紧凑分隔符后计算 SHA-256
 - `definition_snapshot` 对存量 legacy Run 保持 nullable；不得猜测性回填。只读盘点入口：`python -m app.scripts.report_workflow_legacy_runs`
-- Iteration 3-A 已建 `workflow_human_task_links` 与 `workflow_command_receipts`；新手动兼容/模板投影双写 Link，Task 图投影 Link-first。Receipt service 已验证同 payload 重放、异 payload 冲突与 PostgreSQL 并发单记录；关键 API 命令接入仍属 I3-D。
+- Iteration 3 已接入五类关键 API command receipt 与 RunEvent 信封；`notification_messages.deduplication_key=workflow_outbox:{event_id}` 唯一，Outbox 重试复用相同通知/投递身份。Link 仍 Link-first/JSON fallback，生产回填与停止兼容 JSON 写入是后续部署闸门。

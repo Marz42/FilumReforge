@@ -994,6 +994,7 @@ async def test_department_profile_task_and_attachment_api_flow(api_client) -> No
 async def test_phase3_create_task_api_uses_graph_engine(api_client) -> None:
   client, queue_publisher = api_client
   queue_publisher._settings.workflow_graph_engine_enabled = True
+  queue_publisher._settings.workflow_standalone_manual_tasks_enabled = False
   headers, _ = await bootstrap_and_login(client)
 
   employee_response = await client.post(
@@ -1059,6 +1060,7 @@ async def test_phase3_create_task_api_uses_graph_engine(api_client) -> None:
 async def test_phase5_task_deliverable_review_api_flow(api_client) -> None:
   client, queue_publisher = api_client
   queue_publisher._settings.workflow_graph_engine_enabled = True
+  queue_publisher._settings.workflow_standalone_manual_tasks_enabled = False
   headers, _ = await bootstrap_and_login(client)
 
   employee_response = await client.post(
@@ -1181,6 +1183,7 @@ async def test_phase5_task_deliverable_review_api_flow(api_client) -> None:
 async def test_phase5_task_status_api_blocks_direct_review_and_done_for_graph_tasks(api_client) -> None:
   client, queue_publisher = api_client
   queue_publisher._settings.workflow_graph_engine_enabled = True
+  queue_publisher._settings.workflow_standalone_manual_tasks_enabled = False
   headers, _ = await bootstrap_and_login(client)
 
   employee_response = await client.post(
@@ -1266,6 +1269,7 @@ async def test_phase5_task_status_api_blocks_direct_review_and_done_for_graph_ta
 async def test_phase4_task_acceptance_and_task_center_snapshot_flow(api_client) -> None:
   client, queue_publisher = api_client
   queue_publisher._settings.workflow_graph_engine_enabled = True
+  queue_publisher._settings.workflow_standalone_manual_tasks_enabled = False
   headers, _ = await bootstrap_and_login(client)
 
   employee_response = await client.post(
@@ -1344,6 +1348,7 @@ async def test_phase4_task_acceptance_and_task_center_snapshot_flow(api_client) 
 async def test_phase4_task_reject_and_delegate_api_refresh_task_center_snapshot(api_client) -> None:
   client, queue_publisher = api_client
   queue_publisher._settings.workflow_graph_engine_enabled = True
+  queue_publisher._settings.workflow_standalone_manual_tasks_enabled = False
   headers, _ = await bootstrap_and_login(client)
 
   employee_response = await client.post(
@@ -3685,18 +3690,20 @@ async def test_phase11d_complete_api_replay_returns_stable_snapshot(api_client) 
 
   first_response = await client.post(
     f"/api/v1/workflow-graph/node-instances/{node_a_id}/complete",
-    headers=admin_headers,
+    headers={**admin_headers, "X-Command-ID": "api-complete-replay-001"},
     json={},
   )
   assert first_response.status_code == 200
+  assert first_response.headers["X-Command-ID"] == "api-complete-replay-001"
   first_payload = first_response.json()
 
   second_response = await client.post(
     f"/api/v1/workflow-graph/node-instances/{node_a_id}/complete",
-    headers=admin_headers,
+    headers={**admin_headers, "X-Command-ID": "api-complete-replay-001"},
     json={},
   )
   assert second_response.status_code == 200
+  assert second_response.headers["X-Command-ID"] == "api-complete-replay-001"
   second_payload = second_response.json()
 
   assert first_payload["current_node_key"] == "node-b"
@@ -3706,15 +3713,36 @@ async def test_phase11d_complete_api_replay_returns_stable_snapshot(api_client) 
   assert second_payload["progress_percent"] == first_payload["progress_percent"] == 50
 
   async with queue_publisher._session_factory() as session:
+    from app.models import WorkflowCommandReceipt, WorkflowRunEvent
+
     refreshed_instance = await session.get(WorkflowGraphInstance, instance_id)
     node_instances = list(
       await session.scalars(
         select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance_id)
       )
     )
+    receipts = list(
+      await session.scalars(
+        select(WorkflowCommandReceipt).where(
+          WorkflowCommandReceipt.command_id == "api-complete-replay-001"
+        )
+      )
+    )
+    completed_events = list(
+      await session.scalars(
+        select(WorkflowRunEvent).where(
+          WorkflowRunEvent.instance_id == instance_id,
+          WorkflowRunEvent.event_type == "node_completed",
+        )
+      )
+    )
 
   assert refreshed_instance is not None
   assert refreshed_instance.current_node_key == "node-b"
+  assert len(receipts) == 1
+  assert receipts[0].status == "succeeded"
+  assert len(completed_events) == 1
+  assert completed_events[0].command_id == "api-complete-replay-001"
   assert sum(1 for ni in node_instances if ni.engine_state == WorkflowNodeEngineState.ACTIVATED) == 1
   assert any(
     ni.node_key == "node-b" and ni.engine_state == WorkflowNodeEngineState.ACTIVATED and ni.node_instance_version == 2
@@ -3899,6 +3927,7 @@ async def test_phase11_takeover_api_propagates_conflict_error(api_client) -> Non
 async def test_phase11d_takeover_api_syncs_task_projection_and_task_center(api_client) -> None:
   client, queue_publisher = api_client
   queue_publisher._settings.workflow_graph_engine_enabled = True
+  queue_publisher._settings.workflow_standalone_manual_tasks_enabled = False
   headers, _ = await bootstrap_and_login(client)
 
   employee_response = await client.post(
