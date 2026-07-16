@@ -8,7 +8,7 @@ tags:
   - iteration-3
   - human-task
   - idempotency
-timestamp: 2026-07-15T21:22:42+08:00
+timestamp: 2026-07-16T20:37:13+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -21,7 +21,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 3 实施计划
 
-> **状态**：2026-07-15 已完成并提交 I3-A–E 代码实施；I3-A 基座提交为 `79b8c42`，B–E 已作为后续 Iteration 3 提交落库。生产存量 dry-run/受控回填、fallback 长期归零与恢复演练仍是退出闸门，不在本批删除 JSON 兼容锚点。
+> **状态**：2026-07-15 已完成并提交 I3-A–E 代码实施；I3-A 基座提交为 `79b8c42`，B–E 提交为 `27c9cb3`。2026-07-16 复核确认现有所有权测试、Link 生命周期、故障注入和观测尚不足以进入 Iteration 4，现由强制 [`Iteration 3-F`](./workflow-graph-engine-iteration3f-readiness-gate-plan.md) 收口。
 
 ## 1. 目标与不变量
 
@@ -76,6 +76,18 @@ Iteration 3 把 `Task`（Work Item）与 `WorkflowNodeInstance`（Node Execution
 - [x] 自动化演练上述崩溃窗口及既有重试耗尽路径。
 - fallback 长期为零且恢复演练通过后，才停止新写 JSON；删除兼容字段属于后续独立 contract 阶段。
 
+### I3-F · Iteration 4 硬性准入收口（已设计，待实施）
+
+- [ ] 两个领域独占写端口；Coordinator 不直接写 Task/Node ORM。
+- [ ] 全仓库 AST 所有权/commit 架构守卫替代局部源码扫描。
+- [ ] Link iteration/superseded、持久异常队列和生产回填闭环。
+- [ ] PostgreSQL 事务故障注入与五类命令副作用级幂等测试。
+- [ ] standalone/legacy/Notice/executor/无损回滚兼容矩阵。
+- [ ] Admin readiness 查询、CLI verifier、连续 7 天 Link 覆盖和零 fallback。
+- [ ] 31 项最终准入报告经用户批准。
+
+I3-F 未完成前，I3 A–E 的“自动化通过”只证明已实现能力，不代表 Iteration 4 准入。
+
 ### 自动化证据（2026-07-15）
 
 - Backend 非 PostgreSQL 全量：PASS（仅跳过已登记 PostgreSQL用例）。
@@ -95,7 +107,7 @@ Iteration 3 把 `Task`（Work Item）与 `WorkflowNodeInstance`（Node Execution
 - Link：FK、一个 Task 仅一个 Node、一个 Node 仅一个 active primary、supporting 可多条、lifecycle 保留历史。
 - Backfill：三锚点一致才写；UUID 无效、Node 缺失、Instance 不匹配、Node config 不匹配均进入报告。
 - Receipt：同 payload 重放、异 payload冲突、并发 claim 单记录、首次成功/失败结果稳定返回。
-- Ownership：源码扫描与测试证明 TaskService/Runtime 不再跨域直接赋值。
+- Ownership：当前局部源码扫描不足；由 I3-F 全仓库 AST guard 和两个独占写端口重新验收。
 - Standalone：创建、接单、流转、交付/验收、归档不依赖 Run。
 - Outbox：相同 event id 只产生一次通知副作用。
 
@@ -105,5 +117,6 @@ Iteration 3 把 `Task`（Work Item）与 `WorkflowNodeInstance`（Node Execution
 - Coordinator 接入需要破坏现有 `/tasks` 返回结构；
 - command receipt 与业务事务不能保持同一提交边界；
 - PostgreSQL 并发下仍可产生双 primary Link 或重复命令副作用。
+- 任一 Iteration 4 硬闸门只能标记 PARTIAL，或只能依赖进程内 Counter/人工说明。
 
-触发时保持 dual-write/旧路径，不提前删除兼容锚点，并把证据登记为 `I3-GAP-*`。
+触发时保持 dual-write/旧路径，不提前删除兼容锚点，并把证据登记为 `I3F-GAP-*`；Iteration 4 继续 blocked。

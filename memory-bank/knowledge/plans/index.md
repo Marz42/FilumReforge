@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 3e2198ce39150c2f -->
+<!-- checksum: ee1be0b1a9ea106f -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -18,6 +18,7 @@
 | [workflow-graph-engine-iteration1-implementation-plan.md](workflow-graph-engine-iteration1-implementation-plan.md) | `paradigma-plan` | 工作流图引擎 Iteration 1 实施计划 | Iteration 1<br>对象级授权<br>Run 快照 ... | - | - |
 | [workflow-graph-engine-iteration2-implementation-plan.md](workflow-graph-engine-iteration2-implementation-plan.md) | `paradigma-plan` | 工作流图引擎 Iteration 2 实施计划 | Iteration 2<br>路径语义<br>traversal ... | - | - |
 | [workflow-graph-engine-iteration3-implementation-plan.md](workflow-graph-engine-iteration3-implementation-plan.md) | `paradigma-plan` | 工作流图引擎 Iteration 3 实施计划 | Iteration 3<br>HumanTask Link<br>写所有权 ... | - | - |
+| [workflow-graph-engine-iteration3f-readiness-gate-plan.md](workflow-graph-engine-iteration3f-readiness-gate-plan.md) | `paradigma-plan` | 工作流图引擎 Iteration 3-F · Iteration 4 硬性准入实施计划 | Iteration 3-F<br>Iteration 4 准入<br>写所有权 ... | - | - |
 | [workflow-graph-engine-upgrade-iteration-plan.md](workflow-graph-engine-upgrade-iteration-plan.md) | `paradigma-plan` | 工作流图引擎稳健升级迭代方案 | 图引擎升级<br>工作流边界<br>运行时正确性 ... | - | - |
 | [workflow-refactor-implementation-plan.md](workflow-refactor-implementation-plan.md) | `paradigma-plan` | 工作流重构计划 | 工作流重构<br>workflow<br>refactor | - | - |
 | [workflow-video-v1-implementation-plan.md](workflow-video-v1-implementation-plan.md) | `paradigma-plan` | 视频 v1 实施计划 | 视频<br>v1<br>video ... | - | - |

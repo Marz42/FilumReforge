@@ -16,6 +16,25 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（工作流图引擎 Iteration 3-F）
+
+### 2026-07-16 20:37 — 设计 Iteration 4 硬性准入收口
+
+**完成事项**:
+- [x] 对 31 项准入条件建立 OWN/LINK/TX/IDEM/COMP/OBS 稳定编号与证据矩阵
+- [x] 新增 [`workflow-graph-engine-iteration3f-readiness-gate-plan.md`](../../knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md)
+- [x] 设计 Work Item/Runtime 独占写端口、纯编排 Coordinator 与全仓库 AST 写边界守卫
+- [x] 设计 Link iteration/superseded、持久 operational incident、Expand→Backfill→Contract 迁移
+- [x] 固定 PostgreSQL 六断点故障注入、五类命令副作用幂等和无损代码回滚矩阵
+- [x] 固定 Admin readiness + CLI verifier，以及连续 7 天 Link 覆盖率 100%、JSON fallback 0 的退出阈值
+- [x] 同步稳健升级主计划、Iteration 3 计划与 active task，Iteration 4 明确保持 blocked
+
+**状态**：仅实施方案与 memory-bank 更新，未修改业务代码、数据库 schema、Alembic revision、公共 API 或前端。I3-F 精确 schema/API 获批并完成 31/31 验收前，不进入 Iteration 4。
+
+**遗留/下一步**：按 F1→F6 实施并分别验证；目标环境完成回填、约束收紧、连续 7 天观察和恢复/无损回滚演练后，输出最终准入报告供用户批准。
+
+---
+
 ## 会话摘要（工作流图引擎 Iteration 3）
 
 ### 2026-07-15 21:22 — 提交 I3-A 并完成 I3-B–E 代码实施
