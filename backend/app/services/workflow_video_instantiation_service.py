@@ -328,13 +328,16 @@ class WorkflowVideoInstantiationService:
         skip_publish_permission=True,
       )
       if task.status != TaskStatus.DOING:
-        task.status = TaskStatus.DOING
+        await self._human_task_coordinator.coordinate_mutations(
+          task=task,
+          task_changes={"status": TaskStatus.DOING},
+        )
       return task
 
     resolved_department_id = projection_department_id or await self._session.scalar(
       select(Profile.department_id).where(Profile.user_id == assignee_id)
     )
-    task = Task(
+    task = self._human_task_coordinator.create_work_item(
       title=title,
       creator_id=actor.id,
       assignee_id=assignee_id,
@@ -344,7 +347,6 @@ class WorkflowVideoInstantiationService:
       source_type=TaskSourceType.TEMPLATE,
       extra_metadata=metadata,
     )
-    self._session.add(task)
     await self._session.flush()
     return task
 
@@ -432,7 +434,7 @@ class WorkflowVideoInstantiationService:
       nodes=nodes,
       edges=edges,
     )
-    instance = WorkflowGraphInstance(
+    instance = self._human_task_coordinator.create_runtime_instance(
       template_id=template.id,
       initiator_user_id=actor.id,
       department_id=department_id,
@@ -447,7 +449,6 @@ class WorkflowVideoInstantiationService:
       context_version=1,
       max_iterations=5,
     )
-    self._session.add(instance)
     await self._session.flush()
 
     node_instances: list[WorkflowNodeInstance] = []
@@ -479,7 +480,7 @@ class WorkflowVideoInstantiationService:
             "branch_identity": branch_identity,
             "initial_assignee_user_id": str(assignee_id),
           }
-          ni = WorkflowNodeInstance(
+          ni = self._human_task_coordinator.create_runtime_node(
             instance_id=instance.id,
             template_node_id=node.id,
             node_key=node.node_key,
@@ -494,7 +495,6 @@ class WorkflowVideoInstantiationService:
             config=branch_config,
             activated_at=now if is_start else None,
           )
-          self._session.add(ni)
           node_instances.append(ni)
           if is_start:
             activated_node_keys.append(node.node_key)
@@ -507,7 +507,7 @@ class WorkflowVideoInstantiationService:
           context=context,
           department_id=department_id,
         )
-        ni = WorkflowNodeInstance(
+        ni = self._human_task_coordinator.create_runtime_node(
           instance_id=instance.id,
           template_node_id=node.id,
           node_key=node.node_key,
@@ -522,12 +522,16 @@ class WorkflowVideoInstantiationService:
           config=node_config,
           activated_at=now if is_start else None,
         )
-        self._session.add(ni)
         node_instances.append(ni)
         if is_start:
           activated_node_keys.append(node.node_key)
 
-    instance.current_node_key = activated_node_keys[0] if activated_node_keys else None
+    await self._human_task_coordinator.coordinate_mutations(
+      graph_instance=instance,
+      instance_changes={
+        "current_node_key": activated_node_keys[0] if activated_node_keys else None,
+      },
+    )
     await self._session.flush()
 
     root_assignee_id = await self._resolve_root_assignee(
@@ -546,12 +550,17 @@ class WorkflowVideoInstantiationService:
       run_kind=run_kind,
     )
 
-    instance.source_id = root_task.id
-    instance.context = {
-      **dict(instance.context or {}),
-      "root_task_id": str(root_task.id),
-    }
-    instance.context_version = 2
+    await self._human_task_coordinator.coordinate_mutations(
+      graph_instance=instance,
+      instance_changes={
+        "source_id": root_task.id,
+        "context": {**dict(instance.context or {}), "root_task_id": str(root_task.id)},
+      },
+    )
+    await self._human_task_coordinator.coordinate_mutations(
+      graph_instance=instance,
+      instance_changes={"context_version": 2},
+    )
     validate_run_context(instance.context)
 
     activated_tasks: list[Task] = []
@@ -672,13 +681,16 @@ class WorkflowVideoInstantiationService:
         skip_publish_permission=True,
       )
       if parent_task_id is not None:
-        task.parent_task_id = parent_task_id
+        await self._human_task_coordinator.coordinate_mutations(
+          task=task,
+          task_changes={"parent_task_id": parent_task_id},
+        )
       return task
 
     resolved_department_id = root_department_id or await self._session.scalar(
       select(Profile.department_id).where(Profile.user_id == assignee_id)
     )
-    task = Task(
+    task = self._human_task_coordinator.create_work_item(
       title=title,
       creator_id=actor.id,
       assignee_id=assignee_id,
@@ -689,7 +701,6 @@ class WorkflowVideoInstantiationService:
       source_type=TaskSourceType.TEMPLATE,
       extra_metadata=metadata,
     )
-    self._session.add(task)
     await self._session.flush()
     return task
 
@@ -759,7 +770,7 @@ class WorkflowVideoInstantiationService:
       nodes=nodes,
       edges=edges,
     )
-    instance = WorkflowGraphInstance(
+    instance = self._human_task_coordinator.create_runtime_instance(
       template_id=_template.id,
       initiator_user_id=actor.id,
       department_id=parent_instance.department_id,
@@ -775,7 +786,6 @@ class WorkflowVideoInstantiationService:
       context_version=1,
       max_iterations=5,
     )
-    self._session.add(instance)
     await self._session.flush()
 
     node_instances: list[WorkflowNodeInstance] = []
@@ -804,7 +814,7 @@ class WorkflowVideoInstantiationService:
       else:
         assignee_id = None
 
-      ni = WorkflowNodeInstance(
+      ni = self._human_task_coordinator.create_runtime_node(
         instance_id=instance.id,
         template_node_id=node.id,
         node_key=node.node_key,
@@ -819,12 +829,16 @@ class WorkflowVideoInstantiationService:
         config=node_config,
         activated_at=now if is_start else None,
       )
-      self._session.add(ni)
       node_instances.append(ni)
       if is_start:
         activated_node_keys.append(node.node_key)
 
-    instance.current_node_key = activated_node_keys[0] if activated_node_keys else None
+    await self._human_task_coordinator.coordinate_mutations(
+      graph_instance=instance,
+      instance_changes={
+        "current_node_key": activated_node_keys[0] if activated_node_keys else None,
+      },
+    )
     await self._session.flush()
 
     parent_context = parent_instance.context if isinstance(parent_instance.context, dict) else {}
@@ -850,12 +864,14 @@ class WorkflowVideoInstantiationService:
       },
     )
 
-    instance.source_id = root_task.id
-    instance.context = {
-      **dict(instance.context or {}),
-      "root_task_id": str(root_task.id),
-    }
-    instance.context_version = 2
+    await self._human_task_coordinator.coordinate_mutations(
+      graph_instance=instance,
+      instance_changes={
+        "source_id": root_task.id,
+        "context": {**dict(instance.context or {}), "root_task_id": str(root_task.id)},
+        "context_version": 2,
+      },
+    )
     validate_run_context(instance.context)
 
     activated_tasks: list[Task] = []

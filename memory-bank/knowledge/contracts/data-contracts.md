@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-15T21:22:42+08:00
+timestamp: 2026-07-16T21:19:21+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -32,8 +32,8 @@ paradigma:
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
-**版本**: v3.14.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-07-10 @ `42df37b` · 图模板部门作用范围 `scope_department_ids` · 产品基线 `0.92.0` + Unreleased
+**版本**: v3.16.2（与 [`architecture.md`](../architecture.md) 同步）
+**最后同步**: 2026-07-16 · Iteration 3-F 写所有权、Link 生命周期、运维异常与 readiness · 产品基线 `0.92.0` + Unreleased
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -48,6 +48,7 @@ paradigma:
 - **附件下载**: `GET /api/v1/attachments/{id}/content`（鉴权后流式返回）
 - **图引擎 + 视频 v1 运行时**: `backend/app/api/routes/workflow_graph_engine.py`（前缀 `/api/v1/workflow-graph`）
   - 图实例/节点：`GET/POST .../instances/{id}`、`.../node-instances/{id}/complete|deep-reject|takeover`
+  - Iteration 4 准入：Admin-only `GET .../admin/iteration4-readiness`；无管理权限统一 404
   - 图模板管理：`GET/PATCH .../templates/{id}`、`GET .../feature-flags`
   - **图模板设计器（F-18–F-20 @ 2026-06-21）**：`GET .../templates?scope=manage`；`POST .../templates`（clone）；`GET/PUT .../templates/{id}/designer|draft`；`POST .../templates/{id}/versions`；`PATCH .../templates/{id}/status`；`GET .../templates/{id}/validate`；`GET/POST .../templates/{id}/export|import`；`POST .../templates/import`；`POST .../templates/{id}/dry-run`；`GET .../templates/{id}/stats`
   - 视频 v1 表单/批次：`POST .../templates/{id}/runs`、`.../node-instances/{id}/submit-capture`、`.../finalize-topics`、`.../instances/{id}/dispatch-topic`（TC-P1 增量派发）、`.../instances/{id}/reject-captures`、`POST .../tasks/{task_id}/reject-production`（TC-P1-7 制作审核退回）、`.../fork-production-runs` 等
@@ -62,7 +63,7 @@ paradigma:
 - **F-29 管理员归档**（@ 2026-06-23）：`POST /api/v1/tasks/{task_id}/archive`（admin，`TaskArchiveRequest.reason` → `TaskArchiveResponse`）；任务 `extra_metadata.admin_archived` / `admin_archived_at` / `admin_archive_reason` / `admin_archive_source_task_id`；图实例 context `admin_archived*` + 节点 TERMINATED + instance CANCELLED
 - **任务 PATCH 逾期延期**（@ 2026-06-23）：已逾期任务 `due_date` 变更须晚于原截止时间（ConflictError）
 
-> §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41 起为图引擎十三表与运行事件**摘要**（完整列定义以 ORM + Alembic 为准；领域总览见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)）。
+> §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41 起为图引擎十四表与运行事件**摘要**（完整列定义以 ORM + Alembic 为准；领域总览见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)）。
 
 ---
 
@@ -176,8 +177,9 @@ paradigma:
 - `announcements 1:1 announcement_archives`
 - `attachments N:N 业务对象` 通过 `attachment_links`
 - `workflow_graph_templates 1:N workflow_graph_instances`
-- `workflow_graph_instances 1:N workflow_node_instances` / `workflow_edge_traversals` / `workflow_node_activation_dependencies` / `workflow_human_task_links` / `workflow_run_events` / `workflow_outbox_events`
+- `workflow_graph_instances 1:N workflow_node_instances` / `workflow_edge_traversals` / `workflow_node_activation_dependencies` / `workflow_human_task_links` / `workflow_operational_incidents` / `workflow_run_events` / `workflow_outbox_events`
 - `workflow_command_receipts` 以 `(actor_key,command_type,command_id)` 唯一；五类关键 API 命令与业务写同事务提交
+- `workflow_operational_incidents` 以 fingerprint 唯一聚合 Link fallback/mismatch/backfill、Coordinator、Receipt、Outbox 与迁移异常
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run）
 - `workflow_node_instances 1:1 workflow_deliverables`
 

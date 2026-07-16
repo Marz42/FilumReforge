@@ -9,7 +9,7 @@ from uuid import UUID
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -48,6 +48,51 @@ from app.workers.jobs import rebuild_all_document_embeddings, rebuild_document_e
 
 TEST_JWT_SECRET = "test-secret-key-with-32-bytes-minimum!!"
 TEST_REFRESH_COOKIE_NAME = "filum_refresh_token"
+
+
+@pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
+async def test_i3f_iteration4_readiness_is_admin_only_and_queryable(api_client) -> None:
+  client, _queue_publisher = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+  response = await client.get(
+    "/api/v1/workflow-graph/admin/iteration4-readiness",
+    headers=admin_headers,
+  )
+  assert response.status_code == 200, response.text
+  body = response.json()
+  assert set(body) == {
+    "generated_at",
+    "runtime_ready",
+    "incident_counts",
+    "outbox_counts",
+    "receipt_counts",
+    "engine_version_counts",
+    "incomplete_objects",
+    "blockers",
+  }
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=admin_headers,
+    json={
+      "email": "i3f-readiness-employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_headers = await login(
+    client,
+    email="i3f-readiness-employee@example.com",
+    password="StrongPassword123!",
+  )
+  denied = await client.get(
+    "/api/v1/workflow-graph/admin/iteration4-readiness",
+    headers=employee_headers,
+  )
+  assert denied.status_code == 404
 
 
 class FakeRouterOpenAIClient:
@@ -3751,6 +3796,7 @@ async def test_phase11d_complete_api_replay_returns_stable_snapshot(api_client) 
 
 
 @pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
 async def test_phase11d_deep_reject_api_persists_iteration_replay(api_client) -> None:
   client, queue_publisher = api_client
   admin_headers, admin_payload = await bootstrap_and_login(client)
@@ -3801,12 +3847,20 @@ async def test_phase11d_deep_reject_api_persists_iteration_replay(api_client) ->
 
   response = await client.post(
     f"/api/v1/workflow-graph/node-instances/{node_b_instance_id}/deep-reject",
-    headers=admin_headers,
+    headers={**admin_headers, "X-Command-ID": "i3f-deep-reject-replay-001"},
     json={"target_node_key": "node-a", "reason": "退回重做"},
   )
   assert response.status_code == 200
   payload = response.json()
   assert payload["current_node_key"] == "node-a"
+
+  replay_response = await client.post(
+    f"/api/v1/workflow-graph/node-instances/{node_b_instance_id}/deep-reject",
+    headers={**admin_headers, "X-Command-ID": "i3f-deep-reject-replay-001"},
+    json={"target_node_key": "node-a", "reason": "退回重做"},
+  )
+  assert replay_response.status_code == 200
+  assert replay_response.json() == payload
 
   async with queue_publisher._session_factory() as session:
     refreshed_instance = await session.get(WorkflowGraphInstance, instance_id)
@@ -3817,6 +3871,15 @@ async def test_phase11d_deep_reject_api_persists_iteration_replay(api_client) ->
         .order_by(WorkflowNodeInstance.created_at.asc())
       )
     )
+    from app.models import WorkflowCommandReceipt
+
+    receipts = list(
+      await session.scalars(
+        select(WorkflowCommandReceipt).where(
+          WorkflowCommandReceipt.command_id == "i3f-deep-reject-replay-001"
+        )
+      )
+    )
 
   assert refreshed_instance is not None
   assert refreshed_instance.current_node_key == "node-a"
@@ -3824,6 +3887,8 @@ async def test_phase11d_deep_reject_api_persists_iteration_replay(api_client) ->
     ni.node_key == "node-a" and ni.iteration == 2 and ni.engine_state == WorkflowNodeEngineState.ACTIVATED
     for ni in node_instances
   )
+  assert sum(1 for ni in node_instances if ni.iteration == 2) == 2
+  assert len(receipts) == 1
   assert any(
     ni.node_key == "node-b" and ni.iteration == 1 and ni.engine_state == WorkflowNodeEngineState.TERMINATED
     for ni in node_instances
@@ -3924,6 +3989,7 @@ async def test_phase11_takeover_api_propagates_conflict_error(api_client) -> Non
 
 
 @pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
 async def test_phase11d_takeover_api_syncs_task_projection_and_task_center(api_client) -> None:
   client, queue_publisher = api_client
   queue_publisher._settings.workflow_graph_engine_enabled = True
@@ -4000,13 +4066,23 @@ async def test_phase11d_takeover_api_syncs_task_projection_and_task_center(api_c
 
   takeover_response = await client.post(
     f"/api/v1/workflow-graph/node-instances/{node_instance_id}/takeover",
-    headers=headers,
+    headers={**headers, "X-Command-ID": "i3f-takeover-replay-001"},
     json={
       "assignee_user_id": new_assignee_id,
       "reason": "原执行人离岗",
     },
   )
   assert takeover_response.status_code == 200
+  replay_response = await client.post(
+    f"/api/v1/workflow-graph/node-instances/{node_instance_id}/takeover",
+    headers={**headers, "X-Command-ID": "i3f-takeover-replay-001"},
+    json={
+      "assignee_user_id": new_assignee_id,
+      "reason": "原执行人离岗",
+    },
+  )
+  assert replay_response.status_code == 200
+  assert replay_response.json() == takeover_response.json()
 
   old_assignee_headers = await login(
     client,
@@ -4024,11 +4100,30 @@ async def test_phase11d_takeover_api_syncs_task_projection_and_task_center(api_c
   assert new_snapshot.status_code == 200
 
   async with queue_publisher._session_factory() as session:
+    from app.models import WorkflowCommandReceipt, WorkflowOutboxEvent
+
     stored_task = await session.get(Task, UUID(task_id))
     assert stored_task is not None
     assert str(stored_task.assignee_id) == new_assignee_id
     assert stored_task.extra_metadata["latest_handshake_action"] == "takeover"
     assert stored_task.extra_metadata["latest_takeover_reason"] == "原执行人离岗"
+    receipts = list(
+      await session.scalars(
+        select(WorkflowCommandReceipt).where(
+          WorkflowCommandReceipt.command_id == "i3f-takeover-replay-001"
+        )
+      )
+    )
+    outbox_events = list(
+      await session.scalars(
+        select(WorkflowOutboxEvent).where(
+          WorkflowOutboxEvent.node_instance_id == UUID(node_instance_id),
+          WorkflowOutboxEvent.event_type == "workflow_node_taken_over",
+        )
+      )
+    )
+    assert len(receipts) == 1
+    assert len(outbox_events) == 1
 
   assert all(item["task_id"] != task_id for item in old_snapshot.json()["task_inbox"])
   assert any(
@@ -4292,6 +4387,7 @@ async def test_w2_preview_participants_api(api_client) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
 async def test_w3_create_graph_template_run_api(api_client) -> None:
   from app.api.dependencies import get_settings
   from test_workflow_video_w3_instantiation import _seed_topic_meeting_batch_template
@@ -4318,7 +4414,7 @@ async def test_w3_create_graph_template_run_api(api_client) -> None:
 
   response = await client.post(
     f"/api/v1/workflow-graph/templates/{template_id}/runs",
-    headers=headers,
+    headers={**headers, "X-Command-ID": "i3f-create-run-replay-001"},
     json={
       "inputs": {"theme": "API 选题会", "manager_user_id": str(manager_id)},
       "department_id": str(department_id),
@@ -4333,6 +4429,36 @@ async def test_w3_create_graph_template_run_api(api_client) -> None:
   assert body["activated_task_count"] == 3
   assert body["node_instance_count"] == 4
   assert body["current_node_key"] == "N1_PROPOSE"
+
+  replay_response = await client.post(
+    f"/api/v1/workflow-graph/templates/{template_id}/runs",
+    headers={**headers, "X-Command-ID": "i3f-create-run-replay-001"},
+    json={
+      "inputs": {"theme": "API 选题会", "manager_user_id": str(manager_id)},
+      "department_id": str(department_id),
+      "participants_snapshot": {
+        "copywriters": {"mode": "subset", "user_ids": editor_ids},
+      },
+    },
+  )
+  assert replay_response.status_code == 200, replay_response.text
+  assert replay_response.json() == body
+
+  async with queue_publisher._session_factory() as session:
+    from app.models import WorkflowCommandReceipt
+
+    run_count = await session.scalar(
+      select(func.count(WorkflowGraphInstance.id)).where(
+        WorkflowGraphInstance.template_id == template_id
+      )
+    )
+    receipt_count = await session.scalar(
+      select(func.count(WorkflowCommandReceipt.id)).where(
+        WorkflowCommandReceipt.command_id == "i3f-create-run-replay-001"
+      )
+    )
+  assert run_count == 1
+  assert receipt_count == 1
 
 
 @pytest.mark.asyncio

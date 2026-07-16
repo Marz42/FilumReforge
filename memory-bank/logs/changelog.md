@@ -22,6 +22,10 @@ paradigma:
 
 ### Added
 
+- Iteration 3-F 测试操作手册：开发/CI、PostgreSQL 强制专项、Expand/Backfill/Contract 与连续 7 天 readiness 证据流程
+- Iteration 3-F：Work Item/Runtime 独占写端口、全仓库 AST ownership/commit guard、Admin readiness API 与 CLI verifier
+- Link iteration/superseded 生命周期与持久 `workflow_operational_incidents` 异常队列（Expand/Contract 迁移 `20260716_01`、`20260716_02`）
+- PostgreSQL UoW 故障注入、命令副作用重放、Link-first mismatch、Outbox duplicate 与兼容回滚自动化证据
 - Iteration 3 B–E：Link dry-run 回填/生命周期/观测、standalone Work Item 默认路径、统一 command executor 与 RunEvent 信封、Outbox event-id 通知去重（迁移 `20260715_03`）
 - Iteration 3-A 写所有权/幂等基座：`workflow_human_task_links`、`workflow_command_receipts`、`HumanTaskCoordinator` 与 command receipt service（迁移 `20260715_02`）
 - 新手动兼容任务与模板 HumanTask 投影双写正式 Link；Task 图投影读取 Link-first、JSON fallback
@@ -36,6 +40,8 @@ paradigma:
 
 ### Changed
 
+- HumanTask 跨域写入统一由 Coordinator 编排两个 flush-only writer；Link 存在时为唯一关系真相，JSON 不一致登记 incident
+- Link 回填器支持 checkpoint/batch，确定项与歧义 incident 可在同次 apply 中安全、幂等落库
 - ACTIVE/ARCHIVED 图模板改为发布后不可变；模板 seed 更新改为归档旧版本并派生新的 ACTIVE 版本
 - 任务统计 summary/workload 从全量 ORM 加载后 Python 计数改为数据库侧条件聚合；旧总量字段保持兼容
 - 建立任务弹窗抽取为 `PublishTaskDialog.vue`；采集组件统一为 `CapturePanel.vue`

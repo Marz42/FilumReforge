@@ -8,7 +8,7 @@ tags:
   - iteration-3
   - human-task
   - idempotency
-timestamp: 2026-07-16T20:37:13+08:00
+timestamp: 2026-07-16T21:19:21+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -21,7 +21,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 3 实施计划
 
-> **状态**：2026-07-15 已完成并提交 I3-A–E 代码实施；I3-A 基座提交为 `79b8c42`，B–E 提交为 `27c9cb3`。2026-07-16 复核确认现有所有权测试、Link 生命周期、故障注入和观测尚不足以进入 Iteration 4，现由强制 [`Iteration 3-F`](./workflow-graph-engine-iteration3f-readiness-gate-plan.md) 收口。
+> **状态**：2026-07-15 已完成并提交 I3-A–E 代码实施；I3-A 基座提交为 `79b8c42`，B–E 提交为 `27c9cb3`。2026-07-16 已完成强制 [`Iteration 3-F`](./workflow-graph-engine-iteration3f-readiness-gate-plan.md) 的工程实现与本地验证；目标环境回填、7 天观察及最终批准未完成，Iteration 4 仍 blocked。
 
 ## 1. 目标与不变量
 
@@ -76,23 +76,24 @@ Iteration 3 把 `Task`（Work Item）与 `WorkflowNodeInstance`（Node Execution
 - [x] 自动化演练上述崩溃窗口及既有重试耗尽路径。
 - fallback 长期为零且恢复演练通过后，才停止新写 JSON；删除兼容字段属于后续独立 contract 阶段。
 
-### I3-F · Iteration 4 硬性准入收口（已设计，待实施）
+### I3-F · Iteration 4 硬性准入收口（工程实现完成，生产闸门待验证）
 
-- [ ] 两个领域独占写端口；Coordinator 不直接写 Task/Node ORM。
-- [ ] 全仓库 AST 所有权/commit 架构守卫替代局部源码扫描。
-- [ ] Link iteration/superseded、持久异常队列和生产回填闭环。
-- [ ] PostgreSQL 事务故障注入与五类命令副作用级幂等测试。
-- [ ] standalone/legacy/Notice/executor/无损回滚兼容矩阵。
-- [ ] Admin readiness 查询、CLI verifier、连续 7 天 Link 覆盖和零 fallback。
+- [x] 两个领域独占写端口；Coordinator 不直接写 Task/Node ORM。
+- [x] 全仓库 AST 所有权/commit 架构守卫替代局部源码扫描。
+- [x] Link iteration/superseded、持久异常队列和 checkpoint/batch 回填能力。
+- [x] PostgreSQL 事务故障注入与五类命令副作用级幂等测试。
+- [x] standalone/legacy/Notice/executor/无损回滚兼容矩阵。
+- [x] Admin readiness 查询与 CLI verifier。
+- [ ] 目标环境连续 7 天 Link 覆盖 100%、runtime 零 fallback、open P0/P1 incident 0。
 - [ ] 31 项最终准入报告经用户批准。
 
 I3-F 未完成前，I3 A–E 的“自动化通过”只证明已实现能力，不代表 Iteration 4 准入。
 
-### 自动化证据（2026-07-15）
+### 自动化证据（更新于 2026-07-16）
 
 - Backend 非 PostgreSQL 全量：PASS（仅跳过已登记 PostgreSQL用例）。
-- PostgreSQL 强制执行：13/13 PASS，含 Alembic head↔base、并发 command 一次执行、Link primary 约束与图并发。
-- API 命令重放、standalone 生命周期、事件信封、Outbox 稳定身份专项：PASS。
+- PostgreSQL 强制执行：17/17 PASS、0 skip，含 Alembic head、图并发、命令一次执行、Link 约束与 UoW 故障注入。
+- API 命令重放、standalone/Notice 兼容、事件信封、Outbox 稳定身份/重复 incident、readiness 专项：PASS。
 - 前端 `vue-tsc --build`：PASS。
 
 ## 3. 迁移与回滚边界

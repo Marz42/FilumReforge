@@ -33,6 +33,7 @@ from app.schemas.workflow_video import (
 )
 from app.services.access_control import ensure_active_user
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_orchestration_service import WorkflowOrchestrationService
 from app.services.workflow_run_event_service import WorkflowRunEventService
 
@@ -49,6 +50,7 @@ class WorkflowVideoReworkService:
     orchestration_service: WorkflowOrchestrationService | None = None,
   ) -> None:
     self._session = session
+    self._human_task_coordinator = HumanTaskCoordinator(session)
     self._workflow_graph_service = workflow_graph_service or WorkflowGraphService(session)
     self._orchestration_service = orchestration_service or WorkflowOrchestrationService(
       session,
@@ -176,20 +178,25 @@ class WorkflowVideoReworkService:
       return
 
     if aggregate_node.engine_state == WorkflowNodeEngineState.ACTIVATED:
-      aggregate_node.engine_state = WorkflowNodeEngineState.PENDING
-      aggregate_node.business_state = WorkflowNodeBusinessState.ASSIGNED
-      aggregate_node.activated_at = None
+      await self._human_task_coordinator.coordinate_mutations(
+        node_instance=aggregate_node,
+        node_changes={
+          "engine_state": WorkflowNodeEngineState.PENDING,
+          "business_state": WorkflowNodeBusinessState.ASSIGNED,
+          "activated_at": None,
+        },
+      )
 
     config = aggregate_node.config if isinstance(aggregate_node.config, dict) else {}
     raw_task_id = config.get("task_id")
     if raw_task_id is not None:
       aggregate_task = await self._session.get(Task, UUID(str(raw_task_id)))
       if aggregate_task is not None:
-        aggregate_task.status = TaskStatus.TODO
-        aggregate_task.updated_at = datetime.now(UTC)
-        metadata = dict(aggregate_task.extra_metadata or {})
-        metadata["gate_waiting_all_captures"] = True
-        aggregate_task.extra_metadata = metadata
+        await self._human_task_coordinator.coordinate_mutations(
+          task=aggregate_task,
+          task_changes={"status": TaskStatus.TODO, "updated_at": datetime.now(UTC)},
+          task_metadata_patch={"gate_waiting_all_captures": True},
+        )
 
     instance.current_node_key = DEFAULT_PROPOSE_NODE_KEY
 
@@ -209,20 +216,24 @@ class WorkflowVideoReworkService:
       raise ConflictError("当前采集节点状态不允许打回。")
 
     now = datetime.now(UTC)
-    node_instance.engine_state = WorkflowNodeEngineState.ACTIVATED
-    node_instance.business_state = WorkflowNodeBusinessState.DOING
-    node_instance.completed_at = None
-    node_instance.activated_at = now
-    node_instance.node_instance_version += 1
-
-    config = dict(node_instance.config or {})
-    config["targeted_rejection"] = {
+    targeted_rejection = {
       "reason": reason,
       "topic_id": str(topic_id) if topic_id is not None else None,
       "rejected_by_user_id": str(actor.id),
       "rejected_at": now.isoformat(),
     }
-    node_instance.config = config
+    await self._human_task_coordinator.coordinate_mutations(
+      node_instance=node_instance,
+      node_changes={
+        "engine_state": WorkflowNodeEngineState.ACTIVATED,
+        "business_state": WorkflowNodeBusinessState.DOING,
+        "completed_at": None,
+        "activated_at": now,
+        "node_instance_version": node_instance.node_instance_version + 1,
+      },
+      node_config_patch={"targeted_rejection": targeted_rejection},
+    )
+    config = dict(node_instance.config or {})
 
     deliverable = await self._session.scalar(
       select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id)
@@ -256,16 +267,20 @@ class WorkflowVideoReworkService:
     if raw_task_id is not None:
       task = await self._session.get(Task, UUID(str(raw_task_id)))
       if task is not None:
-        task.status = TaskStatus.DOING
-        task.updated_at = now
         metadata = dict(task.extra_metadata or {})
-        metadata["latest_rework_reason"] = reason
-        metadata["latest_capture_state"] = "rejected"
-        metadata["latest_review_state"] = "returned_for_rework"
-        metadata["rework_count"] = int(metadata.get("rework_count") or 0) + 1
+        metadata_patch: dict[str, object] = {
+          "latest_rework_reason": reason,
+          "latest_capture_state": "rejected",
+          "latest_review_state": "returned_for_rework",
+          "rework_count": int(metadata.get("rework_count") or 0) + 1,
+        }
         if topic_id is not None:
-          metadata["rejected_topic_id"] = str(topic_id)
-        task.extra_metadata = metadata
+          metadata_patch["rejected_topic_id"] = str(topic_id)
+        await self._human_task_coordinator.coordinate_mutations(
+          task=task,
+          task_changes={"status": TaskStatus.DOING, "updated_at": now},
+          task_metadata_patch=metadata_patch,
+        )
 
     await WorkflowRunEventService(self._session).append(
       instance_id=instance.id,

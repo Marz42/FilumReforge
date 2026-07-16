@@ -16,6 +16,48 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（Iteration 3-F 测试手册与提交收口）
+
+### 2026-07-16 22:07 — 固化测试、迁移、回填与七天观测操作
+
+**完成事项**:
+- [x] 新增 [`workflow-graph-engine-iteration3f-test-runbook.md`](../../knowledge/manuals/workflow-graph-engine-iteration3f-test-runbook.md)
+- [x] 覆盖快速 I4 gate、全量 Backend、全仓库 AST guard、前端 type-check 与 memory-bank 检查
+- [x] 固化专用 PostgreSQL 启动、`FILUM_REQUIRE_POSTGRES_TESTS=true`、17/17 全集和随机数据库清理要求
+- [x] 固化目标环境 Expand → dry-run/apply Link 回填 → Contract 顺序、checkpoint 字段和停止条件
+- [x] 固化 readiness CLI/Admin API、连续 7 天证据留存、失败后重启观察窗口及最终报告清单
+- [x] 同步 I3-F 计划和 active task 的手册入口；明确单次 `runtime_ready=true` 不能代替七天准入证据
+
+**状态**：测试操作已文档化；I3-F 工程实现仍为完成、生产准入仍待目标环境 7 天观测。Iteration 4 保持 blocked。
+
+**下一步**：按手册执行目标环境回填和观测，生成 31 项最终准入报告。
+
+---
+
+## 会话摘要（工作流图引擎 Iteration 3-F 实施）
+
+### 2026-07-16 21:19 — 完成工程落地与本地硬闸门验证
+
+**完成事项**:
+- [x] 实施前提交获批方案：`a9d9ccd docs(workflow): define iteration 3f readiness gate`
+- [x] 新增 `WorkItemWriteService` / `WorkflowRuntimeWriteService`，跨域写入由 `HumanTaskCoordinator` 编排；全仓库 AST guard 覆盖 owner、构造器、受保护赋值和内部 commit
+- [x] 新增 `20260716_01` Expand 与 `20260716_02` Contract；Link 支持 iteration/superseded，新增 fingerprint 幂等的 operational incident 表
+- [x] 回填器支持 batch/checkpoint；Link-first mismatch/fallback、Receipt conflict、Coordinator failure、Outbox duplicate 与迁移异常均可持久查询
+- [x] 新增 Admin readiness API、CLI verifier，以及 engine version/executor、fallback、incident、receipt、outbox、migration blocker 聚合
+- [x] 补齐 create/complete/deep-reject/takeover/schedule 重放、standalone/Notice/legacy/executor 兼容和 PostgreSQL UoW 故障注入证据
+
+**验证**:
+- Backend 全量 `pytest -q`：PASS（普通执行仅跳过已登记 PostgreSQL 用例）
+- 临时 PostgreSQL 强制专项：**17/17 PASS、0 skip**；包含 Alembic head、并发和故障注入；临时容器与数据库已清理
+- 受影响视频/编排回归：**31 PASS**；`python -m compileall -q app tests`：PASS
+- Frontend `vue-tsc --build`：PASS
+
+**状态**：F1–F6 工程实现完成，但 Iteration 3-F 尚未满足生产出口。目标环境 migration/回填、连续 7 天 Link reconciliation 100%、runtime JSON fallback 0、open P0/P1 incident 0、最终 31 项报告与用户批准仍待完成；Iteration 4 继续 blocked。
+
+**下一步**：目标环境 dry-run/apply 回填并启动 7 天 readiness 证据窗口；达标后生成最终准入报告。
+
+---
+
 ## 会话摘要（工作流图引擎 Iteration 3-F）
 
 ### 2026-07-16 20:37 — 设计 Iteration 4 硬性准入收口

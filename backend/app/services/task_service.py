@@ -876,18 +876,18 @@ class TaskService:
     self._session.add(task)
     await self._session.flush()
 
-    instance.source_id = task.id
-    instance.source_type = source_type.value
-    instance.status = WorkflowGraphInstanceStatus.ACTIVE
-    node_instance.config = {
-      **node_instance.config,
-      "task_id": str(task.id),
-    }
-    await self._human_task_coordinator.ensure_link(
-      task_id=task.id,
-      node_instance_id=node_instance.id,
+    await self._human_task_coordinator.coordinate_mutations(
+      graph_instance=instance,
+      instance_changes={
+        "source_id": task.id,
+        "source_type": source_type.value,
+        "status": WorkflowGraphInstanceStatus.ACTIVE,
+      },
+    )
+    await self._human_task_coordinator.bind_projection_task(
+      task=task,
+      node_instance=node_instance,
       source="manual_compat",
-      link_metadata={"compatibility_json_written": True},
     )
 
     if dependency_ids:

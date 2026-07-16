@@ -258,3 +258,14 @@ class WorkflowSmartNoticeCandidatesRequest(BaseModel):
 class WorkflowSmartNoticeCandidatesResponse(BaseModel):
   candidate_user_ids: list[UUID]
   reached_initiator: bool
+
+
+class WorkflowIteration4ReadinessResponse(BaseModel):
+  generated_at: datetime
+  runtime_ready: bool
+  incident_counts: dict[str, int] = Field(default_factory=dict)
+  outbox_counts: dict[str, int] = Field(default_factory=dict)
+  receipt_counts: dict[str, int] = Field(default_factory=dict)
+  engine_version_counts: list[dict[str, object]] = Field(default_factory=list)
+  incomplete_objects: list[dict[str, object]] = Field(default_factory=list)
+  blockers: list[str] = Field(default_factory=list)

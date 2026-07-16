@@ -698,6 +698,7 @@ async def test_phase11c_outbox_worker_dispatches_pending_event() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
 async def test_iteration3_outbox_retry_reuses_event_notification_identity() -> None:
   """Simulate crash after notification commit but before outbox dispatch commit."""
   from app.models.workflow_graph import WorkflowGraphInstance, WorkflowOutboxEvent
@@ -757,11 +758,20 @@ async def test_iteration3_outbox_retry_reuses_event_notification_identity() -> N
 
   async with session_factory() as session:
     messages = list(await session.scalars(select(NotificationMessage)))
+    from app.models import WorkflowOperationalIncident
+
+    duplicate_incident = await session.scalar(
+      select(WorkflowOperationalIncident).where(
+        WorkflowOperationalIncident.category == "outbox_duplicate"
+      )
+    )
   assert len(messages) == 1
   assert messages[0].deduplication_key == f"workflow_outbox:{event_id}"
   assert len(queue.payloads) == 2
   assert queue.payloads[0]["message_id"] == queue.payloads[1]["message_id"]
   assert queue.payloads[0]["delivery_ids"] == queue.payloads[1]["delivery_ids"]
+  assert duplicate_incident is not None
+  assert duplicate_incident.outbox_event_id == event_id
   await engine.dispose()
 
 

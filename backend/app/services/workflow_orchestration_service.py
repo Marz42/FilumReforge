@@ -189,7 +189,10 @@ class WorkflowOrchestrationService:
         skip_publish_permission=True,
       )
       if task.status != TaskStatus.DOING:
-        task.status = TaskStatus.DOING
+        await self._human_task_coordinator.coordinate_mutations(
+          task=task,
+          task_changes={"status": TaskStatus.DOING},
+        )
       template_node = await self._load_template_node(
         instance=instance,
         node_instance=node_instance,
@@ -205,7 +208,7 @@ class WorkflowOrchestrationService:
     resolved_department_id = await self._session.scalar(
       select(Profile.department_id).where(Profile.user_id == assignee_id)
     )
-    task = Task(
+    task = self._human_task_coordinator.create_work_item(
       title=title,
       creator_id=actor.id,
       assignee_id=assignee_id,
@@ -215,7 +218,6 @@ class WorkflowOrchestrationService:
       source_type=TaskSourceType.TEMPLATE,
       extra_metadata=metadata,
     )
-    self._session.add(task)
     await self._session.flush()
     template_node = await self._load_template_node(
       instance=instance,
@@ -403,14 +405,18 @@ class WorkflowOrchestrationService:
   ) -> None:
     """W-08: auto-complete aggregate node without creating an inbox shell task."""
     now = datetime.now(UTC)
-    node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
-    node_instance.business_state = WorkflowNodeBusinessState.DONE
-    node_instance.completed_at = now
-    node_instance.config = {
-      **dict(node_instance.config or {}),
-      "engine_skipped": True,
-      "skip_reason": "streaming_aggregate",
-    }
+    await self._human_task_coordinator.coordinate_mutations(
+      node_instance=node_instance,
+      node_changes={
+        "engine_state": WorkflowNodeEngineState.COMPLETED,
+        "business_state": WorkflowNodeBusinessState.DONE,
+        "completed_at": now,
+      },
+      node_config_patch={
+        "engine_skipped": True,
+        "skip_reason": "streaming_aggregate",
+      },
+    )
     await self._session.flush()
 
     downstream = await self._workflow_graph_service.progress_from_completed_node(
@@ -474,7 +480,7 @@ class WorkflowOrchestrationService:
     if template_node is None:
       return
     context = instance.context if isinstance(instance.context, dict) else {}
-    node_instance.assignee_user_id = await resolve_node_assignee_id(
+    assignee_user_id = await resolve_node_assignee_id(
       self._session,
       actor=actor,
       template=template,
@@ -482,6 +488,10 @@ class WorkflowOrchestrationService:
       node_instance=node_instance,
       context=context,
       department_id=instance.department_id,
+    )
+    await self._human_task_coordinator.coordinate_mutations(
+      node_instance=node_instance,
+      node_changes={"assignee_user_id": assignee_user_id},
     )
     await self._session.flush()
 

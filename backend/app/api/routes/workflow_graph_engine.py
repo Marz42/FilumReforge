@@ -22,7 +22,7 @@ from app.api.dependencies import (
 )
 from app.core.config import Settings
 from app.core.exceptions import ConflictError, NotFoundError
-from app.core.enums import WorkflowNodeEngineState
+from app.core.enums import UserRole, WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowGraphTemplateNode, WorkflowNodeInstance
 from app.services.access_control import ensure_department_stats_access, can_manage_task_templates, get_effective_managed_department_ids
 from app.services.workflow_access_policy import WorkflowAccessPolicy
@@ -73,6 +73,7 @@ from app.schemas.workflow_graph import (
   WorkflowNodeTakeoverRequest,
   WorkflowSmartNoticeCandidatesRequest,
   WorkflowSmartNoticeCandidatesResponse,
+  WorkflowIteration4ReadinessResponse,
 )
 from app.schemas.workflow_graph_schedule import (
   GraphTemplateScheduleCreateRequest,
@@ -90,10 +91,26 @@ from app.services.workflow_graph_template_schedule_service import (
 )
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_command_executor import WorkflowCommandExecutor
+from app.services.workflow_iteration4_readiness_service import WorkflowIteration4ReadinessService
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
 
 router = APIRouter(prefix="/workflow-graph")
+
+
+@router.get(
+  "/admin/iteration4-readiness",
+  response_model=WorkflowIteration4ReadinessResponse,
+  tags=["workflow-graph"],
+)
+async def get_iteration4_readiness(
+  actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> WorkflowIteration4ReadinessResponse:
+  if actor.role != UserRole.ADMIN:
+    raise NotFoundError("未找到 Iteration 4 readiness 资源。")
+  report = await WorkflowIteration4ReadinessService(session).build_report()
+  return WorkflowIteration4ReadinessResponse.model_validate(report)
 
 
 def _resolve_command_id(raw_command_id: str | None, response: Response) -> str:

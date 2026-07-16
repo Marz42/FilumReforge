@@ -14,8 +14,12 @@ from app.core.exceptions import (
   ConflictError,
   NotFoundError,
 )
-from app.services.workflow_command_receipt_service import WorkflowCommandReceiptService
+from app.services.workflow_command_receipt_service import (
+  CommandPayloadConflictError,
+  WorkflowCommandReceiptService,
+)
 from app.services.workflow_event_context import bind_workflow_event_context
+from app.services.workflow_operational_incident_service import WorkflowOperationalIncidentService
 
 
 CommandOperation = Callable[[], Awaitable[dict[str, Any]]]
@@ -51,15 +55,39 @@ class WorkflowCommandExecutor:
     aggregate_type: str | None = None,
     aggregate_id: UUID | None = None,
   ) -> dict[str, Any]:
-    claim = await self._receipts.claim(
-      command_id=command_id,
-      command_type=command_type,
-      payload=payload,
-      actor_user_id=actor_user_id,
-      system_actor=system_actor,
-      aggregate_type=aggregate_type,
-      aggregate_id=aggregate_id,
-    )
+    try:
+      claim = await self._receipts.claim(
+        command_id=command_id,
+        command_type=command_type,
+        payload=payload,
+        actor_user_id=actor_user_id,
+        system_actor=system_actor,
+        aggregate_type=aggregate_type,
+        aggregate_id=aggregate_id,
+      )
+    except CommandPayloadConflictError as exc:
+      receipt_id = exc.receipt.id
+      actor_key = exc.receipt.actor_key
+      receipt_command_type = exc.receipt.command_type
+      receipt_command_id = exc.receipt.command_id
+      original_payload_hash = exc.receipt.payload_hash
+      await self._session.rollback()
+      await WorkflowOperationalIncidentService(self._session).record(
+        category="receipt_conflict",
+        identity={
+          "actor_key": actor_key,
+          "command_type": receipt_command_type,
+          "command_id": receipt_command_id,
+        },
+        severity="error",
+        command_receipt_id=receipt_id,
+        details={
+          "original_payload_hash": original_payload_hash,
+          "attempted_payload_hash": exc.attempted_payload_hash,
+        },
+      )
+      await self._session.commit()
+      raise ConflictError(str(exc)) from exc
     if claim.is_replay:
       if claim.receipt.status == "succeeded":
         return dict(claim.receipt.result or {})
@@ -105,5 +133,25 @@ class WorkflowCommandExecutor:
           receipt=failure_claim.receipt,
           error={"type": type(exc).__name__, "message": str(exc)},
         )
+        if type(exc).__name__ not in _REPLAYABLE_ERRORS:
+          await WorkflowOperationalIncidentService(self._session).record(
+            category="coordinator_failure",
+            identity={
+              "command_type": command_type,
+              "command_id": command_id,
+              "actor_key": failure_claim.receipt.actor_key,
+            },
+            severity="error",
+            node_instance_id=(
+              aggregate_id if aggregate_type == "workflow_node" else None
+            ),
+            command_receipt_id=failure_claim.receipt.id,
+            details={
+              "aggregate_type": aggregate_type,
+              "aggregate_id": str(aggregate_id) if aggregate_id is not None else None,
+              "error_type": type(exc).__name__,
+              "error_message": str(exc)[:500],
+            },
+          )
         await self._session.commit()
       raise

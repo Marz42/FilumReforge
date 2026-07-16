@@ -45,6 +45,7 @@ from app.models.workflow_graph import (
   WorkflowNodeInstance,
   WorkflowNodeActivationDependency,
   WorkflowOutboxEvent,
+  WorkflowOperationalIncident,
   WorkflowCommandReceipt,
   WorkflowRunEvent,
 )
@@ -102,6 +103,7 @@ __all__ = [
   "WorkflowNodeInstance",
   "WorkflowNodeActivationDependency",
   "WorkflowOutboxEvent",
+  "WorkflowOperationalIncident",
   "WorkflowCommandReceipt",
   "WorkflowRunEvent",
   "WorkflowStep",

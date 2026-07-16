@@ -1,14 +1,14 @@
 ---
 type: paradigma-domain
 title: "领域：工作流图引擎 (Workflow Graph Engine)"
-description: "现行图任务引擎 as-built：十三表数据模型、graph-v3 路径推进、HumanTask Link、standalone Work Item 与命令幂等。"
+description: "现行图任务引擎 as-built：十四表数据模型、graph-v3 路径推进、HumanTask Link、写所有权、standalone Work Item 与命令幂等。"
 tags:
   - domain
   - 图引擎
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-07-15T21:22:42+08:00
+timestamp: 2026-07-16T21:19:21+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -32,7 +32,7 @@ paradigma:
 # 领域：工作流图引擎 (Workflow Graph Engine)
 
 > 🌡️ WARM — **现行 as-built 总览**（非历史提案）。涉及模板、实例化、节点推进、Task 投影、详情页布局时优先读本文件。  
-> **最后同步**：2026-07-15 · 对照代码：`backend/app/models/workflow_graph.py`、`WorkflowGraphService`、`TaskDetailShell.vue`
+> **最后同步**：2026-07-16 · 对照代码：`backend/app/models/workflow_graph.py`、`HumanTaskCoordinator`、`WorkflowIteration4ReadinessService`
 > **计划**：[`plans/workflow-refactor-implementation-plan.md`](../plans/workflow-refactor-implementation-plan.md) · **ADR**：[`decisions/adr-005-dual-track-workflow.md`](../decisions/adr-005-dual-track-workflow.md) · [`adr-008-graph-template-designer.md`](../decisions/adr-008-graph-template-designer.md)  
 > **契约**：[`contracts/database/graph-engine-schema.md`](../contracts/database/graph-engine-schema.md) · **视频增量**：[`workflow-video-v1.md`](./workflow-video-v1.md) · **运行时链路**：[`architecture/core-workflows.md`](./architecture/core-workflows.md) §6.13B
 
@@ -55,7 +55,7 @@ paradigma:
 
 ---
 
-## 2. 实体关系（十三表）
+## 2. 实体关系（十四表）
 
 ```mermaid
 erDiagram
@@ -71,6 +71,7 @@ erDiagram
   WorkflowGraphInstance ||--o{ WorkflowOutboxEvent : outbox_events
   WorkflowGraphInstance ||--o{ WorkflowRunEvent : run_events
   WorkflowGraphInstance ||--o{ WorkflowHumanTaskLink : human_task_links
+  WorkflowGraphInstance ||--o{ WorkflowOperationalIncident : operational_incidents
   WorkflowGraphInstance ||--o| WorkflowGraphInstance : parent_instance_id
 
   WorkflowGraphTemplateNode ||--o{ WorkflowNodeInstance : template_node_id
@@ -81,6 +82,7 @@ erDiagram
   WorkflowNodeInstance ||--o{ WorkflowHumanTaskLink : human_task_links
   Task ||--o| WorkflowHumanTaskLink : work_item
   User ||--o{ WorkflowCommandReceipt : actor
+  WorkflowCommandReceipt ||--o{ WorkflowOperationalIncident : receipt
 ```
 
 | 表 | 模型 | 职责 |
@@ -92,14 +94,15 @@ erDiagram
 | `workflow_node_instances` | `WorkflowNodeInstance` | 节点运行态：引擎态/业务态、迭代、办理人 |
 | `workflow_edge_traversals` | `WorkflowEdgeTraversal` | 每次实际出边求值：taken/not_taken/invalidated 与 Context 证据 |
 | `workflow_node_activation_dependencies` | `WorkflowNodeActivationDependency` | 目标节点由哪条 traversal/哪个上游产生，供 Join 判定 |
-| `workflow_human_task_links` | `WorkflowHumanTaskLink` | Work Item 与 NodeExecution 正式关系、角色与生命周期；取代 JSON 作为新写真相 |
+| `workflow_human_task_links` | `WorkflowHumanTaskLink` | Work Item 与 NodeExecution 正式关系、角色、iteration 与 completed/invalidated/superseded 历史链；取代 JSON 作为新写真相 |
 | `workflow_command_receipts` | `WorkflowCommandReceipt` | actor/type/id 幂等身份、payload hash 与首次结果 |
+| `workflow_operational_incidents` | `WorkflowOperationalIncident` | Link fallback/mismatch/backfill、Coordinator、Receipt、Outbox 与迁移异常的持久查询队列 |
 | `workflow_deliverables` | `WorkflowDeliverable` | 节点交付快照（1:1） |
 | `workflow_outbox_events` | `WorkflowOutboxEvent` | 事务内可靠投递队列 |
 | `workflow_run_events` | `WorkflowRunEvent` | Append-only 运行审计（与 outbox 分离） |
 | `workflow_graph_template_schedules` | `WorkflowGraphTemplateSchedule` | 图模板周期调度（F-24 / ADR-011） |
 
-> 旧文档「九表/十一表」已过时：Iteration 2 增加路径账本，Iteration 3-A 增加 HumanTask Link 与 command receipt。字段权威见 ORM 与 [`graph-engine-schema.md`](../contracts/database/graph-engine-schema.md)。
+> 旧文档「九表/十一表/十三表」已过时：Iteration 2 增加路径账本，Iteration 3-A 增加 HumanTask Link 与 command receipt，Iteration 3-F 增加 operational incident。字段权威见 ORM 与 [`graph-engine-schema.md`](../contracts/database/graph-engine-schema.md)。
 
 ---
 
@@ -229,13 +232,13 @@ flowchart TD
 | 普通手动任务 | `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED=true` 时仅创建 standalone Task，不创建 Run；关闭开关时新建任务回到兼容单节点图 |
 | 模板 Run | 每激活 HumanTask 节点创建 Task + 正式 Link + 可选 ROOT shell；兼容期继续写 metadata / `Node.config.task_id` |
 
-既有兼容图任务仍可自然结束；Task/Node 跨域同步由 `HumanTaskCoordinator` 协调。
+既有兼容图任务仍可自然结束；Task/Node 跨域同步由 `HumanTaskCoordinator` 协调，并分别委托 `WorkItemWriteService` 与 `WorkflowRuntimeWriteService`。全仓库 AST 架构测试阻止 owner 外直接写 Task/Node 或在 Coordinator 内 commit。
 
 ### 5.2 读路径（`TASK_CENTER_V2_ENABLED`，默认 true）
 
 `list_task_inbox` / `tracking` / `history` → `_graph_task_projection_map`：
 
-1. 按 `workflow_human_task_links` 解析，未命中时才回退 JSON 锚点并累计 fallback 指标
+1. 按 `workflow_human_task_links` 解析，未命中时才回退 JSON 锚点并持久登记 `link_fallback`；Link 与 JSON 冲突时以 Link 为准并登记 `link_mismatch`
 2. 用图态生成 `GraphTaskProjection`（覆盖裸 `Task.status`）
 3. 与无锚点 legacy 任务合并排序
 
@@ -271,6 +274,7 @@ flowchart TD
 | Node | `POST /node-instances/{id}/complete|deep-reject|takeover` |
 | Video 动作 | submit-capture · finalize-topics · close-capture · fork/dispatch/reject… |
 | Schedules | `GET/POST /schedules` · `PATCH` · `run-now` |
+| Admin readiness | `GET /admin/iteration4-readiness`（Admin-only，聚合 Link/incident/receipt/outbox/engine/migration blocker） |
 | 其他 | `POST /smart-notice-candidates` |
 
 握手、评论、通用交付/验收仍走 **`/tasks`** / **`/task-center`**，不在本前缀。

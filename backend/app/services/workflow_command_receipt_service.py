@@ -16,6 +16,18 @@ from app.core.exceptions import ConflictError
 from app.models import WorkflowCommandReceipt
 
 
+class CommandPayloadConflictError(ConflictError):
+  def __init__(
+    self,
+    *,
+    receipt: WorkflowCommandReceipt,
+    attempted_payload_hash: str,
+  ) -> None:
+    super().__init__("同一 command id 不能携带不同 payload。")
+    self.receipt = receipt
+    self.attempted_payload_hash = attempted_payload_hash
+
+
 def _canonical_json_default(value: object) -> str:
   if isinstance(value, UUID):
     return str(value)
@@ -87,7 +99,10 @@ class WorkflowCommandReceiptService:
   @staticmethod
   def _assert_same_payload(receipt: WorkflowCommandReceipt, payload_hash: str) -> None:
     if receipt.payload_hash != payload_hash:
-      raise ConflictError("同一 command id 不能携带不同 payload。")
+      raise CommandPayloadConflictError(
+        receipt=receipt,
+        attempted_payload_hash=payload_hash,
+      )
 
   async def claim(
     self,

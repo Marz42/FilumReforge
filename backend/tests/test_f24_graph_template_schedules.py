@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.config import Settings
 from app.core.enums import UserRole, WorkflowGraphInstanceStatus, WorkflowGraphTemplateStatus
@@ -16,6 +16,7 @@ from app.models import (
   WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
   WorkflowGraphTemplateSchedule,
+  WorkflowCommandReceipt,
 )
 from app.schemas.workflow_graph_schedule import GraphTemplateScheduleCreateRequest
 from app.services.auth_service import AuthService
@@ -25,6 +26,7 @@ from app.services.task_service import TaskService
 from app.services.user_service import UserService
 from app.services.workflow_graph_template_schedule_service import WorkflowGraphTemplateScheduleService
 from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
+from app.services.workflow_command_executor import WorkflowCommandExecutor
 from test_workflow_video_w3_instantiation import CAPTURE_SCHEMA, LAUNCH_SCHEMA, TEST_JWT_SECRET, _enabled_settings
 
 AGGREGATE_SCHEMA = {
@@ -178,6 +180,61 @@ async def test_f24_create_schedule_and_run_now(db_session) -> None:
   assert instance is not None
   assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
   assert (instance.context or {}).get("schedule_id") == str(schedule.id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
+async def test_i3f_schedule_run_now_command_replay_creates_one_run(db_session) -> None:  # noqa: ANN001
+  seed = await _seed_schedulable_template(db_session)
+  service = _schedule_service(db_session)
+  schedule = await service.create_schedule(
+    actor=seed["admin"],
+    payload=GraphTemplateScheduleCreateRequest(
+      template_id=seed["template"].id,
+      name="幂等执行",
+      scope_department_id=seed["department"].id,
+      cron_expr="0 9 * * 1",
+    ),
+  )
+
+  async def operation() -> dict[str, object]:
+    result = await service.run_schedule_now(
+      actor=seed["admin"],
+      schedule_id=schedule.id,
+      commit=False,
+    )
+    return result.model_dump(mode="json")
+
+  executor = WorkflowCommandExecutor(db_session)
+  first = await executor.execute(
+    command_id="i3f-schedule-replay-001",
+    command_type="schedule_run_now",
+    payload={"schedule_id": str(schedule.id)},
+    operation=operation,
+    actor_user_id=seed["admin"].id,
+    aggregate_type="workflow_schedule",
+    aggregate_id=schedule.id,
+  )
+  replay = await executor.execute(
+    command_id="i3f-schedule-replay-001",
+    command_type="schedule_run_now",
+    payload={"schedule_id": str(schedule.id)},
+    operation=operation,
+    actor_user_id=seed["admin"].id,
+    aggregate_type="workflow_schedule",
+    aggregate_id=schedule.id,
+  )
+  assert replay == first
+  assert await db_session.scalar(
+    select(func.count(WorkflowGraphInstance.id)).where(
+      WorkflowGraphInstance.template_id == seed["template"].id
+    )
+  ) == 1
+  assert await db_session.scalar(
+    select(func.count(WorkflowCommandReceipt.id)).where(
+      WorkflowCommandReceipt.command_id == "i3f-schedule-replay-001"
+    )
+  ) == 1
 
 
 @pytest.mark.asyncio

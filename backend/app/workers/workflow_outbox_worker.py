@@ -22,9 +22,11 @@ from app.core.enums import (
   DEFAULT_USER_NOTIFICATION_CHANNELS,
   WorkflowOutboxEventStatus,
 )
+from app.models import NotificationMessage as NotificationMessageModel
 from app.models.workflow_graph import WorkflowOutboxEvent
 from app.schemas.messages import NotificationMessage
 from app.services.notification_service import NotificationService
+from app.services.workflow_operational_incident_service import WorkflowOperationalIncidentService
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,12 @@ async def _dispatch_event(
   """根据 event_type 发送对应通知。不抛出异常；失败写入 last_error。"""
   payload: dict[str, Any] = event.payload or {}
   now = datetime.now(UTC)
+  deduplication_key = f"workflow_outbox:{event.id}"
+  existing_notification_id = await session.scalar(
+    select(NotificationMessageModel.id).where(
+      NotificationMessageModel.deduplication_key == deduplication_key
+    )
+  )
 
   try:
     if event.event_type == "workflow_node_taken_over":
@@ -71,7 +79,7 @@ async def _dispatch_event(
             if k not in {"recipient_user_id", "recipient_email", "title", "body_text"}
           },
         ),
-        deduplication_key=f"workflow_outbox:{event.id}",
+        deduplication_key=deduplication_key,
       )
     elif event.event_type == "workflow_node_activated":
       recipient_user_id = payload.get("recipient_user_id")
@@ -95,10 +103,21 @@ async def _dispatch_event(
             if k not in {"recipient_user_id", "recipient_email", "title", "body_text"}
           },
         ),
-        deduplication_key=f"workflow_outbox:{event.id}",
+        deduplication_key=deduplication_key,
       )
     else:
       logger.warning("未知的 outbox event_type=%s，跳过", event.event_type)
+
+    if existing_notification_id is not None:
+      await WorkflowOperationalIncidentService(session).record(
+        category="outbox_duplicate",
+        identity={"outbox_event_id": str(event.id)},
+        severity="warning",
+        instance_id=event.instance_id,
+        node_instance_id=event.node_instance_id,
+        outbox_event_id=event.id,
+        details={"notification_message_id": str(existing_notification_id)},
+      )
 
     event.status = WorkflowOutboxEventStatus.DISPATCHED
     event.dispatched_at = now

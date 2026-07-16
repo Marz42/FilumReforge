@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 12d8f45d4590474c -->
+<!-- checksum: d9939a066490bb0f -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -61,6 +61,7 @@
 | [manuals/manual-database-operations.md](manuals/manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | - |
 | [manuals/project-presentation-guide.md](manuals/project-presentation-guide.md) | `paradigma-manual` | 项目讲解说明书 | 讲解<br>演示<br>onboarding ... | - | - |
 | [manuals/user-manual.md](manuals/user-manual.md) | `paradigma-manual` | 用户说明书 v1.2 | 用户说明<br>user<br>guide | - | - |
+| [manuals/workflow-graph-engine-iteration3f-test-runbook.md](manuals/workflow-graph-engine-iteration3f-test-runbook.md) | `paradigma-manual` | 工作流图引擎 Iteration 3-F 测试操作手册 | Iteration 3-F 测试<br>Iteration 4 准入<br>PostgreSQL 强制测试 ... | - | depends_on:../plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md<br>depends_on:../contracts/database/graph-engine-schema.md |
 | [manuals/workflow-video-v1-collaborative-uat-guide.md](manuals/workflow-video-v1-collaborative-uat-guide.md) | `paradigma-manual` | 视频协同 UAT 指南 | 视频<br>UAT<br>video ... | - | - |
 | [manuals/workflow-video-v1-docker-runbook.md](manuals/workflow-video-v1-docker-runbook.md) | `paradigma-manual` | 视频 Docker 冒烟手册 | 视频<br>Docker<br>video ... | - | - |
 | [manuals/workflow-video-v1-multi-account-e2e-guide.md](manuals/workflow-video-v1-multi-account-e2e-guide.md) | `paradigma-manual` | 多账号 E2E 指南 | 多账号<br>E2E<br>multi-account ... | - | - |

@@ -44,6 +44,7 @@ from app.schemas.workflow_video import (
 )
 from app.services.access_control import ensure_active_user
 from app.services.workflow_graph_service import WorkflowGraphService
+from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_definition_snapshot import (
   SNAPSHOT_EXECUTOR_KIND,
   runtime_template,
@@ -67,6 +68,7 @@ class WorkflowVideoFormService:
     fork_service: WorkflowVideoForkService | None = None,
   ) -> None:
     self._session = session
+    self._human_task_coordinator = HumanTaskCoordinator(session)
     self._workflow_graph_service = workflow_graph_service or WorkflowGraphService(session)
     self._orchestration_service = orchestration_service
     if self._orchestration_service is None:
@@ -228,16 +230,20 @@ class WorkflowVideoFormService:
     node_instance: WorkflowNodeInstance,
   ) -> None:
     now = datetime.now(UTC)
-    node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
-    node_instance.business_state = WorkflowNodeBusinessState.DONE
-    node_instance.completed_at = now
-    task.status = TaskStatus.DONE
-    task.completed_at = now
-    task.updated_at = now
-    metadata = dict(task.extra_metadata or {})
-    metadata["latest_capture_state"] = "submitted"
-    metadata["latest_capture_submitted_at"] = now.isoformat()
-    task.extra_metadata = metadata
+    await self._human_task_coordinator.coordinate_mutations(
+      task=task,
+      node_instance=node_instance,
+      task_changes={"status": TaskStatus.DONE, "completed_at": now, "updated_at": now},
+      task_metadata_patch={
+        "latest_capture_state": "submitted",
+        "latest_capture_submitted_at": now.isoformat(),
+      },
+      node_changes={
+        "engine_state": WorkflowNodeEngineState.COMPLETED,
+        "business_state": WorkflowNodeBusinessState.DONE,
+        "completed_at": now,
+      },
+    )
 
   async def submit_capture(
     self,
@@ -578,10 +584,15 @@ class WorkflowVideoFormService:
 
     now = datetime.now(UTC)
     for node in pending_nodes:
-      node.engine_state = WorkflowNodeEngineState.TERMINATED
-      node.business_state = WorkflowNodeBusinessState.CANCELLED
-      node.terminated_at = now
-      node.node_instance_version += 1
+      await self._human_task_coordinator.coordinate_mutations(
+        node_instance=node,
+        node_changes={
+          "engine_state": WorkflowNodeEngineState.TERMINATED,
+          "business_state": WorkflowNodeBusinessState.CANCELLED,
+          "terminated_at": now,
+          "node_instance_version": node.node_instance_version + 1,
+        },
+      )
 
     # Sync Task projections for terminated capture nodes — mark as DONE
     # so users don't get stuck with "doing" tasks after capture is closed.
@@ -593,12 +604,14 @@ class WorkflowVideoFormService:
           task_id = UUID(raw_task_id.strip())
           pending_task = await self._session.get(Task, task_id)
           if pending_task is not None and pending_task.status != TaskStatus.DONE:
-            pending_task.status = TaskStatus.DONE
-            pending_task.completed_at = now
-            task_metadata = dict(pending_task.extra_metadata or {})
-            task_metadata["latest_capture_state"] = "closed_by_manager"
-            task_metadata["capture_closed_at"] = now.isoformat()
-            pending_task.extra_metadata = task_metadata
+            await self._human_task_coordinator.coordinate_mutations(
+              task=pending_task,
+              task_changes={"status": TaskStatus.DONE, "completed_at": now},
+              task_metadata_patch={
+                "latest_capture_state": "closed_by_manager",
+                "capture_closed_at": now.isoformat(),
+              },
+            )
         except ValueError:
           continue
 

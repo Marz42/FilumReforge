@@ -395,8 +395,18 @@ class WorkflowHumanTaskLink(UUIDPrimaryKeyMixin, TimestampMixin, Base):
       name="wf_human_task_links_role_chk",
     ),
     CheckConstraint(
-      "lifecycle in ('active', 'completed', 'cancelled', 'invalidated')",
+      "lifecycle in ('active', 'completed', 'cancelled', 'invalidated', 'superseded')",
       name="wf_human_task_links_lifecycle_chk",
+    ),
+    CheckConstraint("iteration > 0", name="wf_human_task_links_iteration_chk"),
+    CheckConstraint(
+      "(lifecycle = 'superseded' AND superseded_at IS NOT NULL AND superseded_by_link_id IS NOT NULL) "
+      "OR (lifecycle <> 'superseded' AND superseded_by_link_id IS NULL)",
+      name="wf_human_task_links_superseded_chk",
+    ),
+    CheckConstraint(
+      "superseded_by_link_id IS NULL OR superseded_by_link_id <> id",
+      name="wf_human_task_links_not_self_chk",
     ),
     CheckConstraint(
       "source in ('runtime', 'manual_compat', 'backfill')",
@@ -428,13 +438,29 @@ class WorkflowHumanTaskLink(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   link_role: Mapped[str] = mapped_column(String(16), default="primary", nullable=False)
   lifecycle: Mapped[str] = mapped_column(String(16), default="active", nullable=False)
   source: Mapped[str] = mapped_column(String(16), default="runtime", nullable=False)
+  iteration: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
   link_metadata: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
   invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  superseded_by_link_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey(
+      "workflow_human_task_links.id",
+      name="fk_wf_human_task_links_superseded_by",
+      ondelete="SET NULL",
+    ),
+    nullable=True,
+  )
 
   instance = relationship("WorkflowGraphInstance", back_populates="human_task_links")
   node_instance = relationship("WorkflowNodeInstance", back_populates="human_task_links")
   task = relationship("Task", back_populates="workflow_human_task_links")
+  superseded_by = relationship(
+    "WorkflowHumanTaskLink",
+    remote_side="WorkflowHumanTaskLink.id",
+    foreign_keys=[superseded_by_link_id],
+    post_update=True,
+  )
 
 
 class WorkflowCommandReceipt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -477,6 +503,87 @@ class WorkflowCommandReceipt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
   actor = relationship("User", foreign_keys=[actor_user_id])
+
+
+class WorkflowOperationalIncident(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  """Durable, queryable evidence for Iteration 3-F readiness exceptions."""
+
+  __tablename__ = "workflow_operational_incidents"
+  __table_args__ = (
+    UniqueConstraint("category", "fingerprint", name="uq_wf_operational_incident_identity"),
+    CheckConstraint(
+      "category in ('link_fallback', 'link_mismatch', 'link_backfill_issue', "
+      "'coordinator_failure', 'receipt_conflict', 'outbox_duplicate', 'migration_incomplete')",
+      name=conv("wf_op_inc_category_chk"),
+    ),
+    CheckConstraint(
+      "status in ('open', 'resolved', 'ignored')",
+      name=conv("wf_op_inc_status_chk"),
+    ),
+    CheckConstraint(
+      "severity in ('info', 'warning', 'error', 'critical')",
+      name=conv("wf_op_inc_severity_chk"),
+    ),
+    CheckConstraint("occurrence_count > 0", name=conv("wf_op_inc_count_chk")),
+    Index("idx_wf_operational_incidents_status", "status", "severity", "last_seen_at"),
+    Index("idx_wf_operational_incidents_category", "category", "last_seen_at"),
+    Index("idx_wf_operational_incidents_instance", "instance_id", "status"),
+  )
+
+  category: Mapped[str] = mapped_column(String(32), nullable=False)
+  status: Mapped[str] = mapped_column(String(16), default="open", nullable=False)
+  severity: Mapped[str] = mapped_column(String(16), default="warning", nullable=False)
+  fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+  occurrence_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+  first_seen_at: Mapped[datetime] = mapped_column(
+    DateTime(timezone=True),
+    default=lambda: datetime.now(UTC),
+    nullable=False,
+  )
+  last_seen_at: Mapped[datetime] = mapped_column(
+    DateTime(timezone=True),
+    default=lambda: datetime.now(UTC),
+    nullable=False,
+  )
+  resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  instance_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey(
+      "workflow_graph_instances.id",
+      name="fk_wf_operational_incidents_instance",
+      ondelete="SET NULL",
+    ),
+    nullable=True,
+  )
+  node_instance_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey(
+      "workflow_node_instances.id",
+      name="fk_wf_operational_incidents_node",
+      ondelete="SET NULL",
+    ),
+    nullable=True,
+  )
+  task_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("tasks.id", name="fk_wf_operational_incidents_task", ondelete="SET NULL"),
+    nullable=True,
+  )
+  command_receipt_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey(
+      "workflow_command_receipts.id",
+      name="fk_wf_operational_incidents_receipt",
+      ondelete="SET NULL",
+    ),
+    nullable=True,
+  )
+  outbox_event_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey(
+      "workflow_outbox_events.id",
+      name="fk_wf_operational_incidents_outbox",
+      ondelete="SET NULL",
+    ),
+    nullable=True,
+  )
+  engine_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+  details: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
 
 
 class WorkflowEdgeTraversal(UUIDPrimaryKeyMixin, TimestampMixin, Base):

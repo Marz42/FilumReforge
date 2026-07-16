@@ -1,13 +1,13 @@
 ---
 type: paradigma-plan
 title: 工作流图引擎稳健升级迭代方案
-description: "基于现行十三表图引擎、Task/Node 写边界与视频工作流的渐进式升级方案。"
+description: "基于现行十四表图引擎、Task/Node 写边界与视频工作流的渐进式升级方案。"
 tags:
   - plan
   - workflow-graph
   - runtime
   - migration
-timestamp: 2026-07-16T20:37:13+08:00
+timestamp: 2026-07-16T21:19:21+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -28,7 +28,7 @@ paradigma:
 ---
 # Project Filum 工作流图引擎稳健升级迭代方案
 
-> **状态**：Iteration 0–2 已完成并验收；Iteration 3 A–E 已完成代码实施。2026-07-16 复核后新增强制 Iteration 3-F，必须先实现并通过 31 项 Iteration 4 硬性准入闸门。
+> **状态**：Iteration 0–2 已完成并验收；Iteration 3 A–E 已提交。2026-07-16 已完成强制 Iteration 3-F 工程实现和本地自动化；目标环境 7 天观测及 31 项最终批准未完成，Iteration 4 继续 blocked。
 > **输入**：根目录 `workflow-graph-engine-upgrade-guidance-report.md`、现行 ORM / Service / API / 测试，以及 [`workflow-graph-engine.md`](../domains/workflow-graph-engine.md) as-built。  
 > **与旧计划关系**：[`workflow-refactor-implementation-plan.md`](./workflow-refactor-implementation-plan.md) 记录 Phase 1–11 的历史实施主线；本文只规划其后的结构收敛与正确性升级，不回写历史阶段。
 
@@ -333,6 +333,8 @@ paradigma:
 
 2026-07-16 对现有实现复核后，Iteration 3 原退出标准尚不能全部由代码、数据库约束和可查询证据证明，因此在 Iteration 4 前增加强制收口阶段。详细实施以 [`workflow-graph-engine-iteration3f-readiness-gate-plan.md`](./workflow-graph-engine-iteration3f-readiness-gate-plan.md) 为准。
 
+**落地状态（2026-07-16）**：F1–F6 的代码、双 revision、架构守卫、PostgreSQL 故障注入、兼容矩阵、readiness API/CLI 已实现并通过本地验证；以下“唯一出口”中的目标环境回填、7 天观察与用户批准仍待执行。
+
 ### 必须补齐
 
 - Work Item / Runtime 独占写端口，Coordinator 只编排，不直接写双方 ORM；
@@ -529,7 +531,7 @@ npm run build
 
 ## 16. 下一步
 
-1. 审批 Iteration 3-F 的精确 Link/incident schema、readiness API 和写端口设计；
-2. 按 F1–F6 顺序实施，不与 Iteration 4 Handler 工作并行切流；
-3. 在 PostgreSQL 和目标环境执行回填、故障注入、观察与无损回滚；
+1. 在目标环境执行 `20260716_01` / `20260716_02`、Link dry-run/apply 与 reconciliation；
+2. 用 readiness API/CLI 连续记录 7 天 Link 覆盖、fallback、incident 与 migration blocker；
+3. 完成目标环境恢复/无损代码回滚演练；
 4. 输出 31 项最终准入报告，用户批准后才启动 Iteration 4。

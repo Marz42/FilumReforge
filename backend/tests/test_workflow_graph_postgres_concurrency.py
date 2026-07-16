@@ -33,6 +33,7 @@ from app.models import (
   WorkflowGraphTemplateNode,
   WorkflowNodeInstance,
   WorkflowNodeActivationDependency,
+  WorkflowOutboxEvent,
   WorkflowRunEvent,
 )
 from app.services.auth_service import AuthService
@@ -289,6 +290,126 @@ async def test_command_executor_concurrent_replay_applies_node_once(pg_session_f
   assert receipt_count == 1
   assert len(events) == 1
   assert events[0].command_id == command_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
+@pytest.mark.parametrize("fault_point", ["after_work_item", "after_node", "after_outbox"])
+async def test_i3f_command_fault_injection_rolls_back_all_business_writes(
+  pg_session_factory,
+  fault_point: str,
+) -> None:
+  seed = await _seed_graph(pg_session_factory, node_keys=("A",), edges=())
+  command_id = f"pg-i3f-fault-{fault_point}-{uuid4().hex}"
+  title = f"rollback-{command_id}"
+
+  async with pg_session_factory() as session:
+    async def operation() -> dict[str, object]:
+      task = Task(
+        title=title,
+        creator_id=seed.actor_id,
+        assignee_id=seed.actor_id,
+        priority=TaskPriority.MEDIUM,
+        source_type=TaskSourceType.MANUAL,
+        extra_metadata={},
+      )
+      session.add(task)
+      await session.flush()
+      if fault_point == "after_work_item":
+        raise RuntimeError(fault_point)
+
+      node = await session.get(WorkflowNodeInstance, seed.nodes["A"], with_for_update=True)
+      assert node is not None
+      node.engine_state = WorkflowNodeEngineState.COMPLETED
+      node.node_instance_version += 1
+      await session.flush()
+      if fault_point == "after_node":
+        raise RuntimeError(fault_point)
+
+      session.add(
+        WorkflowOutboxEvent(
+          instance_id=seed.instance_id,
+          node_instance_id=seed.nodes["A"],
+          event_type="workflow_node_activated",
+          payload={},
+        )
+      )
+      await session.flush()
+      raise RuntimeError(fault_point)
+
+    with pytest.raises(RuntimeError, match=fault_point):
+      await WorkflowCommandExecutor(session).execute(
+        command_id=command_id,
+        command_type="complete_node",
+        payload={"node_instance_id": str(seed.nodes["A"])},
+        operation=operation,
+        actor_user_id=seed.actor_id,
+      )
+
+  async with pg_session_factory() as session:
+    node = await session.get(WorkflowNodeInstance, seed.nodes["A"])
+    assert node is not None
+    assert node.engine_state == WorkflowNodeEngineState.ACTIVATED
+    assert node.node_instance_version == 1
+    assert await session.scalar(select(func.count(Task.id)).where(Task.title == title)) == 0
+    assert await session.scalar(
+      select(func.count(WorkflowOutboxEvent.id)).where(
+        WorkflowOutboxEvent.instance_id == seed.instance_id
+      )
+    ) == 0
+    receipt = await session.scalar(
+      select(WorkflowCommandReceipt).where(WorkflowCommandReceipt.command_id == command_id)
+    )
+    assert receipt is not None
+    assert receipt.status == "failed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
+async def test_i3f_commit_failure_rolls_back_success_receipt_and_node(pg_session_factory) -> None:
+  seed = await _seed_graph(pg_session_factory, node_keys=("A",), edges=())
+  command_id = f"pg-i3f-commit-fault-{uuid4().hex}"
+
+  async with pg_session_factory() as session:
+    original_commit = session.commit
+    commit_attempts = 0
+
+    async def fail_first_commit() -> None:
+      nonlocal commit_attempts
+      commit_attempts += 1
+      if commit_attempts == 1:
+        raise RuntimeError("commit-fault")
+      await original_commit()
+
+    session.commit = fail_first_commit  # type: ignore[method-assign]
+
+    async def operation() -> dict[str, object]:
+      node = await session.get(WorkflowNodeInstance, seed.nodes["A"], with_for_update=True)
+      assert node is not None
+      node.engine_state = WorkflowNodeEngineState.COMPLETED
+      node.node_instance_version += 1
+      await session.flush()
+      return {"node_instance_id": str(node.id)}
+
+    with pytest.raises(RuntimeError, match="commit-fault"):
+      await WorkflowCommandExecutor(session).execute(
+        command_id=command_id,
+        command_type="complete_node",
+        payload={"node_instance_id": str(seed.nodes["A"])},
+        operation=operation,
+        actor_user_id=seed.actor_id,
+      )
+
+  async with pg_session_factory() as session:
+    node = await session.get(WorkflowNodeInstance, seed.nodes["A"])
+    assert node is not None
+    assert node.engine_state == WorkflowNodeEngineState.ACTIVATED
+    assert node.node_instance_version == 1
+    receipt = await session.scalar(
+      select(WorkflowCommandReceipt).where(WorkflowCommandReceipt.command_id == command_id)
+    )
+    assert receipt is not None
+    assert receipt.status == "failed"
 
 
 @pytest.mark.asyncio

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -25,6 +25,9 @@ from app.models import (
   WorkflowHumanTaskLink,
   WorkflowNodeInstance,
 )
+from app.services.work_item_write_service import WorkItemWriteService
+from app.services.workflow_operational_incident_service import WorkflowOperationalIncidentService
+from app.services.workflow_runtime_write_service import WorkflowRuntimeWriteService
 
 
 logger = logging.getLogger(__name__)
@@ -53,6 +56,7 @@ class HumanTaskBackfillReport:
   created: int = 0
   existing: int = 0
   issues: list[HumanTaskBackfillIssue] = field(default_factory=list)
+  checkpoint_task_id: UUID | None = None
 
 
 class HumanTaskCoordinator:
@@ -64,10 +68,48 @@ class HumanTaskCoordinator:
 
   def __init__(self, session: AsyncSession) -> None:
     self._session = session
+    self._work_items = WorkItemWriteService(session)
+    self._runtime = WorkflowRuntimeWriteService(session)
+    self._incidents = WorkflowOperationalIncidentService(session)
 
   @staticmethod
   def resolution_metrics() -> dict[str, int]:
     return dict(_resolution_counts)
+
+  def create_work_item(self, **values: object) -> Task:
+    return self._work_items.create(**values)
+
+  def create_runtime_instance(self, **values: object) -> WorkflowGraphInstance:
+    return self._runtime.create_instance(**values)
+
+  def create_runtime_node(self, **values: object) -> WorkflowNodeInstance:
+    return self._runtime.create_node(**values)
+
+  async def coordinate_mutations(
+    self,
+    *,
+    task: Task | None = None,
+    node_instance: WorkflowNodeInstance | None = None,
+    graph_instance: WorkflowGraphInstance | None = None,
+    task_changes: dict[str, object] | None = None,
+    task_metadata_patch: dict[str, object] | None = None,
+    node_changes: dict[str, object] | None = None,
+    node_config_patch: dict[str, object] | None = None,
+    instance_changes: dict[str, object] | None = None,
+  ) -> None:
+    """Coordinate owner-only mutations inside the caller's transaction."""
+    if task is not None:
+      if task_changes:
+        self._work_items.update(task, **task_changes)
+      if task_metadata_patch:
+        self._work_items.patch_metadata(task, task_metadata_patch)
+    if node_instance is not None:
+      if node_changes:
+        self._runtime.update_node(node_instance, **node_changes)
+      if node_config_patch:
+        self._runtime.patch_node_config(node_instance, node_config_patch)
+    if graph_instance is not None and instance_changes:
+      self._runtime.update_instance(graph_instance, **instance_changes)
 
   async def ensure_link(
     self,
@@ -111,6 +153,7 @@ class HumanTaskCoordinator:
       link_role=link_role,
       lifecycle="active",
       source=source,
+      iteration=node_instance.iteration,
       link_metadata=dict(link_metadata or {}),
     )
     try:
@@ -136,6 +179,30 @@ class HumanTaskCoordinator:
         if active_primary is not None:
           raise ConflictError("当前 NodeInstance 已有关联的 active primary Work Item。")
       raise
+
+    if node_instance.iteration > 1:
+      previous_link = await self._session.scalar(
+        select(WorkflowHumanTaskLink)
+        .join(
+          WorkflowNodeInstance,
+          WorkflowHumanTaskLink.node_instance_id == WorkflowNodeInstance.id,
+        )
+        .where(
+          WorkflowHumanTaskLink.instance_id == node_instance.instance_id,
+          WorkflowHumanTaskLink.link_role == link_role,
+          WorkflowHumanTaskLink.id != link.id,
+          WorkflowNodeInstance.node_key == node_instance.node_key,
+          WorkflowNodeInstance.instance_key == node_instance.instance_key,
+          WorkflowNodeInstance.iteration < node_instance.iteration,
+        )
+        .order_by(WorkflowNodeInstance.iteration.desc())
+        .limit(1)
+      )
+      if previous_link is not None and previous_link.lifecycle != "superseded":
+        await self.supersede_link(
+          previous_link=previous_link,
+          replacement_link=link,
+        )
     return link
 
   async def resolve_for_task(
@@ -153,6 +220,28 @@ class HumanTaskCoordinator:
       .where(WorkflowHumanTaskLink.task_id == task.id)
     )
     if link is not None:
+      metadata = task.extra_metadata if isinstance(task.extra_metadata, dict) else {}
+      json_node_id = str(metadata.get("workflow_node_instance_id") or "")
+      json_instance_id = str(metadata.get("workflow_graph_instance_id") or "")
+      if (
+        (json_node_id and json_node_id != str(link.node_instance_id))
+        or (json_instance_id and json_instance_id != str(link.instance_id))
+      ):
+        await self._incidents.record(
+          category="link_mismatch",
+          identity={"task_id": str(task.id)},
+          severity="error",
+          instance_id=link.instance_id,
+          node_instance_id=link.node_instance_id,
+          task_id=task.id,
+          engine_version=link.instance.engine_version if link.instance is not None else None,
+          details={
+            "link_instance_id": str(link.instance_id),
+            "link_node_instance_id": str(link.node_instance_id),
+            "json_instance_id": json_instance_id or None,
+            "json_node_instance_id": json_node_id or None,
+          },
+        )
       _resolution_counts["link"] += 1
       return HumanTaskResolution(
         instance=link.instance,
@@ -188,6 +277,16 @@ class HumanTaskCoordinator:
       instance.id,
       node_instance.id,
     )
+    await self._incidents.record(
+      category="link_fallback",
+      identity={"task_id": str(task.id)},
+      severity="error",
+      instance_id=instance.id,
+      node_instance_id=node_instance.id,
+      task_id=task.id,
+      engine_version=instance.engine_version,
+      details={"source": "legacy_json_anchors"},
+    )
     _resolution_counts["json_fallback"] += 1
     return HumanTaskResolution(instance, node_instance, None, "json_fallback")
 
@@ -199,12 +298,12 @@ class HumanTaskCoordinator:
     source: str = "runtime",
     mark_doing: bool = False,
   ) -> WorkflowHumanTaskLink:
-    node_instance.config = {
-      **dict(node_instance.config or {}),
-      "task_id": str(task.id),
-    }
+    self._runtime.patch_node_config(node_instance, {"task_id": str(task.id)})
     if mark_doing and node_instance.business_state == WorkflowNodeBusinessState.ASSIGNED:
-      node_instance.business_state = WorkflowNodeBusinessState.DOING
+      self._runtime.update_node(
+        node_instance,
+        business_state=WorkflowNodeBusinessState.DOING,
+      )
     return await self.ensure_link(
       task_id=task.id,
       node_instance_id=node_instance.id,
@@ -221,17 +320,26 @@ class HumanTaskCoordinator:
     reference_time: datetime,
   ) -> None:
     """Apply one coordinated Work Item / Node review transition."""
-    task.status = TaskStatus.REVIEW
-    task.completed_at = None
-    task.updated_at = reference_time
-    node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
-    node_instance.business_state = WorkflowNodeBusinessState.PENDING_REVIEW
-    node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
-    node_instance.completed_at = None
+    self._work_items.update(
+      task,
+      status=TaskStatus.REVIEW,
+      completed_at=None,
+      updated_at=reference_time,
+    )
+    self._runtime.update_node(
+      node_instance,
+      engine_state=WorkflowNodeEngineState.ACKNOWLEDGED,
+      business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+      acknowledged_at=node_instance.acknowledged_at or reference_time,
+      completed_at=None,
+    )
     if root_task is not None:
-      root_task.status = TaskStatus.REVIEW
-      root_task.completed_at = None
-      root_task.updated_at = reference_time
+      self._work_items.update(
+        root_task,
+        status=TaskStatus.REVIEW,
+        completed_at=None,
+        updated_at=reference_time,
+      )
 
   async def apply_aggregate_confirmation(
     self,
@@ -242,17 +350,24 @@ class HumanTaskCoordinator:
   ) -> None:
     """Resolve an aggregate capability across Runtime and its optional Work Item."""
     if node_instance.engine_state != WorkflowNodeEngineState.COMPLETED:
-      node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
-      node_instance.business_state = WorkflowNodeBusinessState.DONE
-      node_instance.completed_at = reference_time
+      self._runtime.update_node(
+        node_instance,
+        engine_state=WorkflowNodeEngineState.COMPLETED,
+        business_state=WorkflowNodeBusinessState.DONE,
+        completed_at=reference_time,
+      )
     if task is None:
       return
-    task.status = TaskStatus.DONE
-    task.completed_at = reference_time
-    task.updated_at = reference_time
-    metadata = dict(task.extra_metadata or {})
-    metadata["aggregate_confirmed_at"] = reference_time.isoformat()
-    task.extra_metadata = metadata
+    self._work_items.update(
+      task,
+      status=TaskStatus.DONE,
+      completed_at=reference_time,
+      updated_at=reference_time,
+    )
+    self._work_items.patch_metadata(
+      task,
+      {"aggregate_confirmed_at": reference_time.isoformat()},
+    )
 
   async def apply_handshake_acceptance(
     self,
@@ -263,22 +378,23 @@ class HumanTaskCoordinator:
     reference_time: datetime,
   ) -> None:
     """Accept a HumanTask handshake without exposing Node writes to TaskService."""
-    node_instance.business_state = WorkflowNodeBusinessState.ACCEPTED
-    node_instance.acknowledged_at = reference_time
-    metadata = dict(task.extra_metadata or {})
-    metadata.update(
+    self._runtime.update_node(
+      node_instance,
+      business_state=WorkflowNodeBusinessState.ACCEPTED,
+      acknowledged_at=reference_time,
+    )
+    self._work_items.patch_metadata(
+      task,
       {
         "workflow_handshake_state": "accepted",
         "latest_handshake_action": "accepted",
         "latest_handshake_actor_user_id": str(actor_id),
         "latest_handshake_at": reference_time.isoformat(),
-      }
+      },
     )
-    task.extra_metadata = metadata
     if task.status == TaskStatus.TODO:
-      task.status = TaskStatus.DOING
-      task.started_at = reference_time
-    task.updated_at = reference_time
+      self._work_items.update(task, status=TaskStatus.DOING, started_at=reference_time)
+    self._work_items.update(task, updated_at=reference_time)
 
   async def sync_runtime_for_task_status(
     self,
@@ -294,33 +410,48 @@ class HumanTaskCoordinator:
     if instance is None or node_instance is None:
       return
 
-    instance.status = WorkflowGraphInstanceStatus.ACTIVE
-    instance.completed_at = None
-    instance.current_node_key = node_instance.node_key
+    self._runtime.update_instance(
+      instance,
+      status=WorkflowGraphInstanceStatus.ACTIVE,
+      completed_at=None,
+      current_node_key=node_instance.node_key,
+    )
     if target_status == TaskStatus.DOING:
-      node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
-      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
-      node_instance.completed_at = None
-      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.DOING
+      self._runtime.update_node(
+        node_instance,
+        engine_state=WorkflowNodeEngineState.ACKNOWLEDGED,
+        acknowledged_at=node_instance.acknowledged_at or reference_time,
+        completed_at=None,
+        business_state=force_business_state or WorkflowNodeBusinessState.DOING,
+      )
       await self._set_link_lifecycle(resolution.link, lifecycle="active")
       return
     if target_status == TaskStatus.REVIEW:
-      node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
-      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
-      node_instance.completed_at = None
-      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.PENDING_REVIEW
+      self._runtime.update_node(
+        node_instance,
+        engine_state=WorkflowNodeEngineState.ACKNOWLEDGED,
+        acknowledged_at=node_instance.acknowledged_at or reference_time,
+        completed_at=None,
+        business_state=force_business_state or WorkflowNodeBusinessState.PENDING_REVIEW,
+      )
       await self._set_link_lifecycle(resolution.link, lifecycle="active")
       return
     if target_status == TaskStatus.DONE:
-      node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
-      node_instance.acknowledged_at = node_instance.acknowledged_at or reference_time
-      node_instance.completed_at = reference_time
-      node_instance.business_state = force_business_state or WorkflowNodeBusinessState.DONE
+      self._runtime.update_node(
+        node_instance,
+        engine_state=WorkflowNodeEngineState.COMPLETED,
+        acknowledged_at=node_instance.acknowledged_at or reference_time,
+        completed_at=reference_time,
+        business_state=force_business_state or WorkflowNodeBusinessState.DONE,
+      )
       if task.source_type == TaskSourceType.MANUAL:
-        instance.status = WorkflowGraphInstanceStatus.COMPLETED
-        instance.result = instance.result or "success"
-        instance.completed_at = reference_time
-        instance.current_node_key = None
+        self._runtime.update_instance(
+          instance,
+          status=WorkflowGraphInstanceStatus.COMPLETED,
+          result=instance.result or "success",
+          completed_at=reference_time,
+          current_node_key=None,
+        )
       await self._set_link_lifecycle(
         resolution.link,
         lifecycle="completed",
@@ -349,20 +480,29 @@ class HumanTaskCoordinator:
     }:
       raise ConflictError("当前图节点已失效，不能继续执行握手动作。")
 
-    instance.completed_at = None
-    instance.current_node_key = node_instance.node_key
-    node_instance.completed_at = None
+    self._runtime.update_instance(
+      instance,
+      completed_at=None,
+      current_node_key=node_instance.node_key,
+    )
+    self._runtime.update_node(node_instance, completed_at=None)
     if assignee_id is not None:
-      node_instance.assignee_user_id = assignee_id
+      self._runtime.update_node(node_instance, assignee_user_id=assignee_id)
     if business_state == WorkflowNodeBusinessState.ASSIGNED:
-      node_instance.engine_state = WorkflowNodeEngineState.ACTIVATED
-      node_instance.business_state = WorkflowNodeBusinessState.ASSIGNED
+      self._runtime.update_node(
+        node_instance,
+        engine_state=WorkflowNodeEngineState.ACTIVATED,
+        business_state=WorkflowNodeBusinessState.ASSIGNED,
+      )
       if reset_acknowledged_at:
-        node_instance.acknowledged_at = None
+        self._runtime.update_node(node_instance, acknowledged_at=None)
     else:
-      node_instance.engine_state = WorkflowNodeEngineState.ACKNOWLEDGED
-      node_instance.business_state = business_state
-      node_instance.acknowledged_at = reference_time
+      self._runtime.update_node(
+        node_instance,
+        engine_state=WorkflowNodeEngineState.ACKNOWLEDGED,
+        business_state=business_state,
+        acknowledged_at=reference_time,
+      )
     await self._set_link_lifecycle(resolution.link, lifecycle="active")
 
   async def sync_work_item_after_takeover(
@@ -385,18 +525,17 @@ class HumanTaskCoordinator:
       task = await self._session.get(Task, graph_instance.source_id)
     if task is None or task.source_type != TaskSourceType.MANUAL:
       return
-    metadata = dict(task.extra_metadata or {})
-    task.assignee_id = new_assignee_id
-    metadata.update(
+    self._work_items.update(task, assignee_id=new_assignee_id)
+    self._work_items.patch_metadata(
+      task,
       {
         "workflow_handshake_state": "assigned",
         "latest_handshake_action": "takeover",
         "latest_handshake_actor_user_id": str(actor_id),
         "latest_takeover_reason": reason,
-      }
+      },
     )
-    task.extra_metadata = metadata
-    task.updated_at = datetime.now(UTC)
+    self._work_items.update(task, updated_at=datetime.now(UTC))
 
   async def sync_link_lifecycles_for_instance(
     self,
@@ -427,8 +566,8 @@ class HumanTaskCoordinator:
       }:
         await self._set_link_lifecycle(link, lifecycle="invalidated", reference_time=now)
 
-  @staticmethod
   async def _set_link_lifecycle(
+    self,
     link: WorkflowHumanTaskLink | None,
     *,
     lifecycle: str,
@@ -440,19 +579,63 @@ class HumanTaskCoordinator:
     if lifecycle == "completed":
       link.completed_at = reference_time or datetime.now(UTC)
       link.invalidated_at = None
+      link.superseded_at = None
+      link.superseded_by_link_id = None
     elif lifecycle in {"cancelled", "invalidated"}:
       link.completed_at = None
       link.invalidated_at = reference_time or datetime.now(UTC)
+      link.superseded_at = None
+      link.superseded_by_link_id = None
     else:
       link.completed_at = None
       link.invalidated_at = None
+      if lifecycle != "superseded":
+        link.superseded_at = None
+        link.superseded_by_link_id = None
 
-  async def backfill_existing_links(self, *, dry_run: bool = True) -> HumanTaskBackfillReport:
+  async def supersede_link(
+    self,
+    *,
+    previous_link: WorkflowHumanTaskLink,
+    replacement_link: WorkflowHumanTaskLink,
+    reference_time: datetime | None = None,
+  ) -> None:
+    if previous_link.id == replacement_link.id:
+      raise ConflictError("HumanTask Link 不能 supersede 自己。")
+    previous_link.lifecycle = "superseded"
+    previous_link.completed_at = None
+    previous_link.invalidated_at = None
+    previous_link.superseded_at = reference_time or datetime.now(UTC)
+    previous_link.superseded_by_link_id = replacement_link.id
+
+  async def backfill_existing_links(
+    self,
+    *,
+    dry_run: bool = True,
+    after_task_id: UUID | None = None,
+    limit: int | None = None,
+  ) -> HumanTaskBackfillReport:
     """Cross-check all legacy JSON anchors and optionally materialize safe links."""
     report = HumanTaskBackfillReport()
     pending_links: list[tuple[UUID, UUID]] = []
-    tasks = list(await self._session.scalars(select(Task).order_by(Task.created_at.asc())))
+    query = select(Task).order_by(Task.created_at.asc(), Task.id.asc())
+    if after_task_id is not None:
+      checkpoint = await self._session.get(Task, after_task_id)
+      if checkpoint is None:
+        raise NotFoundError("HumanTask Link 回填 checkpoint Task 不存在。")
+      query = query.where(
+        or_(
+          Task.created_at > checkpoint.created_at,
+          and_(Task.created_at == checkpoint.created_at, Task.id > checkpoint.id),
+        )
+      )
+    if limit is not None:
+      if limit <= 0 or limit > 10_000:
+        raise ConflictError("HumanTask Link 回填 batch size 必须在 1–10000 之间。")
+      query = query.limit(limit)
+    tasks = list(await self._session.scalars(query))
     for task in tasks:
+      report.checkpoint_task_id = task.id
       metadata = task.extra_metadata if isinstance(task.extra_metadata, dict) else {}
       if not metadata.get("workflow_node_instance_id") and not metadata.get("workflow_graph_instance_id"):
         continue
@@ -507,13 +690,33 @@ class HumanTaskCoordinator:
           report.issues.append(
             HumanTaskBackfillIssue(task.id, "link_mismatch", "既有 Link 与 JSON 锚点指向不同 Node。")
           )
+          if not dry_run:
+            await self._incidents.record(
+              category="link_mismatch",
+              identity={"task_id": str(task.id)},
+              severity="error",
+              instance_id=existing.instance_id,
+              node_instance_id=existing.node_instance_id,
+              task_id=task.id,
+              details={"json_node_instance_id": str(node_instance.id)},
+            )
         else:
           report.existing += 1
         continue
 
       pending_links.append((task.id, node_instance.id))
 
-    if not dry_run and not report.issues:
+    if not dry_run:
+      for issue in report.issues:
+        await self._incidents.record(
+          category="link_backfill_issue",
+          identity={"task_id": str(issue.task_id), "code": issue.code},
+          severity="error",
+          task_id=issue.task_id,
+          details={"code": issue.code, "detail": issue.detail},
+        )
+
+    if not dry_run:
       for task_id, node_instance_id in pending_links:
         await self.ensure_link(
           task_id=task_id,

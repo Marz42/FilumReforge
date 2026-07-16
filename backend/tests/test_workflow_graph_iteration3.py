@@ -27,6 +27,7 @@ from app.models import (
   WorkflowGraphInstance,
   WorkflowHumanTaskLink,
   WorkflowNodeInstance,
+  WorkflowOperationalIncident,
   WorkflowRunEvent,
 )
 from app.services.human_task_coordinator import HumanTaskCoordinator
@@ -183,16 +184,23 @@ async def test_human_task_backfill_requires_cross_checked_anchors(db_session) ->
   assert [issue.code for issue in dry_run.issues] == ["invalid_json_anchor"]
 
   report = await coordinator.backfill_existing_links(dry_run=False)
-  assert report.created == 0
+  assert report.created == 1
   assert report.issues
   assert await db_session.scalar(
     select(WorkflowHumanTaskLink).where(WorkflowHumanTaskLink.task_id == task.id)
-  ) is None
+  ) is not None
+  incident = await db_session.scalar(
+    select(WorkflowOperationalIncident).where(
+      WorkflowOperationalIncident.category == "link_backfill_issue"
+    )
+  )
+  assert incident is not None
+  assert incident.task_id == invalid.id
 
   await db_session.delete(invalid)
   await db_session.flush()
   report = await coordinator.backfill_existing_links(dry_run=False)
-  assert report.created == 1
+  assert report.created == 0
   link = await db_session.scalar(
     select(WorkflowHumanTaskLink).where(WorkflowHumanTaskLink.task_id == task.id)
   )

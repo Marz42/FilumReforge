@@ -9,7 +9,7 @@ tags:
   - readiness-gate
   - ownership
   - observability
-timestamp: 2026-07-16T20:37:13+08:00
+timestamp: 2026-07-16T22:07:09+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -22,9 +22,20 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 3-F · Iteration 4 硬性准入实施计划
 
-> **状态**：方案已形成，尚未实施。Iteration 3 A–E 的代码与迁移保持现状；在本计划全部验收并经用户批准前，禁止启动 Iteration 4 Handler 化。
+> **状态**：2026-07-16 已完成 F1–F6 工程实现和本地自动化验证；目标环境 Expand/Contract 部署、Link 回填、连续 7 天观测、最终 31/31 报告与用户批准尚未完成，因此 Iteration 4 Handler 化继续 blocked。
 >
 > **审查基线**：2026-07-16 对 31 项硬条件复核结果为 11 项通过、7 项部分具备、13 项未满足。本计划以“31/31 PASS、0 PARTIAL、0 FAIL”为唯一出口。
+
+### 2026-07-16 实施状态
+
+- [x] F1：两个 flush-only 写端口、跨域写点收口、全仓库 AST ownership/commit guard 与故意违规反向测试。
+- [x] F2：Expand/Contract 两个 revision、Link iteration/superseded、持久 operational incident、可断点且异常可落队列的回填器。
+- [x] F3/F4：命令 UoW 故障注入、Receipt 冲突/失败诊断、create/complete/deep-reject/takeover/schedule 重放副作用断言。
+- [x] F5：standalone、Notice、旧执行路径、executor 固定与无删除回滚兼容测试。
+- [x] F6：Admin readiness API、CLI verifier、engine/fallback/incident/outbox/receipt/migration blocker 聚合查询。
+- [x] 本地 Backend 全量、compileall、前端 type-check 通过；临时 PostgreSQL 强制专项 **17/17 PASS、0 skip**。
+- [ ] 目标环境执行迁移与 Link dry-run/apply，连续 7 天 reconciliation 100%、runtime fallback 0、open P0/P1 incident 0。
+- [ ] 生成最终 31 项准入报告并取得用户批准。
 
 ## 1. 目标与边界
 
@@ -244,9 +255,11 @@ Readiness API 只返回必要 ID 和聚合，不泄露 payload、人员隐私或
 
 API 仅新增 Admin-only readiness 只读接口；现有 Task、Run、模板和命令响应保持兼容。新增 pytest marker：`workflow_i4_gate`，默认 pytest 仍收集这些测试。
 
-实现 schema/API 前必须单独确认精确 migration、Pydantic 响应和权限设计；本计划本身不授权直接删除列、停写 JSON 或改变公共响应。
+精确 migration、Pydantic 响应和权限设计已由用户批准并按本计划实现；仍不授权直接删除列、停写 JSON 或改变既有公共响应。
 
 ## 6. 验证命令
+
+完整的开发机、PostgreSQL、目标环境迁移/回填和七天观测步骤见 [`Iteration 3-F 测试操作手册`](../manuals/workflow-graph-engine-iteration3f-test-runbook.md)。
 
 ```powershell
 cd backend

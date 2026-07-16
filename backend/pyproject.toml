@@ -44,6 +44,7 @@ pythonpath = ["."]
 markers = [
   "postgres: requires a reachable PostgreSQL instance (see POSTGRES_TEST_ADMIN_DSN)",
   "workflow_gap: strict executable evidence for registered workflow-engine gaps",
+  "workflow_i4_gate: executable evidence required before Iteration 4 admission",
 ]
 
 [tool.setuptools.packages.find]
