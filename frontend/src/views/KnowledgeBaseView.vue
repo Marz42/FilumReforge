@@ -26,6 +26,7 @@ import type {
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
+import { renderSafeMarkdown } from '@/utils/safe-markdown'
 
 const authStore = useAuthStore()
 const loading = ref(false)
@@ -66,6 +67,14 @@ const form = reactive({
 })
 
 const isEditing = computed(() => Boolean(form.documentId))
+
+const selectedDocumentHtml = computed(() => {
+  const source = selectedDocument.value?.content_md
+  if (!source) {
+    return ''
+  }
+  return renderSafeMarkdown(source)
+})
 
 function categoryLabel(category: DocumentCategory): string {
   return categoryLabelMap[category]
@@ -373,7 +382,10 @@ defineExpose({
             </el-descriptions>
 
             <el-divider>正文</el-divider>
-            <pre class="knowledge-page__markdown">{{ selectedDocument.content_md }}</pre>
+            <div
+              class="knowledge-page__markdown knowledge-page__markdown--rendered"
+              v-html="selectedDocumentHtml"
+            />
 
             <el-divider>附件</el-divider>
             <el-empty
@@ -572,6 +584,42 @@ defineExpose({
   font-family: inherit;
   line-height: 1.7;
   color: var(--filum-text-secondary);
+}
+
+.knowledge-page__markdown--rendered {
+  white-space: normal;
+}
+
+.knowledge-page__markdown--rendered :deep(h1),
+.knowledge-page__markdown--rendered :deep(h2),
+.knowledge-page__markdown--rendered :deep(h3) {
+  margin: 1em 0 0.4em;
+  color: var(--filum-text-primary, inherit);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.knowledge-page__markdown--rendered :deep(p),
+.knowledge-page__markdown--rendered :deep(ul),
+.knowledge-page__markdown--rendered :deep(ol) {
+  margin: 0.6em 0;
+}
+
+.knowledge-page__markdown--rendered :deep(pre),
+.knowledge-page__markdown--rendered :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.knowledge-page__markdown--rendered :deep(pre) {
+  overflow: auto;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--el-fill-color-light, #f5f7fa);
+}
+
+.knowledge-page__markdown--rendered :deep(a) {
+  color: var(--el-color-primary);
 }
 
 .knowledge-page__attachment-upload {

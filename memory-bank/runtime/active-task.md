@@ -27,7 +27,7 @@ paradigma:
 |------|------|
 | **任务标题** | 工作流图引擎结构收敛与运行时正确性升级 |
 | **优先级** | P0 基线 |
-| **状态** | P0 standalone Work Item 批 · **回归矩阵已固化** · 待用户 review 后冻结提交 · 批次二（Nginx/Markdown）blocked until P0 tag |
+| **状态** | 批次二（Nginx/Markdown）已实施 · 待单独提交验收 · Iteration 3-F 目标环境观测仍并行 |
 
 ---
 
@@ -35,8 +35,8 @@ paradigma:
 
 | 交付 | 说明 |
 |------|------|
-| P0 standalone 回归矩阵 @ 2026-07-17 | API E2E 14 项（场景 A–F）+ PostgreSQL 并发 5 项 + 不变量/assignment_mode 拒绝；全量 backend 311 passed；验收报告 [`p0-standalone-work-item-acceptance-20260717`](../history/reports/p0-standalone-work-item-acceptance-20260717.md) |
-| P0 standalone Work Item 实现 @ 2026-07-17 | `assignment_mode`、动作契约、任务中心桶位、standalone 转办、跨部门候选、前端 `available_actions`；双轨 workflow legacy 保持不变 |
+| 批次二 Nginx + Markdown @ 2026-07-17 | 开发网关 `client_max_body_size 64m`；上传边界测试；`renderSafeMarkdown` + DOMPurify；知识库正文与附件预览消毒；XSS 单测 |
+| P0 standalone 冻结提交 @ 2026-07-17 | `8d64a7c` feat(tasks): treat standalone work items as first-class |
 | Iteration 3-F 工程实施 @ 2026-07-16 | 两个独占写端口与全仓库 AST guard；Link iteration/superseded 与 operational incident；Expand/Contract 迁移；UoW 故障注入；命令重放；readiness API/CLI。Backend 全量、PostgreSQL 17/17、compileall、前端 type-check 通过 |
 | Iteration 3-F 方案 @ 2026-07-16 | 31 项 I4 硬闸门映射为所有权、Link、事务、幂等、兼容和观测六批实施；定义两个独占写端口、Link superseded/iteration、持久异常队列、PostgreSQL 故障注入与 7 天零 fallback 出口 |
 | Iteration 3 B–E @ 2026-07-15 | dry-run 回填器、Link 生命周期/观测、Coordinator 写边界、standalone 默认路径、五类 command receipt、事件信封、Outbox event-id 去重；Backend 全量、PostgreSQL 13/13、前端类型检查通过 |
@@ -67,4 +67,4 @@ paradigma:
 
 ---
 
-**下一 actionable**：用户 review P0 批后 **git 冻结提交**；随后单独进入批次二（Nginx 64m + 上传边界测试；Markdown + DOMPurify + XSS，不可拆分）。Iteration 3-F 目标环境 7 天观测与 Iteration 4 批准仍并行待办。
+**下一 actionable**：单独提交并验收批次二；Iteration 3-F 目标环境 7 天观测与 Iteration 4 批准仍待办。

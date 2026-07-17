@@ -1,10 +1,10 @@
 import mammoth from 'mammoth'
-import { marked } from 'marked'
 import readXlsxFile, { type CellValue } from 'read-excel-file/browser'
 
 import { fetchAttachmentContent } from '@/api/attachments'
 import { resolveAttachmentPreviewKind } from '@/constants/attachments'
 import type { Attachment } from '@/types/api'
+import { renderSafeMarkdown, sanitizeHtml } from '@/utils/safe-markdown'
 
 export type AttachmentPreviewSheet = {
   name: string
@@ -81,9 +81,8 @@ export async function buildAttachmentPreviewContent(
       }
     case 'markdown': {
       const text = await blob.text()
-      const html = await marked.parse(text)
       return {
-        content: { kind: 'markdown', html: String(html) },
+        content: { kind: 'markdown', html: renderSafeMarkdown(text) },
         objectUrls,
       }
     }
@@ -91,7 +90,7 @@ export async function buildAttachmentPreviewContent(
       const arrayBuffer = await blobToArrayBuffer(blob)
       const result = await mammoth.convertToHtml({ arrayBuffer })
       return {
-        content: { kind: 'docx', html: result.value },
+        content: { kind: 'docx', html: sanitizeHtml(result.value) },
         objectUrls,
       }
     }

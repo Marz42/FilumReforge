@@ -40,13 +40,28 @@ describe('attachment preview kinds', () => {
 })
 
 describe('buildAttachmentPreviewContent', () => {
-  it('renders markdown to html', async () => {
+  it('renders markdown to sanitized html', async () => {
     const blob = new Blob(['# Title\n\nBody'], { type: 'text/markdown' })
     const result = await buildAttachmentPreviewContent(blob, 'text/markdown')
     expect(result.content.kind).toBe('markdown')
     if (result.content.kind === 'markdown') {
       expect(result.content.html).toContain('<h1')
       expect(result.content.html).toContain('Body')
+    }
+  })
+
+  it('sanitizes xss payloads in markdown previews', async () => {
+    const blob = new Blob(
+      ['# Safe\n\n<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n\n[x](javascript:alert(1))'],
+      { type: 'text/markdown' },
+    )
+    const result = await buildAttachmentPreviewContent(blob, 'text/markdown')
+    expect(result.content.kind).toBe('markdown')
+    if (result.content.kind === 'markdown') {
+      expect(result.content.html).toContain('Safe')
+      expect(result.content.html).not.toMatch(/<script/i)
+      expect(result.content.html).not.toMatch(/onerror/i)
+      expect(result.content.html).not.toMatch(/javascript:/i)
     }
   })
 
