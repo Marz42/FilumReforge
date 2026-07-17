@@ -63,6 +63,12 @@ async def _seed_production_workspace(db_session):
     employee_no="EMP-W4P-ROOT",
   )
   user_service = UserService(db_session)
+  review_admin = await user_service.create_user(
+    actor=admin,
+    email="w4p-review-admin@example.com",
+    password="StrongPassword123!",
+    role=UserRole.ADMIN,
+  )
   dept_service = DepartmentService(db_session)
   profile_service = ProfileService(db_session)
 
@@ -161,6 +167,7 @@ async def _seed_production_workspace(db_session):
 
   return {
     "admin": admin,
+    "review_admin": review_admin,
     "post_lead": post_lead,
     "editor": editor,
     "script_author": script_author,
@@ -250,7 +257,7 @@ async def test_w4p_n5_vo_upload_activates_n7_for_post_lead(db_session) -> None:
   assert n4_task.status == TaskStatus.REVIEW
 
   await task_service.review_task_deliverable(
-    actor=seed["admin"],
+    actor=seed["review_admin"],
     task_id=n4_task_id,
     approve=True,
     comment="脚本审核通过",
@@ -407,7 +414,7 @@ async def _progress_through_n9(db_session, *, seed: dict, instance: WorkflowGrap
     attachment_ids=[],
   )
   await task_service.review_task_deliverable(
-    actor=seed["admin"],
+    actor=seed["review_admin"],
     task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N4_SCRIPT_REVIEW"),
     approve=True,
     comment="ok",
@@ -454,7 +461,7 @@ async def _progress_through_n9(db_session, *, seed: dict, instance: WorkflowGrap
     attachment_ids=[],
   )
   await task_service.review_task_deliverable(
-    actor=seed["script_author"],
+    actor=seed["admin"],
     task_id=await _node_task_id(db_session, instance_id=instance.id, node_key="N9_EDIT_REVIEW"),
     approve=True,
     comment="ok",

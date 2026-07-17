@@ -16,7 +16,7 @@ from app.core.enums import (
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
 )
-from app.models import Task, WorkflowDeliverable, WorkflowGraphInstance, WorkflowNodeInstance
+from app.models import Task, User, WorkflowDeliverable, WorkflowGraphInstance, WorkflowNodeInstance
 
 
 MIGRATION_BATCH_KEY = "legacy_graph_migration_batch_id"
@@ -125,6 +125,16 @@ class LegacyTaskGraphMigrationService:
         instance_id=instance.id,
         node_instance_id=node_instance.id,
       )
+      if task.status == TaskStatus.REVIEW:
+        from app.services.task_service import TaskService
+
+        actor = await self._session.get(User, task.creator_id)
+        if actor is not None:
+          await TaskService(self._session).activate_template_review_projection(
+            actor=actor,
+            task=task,
+            initial_reviewer_ids=[task.creator_id],
+          )
       migrated_task_ids.append(task.id)
 
     await self._session.flush()
@@ -179,9 +189,16 @@ class LegacyTaskGraphMigrationService:
               NODE_ITERATION_KEY,
               MIGRATION_BATCH_KEY,
               MIGRATED_AT_KEY,
+              "reviewer_id",
+              "reviewer_ids",
+              "reviewer_source",
+              "review_blocked_reason",
             ]:
               metadata.pop(key, None)
             task.extra_metadata = metadata
+            if task.status == TaskStatus.BLOCKED and task.blocked_reason == "no_eligible_reviewer":
+              task.status = TaskStatus.REVIEW
+              task.blocked_reason = None
             restored_task_count += 1
         await self._session.delete(instance)
       await self._session.flush()

@@ -30,6 +30,7 @@ from app.schemas.tasks import (
   TaskGanttEntryRead,
   TaskLogRead,
   TaskRead,
+  TaskReviewerReassignRequest,
   TaskSearchResultRead,
   TaskStatsDetailEntryRead,
   TaskStatsDetailsPageRead,
@@ -526,6 +527,21 @@ async def archive_task(
     cancelled_instance_ids=cancelled_instance_ids,
     message=f"已归档 {archived_count} 条关联任务并终止 {len(cancelled_instance_ids)} 个任务流 Run。",
   )
+
+
+@router.put("/{task_id}/reassign-reviewer", response_model=TaskRead)
+async def reassign_task_reviewer(
+  task_id: UUID,
+  payload: TaskReviewerReassignRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+) -> TaskRead:
+  task = await task_service.reassign_task_reviewer(
+    actor=actor,
+    task_id=task_id,
+    reviewer_id=payload.reviewer_id,
+  )
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.post("/{task_id}/deliverable", response_model=TaskRead)

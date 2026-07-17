@@ -79,7 +79,7 @@ type StatusAction = {
   buttonType: 'primary' | 'warning' | 'success'
 }
 
-const NEXT_STATUS_ACTIONS: Record<Exclude<TaskStatus, 'done'>, StatusAction> = {
+const NEXT_STATUS_ACTIONS: Record<Exclude<TaskStatus, 'done' | 'blocked'>, StatusAction> = {
   todo: {
     label: '开始处理',
     status: 'doing',
@@ -235,7 +235,7 @@ const watcherOptions = computed(() =>
 )
 const nextStatusAction = computed(() => {
   const task = selectedTask.value
-  if (!task || task.status === 'done') {
+  if (!task || task.status === 'done' || task.status === 'blocked') {
     return null
   }
 

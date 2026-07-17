@@ -47,6 +47,7 @@ class TaskRead(BaseModel):
   parent_task_id: UUID | None
   source_type: TaskSourceType
   assignment_mode: str | None = None
+  blocked_reason: str | None = None
   extra_metadata: dict[str, Any]
   created_at: datetime
   updated_at: datetime
@@ -130,6 +131,10 @@ class TaskAssignmentRejectRequest(BaseModel):
 class TaskAssignmentDelegateRequest(BaseModel):
   assignee_id: UUID
   reason: str | None = None
+
+
+class TaskReviewerReassignRequest(BaseModel):
+  reviewer_id: UUID
 
 
 class TaskDeliverableReviewRequest(BaseModel):

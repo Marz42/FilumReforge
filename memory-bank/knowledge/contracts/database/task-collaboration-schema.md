@@ -42,6 +42,8 @@ paradigma:
 | `template_instance_id` | `uuid` | FK -> `task_template_instances.id`, NULL | 所属模板实例 |
 | `template_step_run_id` | `uuid` | FK -> `task_template_step_runs.id`, NULL | 所属模板步骤运行态 |
 | `source_type` | `task_source_type` | NOT NULL, DEFAULT `manual` | 来源 |
+| `assignment_mode` | `varchar(16)` | NOT NULL, DEFAULT `direct` | 工作项分配策略 |
+| `blocked_reason` | `varchar(64)` | NULL | 模板评审阻塞诊断；当前值 `no_eligible_reviewer` |
 | `metadata` | `jsonb` | NOT NULL, DEFAULT `'{}'::jsonb` | 扩展元数据 |
 | `created_at` | `timestamptz` | NOT NULL | 创建时间 |
 | `updated_at` | `timestamptz` | NOT NULL | 更新时间 |
@@ -51,6 +53,12 @@ paradigma:
 - `idx_tasks_assignee_status (assignee_id, status)`
 - `idx_tasks_department_status (department_id, status)`
 - `idx_tasks_due_date (due_date)`
+
+**模板图任务评审约束（P1-10）**
+
+- 执行人不得成为验收人；评审候选按直属上级、部门负责人、工作流管理员、系统管理员兜底。
+- 无合格候选时状态为 `blocked`，并写入 `blocked_reason=no_eligible_reviewer`。
+- `metadata.reviewer_id` / `reviewer_ids` 保存当前验收人；管理员改派通过专用 API 并写入 `task_logs`。
 
 
 ### 10.15 `task_dependencies`

@@ -62,6 +62,7 @@ paradigma:
 - **graph-v3 路径契约**（@ 2026-07-15）：节点 `routing_mode`；Run `result`/`diagnostics`；`workflow_edge_traversals` 与 `workflow_node_activation_dependencies` 保存实际路径和激活原因；complete Context patch 可携带 `expected_context_version`，graph-v3 有 patch 时必填。
 - **F-29 管理员归档**（@ 2026-06-23）：`POST /api/v1/tasks/{task_id}/archive`（admin，`TaskArchiveRequest.reason` → `TaskArchiveResponse`）；任务 `extra_metadata.admin_archived` / `admin_archived_at` / `admin_archive_reason` / `admin_archive_source_task_id`；图实例 context `admin_archived*` + 节点 TERMINATED + instance CANCELLED
 - **任务 PATCH 逾期延期**（@ 2026-06-23）：已逾期任务 `due_date` 变更须晚于原截止时间（ConflictError）
+- **P1-10 模板任务防自审**（@ 2026-07-17）：模板图任务进入评审时排除执行人，按直属上级 → 部门负责人 → 工作流管理员 → 系统管理员选择验收人；无人可选则 `tasks.status=blocked`、`blocked_reason=no_eligible_reviewer`。系统管理员可调用 `PUT /api/v1/tasks/{id}/reassign-reviewer`（`{reviewer_id}`）显式恢复评审；排除与改派均写 `task_logs.detail`。
 
 > §10.1–10.40 为 legacy 与核心业务表完整字段；§10.41 起为图引擎十四表与运行事件**摘要**（完整列定义以 ORM + Alembic 为准；领域总览见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)）。
 
@@ -85,7 +86,7 @@ paradigma:
 | --- | --- | --- |
 | `user_role` | `admin`, `hr`, `employee` | 已实现 |
 | `user_status` | `active`, `inactive`, `suspended`, `offboarded` | 已实现 |
-| `task_status` | `todo`, `doing`, `review`, `done` | 已实现 |
+| `task_status` | `todo`, `doing`, `review`, `blocked`, `done` | 已实现（`blocked` 仅用于模板图任务评审诊断） |
 | `task_priority` | `low`, `medium`, `high`, `urgent` | 已实现 |
 | `task_source_type` | `manual`, `template`, `event`, `ai` | 已实现（当前主要使用 `manual`） |
 | `task_action_type` | `created`, `assigned`, `status_changed`, `commented`, `attachment_added`, `due_date_changed`, `closed` | 已实现 |

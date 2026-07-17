@@ -112,6 +112,7 @@ class WorkflowOrchestrationService:
   async def _apply_review_projection_state(
     self,
     *,
+    actor: User,
     instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
     task: Task,
@@ -132,6 +133,20 @@ class WorkflowOrchestrationService:
       root_task=root_task,
       reference_time=datetime.now(UTC),
     )
+    reviewer_service = self._task_service or TaskService(
+      self._session,
+      workflow_graph_service=self._workflow_graph_service,
+    )
+    reviewer_id = await reviewer_service.activate_template_review_projection(
+      actor=actor,
+      task=task,
+      initial_reviewer_ids=[task.assignee_id],
+    )
+    if reviewer_id is None:
+      await self._human_task_coordinator.coordinate_mutations(
+        node_instance=node_instance,
+        node_config_patch={"blocked_reason": "no_eligible_reviewer"},
+      )
 
   async def _create_projection_task(
     self,
@@ -198,6 +213,7 @@ class WorkflowOrchestrationService:
         node_instance=node_instance,
       )
       await self._apply_review_projection_state(
+        actor=actor,
         instance=instance,
         node_instance=node_instance,
         task=task,
@@ -224,6 +240,7 @@ class WorkflowOrchestrationService:
       node_instance=node_instance,
     )
     await self._apply_review_projection_state(
+      actor=actor,
       instance=instance,
       node_instance=node_instance,
       task=task,

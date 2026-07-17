@@ -216,6 +216,7 @@ async def api_client(
   tmp_path: Path,
 ) -> AsyncIterator[tuple[AsyncClient, InMemoryQueuePublisher]]:
   settings = Settings(
+    app_env="development",
     postgres_dsn="sqlite+aiosqlite:///:memory:",
     storage_base_path=str(tmp_path / ".storage"),
     storage_bucket="filum-test",
@@ -225,6 +226,7 @@ async def api_client(
     web_push_public_key="test-public-key",
     web_push_private_key="test-private-key",
     web_push_subject="mailto:test@example.com",
+    auth_refresh_cookie_secure=False,
   )
   engine = create_async_engine(
     settings.postgres_dsn,

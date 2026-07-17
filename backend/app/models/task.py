@@ -68,6 +68,7 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     server_default=TaskAssignmentMode.DIRECT.value,
     nullable=False,
   )
+  blocked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
   extra_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", build_json_type(), default=dict, nullable=False)
 
   creator = relationship("User", back_populates="created_tasks", foreign_keys=[creator_id])

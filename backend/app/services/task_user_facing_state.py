@@ -73,6 +73,8 @@ def _resolve_profile_id(task: Task, metadata: dict[str, Any]) -> str:
 def _map_status_fallback(status: TaskStatus) -> TaskUserFacingState:
   if status == TaskStatus.DONE:
     return "completed"
+  if status == TaskStatus.BLOCKED:
+    return "blocked"
   if status == TaskStatus.REVIEW:
     return "awaiting_confirm"
   if status == TaskStatus.DOING:
@@ -89,6 +91,8 @@ def resolve_task_user_facing_state(
 ) -> TaskUserFacingState:
   metadata = task.extra_metadata if isinstance(task.extra_metadata, dict) else {}
 
+  if status == TaskStatus.BLOCKED:
+    return "blocked"
   if graph_business_state == WorkflowNodeBusinessState.RETURNED_FOR_REWORK and status != TaskStatus.DONE:
     return "returned"
   if graph_business_state == WorkflowNodeBusinessState.REJECTED and status != TaskStatus.DONE:

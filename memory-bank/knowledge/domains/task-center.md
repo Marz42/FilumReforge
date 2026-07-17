@@ -459,6 +459,7 @@ flowchart LR
 | **单条任务归档** | `POST /tasks/{id}/archive` · 详情「更多 → 归档任务…」 | **仅 admin**；软归档 + 终止图 Run；inbox/tracking/history 排除 |
 | 内部评论 | 任务评论 `is_internal` | 仅 admin/hr 可读可写 |
 | **图节点接管** | `POST /workflow-graph/node-instances/{id}/takeover` | **仅 admin** |
+| **模板验收人改派** | `PUT /tasks/{id}/reassign-reviewer` | **仅 admin**；仅模板图任务，解除 `no_eligible_reviewer` 阻塞并完整留痕 |
 | 批次采集收口 | `POST .../instances/{id}/close-capture` | 关闭 N1 采集 |
 | 组织/账号 | 人员 · 部门 · 邀请 | HR 无部门树；admin 全平台 |
 | 看板/公告归档 | 总览 widget | 与任务无关的快照归档 |
@@ -479,6 +480,8 @@ flowchart LR
 | 物理删除任务 | 无 `DELETE /tasks/{id}`；误建单步且无图引用时可二期 hard delete |
 
 **归档语义**：`extra_metadata.admin_archived*` + `status=done`；图 instance `CANCELLED`、未完成节点 `TERMINATED`；批次 ROOT 归档时取消 ACTIVE/PENDING 子 Run。
+
+**P1-10 防自审**：模板图任务执行人不显示且不能调用通过/打回；评审激活按直属上级 → 部门负责人 → 工作流管理员 → 系统管理员兜底。候选耗尽时任务进入 `blocked`，`blocked_reason=no_eligible_reviewer`，不得自动降级为自审。
 
 ---
 

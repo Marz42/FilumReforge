@@ -16,6 +16,7 @@ from app.core.enums import (
   AttachmentVisibility,
   CommentFormat,
   DEFAULT_USER_NOTIFICATION_CHANNELS,
+  ReportingLineType,
   TaskActionType,
   TaskAssignmentMode,
   TaskPriority,
@@ -35,6 +36,7 @@ from app.models import (
   AttachmentLink,
   Department,
   Profile,
+  ReportingLine,
   Task,
   TaskComment,
   TaskDependency,
@@ -47,6 +49,7 @@ from app.models import (
   User,
   WorkflowDeliverable,
   WorkflowGraphInstance,
+  WorkflowGraphTemplate,
   WorkflowGraphTemplateNode,
   WorkflowHumanTaskLink,
   WorkflowInstance,
@@ -75,6 +78,8 @@ from app.services.cross_department_routing_service import resolve_cross_departme
 from app.services.notification_service import NotificationService
 from app.services.condition_evaluator import evaluate_routing_rules
 from app.services.task_action_policy import (
+  ACTION_APPROVE_DELIVERABLE,
+  ACTION_RETURN_FOR_REWORK,
   ActionOption,
   WorkItemActionContext,
   build_standalone_action_context,
@@ -336,6 +341,7 @@ ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
   TaskStatus.TODO: {TaskStatus.DOING},
   TaskStatus.DOING: {TaskStatus.REVIEW},
   TaskStatus.REVIEW: {TaskStatus.DONE},
+  TaskStatus.BLOCKED: set(),
   TaskStatus.DONE: set(),
 }
 
@@ -373,6 +379,7 @@ def _task_status_label(status: TaskStatus) -> str:
     TaskStatus.TODO: "待办",
     TaskStatus.DOING: "进行中",
     TaskStatus.REVIEW: "评审中",
+    TaskStatus.BLOCKED: "已阻塞",
     TaskStatus.DONE: "已完成",
   }
   return labels[status]
@@ -445,6 +452,8 @@ class TaskService:
     instance: WorkflowGraphInstance,
     node_instance: WorkflowNodeInstance,
   ) -> TaskStatus:
+    if task is not None and task.status == TaskStatus.BLOCKED:
+      return TaskStatus.BLOCKED
     if task is not None and TaskService._is_batch_graph_root_shell_task(task):
       if instance.status == WorkflowGraphInstanceStatus.COMPLETED:
         return TaskStatus.DONE
@@ -773,13 +782,24 @@ class TaskService:
     the existing graph-aware path for this pass.
     """
     is_mgmt = actor.role in MANAGEMENT_ROLES
+    metadata = self._copy_task_metadata(task)
+    reviewer_id = self._read_uuid_metadata(metadata, "reviewer_id")
+    is_template_review = self._is_template_graph_task(task) and task.status in {
+      TaskStatus.REVIEW,
+      TaskStatus.BLOCKED,
+    }
     if projection is not None:
-      owner = projection.current_handler_id
+      owner = reviewer_id if is_template_review else projection.current_handler_id
       actor_is_owner = owner is not None and owner == actor.id
       action_type: str | None = None
+      available_actions: list[ActionOption] = []
       if actor_is_owner:
-        if projection.status == TaskStatus.REVIEW:
+        if projection.status == TaskStatus.REVIEW and actor.id != task.assignee_id:
           action_type = "review_deliverable"
+          available_actions = [
+            ActionOption(action=ACTION_APPROVE_DELIVERABLE, label="通过验收", button_type="success"),
+            ActionOption(action=ACTION_RETURN_FOR_REWORK, label="打回返工", button_type="danger"),
+          ]
         elif projection.status == TaskStatus.DOING:
           action_type = "submit_deliverable"
         elif projection.status == TaskStatus.TODO:
@@ -790,17 +810,28 @@ class TaskService:
         current_action_owner_id=owner,
         requires_action=actor_is_owner and action_type is not None,
         action_type=action_type,
-        available_actions=[],
+        available_actions=available_actions,
       )
     if is_standalone(task):
       return build_standalone_action_context(task=task, actor=actor, is_management=is_mgmt)
+    owner = reviewer_id if is_template_review else (
+      task.assignee_id if task.status != TaskStatus.DONE else None
+    )
+    can_review = (
+      task.status == TaskStatus.REVIEW
+      and owner == actor.id
+      and actor.id != task.assignee_id
+    )
     return WorkItemActionContext(
       execution_mode=derive_execution_mode(task),
       assignment_mode=task.assignment_mode or "direct",
-      current_action_owner_id=task.assignee_id if task.status != TaskStatus.DONE else None,
-      requires_action=False,
-      action_type=None,
-      available_actions=[],
+      current_action_owner_id=owner,
+      requires_action=can_review,
+      action_type="review_deliverable" if can_review else None,
+      available_actions=[
+        ActionOption(action=ACTION_APPROVE_DELIVERABLE, label="通过验收", button_type="success"),
+        ActionOption(action=ACTION_RETURN_FOR_REWORK, label="打回返工", button_type="danger"),
+      ] if can_review else [],
     )
 
   async def resolve_task_action_context(self, *, actor: User, task: Task) -> WorkItemActionContext:
@@ -1593,7 +1624,11 @@ class TaskService:
       return statement
 
     managed_department_ids = await get_managed_department_ids(self._session, actor.id)
-    filters = [Task.creator_id == actor.id, Task.assignee_id == actor.id]
+    filters = [
+      Task.creator_id == actor.id,
+      Task.assignee_id == actor.id,
+      Task.extra_metadata["reviewer_id"].as_string() == str(actor.id),
+    ]
     if managed_department_ids:
       filters.append(Task.department_id.in_(managed_department_ids))
     return statement.where(or_(*filters))
@@ -2255,12 +2290,159 @@ class TaskService:
       return
     raise AuthorizationError("当前账号不能提交该任务交付物。")
 
-  async def _ensure_task_reviewer(self, *, actor: User, task: Task) -> None:
-    if actor.role in MANAGEMENT_ROLES or actor.id == task.creator_id:
-      return
-    from app.services.workflow_orchestration_service import WorkflowOrchestrationService
+  @staticmethod
+  def _is_template_graph_task(task: Task) -> bool:
+    metadata = task.extra_metadata if isinstance(task.extra_metadata, dict) else {}
+    return (
+      task.source_type == TaskSourceType.TEMPLATE
+      and bool(metadata.get("workflow_graph_instance_id"))
+      and bool(metadata.get("workflow_node_instance_id"))
+    )
 
-    if actor.id == task.assignee_id and WorkflowOrchestrationService.is_template_graph_projection(task):
+  async def _review_fallback_candidates(
+    self,
+    *,
+    task: Task,
+    initial_reviewer_ids: list[UUID],
+  ) -> list[tuple[str, UUID]]:
+    candidates = [("configured_reviewer", reviewer_id) for reviewer_id in initial_reviewer_ids]
+    effective_date = date.today()
+    supervisor_id = await self._session.scalar(
+      select(ReportingLine.manager_user_id)
+      .where(
+        ReportingLine.user_id == task.assignee_id,
+        ReportingLine.line_type == ReportingLineType.SOLID,
+        ReportingLine.is_primary.is_(True),
+        ReportingLine.starts_at <= effective_date,
+        or_(ReportingLine.ends_at.is_(None), ReportingLine.ends_at >= effective_date),
+      )
+      .order_by(ReportingLine.starts_at.desc(), ReportingLine.created_at.desc())
+      .limit(1)
+    )
+    if supervisor_id is not None:
+      candidates.append(("supervisor", supervisor_id))
+
+    department = await self._session.get(Department, task.department_id) if task.department_id else None
+    if department is not None and department.manager_id is not None:
+      candidates.append(("department_head", department.manager_id))
+
+    metadata = self._copy_task_metadata(task)
+    instance_id = self._read_uuid_metadata(metadata, "workflow_graph_instance_id")
+    instance = await self._session.get(WorkflowGraphInstance, instance_id) if instance_id else None
+    workflow_admin_id: UUID | None = None
+    if instance is not None and instance.template_id is not None:
+      template = await self._session.get(WorkflowGraphTemplate, instance.template_id)
+      workflow_admin_id = template.created_by if template is not None else None
+    if workflow_admin_id is None and instance is not None:
+      workflow_admin_id = instance.initiator_user_id
+    if workflow_admin_id is not None:
+      candidates.append(("workflow_admin", workflow_admin_id))
+
+    system_admin_ids = list(
+      await self._session.scalars(
+        select(User.id)
+        .where(User.role == UserRole.ADMIN)
+        .order_by(User.created_at.asc(), User.id.asc())
+      )
+    )
+    candidates.extend(("system_admin", admin_id) for admin_id in system_admin_ids)
+    return candidates
+
+  async def _activate_template_review(
+    self,
+    *,
+    task: Task,
+    operator_id: UUID,
+    initial_reviewer_ids: list[UUID],
+  ) -> UUID | None:
+    """Select a non-executor reviewer or durably block the template task."""
+    selected: tuple[str, UUID] | None = None
+    for source, candidate_id in await self._review_fallback_candidates(
+      task=task,
+      initial_reviewer_ids=initial_reviewer_ids,
+    ):
+      candidate = await self._session.get(User, candidate_id)
+      exclusion_reason: str | None = None
+      if candidate_id == task.assignee_id:
+        exclusion_reason = "excluded: self-review not permitted"
+      elif candidate is None:
+        exclusion_reason = "excluded: reviewer account not found"
+      elif candidate.status != UserStatus.ACTIVE:
+        exclusion_reason = "excluded: reviewer account inactive"
+      if exclusion_reason is not None:
+        await self._create_task_log(
+          task_id=task.id,
+          operator_id=operator_id,
+          action_type=TaskActionType.STATUS_CHANGED,
+          from_status=task.status,
+          to_status=task.status,
+          detail={
+            "action": "reviewer_candidate_excluded",
+            "candidate_user_id": str(candidate_id),
+            "candidate_source": source,
+            "reason": exclusion_reason,
+          },
+        )
+        continue
+      selected = (source, candidate_id)
+      break
+
+    metadata = self._copy_task_metadata(task)
+    metadata["latest_review_state"] = "pending_review"
+    if selected is None:
+      metadata.pop("reviewer_id", None)
+      metadata["reviewer_ids"] = []
+      metadata["review_blocked_reason"] = "no_eligible_reviewer"
+      task.extra_metadata = metadata
+      task.status = TaskStatus.BLOCKED
+      task.blocked_reason = "no_eligible_reviewer"
+      await self._create_task_log(
+        task_id=task.id,
+        operator_id=operator_id,
+        action_type=TaskActionType.STATUS_CHANGED,
+        from_status=TaskStatus.REVIEW,
+        to_status=TaskStatus.BLOCKED,
+        detail={
+          "action": "review_activation_blocked",
+          "reason": "no_eligible_reviewer",
+        },
+      )
+      return None
+
+    source, reviewer_id = selected
+    metadata["reviewer_id"] = str(reviewer_id)
+    metadata["reviewer_ids"] = [str(reviewer_id)]
+    metadata["reviewer_source"] = source
+    metadata.pop("review_blocked_reason", None)
+    task.extra_metadata = metadata
+    task.status = TaskStatus.REVIEW
+    task.blocked_reason = None
+    return reviewer_id
+
+  async def activate_template_review_projection(
+    self,
+    *,
+    actor: User,
+    task: Task,
+    initial_reviewer_ids: list[UUID],
+  ) -> UUID | None:
+    """Public orchestration hook for review-node activation."""
+    return await self._activate_template_review(
+      task=task,
+      operator_id=actor.id,
+      initial_reviewer_ids=initial_reviewer_ids,
+    )
+
+  async def _ensure_task_reviewer(self, *, actor: User, task: Task) -> None:
+    if self._is_template_graph_task(task):
+      if actor.id == task.assignee_id:
+        raise ConflictError("Self-review is not permitted for template tasks")
+      metadata = self._copy_task_metadata(task)
+      reviewer_id = self._read_uuid_metadata(metadata, "reviewer_id")
+      if reviewer_id is not None and actor.id == reviewer_id:
+        return
+      raise AuthorizationError("当前账号不是该模板任务的指定验收人。")
+    if actor.role in MANAGEMENT_ROLES or actor.id == task.creator_id:
       return
     raise AuthorizationError("当前账号不能验收该任务。")
 
@@ -2476,7 +2658,12 @@ class TaskService:
         continue
       projection = graph_projection_map.get(task.id)
       if projection is not None:
-        if projection.status != TaskStatus.DONE and projection.current_handler_id == actor.id:
+        action_context = self._work_item_action_context(
+          task=task,
+          actor=actor,
+          projection=projection,
+        )
+        if projection.status != TaskStatus.DONE and action_context.current_action_owner_id == actor.id:
           graph_entries.append(
             (
               task,
@@ -3084,9 +3271,30 @@ class TaskService:
       await self._session.refresh(task)
       return task
 
-    metadata["latest_review_state"] = "pending_review"
     task.extra_metadata = metadata
-    task.status = TaskStatus.REVIEW
+    target_task_status = TaskStatus.REVIEW
+    if self._is_template_graph_task(task):
+      initial_reviewer_ids: list[UUID] = []
+      raw_reviewer_ids = metadata.get("reviewer_ids")
+      if isinstance(raw_reviewer_ids, list):
+        for raw_reviewer_id in raw_reviewer_ids:
+          try:
+            initial_reviewer_ids.append(UUID(str(raw_reviewer_id)))
+          except (TypeError, ValueError):
+            continue
+      if not initial_reviewer_ids:
+        initial_reviewer_ids = [task.creator_id]
+      await self._activate_template_review(
+        task=task,
+        operator_id=actor.id,
+        initial_reviewer_ids=initial_reviewer_ids,
+      )
+      target_task_status = task.status
+    else:
+      metadata["latest_review_state"] = "pending_review"
+      task.extra_metadata = metadata
+      task.status = TaskStatus.REVIEW
+      task.blocked_reason = None
     task.updated_at = now
     task.started_at = task.started_at or now
     task.completed_at = None
@@ -3100,12 +3308,13 @@ class TaskService:
       operator_id=actor.id,
       action_type=TaskActionType.STATUS_CHANGED,
       from_status=TaskStatus.DOING,
-      to_status=TaskStatus.REVIEW,
+      to_status=target_task_status,
       detail={
         "action": "submit_deliverable",
         "summary": normalized_summary,
         "attachment_ids": validated_attachment_ids,
-        "status": TaskStatus.REVIEW.value,
+        "status": target_task_status.value,
+        "blocked_reason": task.blocked_reason,
       },
     )
     await self._session.commit()
@@ -3558,6 +3767,75 @@ class TaskService:
     await self._session.commit()
     await self._session.refresh(task)
     await self._send_assignment_notification(task=task, assignee=next_assignee)
+    return task
+
+  async def reassign_task_reviewer(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    reviewer_id: UUID,
+  ) -> Task:
+    if actor.role != UserRole.ADMIN:
+      raise AuthorizationError("仅系统管理员可以重新指派模板任务验收人。")
+    task = await self._session.scalar(
+      select(Task)
+      .where(Task.id == task_id)
+      .with_for_update()
+      .execution_options(populate_existing=True)
+    )
+    if task is None:
+      raise NotFoundError("任务不存在。")
+    if not self._is_template_graph_task(task):
+      raise ConflictError("仅模板图任务支持重新指派验收人。")
+    if task.status not in {TaskStatus.BLOCKED, TaskStatus.REVIEW}:
+      raise ConflictError("仅阻塞或评审中的模板任务可以重新指派验收人。")
+    if reviewer_id == task.assignee_id:
+      raise ConflictError("Self-review is not permitted for template tasks")
+    reviewer = await self._session.get(User, reviewer_id)
+    if reviewer is None:
+      raise NotFoundError("验收人不存在。")
+    if reviewer.status != UserStatus.ACTIVE:
+      raise ConflictError("验收人账号不可用。")
+
+    previous_status = task.status
+    metadata = self._copy_task_metadata(task)
+    previous_reviewer_id = metadata.get("reviewer_id")
+    metadata.update(
+      {
+        "reviewer_id": str(reviewer.id),
+        "reviewer_ids": [str(reviewer.id)],
+        "reviewer_source": "admin_reassignment",
+        "reviewer_reassigned_by_user_id": str(actor.id),
+        "reviewer_reassigned_at": datetime.now(UTC).isoformat(),
+        "latest_review_state": "pending_review",
+      }
+    )
+    metadata.pop("review_blocked_reason", None)
+    task.extra_metadata = metadata
+    task.status = TaskStatus.REVIEW
+    task.blocked_reason = None
+    task.updated_at = datetime.now(UTC)
+    await self._sync_graph_projection_for_task_status(
+      task=task,
+      target_status=TaskStatus.REVIEW,
+      reference_time=task.updated_at,
+    )
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.ASSIGNED,
+      from_status=previous_status,
+      to_status=TaskStatus.REVIEW,
+      detail={
+        "action": "reviewer_reassigned",
+        "previous_reviewer_id": previous_reviewer_id,
+        "reviewer_id": str(reviewer.id),
+        "reason": "admin_override",
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(task)
     return task
 
   async def review_task_deliverable(

@@ -49,6 +49,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: '待办',
   doing: '进行中',
   review: '评审中',
+  blocked: '已阻塞',
   done: '已完成',
 }
 
@@ -56,6 +57,7 @@ const STATUS_TAG_TYPES: Record<TaskStatus, '' | 'info' | 'warning' | 'success'> 
   todo: 'info',
   doing: 'warning',
   review: '',
+  blocked: 'warning',
   done: 'success',
 }
 

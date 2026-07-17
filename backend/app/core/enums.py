@@ -20,6 +20,7 @@ class TaskStatus(StrEnum):
   TODO = "todo"
   DOING = "doing"
   REVIEW = "review"
+  BLOCKED = "blocked"
   DONE = "done"
 
 

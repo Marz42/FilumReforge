@@ -18,7 +18,8 @@ def test_health_endpoint_returns_phase_a_metadata() -> None:
   }
 
 
-def test_health_endpoint_allows_local_dev_cors() -> None:
+def test_health_endpoint_allows_local_dev_cors(monkeypatch) -> None:
+  monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "")
   client = TestClient(create_app())
 
   response = client.get(

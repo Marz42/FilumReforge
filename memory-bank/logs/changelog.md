@@ -20,6 +20,10 @@ paradigma:
 
 ## [Unreleased]
 
+### Fixed
+
+- P1-10 模板图任务防自审：执行人从验收候选排除，按直属上级 → 部门负责人 → 工作流管理员 → 系统管理员兜底；无人可选时持久化 `blocked/no_eligible_reviewer`，并提供管理员审计改派 API
+
 ### Added
 
 - Iteration 3-F 测试操作手册：开发/CI、PostgreSQL 强制专项、Expand/Backfill/Contract 与连续 7 天 readiness 证据流程

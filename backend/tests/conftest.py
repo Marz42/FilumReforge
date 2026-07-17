@@ -49,6 +49,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
 @pytest.fixture(autouse=True)
 def clear_cached_settings(monkeypatch: pytest.MonkeyPatch) -> None:
   monkeypatch.setenv("JWT_SECRET_KEY", "test-jwt-secret-key-for-suite-123456")
+  monkeypatch.setenv("APP_ENV", "development")
   get_settings.cache_clear()
   get_async_engine.cache_clear()
   get_session_factory.cache_clear()

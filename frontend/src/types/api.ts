@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'hr' | 'employee'
 export type UserStatus = 'active' | 'inactive' | 'suspended' | 'offboarded'
-export type TaskStatus = 'todo' | 'doing' | 'review' | 'done'
+export type TaskStatus = 'todo' | 'doing' | 'review' | 'blocked' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
 export type TaskSourceType = 'manual' | 'template' | 'event' | 'ai'
 export type TaskActionType =
@@ -303,6 +303,7 @@ export interface Task {
   parent_task_id: string | null
   source_type: TaskSourceType
   assignment_mode?: TaskAssignmentMode | null
+  blocked_reason?: string | null
   extra_metadata: Record<string, unknown>
   created_at: string
   updated_at: string
