@@ -2507,6 +2507,7 @@ class TaskService:
       if task.assignee_id == actor.id:
         legacy_tasks.append(task)
 
+    # task id as final tiebreaker: cursor pagination requires a fully deterministic order.
     sorted_graph_entries = sorted(
       graph_entries,
       key=lambda item: (
@@ -2514,6 +2515,7 @@ class TaskService:
         _normalize_datetime(item[0].due_date) if item[0].due_date is not None else datetime.max.replace(tzinfo=UTC),
         _task_priority_sort_value(item[0].priority),
         -int(item[0].created_at.timestamp()),
+        item[0].id,
       ),
     )
     sorted_legacy_tasks = sorted(
@@ -2523,6 +2525,7 @@ class TaskService:
         _normalize_datetime(task.due_date) if task.due_date is not None else datetime.max.replace(tzinfo=UTC),
         _task_priority_sort_value(task.priority),
         -int(task.created_at.timestamp()),
+        task.id,
       ),
     )
     entries = [entry for _, entry in sorted_graph_entries]
@@ -2683,6 +2686,7 @@ class TaskService:
           )
         )
 
+    # task id as final tiebreaker: cursor pagination requires a fully deterministic order.
     sorted_entries = sorted(
       tracking_entries,
       key=lambda item: (
@@ -2690,6 +2694,7 @@ class TaskService:
         item.due_date is None,
         _normalize_datetime(item.due_date) if item.due_date is not None else datetime.max.replace(tzinfo=UTC),
         _task_priority_sort_value(item.priority),
+        item.task_id,
       ),
     )
     return _paginate_task_center_list(
@@ -2790,11 +2795,13 @@ class TaskService:
           )
         )
 
+    # task id as final tiebreaker: cursor pagination requires a fully deterministic order.
     sorted_entries = sorted(
       entries,
       key=lambda item: (
         item.completed_at is None,
         _normalize_datetime(item.completed_at) if item.completed_at is not None else datetime.max.replace(tzinfo=UTC),
+        item.task_id,
       ),
       reverse=True,
     )
@@ -2843,9 +2850,15 @@ class TaskService:
       if department is None:
         raise NotFoundError("所属部门不存在。")
       task.department_id = department_id
+    # Normalize both sides to aware UTC before comparing: the incoming value may be
+    # naive while the stored one is aware (or vice versa on SQLite), and comparing
+    # naive with aware datetimes raises TypeError.
+    normalized_due_date = _normalize_datetime(due_date) if due_date is not None else None
+    normalized_previous_due_date = _normalize_datetime(previous_due_date) if previous_due_date is not None else None
+    due_date_changed = due_date is not None and normalized_due_date != normalized_previous_due_date
     if due_date is not None:
-      if due_date != previous_due_date and _is_overdue(due_date=previous_due_date, now=datetime.now(UTC)):
-        if due_date <= previous_due_date:
+      if due_date_changed and _is_overdue(due_date=previous_due_date, now=datetime.now(UTC)):
+        if normalized_previous_due_date is not None and normalized_due_date <= normalized_previous_due_date:
           raise ConflictError("逾期任务延期时必须设置更晚的截止时间。")
       task.due_date = due_date
     if priority is not None:
@@ -2862,7 +2875,7 @@ class TaskService:
           "assignee_id": str(assignee_id),
         },
       )
-    if due_date is not None and due_date != previous_due_date:
+    if due_date_changed:
       await self._create_task_log(
         task_id=task.id,
         operator_id=actor.id,
@@ -3737,7 +3750,7 @@ class TaskService:
           "filename": attachment.original_filename,
         },
       )
-      await self._session.commit()
+    await self._session.commit()
 
     return await self._load_task_comment(comment.id)
 
