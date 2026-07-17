@@ -29,7 +29,7 @@ from app.core.enums import (
   WorkflowStepRunStatus,
 )
 from app.core.config import Settings
-from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.exceptions import AppValidationError, AuthorizationError, ConflictError, NotFoundError
 from app.models import (
   Attachment,
   AttachmentLink,
@@ -1176,6 +1176,12 @@ class TaskService:
     )
 
     now = datetime.now(UTC)
+    # Step config is operator-supplied JSON: an invalid priority string must
+    # surface as a 422 validation error instead of an uncaught ValueError (500).
+    try:
+      step_priority = TaskPriority(str(step.config.get("priority") or TaskPriority.MEDIUM))
+    except ValueError as exc:
+      raise AppValidationError("Invalid priority value") from exc
     created_tasks: list[Task] = []
     created_step_runs: list[TaskTemplateStepRun] = []
     created_bindings: list[tuple[Task, User]] = []
@@ -1202,7 +1208,7 @@ class TaskService:
         description="\n\n".join(value for value in [template.description, step.description] if value) or None,
         department_id=department_id,
         due_date=due_date,
-        priority=TaskPriority(str(step.config.get("priority") or TaskPriority.MEDIUM)),
+        priority=step_priority,
         source_type=TaskSourceType.TEMPLATE,
         extra_metadata={
           "template_id": str(template.id),
@@ -2812,6 +2818,9 @@ class TaskService:
     priority: TaskPriority | None = None,
   ) -> Task:
     task = await self.get_task(actor=actor, task_id=task_id)
+    # Order this update (notably the assignee transfer path) against concurrent
+    # delegates/transitions (see the lock helper).
+    await self._refresh_task_row_with_lock(task_id=task.id)
     if not await self._can_operate_task(actor=actor, task=task):
       raise AuthorizationError("当前账号不能修改该任务。")
 
@@ -2914,9 +2923,9 @@ class TaskService:
     target_status: TaskStatus,
   ) -> Task:
     task = await self.get_task(actor=actor, task_id=task_id)
-    if is_standalone(task):
-      # Order this command against concurrent delegates (see the lock helper).
-      await self._refresh_task_row_with_lock(task_id=task.id)
+    # Order this command against concurrent delegates/transitions for both
+    # standalone and workflow tasks (see the lock helper).
+    await self._refresh_task_row_with_lock(task_id=task.id)
 
     if not await self._can_operate_task(actor=actor, task=task):
       raise AuthorizationError("当前账号不能变更该任务状态。")
@@ -2988,9 +2997,9 @@ class TaskService:
     task = await self.get_task(actor=actor, task_id=task_id)
     if self._is_admin_archived_task(task):
       raise ConflictError("任务已归档，无法继续操作。")
-    if is_standalone(task):
-      # Order this command against concurrent delegates (see the lock helper).
-      await self._refresh_task_row_with_lock(task_id=task.id)
+    # Order this command against concurrent delegates/submits for both
+    # standalone and workflow tasks before the DOING→REVIEW/DONE transition.
+    await self._refresh_task_row_with_lock(task_id=task.id)
     await self._ensure_task_assignee_or_manager(actor=actor, task=task)
     if self._is_graph_run_root_shell_task(task):
       raise ConflictError("请在待办中打开具体步骤任务后再提交，不要在使用制作/批次根任务提交。")
@@ -3477,6 +3486,12 @@ class TaskService:
     assignee_id: UUID,
     reason: str,
   ) -> Task:
+    # Same compare-and-set as the standalone delegate: lock the row and fail
+    # with a stable conflict if another transfer already changed the assignee.
+    expected_assignee_id = task.assignee_id
+    await self._refresh_task_row_with_lock(task_id=task.id)
+    if task.assignee_id != expected_assignee_id:
+      raise ConflictError("任务执行人已变更，请刷新后重试。")
     await self._ensure_task_handshake_actor(actor=actor, task=task)
     if task.status != TaskStatus.TODO:
       raise ConflictError("只有待处理任务才能执行转办。")
