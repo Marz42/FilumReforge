@@ -27,7 +27,7 @@ paradigma:
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同全貌：**产品架构 · 单步/任务流/统计 · 实现与差距 · 改造跟踪**。  
-> **最后同步**：2026-07-11 @ **0.92.0** · S-01 最小周期统计 implemented · pending UAT
+> **最后同步**：2026-07-18 @ **0.92.1** · Task Center P0–P2 审计修复完成
 > **排期**：[`roadmap.md`](../roadmap.md) · **决策**：[`decisions.md`](../decisions.md) ADR-009 · ADR-010  
 > **契约**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)
 
@@ -111,7 +111,7 @@ flowchart TB
 1. **首屏**：`GET /task-center` → snapshot（三列表 + permissions + memos + 图模板摘要）。
 2. **Hydration**：`GET /tasks?ids=` batch（看板/甘特/列表 v2）。
 3. **详情**：`GET /tasks/{id}` + 图任务 `GET /workflow-graph/instances/...`。
-4. **graph-first 列表**：`_graph_task_projection_map` → `run_label` / `user_facing_state`（B-05/B-15）。
+4. **graph-first 列表**：`_graph_task_projection_map` → `run_label` / `user_facing_state`（B-05/B-15）；按 `source_id` 回退解析实例时同时限定 `source_type="task"`，防止跨来源 UUID 碰撞。
 5. **批次 ROOT 投影**（`0.91.1`）：`workflow_graph_root_task` + `run_kind=batch` 时，列表 `status` 以 **`WorkflowGraphInstance.status`** 为准，不因 N2 engine-skip 的节点 `COMPLETED` 提前进历史；实例 `ACTIVE` 阶段标签「汇总派发：待确认派发」。
 
 图锚点：`extra_metadata.workflow_graph_instance_id`。
@@ -421,8 +421,8 @@ flowchart LR
 
 | 层 | 范围 |
 |----|------|
-| pytest | 2026-07-10 全量：293 collected / 282 passed / 11 skipped；含 stats 权限/部门范围、TCE、图运行时 |
-| vitest | 2026-07-11 全量：54 files / 144 tests；`TaskCenterView` 有壳层回归，`TaskCenterStatsView` 尚无直接组件测试 |
+| pytest | 2026-07-18 全量：393 passed / 10 skipped；含 P0–P2 Task Center 审计修复与 P1-10 防自审 |
+| vitest | 2026-07-18 全量：57 files / 158 tests；`TaskCenterView` 有壳层回归，`TaskCenterStatsView` 尚无直接组件测试 |
 | Playwright | 2026-07-10 default mock：35/35；live/docker-gui 未在本轮执行 |
 
 ---
@@ -483,12 +483,15 @@ flowchart LR
 
 **P1-10 防自审**：模板图任务执行人不显示且不能调用通过/打回；评审激活按直属上级 → 部门负责人 → 工作流管理员 → 系统管理员兜底。候选耗尽时任务进入 `blocked`，`blocked_reason=no_eligible_reviewer`，不得自动降级为自审。
 
+历史上模板图投影曾允许执行人通过验收权限检查，以保证早期 review 节点可操作；P1-10 已用明确验收人链与管理员审计改派取代该隐式自审兼容分支。
+
 ---
 
 ## 14. 修订记录
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-18 | `0.92.1` Task Center P0–P2 审计修复收口：并发锁/校验、分页/附件/时间归一化、防自审与图实例来源过滤 |
 | 2026-07-11 | S-01 权限、上海周期、DB 聚合、摘要/负载/明细 implemented · pending UAT |
 | 2026-07-11 | 对齐 F-22/F-28/B-12/F-26 当前事实、测试基线与 S-01 聚合缺口 |
 | 2026-06-23 | §15 **F-29 落地** · Admin 跟踪督办 · 逾期延期 · W-10 done |

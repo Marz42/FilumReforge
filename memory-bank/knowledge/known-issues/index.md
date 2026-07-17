@@ -17,3 +17,12 @@
 | [known-issues.md](known-issues.md) | `paradigma-known-issue` | 已知问题合辑 (已拆分) | 已知问题<br>合辑<br>known issue | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->
+
+## Resolved Audit Issues
+
+| Batch | Status | Resolution |
+|-------|--------|------------|
+| Task Center P0 (`cba64aa`) | ✅ Resolved | Missing row locks/CAS and template priority validation |
+| Task Center P1 batch 1 (`3002275`) | ✅ Resolved | Pagination tiebreaker, atomic attachment commit, datetime normalization |
+| Task Center P1-10 (`4398439`) | ✅ Resolved | Self-review prevention with fallback reviewer chain and audited admin reassignment |
+| Task Center P2-11/P2-13 (`0.92.1`) | ✅ Resolved | Graph source-type collision guard and historical permission-branch documentation |

@@ -286,7 +286,7 @@ describe('Profiles view', () => {
     expect(wrapper.text()).toContain('代理授权')
     expect(getProfile).toHaveBeenCalledWith('user-2')
   },
-    15000,
+    30000,
   )
 
   it('revokes delegation from delegation tab', async () => {

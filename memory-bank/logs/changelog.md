@@ -20,10 +20,6 @@ paradigma:
 
 ## [Unreleased]
 
-### Fixed
-
-- P1-10 模板图任务防自审：执行人从验收候选排除，按直属上级 → 部门负责人 → 工作流管理员 → 系统管理员兜底；无人可选时持久化 `blocked/no_eligible_reviewer`，并提供管理员审计改派 API
-
 ### Added
 
 - Iteration 3-F 测试操作手册：开发/CI、PostgreSQL 强制专项、Expand/Backfill/Contract 与连续 7 天 readiness 证据流程
@@ -67,6 +63,15 @@ paradigma:
 - 修复 `PublishTaskDialog` v-model、重复 `onMounted` 与 Playwright capture 锚点
 - 关闭采集后同步兼容 Task 投影，并让下游任务继承交付物附件可见性
 - 修复 `.md` / `.docx` 通用 MIME 上传推断，以及附件继承路径的 SQLAlchemy `MissingGreenlet`
+
+## [0.92.1] — 2026-07-18
+
+### Fixed
+
+- Task Center P0：任务更新、状态流转、交付与转办补齐行锁/CAS；非法模板步骤优先级返回稳定校验错误（`cba64aa`）
+- Task Center P1：游标分页增加 UUID tiebreaker；评论附件绑定原子提交；截止时间比较归一化为 aware UTC（`3002275`）
+- P1-10 模板图任务防自审：执行人从验收候选排除，按直属上级 → 部门负责人 → 工作流管理员 → 系统管理员兜底；无人可选时持久化 `blocked/no_eligible_reviewer`，并提供管理员审计改派 API（`4398439`）
+- Task Center P2：图实例回退查询限定 `source_type="task"`，避免跨来源 UUID 碰撞；记录旧自审权限分支被 P1-10 显式受控机制取代
 
 ## [0.92.0] — 2026-07-08
 

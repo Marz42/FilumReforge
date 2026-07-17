@@ -1,30 +1,19 @@
-INVESTIGATE the Task Center codebase for bugs and issues. DO NOT change any design. Only find and fix bugs.
+# Active Task — Task Center Audit Closure
 
-## Scope
-- backend/app/services/ related to tasks
-- backend/app/api/routes/tasks.py
-- backend/app/api/routes/task_center.py
-- backend/app/repositories/ (task-related)
-- frontend/src/ (task center components)
-- tests/ (task-related tests)
+## Status
 
-## Investigation Method
-1. Read the task center domain doc: memory-bank/knowledge/domains/task-center.md
-2. Read ADRs related to tasks
-3. Scan the code for:
-   - Race conditions (missing FOR UPDATE, wrong lock order)
-   - State machine violations (invalid transitions)
-   - Authorization gaps (missing permission checks)
-   - Data integrity (orphaned records, missing cascades)
-   - Error handling (swallowed exceptions, wrong HTTP codes)
-   - Frontend state bugs (stale data, missing loading/error states)
-4. Run tests and check for any failing task-related tests
+✅ Completed on 2026-07-18 (`0.92.1`).
 
-## Output
-After investigation, list ALL bugs found with:
-- File + line number
-- Bug description
-- Severity (P0/P1/P2)
-- Whether it can be fixed without design change
+## Completed Scope
 
-Then fix all P0 and P1 bugs. Do NOT touch design or architecture.
+- [x] P0 (`cba64aa`): missing `FOR UPDATE`/CAS guards and priority validation
+- [x] P1 batch 1 (`3002275`): deterministic pagination, atomic attachment commit, datetime normalization
+- [x] P1-10 (`4398439`): template-task self-review prevention, fallback reviewer chain, audited admin reassignment
+- [x] P2-11: constrain graph projection fallback lookup to `source_type="task"`
+- [x] P2-13: document the historical template self-review compatibility branch and its P1-10 replacement
+- [x] Full backend and frontend test suites
+- [x] Paradigma Memory-Bank and SemVer update
+
+## Outcome
+
+All Task Center P0/P1/P2 audit findings in this batch are resolved without design or public API changes. The next active product task has not yet been selected.

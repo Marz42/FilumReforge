@@ -656,7 +656,10 @@ class TaskService:
         .options(
           selectinload(WorkflowGraphInstance.node_instances).selectinload(WorkflowNodeInstance.deliverables)
         )
-        .where(WorkflowGraphInstance.source_id.in_(list(task_map.keys())))
+        .where(
+          WorkflowGraphInstance.source_type == "task",
+          WorkflowGraphInstance.source_id.in_(list(task_map.keys())),
+        )
       )
     )
     for instance in instances:
@@ -2434,6 +2437,10 @@ class TaskService:
     )
 
   async def _ensure_task_reviewer(self, *, actor: User, task: Task) -> None:
+    # Historically, template graph projections let the executor pass this
+    # permission check to keep review nodes operable. P1-10 replaces that
+    # implicit self-review escape hatch with an explicit, audited reviewer
+    # chain and administrator reassignment mechanism.
     if self._is_template_graph_task(task):
       if actor.id == task.assignee_id:
         raise ConflictError("Self-review is not permitted for template tasks")
