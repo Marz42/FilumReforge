@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.api.dependencies import get_current_user, get_task_center_service, get_task_memo_service
 from app.models import TaskMemo, User
 from app.schemas.task_center import (
+  TaskActionOptionRead,
   TaskCenterDepartmentOptionRead,
   TaskCenterHistoryItemRead,
   TaskCenterHistoryPageRead,
@@ -58,6 +59,13 @@ def _build_task_memo_read(memo: TaskMemo) -> TaskMemoRead:
   )
 
 
+def _build_action_options(item) -> list[TaskActionOptionRead]:  # noqa: ANN001
+  return [
+    TaskActionOptionRead(action=option.action, label=option.label, button_type=option.button_type)
+    for option in getattr(item, "available_actions", []) or []
+  ]
+
+
 def _build_inbox_item_read(item: TaskInboxEntry) -> TaskCenterInboxItemRead:
   return TaskCenterInboxItemRead(
     task_id=item.task_id,
@@ -70,6 +78,12 @@ def _build_inbox_item_read(item: TaskInboxEntry) -> TaskCenterInboxItemRead:
     current_handler_label=item.current_handler_label,
     run_label=item.run_label,
     user_facing_state=item.user_facing_state,
+    execution_mode=item.execution_mode,
+    assignment_mode=item.assignment_mode,
+    current_action_owner_id=item.current_action_owner_id,
+    requires_action=item.requires_action,
+    action_type=item.action_type,
+    available_actions=_build_action_options(item),
   )
 
 
@@ -90,6 +104,12 @@ def _build_tracking_item_read(item: TaskTrackingEntry) -> TaskCenterTrackingItem
     is_pending_review=item.is_pending_review,
     run_label=item.run_label,
     user_facing_state=item.user_facing_state,
+    execution_mode=item.execution_mode,
+    assignment_mode=item.assignment_mode,
+    current_action_owner_id=item.current_action_owner_id,
+    requires_action=item.requires_action,
+    action_type=item.action_type,
+    available_actions=_build_action_options(item),
   )
 
 

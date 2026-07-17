@@ -10,6 +10,7 @@ import { acceptTaskAssignment,
   createTaskComment,
   delegateTaskAssignment,
   listTaskActivity,
+  listTaskDelegateCandidates,
   getTask,
   listTaskWatchers,
   rejectTaskAssignment,
@@ -31,6 +32,11 @@ import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDi
 import TaskDetailHeaderBar from '@/components/task-detail/TaskDetailHeaderBar.vue'
 import TaskDetailMetadataPanel from '@/components/task-detail/TaskDetailMetadataPanel.vue'
 import { resolveStatusLabel } from '@/components/task-detail/task-detail-labels'
+import {
+  canDelegateStandaloneTask,
+  isStandaloneTask as isStandaloneTaskFn,
+  taskHasAction,
+} from '@/domain/task-detail/actions'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
   isVideoWorkflowProfile,
@@ -132,6 +138,7 @@ const delegateForm = reactive({
   assignee_id: '',
   reason: '',
 })
+const standaloneDelegateCandidates = ref<TaskCenterUserOption[]>([])
 
 const commentForm = reactive({
   content: '',
@@ -191,8 +198,19 @@ const handshakeStateLabel = computed(() => {
   }
   return '—'
 })
+function hasAction(action: string): boolean {
+  return taskHasAction(selectedTask.value, action)
+}
+const isStandaloneTask = computed(() => isStandaloneTaskFn(selectedTask.value))
+
 const delegateCandidateOptions = computed(() => {
   const currentAssigneeId = selectedTask.value?.assignee_id ?? ''
+  // Standalone Work Item: candidates come from the authorization-aligned
+  // delegate-candidates endpoint (loaded when the dialog opens), not from graph
+  // publish options or the global user list.
+  if (isStandaloneTask.value) {
+    return standaloneDelegateCandidates.value.filter((option) => option.user_id !== currentAssigneeId)
+  }
   if (props.delegateUserOptions.length > 0) {
     return props.delegateUserOptions.filter((option) => option.user_id !== currentAssigneeId)
   }
@@ -268,9 +286,18 @@ const canRejectTask = computed(
   () => canHandleHandshakeAction.value && currentHandshakeState.value !== 'rejected',
 )
 
-const canDelegateTask = computed(
-  () => canHandleHandshakeAction.value && currentHandshakeState.value !== 'rejected' && delegateCandidateOptions.value.length > 0,
-)
+const canDelegateTask = computed(() => {
+  // Delegation is a Work Item assignment capability, driven by the backend
+  // available_actions contract rather than by graph metadata.
+  if (isStandaloneTask.value) {
+    return canDelegateStandaloneTask(selectedTask.value)
+  }
+  return (
+    canHandleHandshakeAction.value
+    && currentHandshakeState.value !== 'rejected'
+    && delegateCandidateOptions.value.length > 0
+  )
+})
 
 const canSubmitDeliverable = computed(() => {
   const task = selectedTask.value
@@ -1062,7 +1089,25 @@ function openHandshakeRejectDialog(): void {
   handshakeRejectDialogVisible.value = true
 }
 
-function openDelegateDialog(): void {
+async function openDelegateDialog(): Promise<void> {
+  if (isStandaloneTask.value && selectedTask.value) {
+    try {
+      const candidates = await listTaskDelegateCandidates(selectedTask.value.id)
+      standaloneDelegateCandidates.value = candidates.map((candidate) => ({
+        user_id: candidate.user_id,
+        email: '',
+        real_name: candidate.display_name,
+        department_id: null,
+        department_name: candidate.department_name,
+        label: candidate.department_name
+          ? `${candidate.display_name}（${candidate.department_name}）`
+          : candidate.display_name,
+      }))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error))
+      standaloneDelegateCandidates.value = []
+    }
+  }
   delegateForm.assignee_id = delegateCandidateOptions.value[0]?.user_id ?? ''
   delegateForm.reason = ''
   delegateDialogVisible.value = true
@@ -1137,7 +1182,7 @@ async function handleDelegateAssignment(): Promise<void> {
       assignee_id: delegateForm.assignee_id,
       reason: delegateForm.reason.trim(),
     })
-    ElMessage.success('任务已转办，等待新执行人确认')
+    ElMessage.success(isStandaloneTask.value ? '任务已转办给新的执行人' : '任务已转办，等待新执行人确认')
     delegateDialogVisible.value = false
     delegateForm.assignee_id = ''
     delegateForm.reason = ''
@@ -1186,6 +1231,7 @@ watch(
               :deliverable-review-comment="deliverableReviewForm.comment"
               :selected-task="selectedTask"
               :is-graph-handshake-task="isGraphHandshakeTask"
+              :is-standalone-task="isStandaloneTask"
               :can-accept-task="canAcceptTask"
               :can-reject-task="canRejectTask"
               :can-delegate-task="canDelegateTask"

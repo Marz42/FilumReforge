@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Callable, Generic, TypeVar
 from uuid import UUID
@@ -17,10 +17,12 @@ from app.core.enums import (
   CommentFormat,
   DEFAULT_USER_NOTIFICATION_CHANNELS,
   TaskActionType,
+  TaskAssignmentMode,
   TaskPriority,
   TaskSourceType,
   TaskStatus,
   UserRole,
+  UserStatus,
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
   WorkflowGraphInstanceStatus,
@@ -72,6 +74,14 @@ from app.services.access_control import (
 from app.services.cross_department_routing_service import resolve_cross_department_boundary_cc_user_ids
 from app.services.notification_service import NotificationService
 from app.services.condition_evaluator import evaluate_routing_rules
+from app.services.task_action_policy import (
+  ActionOption,
+  WorkItemActionContext,
+  build_standalone_action_context,
+  derive_execution_mode,
+  is_standalone,
+  standalone_action_owner_id,
+)
 from app.services.task_user_facing_state import resolve_task_run_label, resolve_task_user_facing_state
 
 MAX_BATCH_TASK_IDS = 100
@@ -251,6 +261,12 @@ class TaskInboxEntry:
   current_handler_label: str | None
   run_label: str | None = None
   user_facing_state: str | None = None
+  execution_mode: str | None = None
+  assignment_mode: str | None = None
+  current_action_owner_id: UUID | None = None
+  requires_action: bool = False
+  action_type: str | None = None
+  available_actions: list[ActionOption] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -270,6 +286,12 @@ class TaskTrackingEntry:
   is_pending_review: bool = False
   run_label: str | None = None
   user_facing_state: str | None = None
+  execution_mode: str | None = None
+  assignment_mode: str | None = None
+  current_action_owner_id: UUID | None = None
+  requires_action: bool = False
+  action_type: str | None = None
+  available_actions: list[ActionOption] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -285,6 +307,14 @@ class TaskHistoryEntry:
   status: TaskStatus | None = None
   run_label: str | None = None
   user_facing_state: str | None = None
+
+
+@dataclass(slots=True)
+class AssignmentCandidate:
+  user_id: UUID
+  display_name: str
+  department_name: str | None = None
+  role_name: str | None = None
 
 
 @dataclass(slots=True)
@@ -728,12 +758,84 @@ class TaskService:
     )
     return run_label, user_facing_state
 
+  def _work_item_action_context(
+    self,
+    *,
+    task: Task,
+    actor: User,
+    projection: GraphTaskProjection | None = None,
+  ) -> WorkItemActionContext:
+    """Unified, per-actor Work Item capability snapshot.
+
+    Standalone tasks derive the full action set (the Iteration 3 fix); workflow
+    (graph-projected) tasks report execution_mode + current action owner so the
+    task center can bucket them, while their detailed action rendering stays on
+    the existing graph-aware path for this pass.
+    """
+    is_mgmt = actor.role in MANAGEMENT_ROLES
+    if projection is not None:
+      owner = projection.current_handler_id
+      actor_is_owner = owner is not None and owner == actor.id
+      action_type: str | None = None
+      if actor_is_owner:
+        if projection.status == TaskStatus.REVIEW:
+          action_type = "review_deliverable"
+        elif projection.status == TaskStatus.DOING:
+          action_type = "submit_deliverable"
+        elif projection.status == TaskStatus.TODO:
+          action_type = "handshake"
+      return WorkItemActionContext(
+        execution_mode=derive_execution_mode(task),
+        assignment_mode=task.assignment_mode or "direct",
+        current_action_owner_id=owner,
+        requires_action=actor_is_owner and action_type is not None,
+        action_type=action_type,
+        available_actions=[],
+      )
+    if is_standalone(task):
+      return build_standalone_action_context(task=task, actor=actor, is_management=is_mgmt)
+    return WorkItemActionContext(
+      execution_mode=derive_execution_mode(task),
+      assignment_mode=task.assignment_mode or "direct",
+      current_action_owner_id=task.assignee_id if task.status != TaskStatus.DONE else None,
+      requires_action=False,
+      action_type=None,
+      available_actions=[],
+    )
+
+  async def resolve_task_action_context(self, *, actor: User, task: Task) -> WorkItemActionContext:
+    """Public entry: per-actor Work Item action contract for a task detail view.
+
+    Standalone tasks derive the full action set (the Iteration 3 fix). Workflow
+    (graph-projected) tasks report execution_mode only; their detailed action
+    rendering stays on the existing graph-aware frontend path for this pass, so
+    we avoid recomputing the graph projection here (which would require eager
+    relationship loading that a freshly mutated task may not carry).
+    """
+    if is_standalone(task):
+      return build_standalone_action_context(
+        task=task,
+        actor=actor,
+        is_management=actor.role in MANAGEMENT_ROLES,
+      )
+    return self._work_item_action_context(task=task, actor=actor)
+
+  @staticmethod
+  def _apply_action_context(entry: TaskInboxEntry | TaskTrackingEntry, ctx: WorkItemActionContext) -> None:
+    entry.execution_mode = ctx.execution_mode
+    entry.assignment_mode = ctx.assignment_mode
+    entry.current_action_owner_id = ctx.current_action_owner_id
+    entry.requires_action = ctx.requires_action
+    entry.action_type = ctx.action_type
+    entry.available_actions = list(ctx.available_actions)
+
   def _build_graph_inbox_entry(
     self,
     *,
     task: Task,
     projection: GraphTaskProjection,
     graph_run_labels: dict[UUID, str | None],
+    actor: User,
   ) -> TaskInboxEntry:
     run_label, user_facing_state = self._list_item_extras(
       task=task,
@@ -742,7 +844,7 @@ class TaskService:
       graph_business_state=projection.business_state,
       graph_node_key=projection.node_key,
     )
-    return TaskInboxEntry(
+    entry = TaskInboxEntry(
       task_id=task.id,
       title=task.title,
       priority=task.priority,
@@ -754,6 +856,11 @@ class TaskService:
       run_label=run_label,
       user_facing_state=user_facing_state,
     )
+    self._apply_action_context(
+      entry,
+      self._work_item_action_context(task=task, actor=actor, projection=projection),
+    )
+    return entry
 
   def _build_graph_tracking_entry(
     self,
@@ -762,6 +869,7 @@ class TaskService:
     relation_types: list[str],
     projection: GraphTaskProjection,
     graph_run_labels: dict[UUID, str | None],
+    actor: User,
   ) -> TaskTrackingEntry:
     run_label, user_facing_state = self._list_item_extras(
       task=task,
@@ -770,7 +878,7 @@ class TaskService:
       graph_business_state=projection.business_state,
       graph_node_key=projection.node_key,
     )
-    return TaskTrackingEntry(
+    entry = TaskTrackingEntry(
       task_id=task.id,
       title=task.title,
       priority=task.priority,
@@ -787,6 +895,11 @@ class TaskService:
       run_label=run_label,
       user_facing_state=user_facing_state,
     )
+    self._apply_action_context(
+      entry,
+      self._work_item_action_context(task=task, actor=actor, projection=projection),
+    )
+    return entry
 
   def _build_graph_history_entry(
     self,
@@ -1530,16 +1643,35 @@ class TaskService:
       )
     return context_map
 
+  def _standalone_context(self, *, task: Task) -> tuple[str, str | None] | None:
+    """Stage label / current handler for a standalone Task (no graph metadata)."""
+    if not is_standalone(task):
+      return None
+    assignee_label = _user_display_label(task.assignee)
+    creator_label = _user_display_label(task.creator)
+    if task.status == TaskStatus.TODO:
+      return ("任务：待处理", assignee_label)
+    if task.status == TaskStatus.DOING:
+      metadata = self._copy_task_metadata(task)
+      if self._read_str_metadata(metadata, "latest_review_state") == "returned_for_rework":
+        return ("任务：返工中", assignee_label)
+      return ("任务：进行中", assignee_label)
+    if task.status == TaskStatus.REVIEW:
+      return ("任务：待验收", creator_label)
+    return ("任务：已完成", assignee_label)
+
   def _build_inbox_entry(
     self,
     *,
     task: Task,
     step_context_map: dict[UUID, tuple[str, str | None]],
     graph_run_labels: dict[UUID, str | None],
+    actor: User,
   ) -> TaskInboxEntry:
     current_stage_label, current_handler_label = step_context_map.get(
       task.id,
       self._manual_graph_context(task=task)
+      or self._standalone_context(task=task)
       or (
         f"任务：{_task_status_label(task.status)}",
         _user_display_label(task.assignee),
@@ -1550,7 +1682,7 @@ class TaskService:
       status=task.status,
       graph_run_labels=graph_run_labels,
     )
-    return TaskInboxEntry(
+    entry = TaskInboxEntry(
       task_id=task.id,
       title=task.title,
       priority=task.priority,
@@ -1562,6 +1694,11 @@ class TaskService:
       run_label=run_label,
       user_facing_state=user_facing_state,
     )
+    self._apply_action_context(
+      entry,
+      self._work_item_action_context(task=task, actor=actor),
+    )
+    return entry
 
   def _build_tracking_entry(
     self,
@@ -1570,6 +1707,7 @@ class TaskService:
     relation_types: list[str],
     step_context_map: dict[UUID, tuple[str, str | None]],
     graph_run_labels: dict[UUID, str | None],
+    actor: User,
   ) -> TaskTrackingEntry:
     metadata = self._copy_task_metadata(task)
     review_quality_score = None
@@ -1579,6 +1717,7 @@ class TaskService:
     current_stage_label, current_handler_label = step_context_map.get(
       task.id,
       self._manual_graph_context(task=task)
+      or self._standalone_context(task=task)
       or (
         f"任务：{_task_status_label(task.status)}",
         _user_display_label(task.assignee),
@@ -1589,7 +1728,7 @@ class TaskService:
       status=task.status,
       graph_run_labels=graph_run_labels,
     )
-    return TaskTrackingEntry(
+    entry = TaskTrackingEntry(
       task_id=task.id,
       title=task.title,
       priority=task.priority,
@@ -1606,6 +1745,11 @@ class TaskService:
       run_label=run_label,
       user_facing_state=user_facing_state,
     )
+    self._apply_action_context(
+      entry,
+      self._work_item_action_context(task=task, actor=actor),
+    )
+    return entry
 
   def _build_history_entry(
     self,
@@ -2119,6 +2263,39 @@ class TaskService:
       return
     raise AuthorizationError("当前账号不能处理该任务的握手动作。")
 
+  @staticmethod
+  def _has_task_admin_override(actor: User) -> bool:
+    """Task admin override, currently mapped to ADMIN/HR.
+
+    Deliberately NOT extended to task creators: once a direct assignment is
+    made, execution responsibility belongs to the assignee. Department-manager
+    delegation authority, if ever needed, must go through the managed-scope
+    policy rather than a creator_id shortcut.
+    """
+    return actor.role in MANAGEMENT_ROLES
+
+  async def _ensure_standalone_delegate_authority(self, *, actor: User, task: Task) -> None:
+    if actor.id == task.assignee_id or self._has_task_admin_override(actor):
+      return
+    raise AuthorizationError("仅当前执行人或任务管理员可以转办该任务。")
+
+  async def _refresh_task_row_with_lock(self, *, task_id: UUID) -> None:
+    """Serialise standalone Work Item state commands via a row lock.
+
+    Re-reads the task under ``FOR UPDATE`` and repopulates the identity-mapped
+    instance, so permission/status checks that follow see committed state
+    instead of a stale snapshot. Concurrent delegate/submit/start commands are
+    thereby ordered: the loser re-validates against the winner's result and
+    fails with a stable business error instead of silently overwriting it.
+    (``FOR UPDATE`` is a no-op on SQLite, which is single-writer anyway.)
+    """
+    await self._session.scalar(
+      select(Task)
+      .where(Task.id == task_id)
+      .with_for_update()
+      .execution_options(populate_existing=True)
+    )
+
   async def _resolve_delegate_assignee(
     self,
     *,
@@ -2129,7 +2306,10 @@ class TaskService:
     assignee = await self._session.get(User, assignee_id)
     if assignee is None:
       raise NotFoundError("转办目标不存在。")
-    ensure_active_user(assignee)
+    # A stable business conflict, not AuthenticationError: the *target* being
+    # inactive must never surface as a 401 for the acting user.
+    if assignee.status != UserStatus.ACTIVE:
+      raise ConflictError("转办目标账号不可用。")
     if assignee.id == task.assignee_id:
       raise ConflictError("转办目标不能与当前执行人相同。")
     if actor.id != task.assignee_id and not await can_manage_assignee(self._session, actor, assignee_id):
@@ -2149,7 +2329,13 @@ class TaskService:
     dependency_ids: list[UUID] | None = None,
     attachment_ids: list[UUID] | None = None,
     watcher_user_ids: list[UUID] | None = None,
+    assignment_mode: str | None = None,
   ) -> Task:
+    # Invariant: standalone manual tasks are created with direct assignment.
+    # The handshake state machine (PENDING_ACCEPTANCE / DECLINED) is a later
+    # batch; requesting it must fail loudly, never silently fall back.
+    if assignment_mode is not None and assignment_mode != TaskAssignmentMode.DIRECT.value:
+      raise ConflictError(f"unsupported_assignment_mode: 暂不支持 {assignment_mode} 指派模式。")
     task, _ = await self.create_task_record(
       actor=actor,
       title=title,
@@ -2292,6 +2478,7 @@ class TaskService:
                 task=task,
                 projection=projection,
                 graph_run_labels=graph_run_labels,
+                actor=actor,
               ),
             )
           )
@@ -2304,7 +2491,14 @@ class TaskService:
       if self._uses_graph_handshake_cycle(task=task) and self._manual_graph_current_handler_id(task=task) == actor.id:
         legacy_tasks.append(task)
         continue
-      if not self._uses_graph_handshake_cycle(task=task) and task.assignee_id == actor.id:
+      # Standalone Work Item: the inbox owner is whoever must act next
+      # (assignee while TODO/DOING, creator while REVIEW), not merely the assignee.
+      if is_standalone(task):
+        if standalone_action_owner_id(task) == actor.id:
+          legacy_tasks.append(task)
+        continue
+      # Legacy fallback for non-standalone tasks without a graph projection.
+      if task.assignee_id == actor.id:
         legacy_tasks.append(task)
 
     sorted_graph_entries = sorted(
@@ -2331,6 +2525,7 @@ class TaskService:
         task=task,
         step_context_map=step_context_map,
         graph_run_labels=graph_run_labels,
+        actor=actor,
       )
       for task in sorted_legacy_tasks
     )
@@ -2445,7 +2640,15 @@ class TaskService:
         or any(watcher.user_id == actor.id for watcher in task.watchers)
       )
       has_workflow_participation = task.id in workflow_related_task_ids or task.id in graph_projection_map
-      if self._task_center_v2_enabled() and not has_workflow_participation and not is_management:
+      # Iteration 3 fix: a standalone Task legitimately has no workflow participation.
+      # Personally-related tasks (creator / assignee / watcher) must not be dropped
+      # just because they carry no graph projection.
+      if (
+        self._task_center_v2_enabled()
+        and not has_workflow_participation
+        and not is_personally_related
+        and not is_management
+      ):
         continue
       if is_management and not is_personally_related:
         relation_types.append("督办")
@@ -2460,6 +2663,7 @@ class TaskService:
             relation_types=relation_types or ["流程"],
             projection=projection,
             graph_run_labels=graph_run_labels,
+            actor=actor,
           )
         )
       elif task.status != TaskStatus.DONE:
@@ -2469,6 +2673,7 @@ class TaskService:
             relation_types=relation_types or ["流程"],
             step_context_map=step_context_map,
             graph_run_labels=graph_run_labels,
+            actor=actor,
           )
         )
 
@@ -2709,6 +2914,9 @@ class TaskService:
     target_status: TaskStatus,
   ) -> Task:
     task = await self.get_task(actor=actor, task_id=task_id)
+    if is_standalone(task):
+      # Order this command against concurrent delegates (see the lock helper).
+      await self._refresh_task_row_with_lock(task_id=task.id)
 
     if not await self._can_operate_task(actor=actor, task=task):
       raise AuthorizationError("当前账号不能变更该任务状态。")
@@ -2780,6 +2988,9 @@ class TaskService:
     task = await self.get_task(actor=actor, task_id=task_id)
     if self._is_admin_archived_task(task):
       raise ConflictError("任务已归档，无法继续操作。")
+    if is_standalone(task):
+      # Order this command against concurrent delegates (see the lock helper).
+      await self._refresh_task_row_with_lock(task_id=task.id)
     await self._ensure_task_assignee_or_manager(actor=actor, task=task)
     if self._is_graph_run_root_shell_task(task):
       raise ConflictError("请在待办中打开具体步骤任务后再提交，不要在使用制作/批次根任务提交。")
@@ -3029,6 +3240,140 @@ class TaskService:
     await self._session.refresh(task)
     return task
 
+  async def _build_assignment_candidates(
+    self,
+    *,
+    department_ids: set[UUID] | None,
+    exclude_user_ids: set[UUID],
+    query: str | None,
+    limit: int,
+  ) -> list[AssignmentCandidate]:
+    statement = (
+      select(User)
+      .options(selectinload(User.profile))
+      .where(User.status == UserStatus.ACTIVE)
+    )
+    profile_joined = False
+    if department_ids is not None:
+      if not department_ids:
+        return []
+      statement = statement.join(Profile, Profile.user_id == User.id).where(
+        Profile.department_id.in_(department_ids)
+      )
+      profile_joined = True
+    normalized_query = (query or "").strip()
+    if normalized_query:
+      pattern = f"%{normalized_query}%"
+      if not profile_joined:
+        statement = statement.outerjoin(Profile, Profile.user_id == User.id)
+      statement = statement.where(or_(User.email.ilike(pattern), Profile.real_name.ilike(pattern)))
+    statement = statement.order_by(User.created_at.asc()).limit(max(1, min(limit, 100)))
+
+    users = list(await self._session.scalars(statement))
+    department_name_map: dict[UUID, str] = {}
+    dept_ids = {
+      user.profile.department_id
+      for user in users
+      if user.profile is not None and user.profile.department_id is not None
+    }
+    if dept_ids:
+      departments = list(
+        await self._session.scalars(select(Department).where(Department.id.in_(dept_ids)))
+      )
+      department_name_map = {department.id: department.name for department in departments}
+
+    candidates: list[AssignmentCandidate] = []
+    for user in users:
+      if user.id in exclude_user_ids:
+        continue
+      profile = user.profile
+      department_name = (
+        department_name_map.get(profile.department_id)
+        if profile is not None and profile.department_id is not None
+        else None
+      )
+      candidates.append(
+        AssignmentCandidate(
+          user_id=user.id,
+          display_name=_user_display_label(user),
+          department_name=department_name,
+          role_name=user.role.value if user.role is not None else None,
+        )
+      )
+    return candidates
+
+  async def _candidate_scope_department_ids(self, *, actor: User) -> set[UUID]:
+    """Managed-scope department set for a non-management actor."""
+    managed = await get_effective_managed_department_ids(
+      self._session,
+      actor.id,
+    )
+    department_ids: set[UUID] = set(managed) if managed else set()
+    actor_department_id = await get_actor_department_id(self._session, actor.id)
+    if actor_department_id is not None:
+      department_ids.add(actor_department_id)
+    return department_ids
+
+  async def list_assignee_candidates(
+    self,
+    *,
+    actor: User,
+    scope: str = "managed",
+    query: str | None = None,
+    limit: int = 20,
+  ) -> list[AssignmentCandidate]:
+    """Candidates for creating a task.
+
+    ``organization`` scope is only available to actors with org publish rights,
+    keeping candidate discovery consistent with ``_resolve_assignee_for_task``.
+    """
+    ensure_active_user(actor)
+    if scope == "organization":
+      if not (is_management_role(actor) or await can_publish_org_tasks(self._session, actor)):
+        raise AuthorizationError("当前账号无权跨部门指派任务。")
+      department_ids: set[UUID] | None = None
+    elif is_management_role(actor):
+      department_ids = None
+    else:
+      department_ids = await self._candidate_scope_department_ids(actor=actor)
+    return await self._build_assignment_candidates(
+      department_ids=department_ids,
+      exclude_user_ids=set(),
+      query=query,
+      limit=limit,
+    )
+
+  async def list_delegate_candidates(
+    self,
+    *,
+    actor: User,
+    task_id: UUID,
+    query: str | None = None,
+    limit: int = 20,
+  ) -> list[AssignmentCandidate]:
+    """Candidates a delegator may transfer this task to.
+
+    Scope reflects delegation authority: managers / org publishers see the
+    organization, a plain assignee sees their own org unit. The delegate command
+    re-validates authorization; this list is not an authorization token.
+    """
+    task = await self.get_task(actor=actor, task_id=task_id)
+    if is_standalone(task):
+      await self._ensure_standalone_delegate_authority(actor=actor, task=task)
+    else:
+      await self._ensure_task_handshake_actor(actor=actor, task=task)
+    if is_management_role(actor) or await can_publish_org_tasks(self._session, actor):
+      department_ids: set[UUID] | None = None
+    else:
+      department_ids = await self._candidate_scope_department_ids(actor=actor)
+    exclude = {task.assignee_id}
+    return await self._build_assignment_candidates(
+      department_ids=department_ids,
+      exclude_user_ids=exclude,
+      query=query,
+      limit=limit,
+    )
+
   async def delegate_task_assignment(
     self,
     *,
@@ -3037,9 +3382,101 @@ class TaskService:
     assignee_id: UUID,
     reason: str,
   ) -> Task:
+    """Delegate a Work Item.
+
+    Assignment capabilities belong to the Work Item, not to the existence of a
+    graph node. Standalone and workflow-human tasks share permission and audit
+    logic but have different side effects (a standalone delegate must never
+    touch graph runtime).
+    """
     task = await self.get_task(actor=actor, task_id=task_id)
-    if not self._uses_graph_handshake_cycle(task=task):
-      raise ConflictError("当前任务不使用图引擎握手流程。")
+    if is_standalone(task):
+      return await self._delegate_standalone_task(
+        actor=actor,
+        task=task,
+        assignee_id=assignee_id,
+        reason=reason,
+      )
+    if self._uses_graph_handshake_cycle(task=task):
+      return await self._delegate_workflow_human_task(
+        actor=actor,
+        task=task,
+        assignee_id=assignee_id,
+        reason=reason,
+      )
+    raise ConflictError("当前任务不支持转办。")
+
+  async def _delegate_standalone_task(
+    self,
+    *,
+    actor: User,
+    task: Task,
+    assignee_id: UUID,
+    reason: str,
+  ) -> Task:
+    # Compare-and-set on the assignee observed when this command entered: a
+    # delegate decision made against a snapshot that another transfer has
+    # already invalidated must fail with a stable conflict instead of quietly
+    # re-transferring (e.g. assignee and admin delegating simultaneously).
+    expected_assignee_id = task.assignee_id
+    await self._refresh_task_row_with_lock(task_id=task.id)
+    if task.assignee_id != expected_assignee_id:
+      raise ConflictError("任务执行人已变更，请刷新后重试。")
+    await self._ensure_standalone_delegate_authority(actor=actor, task=task)
+    # Product decision: REVIEW is the creator's acceptance step, not a delegable
+    # execution responsibility. DONE tasks are terminal.
+    if task.status not in {TaskStatus.TODO, TaskStatus.DOING}:
+      raise ConflictError("只有待处理或进行中的任务才能转办。")
+
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+      raise ConflictError("转办时必须填写原因。")
+
+    next_assignee = await self._resolve_delegate_assignee(actor=actor, task=task, assignee_id=assignee_id)
+    previous_assignee_id = task.assignee_id
+    now = datetime.now(UTC)
+    task.assignee_id = next_assignee.id
+    task.updated_at = now
+    metadata = self._copy_task_metadata(task)
+    metadata.update(
+      {
+        "latest_delegate_reason": normalized_reason,
+        "latest_delegate_from_user_id": str(previous_assignee_id),
+        "latest_delegate_to_user_id": str(next_assignee.id),
+        "latest_delegate_at": now.isoformat(),
+        "latest_delegate_actor_user_id": str(actor.id),
+      }
+    )
+    task.extra_metadata = metadata
+    await self._create_task_log(
+      task_id=task.id,
+      operator_id=actor.id,
+      action_type=TaskActionType.ASSIGNED,
+      detail={
+        "action": "delegated",
+        "execution_mode": "standalone",
+        "reason": normalized_reason,
+        "previous_assignee_id": str(previous_assignee_id),
+        "assignee_id": str(next_assignee.id),
+        "assignee_email": next_assignee.email,
+        "status": task.status.value,
+        # Audit distinction: forced transfer by task admin vs self-initiated.
+        "delegated_by_admin": actor.id != previous_assignee_id,
+      },
+    )
+    await self._session.commit()
+    await self._session.refresh(task)
+    await self._send_assignment_notification(task=task, assignee=next_assignee)
+    return task
+
+  async def _delegate_workflow_human_task(
+    self,
+    *,
+    actor: User,
+    task: Task,
+    assignee_id: UUID,
+    reason: str,
+  ) -> Task:
     await self._ensure_task_handshake_actor(actor=actor, task=task)
     if task.status != TaskStatus.TODO:
       raise ConflictError("只有待处理任务才能执行转办。")
@@ -3105,6 +3542,9 @@ class TaskService:
     quality_score: int | None = None,
   ) -> Task:
     task = await self.get_task(actor=actor, task_id=task_id)
+    if is_standalone(task):
+      # Order this command against concurrent reviews / delegates.
+      await self._refresh_task_row_with_lock(task_id=task.id)
     await self._ensure_task_reviewer(actor=actor, task=task)
     if task.status != TaskStatus.REVIEW:
       raise ConflictError("只有评审中的任务才能执行验收动作。")

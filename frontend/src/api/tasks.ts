@@ -4,6 +4,7 @@ import type {
   TaskActivityEntry,
   TaskBoardColumn,
   TaskComment,
+  TaskDelegateCandidate,
   TaskGanttEntry,
   TaskPriority,
   TaskStatsSummary,
@@ -152,6 +153,28 @@ export async function delegateTaskAssignment(
   const { data } = await http.post<Task>(`/tasks/${taskId}/delegate`, {
     assignee_id: payload.assignee_id,
     reason: payload.reason ?? null,
+  })
+  return data
+}
+
+export async function listTaskDelegateCandidates(
+  taskId: string,
+  query?: string,
+  limit = 20,
+): Promise<TaskDelegateCandidate[]> {
+  const { data } = await http.get<TaskDelegateCandidate[]>(`/tasks/${taskId}/delegate-candidates`, {
+    params: { q: query || undefined, limit },
+  })
+  return data
+}
+
+export async function listTaskAssigneeCandidates(
+  scope: 'managed' | 'organization' = 'managed',
+  query?: string,
+  limit = 20,
+): Promise<TaskDelegateCandidate[]> {
+  const { data } = await http.get<TaskDelegateCandidate[]>('/tasks/assignee-candidates', {
+    params: { scope, q: query || undefined, limit },
   })
   return data
 }

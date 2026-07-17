@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 
 import { uploadAttachment } from '@/api/attachments'
-import { createTask } from '@/api/tasks'
+import { createTask, listTaskAssigneeCandidates } from '@/api/tasks'
 import type { TaskPriority } from '@/types/api'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import ScheduledDispatchForm from '@/components/task-center/ScheduledDispatchForm.vue'
@@ -50,7 +50,34 @@ const publishForm = reactive({
   watcher_user_ids: [] as string[],
 })
 
-const filteredPublishUserOptions = computed(() => {
+type AssigneeOption = {
+  user_id: string
+  email: string
+  real_name?: string | null
+  department_id?: string | null
+  department_name?: string | null
+  label: string
+}
+
+const crossDepartmentEnabled = ref(false)
+const organizationCandidates = ref<AssigneeOption[]>([])
+const organizationLoading = ref(false)
+const crossDepartmentUnavailable = ref(false)
+
+const filteredPublishUserOptions = computed<AssigneeOption[]>(() => {
+  // Organization scope: candidates come from the authorization-aligned
+  // assignee-candidates endpoint so cross-department assignment (allowed by
+  // can_publish_org_tasks) is expressible in the UI, not silently narrowed.
+  if (crossDepartmentEnabled.value) {
+    const merged = new Map<string, AssigneeOption>()
+    for (const option of props.userOptions) {
+      merged.set(option.user_id, option)
+    }
+    for (const option of organizationCandidates.value) {
+      merged.set(option.user_id, option)
+    }
+    return Array.from(merged.values())
+  }
   if (!publishForm.department_id) {
     return props.userOptions
   }
@@ -60,11 +87,49 @@ const filteredPublishUserOptions = computed(() => {
 })
 
 const assigneeSelectPlaceholder = computed(() => {
+  if (crossDepartmentEnabled.value) {
+    return '输入姓名或邮箱搜索组织内成员'
+  }
   if (filteredPublishUserOptions.value.length === 0) {
     return '该部门暂无可选执行人'
   }
   return '请选择执行人'
 })
+
+async function handleOrganizationSearch(query: string): Promise<void> {
+  if (!crossDepartmentEnabled.value) {
+    return
+  }
+  organizationLoading.value = true
+  try {
+    const candidates = await listTaskAssigneeCandidates('organization', query, 30)
+    organizationCandidates.value = candidates.map((candidate) => ({
+      user_id: candidate.user_id,
+      email: '',
+      real_name: candidate.display_name,
+      department_id: null,
+      department_name: candidate.department_name,
+      label: candidate.department_name
+        ? `${candidate.display_name}（${candidate.department_name}）`
+        : candidate.display_name,
+    }))
+    crossDepartmentUnavailable.value = false
+  } catch (error) {
+    organizationCandidates.value = []
+    crossDepartmentUnavailable.value = true
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    organizationLoading.value = false
+  }
+}
+
+function handleCrossDepartmentToggle(enabled: boolean): void {
+  organizationCandidates.value = []
+  crossDepartmentUnavailable.value = false
+  if (enabled) {
+    void handleOrganizationSearch('')
+  }
+}
 
 const publishFormDirty = computed(
   () => publishForm.title.trim().length > 0 || publishForm.description.trim().length > 0,
@@ -124,6 +189,9 @@ function resetPublishForm(): void {
   publishForm.due_date = null
   publishForm.watcher_user_ids = []
   publishDraftAttachments.value = []
+  crossDepartmentEnabled.value = false
+  organizationCandidates.value = []
+  crossDepartmentUnavailable.value = false
 }
 
 function removePublishDraftAttachment(id: string): void {
@@ -277,11 +345,23 @@ watch(
       </el-form-item>
       <el-form-item label="执行人">
         <div data-testid="task-center-task-assignee" class="publish-task-dialog__control-wrap">
+          <div class="publish-task-dialog__assignee-scope">
+            <el-switch
+              v-model="crossDepartmentEnabled"
+              data-testid="task-center-cross-department-toggle"
+              @change="handleCrossDepartmentToggle"
+            />
+            <span class="publish-task-dialog__assignee-scope-label">跨部门指派（组织范围）</span>
+          </div>
           <el-select
             v-model="publishForm.assignee_user_id"
             class="publish-task-dialog__full-select"
             :placeholder="assigneeSelectPlaceholder"
-            :disabled="filteredPublishUserOptions.length === 0"
+            :disabled="!crossDepartmentEnabled && filteredPublishUserOptions.length === 0"
+            :filterable="crossDepartmentEnabled"
+            :remote="crossDepartmentEnabled"
+            :remote-method="handleOrganizationSearch"
+            :loading="organizationLoading"
             teleported
             :popper-options="{ strategy: 'fixed' }"
             popper-class="task-center-view-select-popper"
@@ -293,6 +373,9 @@ watch(
               :value="user.user_id"
             />
           </el-select>
+          <p v-if="crossDepartmentUnavailable" class="publish-task-dialog__assignee-hint">
+            当前账号无权跨部门指派任务。
+          </p>
         </div>
       </el-form-item>
       <el-form-item label="抄送人">
@@ -411,6 +494,24 @@ watch(
 
 .publish-task-dialog__full-select {
   width: 100%;
+}
+
+.publish-task-dialog__assignee-scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.publish-task-dialog__assignee-scope-label {
+  color: #606266;
+  font-size: 13px;
+}
+
+.publish-task-dialog__assignee-hint {
+  margin: 4px 0 0;
+  color: #f56c6c;
+  font-size: 12px;
 }
 
 .publish-task-dialog__draft-tags {

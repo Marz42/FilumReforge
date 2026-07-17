@@ -37,6 +37,28 @@ class TaskSourceType(StrEnum):
   AI = "ai"
 
 
+class TaskAssignmentMode(StrEnum):
+  """First-class Work Item assignment policy.
+
+  ``direct``    — assignee owns the task immediately on creation (default).
+  ``handshake`` — reserved for the next batch (offer / accept / reject flow).
+  """
+
+  DIRECT = "direct"
+  HANDSHAKE = "handshake"
+
+
+class TaskExecutionMode(StrEnum):
+  """Derived (read-only) execution model for a Work Item.
+
+  ``standalone`` — a plain Task with no graph instance / node / link.
+  ``workflow``   — a Task projected from the graph engine runtime.
+  """
+
+  STANDALONE = "standalone"
+  WORKFLOW = "workflow"
+
+
 class TaskActionType(StrEnum):
   CREATED = "created"
   ASSIGNED = "assigned"

@@ -22,7 +22,9 @@ from app.schemas.tasks import (
   TaskAssignmentRejectRequest,
   TaskBoardColumnRead,
   TaskCommentRead,
+  TaskActionOptionRead,
   TaskCreateRequest,
+  TaskDelegateCandidateRead,
   TaskDeliverableReviewRequest,
   TaskDeliverableSubmitRequest,
   TaskGanttEntryRead,
@@ -46,6 +48,29 @@ from app.services.task_user_facing_state import resolve_task_user_facing_state
 from app.services.user_display import user_display_label
 
 router = APIRouter(prefix="/tasks")
+
+
+async def _build_task_read(
+  *,
+  task_service: TaskService,
+  actor: User,
+  task,
+) -> TaskRead:
+  """Serialize a Task with its per-actor Work Item action contract."""
+  ctx = await task_service.resolve_task_action_context(actor=actor, task=task)
+  return TaskRead.model_validate(task).model_copy(
+    update={
+      "execution_mode": ctx.execution_mode,
+      "assignment_mode": ctx.assignment_mode,
+      "current_action_owner_id": ctx.current_action_owner_id,
+      "requires_action": ctx.requires_action,
+      "action_type": ctx.action_type,
+      "available_actions": [
+        TaskActionOptionRead(action=option.action, label=option.label, button_type=option.button_type)
+        for option in ctx.available_actions
+      ],
+    }
+  )
 
 
 async def _build_attachment_read(
@@ -170,6 +195,23 @@ async def search_tasks(
   ]
 
 
+@router.get("/assignee-candidates", response_model=list[TaskDelegateCandidateRead])
+async def list_assignee_candidates(
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  scope: Annotated[Literal["managed", "organization"], Query()] = "managed",
+  q: Annotated[str | None, Query(max_length=200)] = None,
+  limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> list[TaskDelegateCandidateRead]:
+  candidates = await task_service.list_assignee_candidates(
+    actor=actor,
+    scope=scope,
+    query=q,
+    limit=limit,
+  )
+  return [TaskDelegateCandidateRead.model_validate(candidate, from_attributes=True) for candidate in candidates]
+
+
 @router.get("/{task_id}", response_model=TaskRead)
 async def read_task(
   task_id: UUID,
@@ -177,7 +219,7 @@ async def read_task(
   task_service: Annotated[TaskService, Depends(get_task_service)],
 ) -> TaskRead:
   task = await task_service.get_task(actor=actor, task_id=task_id)
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.post("", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
@@ -197,8 +239,9 @@ async def create_task(
     dependency_ids=payload.dependency_ids or None,
     attachment_ids=payload.attachment_ids or None,
     watcher_user_ids=payload.watcher_user_ids or None,
+    assignment_mode=payload.assignment_mode,
   )
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.get("/stats/scopes", response_model=TaskStatsScopesRead)
@@ -346,7 +389,7 @@ async def update_task(
     due_date=payload.due_date,
     priority=payload.priority,
   )
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.get("/{task_id}/watchers", response_model=list[TaskWatcherRead])
@@ -401,7 +444,7 @@ async def update_task_status(
     task_id=task_id,
     target_status=payload.status,
   )
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.post("/{task_id}/accept", response_model=TaskRead)
@@ -414,7 +457,7 @@ async def accept_task_assignment(
     actor=actor,
     task_id=task_id,
   )
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.post("/{task_id}/reject", response_model=TaskRead)
@@ -429,7 +472,24 @@ async def reject_task_assignment(
     task_id=task_id,
     reason=payload.reason or "",
   )
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
+
+
+@router.get("/{task_id}/delegate-candidates", response_model=list[TaskDelegateCandidateRead])
+async def list_delegate_candidates(
+  task_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  task_service: Annotated[TaskService, Depends(get_task_service)],
+  q: Annotated[str | None, Query(max_length=200)] = None,
+  limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> list[TaskDelegateCandidateRead]:
+  candidates = await task_service.list_delegate_candidates(
+    actor=actor,
+    task_id=task_id,
+    query=q,
+    limit=limit,
+  )
+  return [TaskDelegateCandidateRead.model_validate(candidate, from_attributes=True) for candidate in candidates]
 
 
 @router.post("/{task_id}/delegate", response_model=TaskRead)
@@ -445,7 +505,7 @@ async def delegate_task_assignment(
     assignee_id=payload.assignee_id,
     reason=payload.reason or "",
   )
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.post("/{task_id}/archive", response_model=TaskArchiveResponse)
@@ -481,7 +541,7 @@ async def submit_task_deliverable(
     summary=payload.summary,
     attachment_ids=payload.attachment_ids,
   )
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.post("/{task_id}/review", response_model=TaskRead)
@@ -498,7 +558,7 @@ async def review_task_deliverable(
     comment=payload.comment,
     quality_score=payload.quality_score,
   )
-  return TaskRead.model_validate(task)
+  return await _build_task_read(task_service=task_service, actor=actor, task=task)
 
 
 @router.get("/{task_id}/comments", response_model=list[TaskCommentRead])

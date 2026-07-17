@@ -279,6 +279,15 @@ export interface PeopleManagementDetail {
   latest_employment_event: EmploymentEvent | null
 }
 
+export type TaskExecutionMode = 'standalone' | 'workflow'
+export type TaskAssignmentMode = 'direct' | 'handshake'
+
+export interface TaskActionOption {
+  action: string
+  label: string
+  button_type: string
+}
+
 export interface Task {
   id: string
   title: string
@@ -293,9 +302,22 @@ export interface Task {
   completed_at: string | null
   parent_task_id: string | null
   source_type: TaskSourceType
+  assignment_mode?: TaskAssignmentMode | null
   extra_metadata: Record<string, unknown>
   created_at: string
   updated_at: string
+  execution_mode?: TaskExecutionMode | null
+  current_action_owner_id?: string | null
+  requires_action?: boolean
+  action_type?: string | null
+  available_actions?: TaskActionOption[]
+}
+
+export interface TaskDelegateCandidate {
+  user_id: string
+  display_name: string
+  department_name: string | null
+  role_name: string | null
 }
 
 export interface TaskWatcher {
@@ -549,6 +571,12 @@ export interface TaskCenterInboxItem {
   current_handler_label: string | null
   run_label?: string | null
   user_facing_state?: string | null
+  execution_mode?: TaskExecutionMode | null
+  assignment_mode?: TaskAssignmentMode | null
+  current_action_owner_id?: string | null
+  requires_action?: boolean
+  action_type?: string | null
+  available_actions?: TaskActionOption[]
 }
 
 export interface TaskCenterTrackingItem {
@@ -567,6 +595,12 @@ export interface TaskCenterTrackingItem {
   is_pending_review?: boolean
   run_label?: string | null
   user_facing_state?: string | null
+  execution_mode?: TaskExecutionMode | null
+  assignment_mode?: TaskAssignmentMode | null
+  current_action_owner_id?: string | null
+  requires_action?: boolean
+  action_type?: string | null
+  available_actions?: TaskActionOption[]
 }
 
 export interface TaskCenterHistoryItem {

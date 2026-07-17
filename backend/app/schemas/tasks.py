@@ -24,6 +24,12 @@ class TaskSearchResultRead(BaseModel):
   user_facing_state: str | None = None
 
 
+class TaskActionOptionRead(BaseModel):
+  action: str
+  label: str
+  button_type: str = "primary"
+
+
 class TaskRead(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 
@@ -40,9 +46,22 @@ class TaskRead(BaseModel):
   completed_at: datetime | None
   parent_task_id: UUID | None
   source_type: TaskSourceType
+  assignment_mode: str | None = None
   extra_metadata: dict[str, Any]
   created_at: datetime
   updated_at: datetime
+  execution_mode: str | None = None
+  current_action_owner_id: UUID | None = None
+  requires_action: bool = False
+  action_type: str | None = None
+  available_actions: list[TaskActionOptionRead] = Field(default_factory=list)
+
+
+class TaskDelegateCandidateRead(BaseModel):
+  user_id: UUID
+  display_name: str
+  department_name: str | None = None
+  role_name: str | None = None
 
 
 class TaskWatcherRead(BaseModel):
@@ -70,6 +89,9 @@ class TaskCreateRequest(BaseModel):
   dependency_ids: list[UUID] = Field(default_factory=list)
   attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
   watcher_user_ids: list[UUID] = Field(default_factory=list)
+  # Explicit assignment policy. Only "direct" is supported in this pass; a
+  # request for "handshake" must fail loudly instead of silently defaulting.
+  assignment_mode: str | None = None
 
 
 class TaskUpdateRequest(BaseModel):

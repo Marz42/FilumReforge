@@ -8,7 +8,14 @@ from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, St
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db_types import build_enum, build_json_type
-from app.core.enums import CommentFormat, TaskActionType, TaskPriority, TaskSourceType, TaskStatus
+from app.core.enums import (
+  CommentFormat,
+  TaskActionType,
+  TaskAssignmentMode,
+  TaskPriority,
+  TaskSourceType,
+  TaskStatus,
+)
 from app.models.base import Base
 from app.models.mixins import CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin, utc_now
 
@@ -53,6 +60,12 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   source_type: Mapped[TaskSourceType] = mapped_column(
     build_enum(enum_cls=TaskSourceType, name="task_source_type"),
     default=TaskSourceType.MANUAL,
+    nullable=False,
+  )
+  assignment_mode: Mapped[str] = mapped_column(
+    String(16),
+    default=TaskAssignmentMode.DIRECT.value,
+    server_default=TaskAssignmentMode.DIRECT.value,
     nullable=False,
   )
   extra_metadata: Mapped[dict[str, Any]] = mapped_column("metadata", build_json_type(), default=dict, nullable=False)

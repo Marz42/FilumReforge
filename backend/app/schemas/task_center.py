@@ -31,6 +31,12 @@ class TaskCenterUserOptionRead(BaseModel):
   label: str
 
 
+class TaskActionOptionRead(BaseModel):
+  action: str
+  label: str
+  button_type: str = "primary"
+
+
 class TaskCenterInboxItemRead(BaseModel):
   task_id: UUID
   title: str
@@ -42,6 +48,12 @@ class TaskCenterInboxItemRead(BaseModel):
   current_handler_label: str | None
   run_label: str | None = None
   user_facing_state: str | None = None
+  execution_mode: str | None = None
+  assignment_mode: str | None = None
+  current_action_owner_id: UUID | None = None
+  requires_action: bool = False
+  action_type: str | None = None
+  available_actions: list[TaskActionOptionRead] = Field(default_factory=list)
 
 
 class TaskCenterTrackingItemRead(BaseModel):
@@ -60,6 +72,12 @@ class TaskCenterTrackingItemRead(BaseModel):
   is_pending_review: bool = False
   run_label: str | None = None
   user_facing_state: str | None = None
+  execution_mode: str | None = None
+  assignment_mode: str | None = None
+  current_action_owner_id: UUID | None = None
+  requires_action: bool = False
+  action_type: str | None = None
+  available_actions: list[TaskActionOptionRead] = Field(default_factory=list)
 
 
 class TaskCenterHistoryItemRead(BaseModel):

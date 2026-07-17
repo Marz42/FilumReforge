@@ -25,6 +25,7 @@ defineProps<{
   deliverableReviewComment: string
   selectedTask: Task | null
   isGraphHandshakeTask: boolean
+  isStandaloneTask: boolean
   canAcceptTask: boolean
   canRejectTask: boolean
   canDelegateTask: boolean
@@ -73,6 +74,16 @@ const emit = defineEmits<{
       </el-button>
     </div>
     <div v-else-if="showDetailHeaderActions" class="task-detail-header-bar__actions">
+      <el-button
+        v-if="isStandaloneTask && canDelegateTask"
+        type="warning"
+        plain
+        :loading="handshakeSubmitting"
+        data-testid="standalone-delegate-button"
+        @click="emit('openDelegateDialog')"
+      >
+        转办
+      </el-button>
       <template v-if="canDecideApproval">
         <el-button
           type="success"
