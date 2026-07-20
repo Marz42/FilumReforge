@@ -75,6 +75,7 @@ function enrichRowsFromSnapshot(
     const meta = snapshotById.get(row.taskId)
     const assigneeLabel =
       meta?.handlerLabel
+      ?? row.assigneeLabel
       ?? (row.assigneeId ? assigneeLabelByUserId.get(row.assigneeId) ?? null : null)
     if (!meta) {
       return {

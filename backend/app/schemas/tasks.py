@@ -56,6 +56,10 @@ class TaskRead(BaseModel):
   requires_action: bool = False
   action_type: str | None = None
   available_actions: list[TaskActionOptionRead] = Field(default_factory=list)
+  # Display labels for clients that cannot enumerate the full user directory
+  # (cross-department assignees must still render as real names).
+  assignee_label: str | None = None
+  creator_label: str | None = None
 
 
 class TaskDelegateCandidateRead(BaseModel):

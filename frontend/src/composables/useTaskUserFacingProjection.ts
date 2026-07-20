@@ -48,7 +48,7 @@ export function projectTaskForWorkspace(
     userStateTagType: userFacingStateTagType(userState),
     dueDate,
     assigneeId: task.assignee_id,
-    assigneeLabel: null,
+    assigneeLabel: task.assignee_label ?? null,
     departmentId: task.department_id,
     relationTypes: [],
     completedAt: task.completed_at,

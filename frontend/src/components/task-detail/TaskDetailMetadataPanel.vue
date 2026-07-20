@@ -51,7 +51,7 @@ defineProps<{
       <span>截止时间 {{ formatDateTime(task.due_date) }}</span>
       <span>所属部门 {{ resolveDepartmentName(task.department_id) }}</span>
       <span>Run {{ resolveRunLabel(task) }}</span>
-      <span>执行人 {{ resolveUserLabel(task.assignee_id) }}</span>
+      <span>执行人 {{ resolveUserLabel(task.assignee_id, task.assignee_label) }}</span>
     </el-space>
   </div>
 
@@ -60,7 +60,7 @@ defineProps<{
       {{ task.title }}
     </el-descriptions-item>
     <el-descriptions-item label="执行人">
-      {{ resolveUserLabel(task.assignee_id) }}
+      {{ resolveUserLabel(task.assignee_id, task.assignee_label) }}
     </el-descriptions-item>
     <el-descriptions-item label="状态">
       <el-tag :type="normalizeTagType(STATUS_TAG_TYPES[task.status as TaskStatus])" effect="plain">

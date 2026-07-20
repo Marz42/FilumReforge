@@ -312,6 +312,8 @@ export interface Task {
   requires_action?: boolean
   action_type?: string | null
   available_actions?: TaskActionOption[]
+  assignee_label?: string | null
+  creator_label?: string | null
 }
 
 export interface TaskDelegateCandidate {

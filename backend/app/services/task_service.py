@@ -2639,6 +2639,27 @@ class TaskService:
       for task_id in pending_workflow_task_ids
       if task_id is not None
     }
+    # Always include tasks where this actor is the standalone action owner.
+    # ADMIN/HR visibility scans are org-wide and ordered by created_at; a task
+    # created earlier then delegated to them can fall outside the scan window
+    # and silently disappear from「待处理」while still showing in「任务跟踪」.
+    action_owner_task_ids = {
+      task_id
+      for task_id in await self._session.scalars(
+        select(Task.id).where(
+          or_(
+            and_(
+              Task.assignee_id == actor.id,
+              Task.status.in_((TaskStatus.TODO, TaskStatus.DOING, TaskStatus.BLOCKED)),
+            ),
+            and_(
+              Task.creator_id == actor.id,
+              Task.status == TaskStatus.REVIEW,
+            ),
+          )
+        )
+      )
+    }
     tasks = list(
       await self._session.scalars(
         (await self._build_visible_task_statement(actor=actor)).limit(
@@ -2646,6 +2667,22 @@ class TaskService:
         )
       )
     )
+    scanned_ids = {task.id for task in tasks}
+    missing_owner_ids = (candidate_task_ids | action_owner_task_ids) - scanned_ids
+    if missing_owner_ids:
+      extra_tasks = list(
+        await self._session.scalars(
+          select(Task)
+          .options(
+            selectinload(Task.creator).selectinload(User.profile),
+            selectinload(Task.assignee).selectinload(User.profile),
+            selectinload(Task.department),
+            selectinload(Task.watchers),
+          )
+          .where(Task.id.in_(missing_owner_ids))
+        )
+      )
+      tasks = [*tasks, *extra_tasks]
     graph_projection_map = (
       await self._graph_task_projection_map(tasks=tasks)
       if self._task_center_v2_enabled()
@@ -2778,7 +2815,6 @@ class TaskService:
           .limit(self._list_scan_limit(limit=limit))
         )
       )
-      inbox_task_ids: set[UUID] = set()
     else:
       tracking_filters = [
         Task.creator_id == actor.id,
@@ -2805,11 +2841,15 @@ class TaskService:
           .limit(self._list_scan_limit(limit=limit))
         )
       )
-      if exclude_inbox_task_ids is None:
-        inbox_page = await self.list_task_inbox(actor=actor, limit=limit)
-        inbox_task_ids = {entry.task_id for entry in inbox_page.items}
-      else:
-        inbox_task_ids = set(exclude_inbox_task_ids)
+
+    # inbox ∩ tracking = ∅ for every role, including ADMIN/HR oversight.
+    # Management still sees unrelated open tasks as「督办」, but personal
+    # actionable items belong only in「待处理」.
+    if exclude_inbox_task_ids is None:
+      inbox_page = await self.list_task_inbox(actor=actor, limit=limit)
+      inbox_task_ids = {entry.task_id for entry in inbox_page.items}
+    else:
+      inbox_task_ids = set(exclude_inbox_task_ids)
 
     graph_projection_map = (
       await self._graph_task_projection_map(tasks=tasks)
@@ -2824,7 +2864,7 @@ class TaskService:
     for task in tasks:
       if self._is_admin_archived_task(task):
         continue
-      if not is_management and task.id in inbox_task_ids:
+      if task.id in inbox_task_ids:
         continue
       if not is_management and self._is_production_graph_root_shell_task(task):
         continue
@@ -4044,7 +4084,7 @@ class TaskService:
 
     statement = (
       select(TaskComment)
-      .options(selectinload(TaskComment.user))
+      .options(selectinload(TaskComment.user).selectinload(User.profile))
       .where(TaskComment.task_id == task_id)
       .order_by(TaskComment.created_at.asc())
     )

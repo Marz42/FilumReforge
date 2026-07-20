@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, type UploadFile } from 'element-plus'
+import { ElMessage, type UploadFile, type UploadInstance } from 'element-plus'
 
 import { listAttachments, uploadAttachment } from '@/api/attachments'
 import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
@@ -131,7 +131,9 @@ const departments = ref<Department[]>([])
 const users = ref<User[]>([])
 const watcherSubmitting = ref(false)
 const watcherUserId = ref('')
-const selectedTaskFile = ref<File | null>(null)
+const selectedTaskFiles = ref<File[]>([])
+const taskAttachmentUploadRef = ref<UploadInstance>()
+const activityTimelineExpanded = ref<string[]>([])
 const commentFiles = ref<File[]>([])
 
 const delegateForm = reactive({
@@ -611,6 +613,12 @@ function resolveUserLabel(userId: string, preferredLabel?: string | null): strin
   if (preferredLabel) {
     return preferredLabel
   }
+  if (selectedTask.value?.assignee_id === userId && selectedTask.value.assignee_label) {
+    return selectedTask.value.assignee_label
+  }
+  if (selectedTask.value?.creator_id === userId && selectedTask.value.creator_label) {
+    return selectedTask.value.creator_label
+  }
   return (
     delegateUserLabelMap.value.get(userId) ??
     userEmailMap.value.get(userId) ??
@@ -741,9 +749,12 @@ async function loadSelectedTaskDetails(taskId: string): Promise<void> {
     listAttachments({
       target_type: 'task',
       target_id: taskId,
+    }).catch(() => [] as Attachment[]),
+    listTaskActivity(taskId).catch(() => {
+      ElMessage.warning('活动时间线暂时无法加载')
+      return [] as TaskActivityEntry[]
     }),
-    listTaskActivity(taskId),
-    listTaskWatchers(taskId),
+    listTaskWatchers(taskId).catch(() => [] as TaskWatcher[]),
   ])
 
   taskAttachments.value = attachments
@@ -888,12 +899,12 @@ async function handleAddWatcher(): Promise<void> {
 
 
 
-function handleTaskFileChange(uploadFile: UploadFile): void {
-  selectedTaskFile.value = uploadFile.raw ?? null
+function handleTaskFileChange(_uploadFile: UploadFile, uploadFiles: UploadFile[]): void {
+  selectedTaskFiles.value = normalizeUploadFiles(uploadFiles)
 }
 
-function handleTaskFileRemove(): void {
-  selectedTaskFile.value = null
+function handleTaskFileRemove(_uploadFile: UploadFile, uploadFiles: UploadFile[]): void {
+  selectedTaskFiles.value = normalizeUploadFiles(uploadFiles)
 }
 
 function beforeUploadAttachmentFile(raw: File): boolean {
@@ -915,7 +926,7 @@ function normalizeUploadFiles(uploadFiles: UploadFile[]): File[] {
 }
 
 async function handleTaskAttachmentUpload(): Promise<void> {
-  if (!selectedTask.value || !selectedTaskFile.value) {
+  if (!selectedTask.value || selectedTaskFiles.value.length === 0) {
     ElMessage.warning('请选择任务并上传文件')
     return
   }
@@ -923,15 +934,22 @@ async function handleTaskAttachmentUpload(): Promise<void> {
   taskAttachmentUploading.value = true
 
   try {
-    await uploadAttachment({
-      file: selectedTaskFile.value,
-      target_type: 'task',
-      target_id: selectedTask.value.id,
-      visibility: 'private',
-    })
+    for (const file of selectedTaskFiles.value) {
+      await uploadAttachment({
+        file,
+        target_type: 'task',
+        target_id: selectedTask.value.id,
+        visibility: 'private',
+      })
+    }
 
-    ElMessage.success('任务资料附件已上传')
-    selectedTaskFile.value = null
+    ElMessage.success(
+      selectedTaskFiles.value.length > 1
+        ? `已上传 ${selectedTaskFiles.value.length} 个任务资料附件`
+        : '任务资料附件已上传',
+    )
+    selectedTaskFiles.value = []
+    taskAttachmentUploadRef.value?.clearFiles()
     await loadSelectedTaskDetails(selectedTask.value.id)
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
@@ -1495,9 +1513,11 @@ watch(
 
             <div data-testid="tasks-attachment-upload">
               <el-upload
+                ref="taskAttachmentUploadRef"
                 class="page__upload"
                 :auto-upload="false"
-                :limit="1"
+                multiple
+                :limit="10"
                 :show-file-list="true"
                 :accept="ATTACHMENT_ACCEPT"
                 :before-upload="beforeUploadAttachmentFile"
@@ -1601,8 +1621,6 @@ watch(
               提交评论
             </el-button>
 
-            <el-divider>活动时间线</el-divider>
-
             <!-- 图引擎节点板块（仅图任务显示） -->
             <el-collapse
               v-if="graphInstance && !usesVideoWorkflowLayout && usesCompactDetailTelemetry"
@@ -1677,57 +1695,69 @@ watch(
               </el-space>
             </template>
 
-            <el-empty v-if="!usesVideoWorkflowLayout && taskActivity.length === 0" description="暂无活动记录" />
-
-            <el-timeline v-else-if="!usesVideoWorkflowLayout">
-              <el-timeline-item
-                v-for="entry in taskActivity"
-                :key="`${entry.entry_type}-${entry.created_at}`"
-                :timestamp="formatDateTime(entry.created_at)"
-                placement="top"
+            <el-collapse
+              v-if="!usesVideoWorkflowLayout"
+              v-model="activityTimelineExpanded"
+              class="page__activity-collapse"
+              data-testid="task-detail-activity-collapse"
+            >
+              <el-collapse-item
+                :title="`活动时间线${taskActivity.length > 0 ? `（${taskActivity.length}）` : ''}`"
+                name="activity"
               >
-                <el-card shadow="never">
-                  <template v-if="entry.comment">
-                    <div class="page__timeline-header">
-                      <div>
-                        <strong>{{ resolveUserLabel(entry.comment.user_id, entry.comment.author_label) }}</strong>
-                        <el-tag
-                          v-if="entry.comment.is_internal"
-                          type="warning"
-                          effect="plain"
-                          class="page__inline-tag"
-                        >
-                          内部备注
-                        </el-tag>
-                      </div>
-                      <el-tag type="primary" effect="plain">评论</el-tag>
-                    </div>
-                    <p class="page__timeline-text">{{ entry.comment.content }}</p>
-                    <div
-                      v-if="entry.comment.attachments.length > 0"
-                      class="page__comment-attachments"
-                    >
-                      <div
-                        v-for="attachment in entry.comment.attachments"
-                        :key="attachment.id"
-                        class="page__comment-attachment-row"
-                      >
-                        <span>{{ attachment.original_filename }}</span>
-                        <AttachmentActions :attachment="attachment" />
-                      </div>
-                    </div>
-                  </template>
+                <el-empty v-if="taskActivity.length === 0" description="暂无活动记录" />
 
-                  <template v-else-if="entry.log">
-                    <div class="page__timeline-header">
-                      <strong>{{ resolveUserLabel(entry.log.operator_id, entry.log.operator_label) }}</strong>
-                      <el-tag effect="plain">日志</el-tag>
-                    </div>
-                    <p class="page__timeline-text">{{ renderLogSummary(entry) }}</p>
-                  </template>
-                </el-card>
-              </el-timeline-item>
-            </el-timeline>
+                <el-timeline v-else>
+                  <el-timeline-item
+                    v-for="entry in taskActivity"
+                    :key="`${entry.entry_type}-${entry.created_at}`"
+                    :timestamp="formatDateTime(entry.created_at)"
+                    placement="top"
+                  >
+                    <el-card shadow="never">
+                      <template v-if="entry.comment">
+                        <div class="page__timeline-header">
+                          <div>
+                            <strong>{{ resolveUserLabel(entry.comment.user_id, entry.comment.author_label) }}</strong>
+                            <el-tag
+                              v-if="entry.comment.is_internal"
+                              type="warning"
+                              effect="plain"
+                              class="page__inline-tag"
+                            >
+                              内部备注
+                            </el-tag>
+                          </div>
+                          <el-tag type="primary" effect="plain">评论</el-tag>
+                        </div>
+                        <p class="page__timeline-text">{{ entry.comment.content }}</p>
+                        <div
+                          v-if="entry.comment.attachments.length > 0"
+                          class="page__comment-attachments"
+                        >
+                          <div
+                            v-for="attachment in entry.comment.attachments"
+                            :key="attachment.id"
+                            class="page__comment-attachment-row"
+                          >
+                            <span>{{ attachment.original_filename }}</span>
+                            <AttachmentActions :attachment="attachment" />
+                          </div>
+                        </div>
+                      </template>
+
+                      <template v-else-if="entry.log">
+                        <div class="page__timeline-header">
+                          <strong>{{ resolveUserLabel(entry.log.operator_id, entry.log.operator_label) }}</strong>
+                          <el-tag effect="plain">日志</el-tag>
+                        </div>
+                        <p class="page__timeline-text">{{ renderLogSummary(entry) }}</p>
+                      </template>
+                    </el-card>
+                  </el-timeline-item>
+                </el-timeline>
+              </el-collapse-item>
+            </el-collapse>
 
             </template>
           </template>
@@ -1820,6 +1850,10 @@ watch(
 }
 
 .page__comments-collapse {
+  margin-top: 16px;
+}
+
+.page__activity-collapse {
   margin-top: 16px;
 }
 

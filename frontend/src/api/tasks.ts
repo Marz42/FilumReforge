@@ -68,6 +68,9 @@ export async function listTasksByIds(taskIds: string[]): Promise<Task[]> {
   }
   const { data } = await http.get<Task[]>('/tasks', {
     params: { ids: taskIds },
+    // FastAPI list query expects ids=a&ids=b; axios default ids[]=a breaks the filter
+    // and forces a full org list load for ADMIN/HR (slow / timeout → empty 待处理).
+    paramsSerializer: { indexes: null },
   })
   return data
 }

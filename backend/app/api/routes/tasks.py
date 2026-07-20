@@ -59,6 +59,10 @@ async def _build_task_read(
 ) -> TaskRead:
   """Serialize a Task with its per-actor Work Item action contract."""
   ctx = await task_service.resolve_task_action_context(actor=actor, task=task)
+  # Always resolve via session (populate_existing) so cross-department assignees
+  # render correctly even when the client cannot list the full user directory.
+  assignee_label = await _resolve_user_label(task_service._session, task.assignee_id)
+  creator_label = await _resolve_user_label(task_service._session, task.creator_id)
   return TaskRead.model_validate(task).model_copy(
     update={
       "execution_mode": ctx.execution_mode,
@@ -70,6 +74,8 @@ async def _build_task_read(
         TaskActionOptionRead(action=option.action, label=option.label, button_type=option.button_type)
         for option in ctx.available_actions
       ],
+      "assignee_label": assignee_label,
+      "creator_label": creator_label,
     }
   )
 
@@ -108,7 +114,15 @@ async def _list_comment_attachments(
 
 
 async def _resolve_user_label(session: AsyncSession, user_id: UUID) -> str:
-  user = await session.get(User, user_id, options=(selectinload(User.profile),))
+  # populate_existing: the same User may already sit in the identity map without
+  # profile (e.g. after TaskComment.user selectinload). Without refreshing, a
+  # subsequent profile access triggers MissingGreenlet and 500s the activity API.
+  user = await session.get(
+    User,
+    user_id,
+    options=(selectinload(User.profile),),
+    populate_existing=True,
+  )
   if user is None:
     return f"用户 {str(user_id)[:8]}"
   return user_display_label(user)
@@ -168,7 +182,10 @@ async def list_tasks(
     tasks = await task_service.list_tasks_by_ids(actor=actor, task_ids=ids)
   else:
     tasks = await task_service.list_tasks(actor=actor)
-  return [TaskRead.model_validate(task) for task in tasks]
+  result: list[TaskRead] = []
+  for task in tasks:
+    result.append(await _build_task_read(task_service=task_service, actor=actor, task=task))
+  return result
 
 
 @router.get("/search", response_model=list[TaskSearchResultRead])
@@ -349,13 +366,14 @@ async def read_task_board(
   task_service: Annotated[TaskService, Depends(get_task_service)],
 ) -> list[TaskBoardColumnRead]:
   board = await task_service.get_task_board(actor=actor)
-  return [
-    TaskBoardColumnRead(
-      status=column.status,
-      tasks=[TaskRead.model_validate(task) for task in column.tasks],
-    )
-    for column in board
-  ]
+  columns: list[TaskBoardColumnRead] = []
+  for column in board:
+    tasks = [
+      await _build_task_read(task_service=task_service, actor=actor, task=task)
+      for task in column.tasks
+    ]
+    columns.append(TaskBoardColumnRead(status=column.status, tasks=tasks))
+  return columns
 
 
 @router.get("/views/gantt", response_model=list[TaskGanttEntryRead])
@@ -366,7 +384,7 @@ async def read_task_gantt(
   gantt_entries = await task_service.get_task_gantt(actor=actor)
   return [
     TaskGanttEntryRead(
-      task=TaskRead.model_validate(entry.task),
+      task=await _build_task_read(task_service=task_service, actor=actor, task=entry.task),
       dependency_ids=entry.dependency_ids,
     )
     for entry in gantt_entries

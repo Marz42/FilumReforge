@@ -1,7 +1,7 @@
 # Known-Issues Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 2a65147ab4e19f6d -->
+<!-- checksum: d9bc022dd9ffe554 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -14,6 +14,8 @@
 | [ki-006-report-center-history.md](ki-006-report-center-history.md) | `paradigma-known-issue` | KI-006: 汇报中心历史问题 | 汇报中心<br>PostgreSQL enum<br>ORM | - | - |
 | [ki-007-windows-playwright-excluded-port.md](ki-007-windows-playwright-excluded-port.md) | `paradigma-known-issue` | KI-007: Windows 保留端口导致 Playwright webServer EACCES | Playwright EACCES<br>4173 端口<br>Windows 保留端口 ... | - | - |
 | [ki-008-docker-frontend-dependency-volume.md](ki-008-docker-frontend-dependency-volume.md) | `paradigma-known-issue` | KI-008: Docker 前端依赖命名卷可能滞后于 lockfile | Vite import-analysis<br>Docker 缺少依赖<br>node_modules 命名卷 ... | - | - |
+| [ki-009-standalone-action-dual-track.md](ki-009-standalone-action-dual-track.md) | `paradigma-known-issue` | KI-009: Standalone Work Item 详情动作仍走旧契约 | standalone<br>开始处理<br>创建人 ... | - | - |
+| [ki-010-activity-timeline-redesign.md](ki-010-activity-timeline-redesign.md) | `paradigma-known-issue` | KI-010: 活动时间线需重做为更有指向性的留痕 | 活动时间线<br>折叠<br>留痕 ... | - | - |
 | [known-issues.md](known-issues.md) | `paradigma-known-issue` | 已知问题合辑 (已拆分) | 已知问题<br>合辑<br>known issue | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->
@@ -26,3 +28,15 @@
 | Task Center P1 batch 1 (`3002275`) | ✅ Resolved | Pagination tiebreaker, atomic attachment commit, datetime normalization |
 | Task Center P1-10 (`4398439`) | ✅ Resolved | Self-review prevention with fallback reviewer chain and audited admin reassignment |
 | Task Center P2-11/P2-13 (`0.92.1`) | ✅ Resolved | Graph source-type collision guard and historical permission-branch documentation |
+
+## Open — Standalone action dual-track
+
+| ID | Status | Note |
+|----|--------|------|
+| [KI-009](ki-009-standalone-action-dual-track.md) | 🟡 Deferred | C1.1 创建人可「开始处理」等；等 C 业务闭环排查完再修 standalone 详情/后端授权 |
+
+## Open — Activity timeline UX
+
+| ID | Status | Note |
+|----|--------|------|
+| [KI-010](ki-010-activity-timeline-redesign.md) | 🟡 Deferred | 默认折叠已落地；后续重做更有指向性的活动留痕 |

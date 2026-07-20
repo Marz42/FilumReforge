@@ -166,6 +166,34 @@ async def test_standalone_delegate_transfers_assignee(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_standalone_delegate_to_admin_lands_in_inbox_not_tracking(db_session) -> None:
+  """ADMIN/HR must see a delegated standalone task in「待处理」, not only「任务跟踪」."""
+  settings, admin, creator, assignee_a, _b = await _seed(db_session)
+  task = await _new_standalone_task(db_session, creator=creator, assignee=assignee_a)
+  service = _service(db_session, settings)
+
+  await service.delegate_task_assignment(
+    actor=assignee_a,
+    task_id=task.id,
+    assignee_id=admin.id,
+    reason="请管理员接手",
+  )
+
+  admin_inbox = await service.list_task_inbox(actor=admin, limit=50)
+  assert any(entry.task_id == task.id for entry in admin_inbox.items)
+
+  admin_tracking = await service.list_task_tracking(
+    actor=admin,
+    limit=50,
+    exclude_inbox_task_ids={entry.task_id for entry in admin_inbox.items},
+  )
+  assert not any(entry.task_id == task.id for entry in admin_tracking.items)
+
+  previous_inbox = await service.list_task_inbox(actor=assignee_a, limit=50)
+  assert not any(entry.task_id == task.id for entry in previous_inbox.items)
+
+
+@pytest.mark.asyncio
 async def test_standalone_delegate_forbidden_in_review(db_session) -> None:
   settings, _admin, creator, assignee_a, assignee_b = await _seed(db_session)
   task = await _new_standalone_task(

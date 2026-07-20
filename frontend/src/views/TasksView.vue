@@ -129,7 +129,10 @@ function resolveDepartmentName(departmentId: string | null): string {
   return departmentNameMap.value.get(departmentId) ?? '—'
 }
 
-function resolveUserLabel(userId: string): string {
+function resolveUserLabel(userId: string, preferredLabel?: string | null): string {
+  if (preferredLabel) {
+    return preferredLabel
+  }
   return userEmailMap.value.get(userId) ?? `用户 ${userId.slice(0, 8)}`
 }
 
@@ -368,7 +371,7 @@ watch(
               </el-table-column>
               <el-table-column label="执行人" min-width="160">
                 <template #default="{ row }: { row: Task }">
-                  {{ resolveUserLabel(row.assignee_id) }}
+                  {{ resolveUserLabel(row.assignee_id, row.assignee_label) }}
                 </template>
               </el-table-column>
               <el-table-column label="所属部门" min-width="160">
@@ -423,7 +426,7 @@ watch(
                     @click="handleTaskClick(task)"
                   >
                     <strong>{{ task.title }}</strong>
-                    <span>{{ resolveUserLabel(task.assignee_id) }}</span>
+                    <span>{{ resolveUserLabel(task.assignee_id, task.assignee_label) }}</span>
                     <span>{{ formatDateTime(task.due_date) }}</span>
                   </button>
                 </div>
@@ -444,7 +447,7 @@ watch(
               </el-table-column>
               <el-table-column label="执行人" min-width="180">
                 <template #default="{ row }: { row: TaskGanttEntry }">
-                  {{ resolveUserLabel(row.task.assignee_id) }}
+                  {{ resolveUserLabel(row.task.assignee_id, row.task.assignee_label) }}
                 </template>
               </el-table-column>
               <el-table-column label="起止时间" min-width="280">
