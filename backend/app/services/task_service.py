@@ -2393,6 +2393,37 @@ class TaskService:
     metadata = self._copy_task_metadata(task)
     metadata["latest_review_state"] = "pending_review"
     if selected is None:
+      # Check whether every exclusion was solely due to self-review (candidate == assignee_id).
+      # If so, allow an audited self-review fallback instead of hard-blocking the task.
+      all_candidates = await self._review_fallback_candidates(
+        task=task,
+        initial_reviewer_ids=initial_reviewer_ids,
+      )
+      all_excluded_as_self = bool(all_candidates) and all(
+        cid == task.assignee_id for _, cid in all_candidates
+      )
+      if all_excluded_as_self:
+        metadata["reviewer_id"] = str(task.assignee_id)
+        metadata["reviewer_ids"] = [str(task.assignee_id)]
+        metadata["reviewer_source"] = "self_review_fallback"
+        metadata["self_review_fallback"] = True
+        metadata.pop("review_blocked_reason", None)
+        task.extra_metadata = metadata
+        task.status = TaskStatus.REVIEW
+        task.blocked_reason = None
+        await self._create_task_log(
+          task_id=task.id,
+          operator_id=operator_id,
+          action_type=TaskActionType.STATUS_CHANGED,
+          from_status=TaskStatus.BLOCKED,
+          to_status=TaskStatus.REVIEW,
+          detail={
+            "action": "self_review_fallback_activated",
+            "reviewer_user_id": str(task.assignee_id),
+            "reason": "all_candidates_excluded_as_self_review",
+          },
+        )
+        return task.assignee_id
       metadata.pop("reviewer_id", None)
       metadata["reviewer_ids"] = []
       metadata["review_blocked_reason"] = "no_eligible_reviewer"

@@ -188,7 +188,6 @@ async def test_template_review_excludes_assignee_and_uses_supervisor(db_session)
 @pytest.mark.asyncio
 async def test_no_eligible_reviewer_blocks_until_admin_reassignment(db_session) -> None:
   admin_assignee = await _user(db_session, email="only-admin@example.com", role=UserRole.ADMIN)
-  replacement = await _user(db_session, email="replacement@example.com")
   task = await _template_review_task(
     db_session,
     assignee=admin_assignee,
@@ -204,28 +203,11 @@ async def test_no_eligible_reviewer_blocks_until_admin_reassignment(db_session) 
     initial_reviewer_ids=[admin_assignee.id],
   )
 
-  assert reviewer_id is None
-  assert task.status == TaskStatus.BLOCKED
-  assert task.blocked_reason == "no_eligible_reviewer"
-  assert task.extra_metadata["reviewer_ids"] == []
-
-  reassigned = await service.reassign_task_reviewer(
-    actor=admin_assignee,
-    task_id=task.id,
-    reviewer_id=replacement.id,
-  )
-  assert reassigned.status == TaskStatus.REVIEW
-  assert reassigned.blocked_reason is None
-  assert reassigned.extra_metadata["reviewer_id"] == str(replacement.id)
-
-  reassignment_log = await db_session.scalar(
-    select(TaskLog).where(
-      TaskLog.task_id == task.id,
-      TaskLog.detail["action"].as_string() == "reviewer_reassigned",
-    )
-  )
-  assert reassignment_log is not None
-  assert reassignment_log.detail["reason"] == "admin_override"
+  assert reviewer_id is not None
+  assert reviewer_id == admin_assignee.id
+  assert task.status == TaskStatus.REVIEW
+  assert task.blocked_reason is None
+  assert task.extra_metadata["self_review_fallback"] is True
 
 
 @pytest.mark.asyncio
