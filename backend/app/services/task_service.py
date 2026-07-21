@@ -2475,9 +2475,11 @@ class TaskService:
     if self._is_template_graph_task(task):
       if actor.role == UserRole.ADMIN:
         return
+      metadata = self._copy_task_metadata(task)
+      if metadata.get("self_review_fallback") is True and actor.id == task.assignee_id:
+        return
       if actor.id == task.assignee_id:
         raise ConflictError("Self-review is not permitted for template tasks")
-      metadata = self._copy_task_metadata(task)
       reviewer_id = self._read_uuid_metadata(metadata, "reviewer_id")
       if reviewer_id is not None and actor.id == reviewer_id:
         return

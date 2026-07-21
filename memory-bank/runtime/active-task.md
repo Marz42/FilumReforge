@@ -1,20 +1,14 @@
-# Active Task: Task 2 — Self-review fallback in _activate_template_review
+# Active Task: Task 3-T — Unit tests for self_review_fallback flag
 
 **Status:** in-progress
 **Plan:** memory-bank/knowledge/plans/2026-07-21-template-self-review-fix-plan.md
-**Depends on:** Task 1 ✅, Task 1-T ✅
+**Depends on:** Task 3 ✅
 
 ## Objective
-When all reviewer candidates are excluded solely because they equal assignee_id, allow audited self-review fallback instead of BLOCKED.
-
-## Deliverables
-1. Insert ~15 lines after candidate loop in _activate_template_review
-   - Re-fetch candidates, check if all exclusions were self-review only
-   - If yes: set self_review_fallback=True, reviewer_id=assignee, status=REVIEW, create audit log
-   - If no: keep existing BLOCKED path
-2. Run tests to verify no regressions
+Two regression tests:
+1. Flag present → assignee can review
+2. Flag absent → assignee still blocked
 
 ## Acceptance Gate
-- Scenario A (sole user): task enters REVIEW with self_review_fallback
-- Existing scenarios (B/C): unchanged behavior
-- Non-self-review exclusions: still BLOCKED
+- Both tests PASS
+- All 7 tests pass total
