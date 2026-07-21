@@ -2442,6 +2442,8 @@ class TaskService:
     # implicit self-review escape hatch with an explicit, audited reviewer
     # chain and administrator reassignment mechanism.
     if self._is_template_graph_task(task):
+      if actor.role == UserRole.ADMIN:
+        return
       if actor.id == task.assignee_id:
         raise ConflictError("Self-review is not permitted for template tasks")
       metadata = self._copy_task_metadata(task)

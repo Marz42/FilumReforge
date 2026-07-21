@@ -1,19 +1,15 @@
-# Active Task — Task Center Audit Closure
+# Active Task: Task 1-T — Test ADMIN bypass
 
-## Status
+**Status:** in-progress
+**Plan:** memory-bank/knowledge/plans/2026-07-21-template-self-review-fix-plan.md
+**Depends on:** Task 1 ✅
 
-✅ Completed on 2026-07-18 (`0.92.1`).
+## Objective
+Write test to verify ADMIN can review template tasks they are assignee of.
 
-## Completed Scope
+## Deliverables
+1. Append test_admin_can_review_any_template_task to test_p1_10_template_review_safety.py
+2. Run test, verify PASS
 
-- [x] P0 (`cba64aa`): missing `FOR UPDATE`/CAS guards and priority validation
-- [x] P1 batch 1 (`3002275`): deterministic pagination, atomic attachment commit, datetime normalization
-- [x] P1-10 (`4398439`): template-task self-review prevention, fallback reviewer chain, audited admin reassignment
-- [x] P2-11: constrain graph projection fallback lookup to `source_type="task"`
-- [x] P2-13: document the historical template self-review compatibility branch and its P1-10 replacement
-- [x] Full backend and frontend test suites
-- [x] Paradigma Memory-Bank and SemVer update
-
-## Outcome
-
-All Task Center P0/P1/P2 audit findings in this batch are resolved without design or public API changes. The next active product task has not yet been selected.
+## Acceptance Gate
+- Test passes: ADMIN reviews template task where actor == assignee_id → status DONE

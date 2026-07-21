@@ -226,3 +226,35 @@ async def test_no_eligible_reviewer_blocks_until_admin_reassignment(db_session) 
   )
   assert reassignment_log is not None
   assert reassignment_log.detail["reason"] == "admin_override"
+
+
+@pytest.mark.asyncio
+async def test_admin_can_review_any_template_task(db_session) -> None:
+  """An ADMIN-role actor must bypass the self-review guard even when actor == assignee_id."""
+  admin = await _user(db_session, email="admin-reviewer@example.com", role=UserRole.ADMIN)
+  task = await _template_review_task(
+    db_session,
+    assignee=admin,
+    creator=admin,
+    workflow_admin=admin,
+    department=None,
+  )
+  # Manually set reviewer_id to a different user so the task is formally in REVIEW
+  # but we are testing that ADMIN bypasses the self-review guard regardless.
+  other = await _user(db_session, email="other@example.com")
+  task.extra_metadata = {
+    **task.extra_metadata,
+    "reviewer_id": str(other.id),
+    "reviewer_ids": [str(other.id)],
+    "reviewer_source": "configured_reviewer",
+  }
+  await db_session.flush()
+
+  service = TaskService(db_session)
+  # Must not raise ConflictError or AuthorizationError
+  reviewed = await service.review_task_deliverable(
+    actor=admin,
+    task_id=task.id,
+    approve=True,
+  )
+  assert reviewed.status == TaskStatus.DONE
