@@ -54,6 +54,7 @@ class WorkflowGraphTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   )
   context_schema: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   config: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
+  tags: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
   scope_mode: Mapped[str] = mapped_column(String(16), default="global", nullable=False)
   scope_department_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
   created_by: Mapped[UUID] = mapped_column(
