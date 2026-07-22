@@ -1,9 +1,8 @@
-# Active Task: B3+B4+B5 — Schemas + Capabilities + Admin
+# Active Task: B6 — capabilities 测试
 
 **Status:** in-progress
 **Plan:** memory-bank/knowledge/plans/2026-07-22-template-decouple-phase1-plan.md
 
-## Tasks B3, B4, B5
-- B3: schemas/workflow_graph.py — TemplateCapabilitiesRead, tags field, run_kind deprecated
-- B4: services/workflow_graph_template_capabilities.py — 新文件, compute_template_capabilities
-- B5: services/workflow_graph_template_admin_service.py — 注入 capabilities, tags 更新, 列表过滤
+## Task B6
+- 新文件: backend/tests/test_workflow_graph_template_capabilities.py
+- 按 spec Appendix A 的矩阵测试各种模板形态
