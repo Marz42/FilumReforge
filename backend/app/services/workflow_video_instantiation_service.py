@@ -367,6 +367,16 @@ class WorkflowVideoInstantiationService:
     ensure_active_user(actor)
 
     template, nodes, edges = await self._load_template_graph(template_id=template_id)
+    from app.services.workflow_graph_template_capabilities import compute_template_capabilities
+
+    caps = compute_template_capabilities(
+      template=template,
+      nodes=nodes,
+      edges=edges,
+      fork_target_codes=set(),
+    )
+    if not caps.can_instantiate_directly:
+      raise ConflictError("该模板不支持直接实例化。")
     normalized_inputs = self._validate_launch_inputs(template=template, inputs=dict(inputs or {}))
     snapshot_payload = self._normalize_participants_snapshot(participants_snapshot)
 

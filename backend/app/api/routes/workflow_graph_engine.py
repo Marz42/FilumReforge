@@ -22,8 +22,8 @@ from app.api.dependencies import (
 )
 from app.core.config import Settings
 from app.core.exceptions import ConflictError, NotFoundError
-from app.core.enums import UserRole, WorkflowNodeEngineState
-from app.models import User, WorkflowGraphInstance, WorkflowGraphTemplateNode, WorkflowNodeInstance
+from app.core.enums import UserRole, WorkflowGraphTemplateStatus, WorkflowNodeEngineState
+from app.models import User, WorkflowGraphInstance, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode, WorkflowNodeInstance
 from app.services.access_control import ensure_department_stats_access, can_manage_task_templates, get_effective_managed_department_ids
 from app.services.workflow_access_policy import WorkflowAccessPolicy
 from sqlalchemy import select
@@ -51,6 +51,8 @@ from app.schemas.workflow_video import (
   WorkflowRunEventListResponse,
 )
 from app.schemas.workflow_graph import (
+  TemplateCapabilitiesRead,
+  WorkflowGraphTemplateTagsUpdateRequest,
   WorkflowNodeDeepRejectRequest,
   WorkflowGraphInstanceDetailRead,
   WorkflowGraphInstanceRead,
@@ -85,6 +87,10 @@ from app.services.organization_relation_service import OrganizationRelationServi
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_graph_template_admin_service import WorkflowGraphTemplateAdminService
+from app.services.workflow_graph_template_capabilities import (
+  build_fork_target_code_index,
+  compute_template_capabilities,
+)
 from app.services.workflow_graph_template_schedule_service import (
   WorkflowGraphTemplateScheduleService,
   template_is_schedulable,
@@ -268,9 +274,11 @@ async def list_graph_templates(
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
   scope: Annotated[str | None, Query()] = None,
   schedulable: Annotated[bool | None, Query()] = None,
+  status: Annotated[list[WorkflowGraphTemplateStatus] | None, Query()] = None,
+  q: Annotated[str | None, Query(max_length=120)] = None,
 ) -> list[WorkflowGraphTemplateSummaryRead]:
   if scope == "manage" and await can_manage_task_templates(session, actor):
-    templates = await admin_service.list_manageable_templates()
+    templates = await admin_service.list_manageable_templates(status_filter=status, q=q)
     stats_map = await admin_service.load_template_stats_map(template_ids=[template.id for template in templates])
   else:
     templates = await workflow_graph_service.list_active_templates()
@@ -300,24 +308,53 @@ async def list_graph_templates(
         filtered.append(template)
     templates = filtered
 
-  return [
-    WorkflowGraphTemplateSummaryRead(
-      id=template.id,
-      code=template.code,
-      name=template.name,
-      description=template.description,
-      status=template.status,
-      version=template.version,
-      run_kind=str((template.config or {}).get("run_kind") or "") or None,
-      config=dict(template.config or {}),
-      scope_mode=template.scope_mode,
-      scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
-      run_count_total=stats_map[template.id].run_count_total if template.id in stats_map else None,
-      run_count_30d=stats_map[template.id].run_count_30d if template.id in stats_map else None,
-      active_run_count=stats_map[template.id].active_run_count if template.id in stats_map else None,
+  fork_codes = build_fork_target_code_index(templates) if scope == "manage" else set()
+  results: list[WorkflowGraphTemplateSummaryRead] = []
+  for template in templates:
+    nodes = list(
+      await session.scalars(
+        select(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.template_id == template.id)
+      )
     )
-    for template in templates
-  ]
+    edges = list(
+      await session.scalars(
+        select(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template.id)
+      )
+    )
+    caps = compute_template_capabilities(
+      template=template,
+      nodes=nodes,
+      edges=edges,
+      fork_target_codes=fork_codes,
+    )
+    config = dict(template.config or {})
+    results.append(
+      WorkflowGraphTemplateSummaryRead(
+        id=template.id,
+        code=template.code,
+        name=template.name,
+        description=template.description,
+        status=template.status,
+        version=template.version,
+        run_kind=str(config.get("run_kind") or "") or None,
+        tags=[str(tag) for tag in (template.tags or [])],
+        capabilities=TemplateCapabilitiesRead(
+          can_instantiate_directly=caps.can_instantiate_directly,
+          can_schedule=caps.can_schedule,
+          is_fork_target=caps.is_fork_target,
+          has_multi_instance=caps.has_multi_instance,
+          has_launch_entry=caps.has_launch_entry,
+          derived_hints=caps.derived_hints,
+        ),
+        config=config,
+        scope_mode=template.scope_mode,
+        scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
+        run_count_total=stats_map[template.id].run_count_total if template.id in stats_map else None,
+        run_count_30d=stats_map[template.id].run_count_30d if template.id in stats_map else None,
+        active_run_count=stats_map[template.id].active_run_count if template.id in stats_map else None,
+      )
+    )
+  return results
 
 
 @router.post(
@@ -505,6 +542,24 @@ async def update_graph_template(
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
 ) -> WorkflowGraphTemplateDetailRead:
   return await admin_service.update_template(actor=actor, template_id=template_id, payload=payload)
+
+
+@router.patch(
+  "/templates/{template_id}/tags",
+  response_model=WorkflowGraphTemplateDetailRead,
+  tags=["workflow-graph"],
+)
+async def update_graph_template_tags(
+  template_id: UUID,
+  payload: WorkflowGraphTemplateTagsUpdateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateDetailRead:
+  return await admin_service.update_tags(
+    actor=actor,
+    template_id=template_id,
+    tags=payload.tags,
+  )
 
 
 @router.delete(

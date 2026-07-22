@@ -20,6 +20,7 @@ from app.models import (
   WorkflowGraphTemplate,
   WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
+  WorkflowGraphTemplateSchedule,
 )
 from app.schemas.workflow_graph import (
   TemplateCapabilitiesRead,
@@ -191,7 +192,10 @@ class WorkflowGraphTemplateAdminService:
 
     template.name = payload.name.strip()
     template.description = payload.description.strip() if payload.description else None
-    template.config = dict(payload.config or {})
+    template.config = self._strip_run_kind_unless_legacy(
+      existing=dict(template.config or {}),
+      incoming=dict(payload.config or {}),
+    )
     if payload.scope_mode is not None or payload.scope_department_ids is not None:
       scope_mode, scope_ids = normalize_scope(
         scope_mode=(
@@ -241,7 +245,10 @@ class WorkflowGraphTemplateAdminService:
     if payload.description is not None:
       template.description = payload.description.strip() or None
     if payload.config is not None:
-      template.config = {**dict(template.config or {}), **payload.config}
+      template.config = self._strip_run_kind_unless_legacy(
+        existing=dict(template.config or {}),
+        incoming=dict(payload.config or {}),
+      )
     if payload.scope_mode is not None or payload.scope_department_ids is not None:
       scope_mode, scope_ids = normalize_scope(
         scope_mode=(
@@ -317,6 +324,18 @@ class WorkflowGraphTemplateAdminService:
       await self._archive_sibling_active_templates(template=template)
       template.status = WorkflowGraphTemplateStatus.ACTIVE
     elif target_status == WorkflowGraphTemplateStatus.ARCHIVED:
+      if template.status != WorkflowGraphTemplateStatus.ACTIVE:
+        raise ConflictError("仅已发布（active）模板可归档；草稿请使用删除。")
+      active_schedule_count = await self._session.scalar(
+        select(func.count())
+        .select_from(WorkflowGraphTemplateSchedule)
+        .where(
+          WorkflowGraphTemplateSchedule.template_id == template.id,
+          WorkflowGraphTemplateSchedule.is_active.is_(True),
+        )
+      )
+      if active_schedule_count and int(active_schedule_count) > 0:
+        raise ConflictError("模板仍有启用的周期调度，请先停用调度后再归档。")
       template.status = WorkflowGraphTemplateStatus.ARCHIVED
     elif target_status == WorkflowGraphTemplateStatus.DRAFT:
       if template.status != WorkflowGraphTemplateStatus.DRAFT:
@@ -630,7 +649,7 @@ class WorkflowGraphTemplateAdminService:
       description=None,
       status=WorkflowGraphTemplateStatus.DRAFT,
       context_schema={},
-      config={"run_kind": "batch", "aggregate_mode": "streaming"},
+      config={"aggregate_mode": "streaming"},
       scope_mode="global",
       scope_department_ids=[],
       created_by=actor.id,
@@ -904,6 +923,13 @@ class WorkflowGraphTemplateAdminService:
       has_launch_entry=caps.has_launch_entry,
       derived_hints=caps.derived_hints,
     )
+
+  @staticmethod
+  def _strip_run_kind_unless_legacy(*, existing: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    merged = {**existing, **incoming}
+    if "run_kind" not in existing:
+      merged.pop("run_kind", None)
+    return merged
 
   @staticmethod
   def _build_detail_read(

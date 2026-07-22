@@ -52,23 +52,15 @@ def template_is_schedulable(
   template: WorkflowGraphTemplate,
   nodes: list[WorkflowGraphTemplateNode],
 ) -> bool:
-  config = template.config if isinstance(template.config, dict) else {}
-  if config.get("schedulable") is not True:
-    return False
-  if str(config.get("run_kind") or "batch") != "batch":
-    return False
-  if config.get("aggregate_mode") == "streaming":
-    return False
-  policies = config.get("participant_policies")
-  if not isinstance(policies, dict) or not policies:
-    return False
-  has_multi_instance = any(
-    isinstance(node.config, dict)
-    and node.config.get("kind") == "multi_instance"
-    and node.config.get("expand_from")
-    for node in nodes
+  from app.services.workflow_graph_template_capabilities import compute_template_capabilities
+
+  caps = compute_template_capabilities(
+    template=template,
+    nodes=nodes,
+    edges=[],
+    fork_target_codes=set(),
   )
-  return has_multi_instance
+  return caps.can_schedule
 
 
 def resolve_primary_participant_policy_ref(
