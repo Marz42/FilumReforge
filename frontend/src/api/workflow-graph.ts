@@ -76,13 +76,21 @@ function mapGraphInstanceSummary(item: GraphInstanceListItem): WorkflowGraphInst
 export async function listGraphTemplates(options?: {
   manage?: boolean
   schedulable?: boolean
+  status?: string | string[]
+  q?: string
 }): Promise<GraphTemplateSummary[]> {
+  const statusParam = options?.status
+  const statusFilter = statusParam === undefined
+    ? undefined
+    : (Array.isArray(statusParam) ? statusParam : [statusParam]).filter(Boolean)
   const { data } = await http.get<
     Array<Omit<GraphTemplateSummary, 'config'> & { config?: Record<string, unknown> }>
   >('/workflow-graph/templates', {
     params: {
       ...(options?.manage ? { scope: 'manage' } : {}),
       ...(options?.schedulable ? { schedulable: true } : {}),
+      ...(statusFilter?.length ? { status: statusFilter } : {}),
+      ...(options?.q?.trim() ? { q: options.q.trim() } : {}),
     },
   })
   return data.map((item) => ({
@@ -226,6 +234,32 @@ export async function publishGraphTemplate(templateId: string): Promise<GraphTem
     config: data.config ?? {},
     nodes: data.nodes ?? [],
     edges: data.edges ?? [],
+  }
+}
+
+export async function archiveGraphTemplate(templateId: string): Promise<GraphTemplateDesignerDetail> {
+  const { data } = await http.patch<GraphTemplateDesignerDetail>(
+    `/workflow-graph/templates/${templateId}/status`,
+    { status: 'archived' },
+  )
+  return {
+    ...data,
+    config: data.config ?? {},
+    nodes: data.nodes ?? [],
+    edges: data.edges ?? [],
+  }
+}
+
+export async function updateGraphTemplateTags(
+  templateId: string,
+  tags: string[],
+): Promise<GraphTemplateDetail> {
+  const { data } = await http.patch<GraphTemplateDetail>(`/workflow-graph/templates/${templateId}/tags`, {
+    tags,
+  })
+  return {
+    ...data,
+    config: data.config ?? {},
   }
 }
 

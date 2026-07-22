@@ -1060,6 +1060,16 @@ export interface PushSubscription {
 
 // ─── Workflow Graph Engine ─────────────────────────────────────────────────
 
+/** Derived launch/fork/schedule flags for a graph template (matches TemplateCapabilitiesRead). */
+export interface TemplateCapabilities {
+  can_instantiate_directly: boolean
+  can_schedule: boolean
+  is_fork_target: boolean
+  has_multi_instance: boolean
+  has_launch_entry: boolean
+  derived_hints: string[]
+}
+
 export type WorkflowGraphInstanceStatus =
   | 'pending'
   | 'active'

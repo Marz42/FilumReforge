@@ -2,6 +2,8 @@
  * Video workflow v1 API-aligned types (W1). Mirrors backend/app/schemas/workflow_video.py.
  */
 
+import type { TemplateCapabilities } from '@/types/api'
+
 export type VideoRunKind = 'batch' | 'production'
 
 export interface VideoApprovedTopic {
@@ -179,7 +181,10 @@ export interface GraphTemplateSummary {
   description?: string | null
   status: string
   version: number
+  /** @deprecated Legacy video v1 product type from config.run_kind. Prefer capabilities. */
   run_kind?: string | null
+  tags?: string[]
+  capabilities?: TemplateCapabilities
   config?: Record<string, unknown>
   scope_mode?: 'global' | 'departments'
   scope_department_ids?: string[]
