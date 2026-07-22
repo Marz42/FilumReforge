@@ -36,6 +36,19 @@ class WorkflowNodeInstanceRead(BaseModel):
   task_id: UUID | None = None
 
 
+class TemplateCapabilitiesRead(BaseModel):
+  can_instantiate_directly: bool = False
+  can_schedule: bool = False
+  is_fork_target: bool = False
+  has_multi_instance: bool = False
+  has_launch_entry: bool = False
+  derived_hints: list[str] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateTagsUpdateRequest(BaseModel):
+  tags: list[str] = Field(default_factory=list, max_length=32)
+
+
 class WorkflowGraphTemplateSummaryRead(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 
@@ -45,7 +58,12 @@ class WorkflowGraphTemplateSummaryRead(BaseModel):
   description: str | None = None
   status: WorkflowGraphTemplateStatus
   version: int
-  run_kind: str | None = None
+  run_kind: str | None = Field(
+    default=None,
+    description="Deprecated: legacy video v1 product type from config.run_kind. Use capabilities.",
+  )
+  tags: list[str] = Field(default_factory=list)
+  capabilities: TemplateCapabilitiesRead = Field(default_factory=TemplateCapabilitiesRead)
   config: dict[str, object] = {}
   scope_mode: Literal["global", "departments"] = "global"
   scope_department_ids: list[str] = Field(default_factory=list)

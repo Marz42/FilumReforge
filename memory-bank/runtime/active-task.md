@@ -1,8 +1,9 @@
-# Active Task: B2 — ORM 模型
+# Active Task: B3+B4+B5 — Schemas + Capabilities + Admin
 
 **Status:** in-progress
 **Plan:** memory-bank/knowledge/plans/2026-07-22-template-decouple-phase1-plan.md
 
-## Task B2
-- 文件: backend/app/models/workflow_graph.py
-- WorkflowGraphTemplate 模型加 tags 字段
+## Tasks B3, B4, B5
+- B3: schemas/workflow_graph.py — TemplateCapabilitiesRead, tags field, run_kind deprecated
+- B4: services/workflow_graph_template_capabilities.py — 新文件, compute_template_capabilities
+- B5: services/workflow_graph_template_admin_service.py — 注入 capabilities, tags 更新, 列表过滤

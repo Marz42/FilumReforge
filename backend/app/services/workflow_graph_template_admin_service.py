@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError as PydanticValidationError
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import WorkflowGraphInstanceStatus, WorkflowGraphTemplateStatus
@@ -22,6 +22,7 @@ from app.models import (
   WorkflowGraphTemplateNode,
 )
 from app.schemas.workflow_graph import (
+  TemplateCapabilitiesRead,
   WorkflowGraphTemplateCreateRequest,
   WorkflowGraphTemplateDesignerRead,
   WorkflowGraphTemplateDetailRead,
@@ -55,6 +56,10 @@ from app.services.workflow_definition_snapshot import (
 )
 from app.services.access_control import can_manage_task_templates, ensure_active_user
 from app.services.participant_resolution_service import ParticipantResolutionService
+from app.services.workflow_graph_template_capabilities import (
+  compute_template_capabilities,
+  normalize_template_tags,
+)
 from app.services.workflow_graph_template_topology import (
   GraphTemplateEdgeSpec,
   GraphTemplateNodeSpec,
@@ -89,34 +94,50 @@ class WorkflowGraphTemplateAdminService:
   def __init__(self, session: AsyncSession) -> None:
     self._session = session
 
-  async def list_manageable_templates(self) -> list[WorkflowGraphTemplate]:
-    return list(
-      await self._session.scalars(
-        select(WorkflowGraphTemplate)
-        .where(
-          WorkflowGraphTemplate.status.in_(
-            (WorkflowGraphTemplateStatus.DRAFT, WorkflowGraphTemplateStatus.ACTIVE)
-          )
-        )
-        .order_by(WorkflowGraphTemplate.base_code.asc(), WorkflowGraphTemplate.version.desc())
-      )
+  async def list_manageable_templates(
+    self,
+    *,
+    status_filter: list[WorkflowGraphTemplateStatus] | None = None,
+    q: str | None = None,
+  ) -> list[WorkflowGraphTemplate]:
+    statuses = status_filter or [
+      WorkflowGraphTemplateStatus.DRAFT,
+      WorkflowGraphTemplateStatus.ACTIVE,
+    ]
+    stmt = (
+      select(WorkflowGraphTemplate)
+      .where(WorkflowGraphTemplate.status.in_(statuses))
+      .order_by(WorkflowGraphTemplate.base_code.asc(), WorkflowGraphTemplate.version.desc())
     )
+    needle = (q or "").strip()
+    if needle:
+      pattern = f"%{needle}%"
+      stmt = stmt.where(
+        or_(
+          WorkflowGraphTemplate.name.ilike(pattern),
+          WorkflowGraphTemplate.code.ilike(pattern),
+        )
+      )
+    return list(await self._session.scalars(stmt))
 
   async def get_template_detail(self, *, template_id: UUID) -> WorkflowGraphTemplateDetailRead:
     template = await self._get_template_or_raise(template_id=template_id)
     nodes = await self._load_node_summaries(template_id=template_id)
-    return self._build_detail_read(template=template, nodes=nodes)
+    capabilities = await self._compute_capabilities_read(template=template)
+    return self._build_detail_read(template=template, nodes=nodes, capabilities=capabilities)
 
   async def get_designer_detail(self, *, template_id: UUID) -> WorkflowGraphTemplateDesignerRead:
     template = await self._get_template_or_raise(template_id=template_id)
     nodes = await self._load_node_details(template_id=template_id)
     edges = await self._load_edge_details(template_id=template_id)
     has_instances = await self._has_instances(template_id=template_id)
+    capabilities = await self._compute_capabilities_read(template=template)
     return self._build_designer_read(
       template=template,
       nodes=nodes,
       edges=edges,
       has_instances=has_instances,
+      capabilities=capabilities,
     )
 
   async def create_template(
@@ -237,6 +258,23 @@ class WorkflowGraphTemplateAdminService:
       template.scope_mode = scope_mode
       template.scope_department_ids = scope_ids
 
+    await self._session.flush()
+    result = await self.get_template_detail(template_id=template_id)
+    await self._commit()
+    return result
+
+  async def update_tags(
+    self,
+    *,
+    actor: User,
+    template_id: UUID,
+    tags: list[str],
+  ) -> WorkflowGraphTemplateDetailRead:
+    await self._ensure_manage(actor)
+    template = await self._get_template_or_raise(template_id=template_id)
+    if template.status == WorkflowGraphTemplateStatus.ARCHIVED:
+      raise ConflictError("已归档模板不可修改标签。")
+    template.tags = normalize_template_tags(tags)
     await self._session.flush()
     result = await self.get_template_detail(template_id=template_id)
     await self._commit()
@@ -837,11 +875,42 @@ class WorkflowGraphTemplateAdminService:
       if edge.from_node_id in id_to_key and edge.to_node_id in id_to_key
     ]
 
+  async def _compute_capabilities_read(
+    self,
+    *,
+    template: WorkflowGraphTemplate,
+  ) -> TemplateCapabilitiesRead:
+    orm_nodes = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateNode).where(WorkflowGraphTemplateNode.template_id == template.id)
+      )
+    )
+    orm_edges = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateEdge).where(WorkflowGraphTemplateEdge.template_id == template.id)
+      )
+    )
+    caps = compute_template_capabilities(
+      template=template,
+      nodes=orm_nodes,
+      edges=orm_edges,
+      fork_target_codes=set(),
+    )
+    return TemplateCapabilitiesRead(
+      can_instantiate_directly=caps.can_instantiate_directly,
+      can_schedule=caps.can_schedule,
+      is_fork_target=caps.is_fork_target,
+      has_multi_instance=caps.has_multi_instance,
+      has_launch_entry=caps.has_launch_entry,
+      derived_hints=caps.derived_hints,
+    )
+
   @staticmethod
   def _build_detail_read(
     *,
     template: WorkflowGraphTemplate,
     nodes: list[WorkflowGraphTemplateNodeSummaryRead],
+    capabilities: TemplateCapabilitiesRead | None = None,
   ) -> WorkflowGraphTemplateDetailRead:
     config = dict(template.config or {})
     return WorkflowGraphTemplateDetailRead(
@@ -852,6 +921,8 @@ class WorkflowGraphTemplateAdminService:
       status=template.status,
       version=template.version,
       run_kind=str(config.get("run_kind") or "") or None,
+      tags=[str(tag) for tag in (template.tags or [])],
+      capabilities=capabilities or TemplateCapabilitiesRead(),
       config=config,
       scope_mode=template.scope_mode,
       scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
@@ -865,6 +936,7 @@ class WorkflowGraphTemplateAdminService:
     nodes: list[WorkflowGraphTemplateNodeDetailRead],
     edges: list[WorkflowGraphTemplateEdgeDetailRead],
     has_instances: bool,
+    capabilities: TemplateCapabilitiesRead | None = None,
   ) -> WorkflowGraphTemplateDesignerRead:
     config = dict(template.config or {})
     return WorkflowGraphTemplateDesignerRead(
@@ -877,6 +949,8 @@ class WorkflowGraphTemplateAdminService:
       status=template.status,
       version=template.version,
       run_kind=str(config.get("run_kind") or "") or None,
+      tags=[str(tag) for tag in (template.tags or [])],
+      capabilities=capabilities or TemplateCapabilitiesRead(),
       config=config,
       scope_mode=template.scope_mode,
       scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
