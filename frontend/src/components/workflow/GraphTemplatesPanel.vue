@@ -5,7 +5,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
 import { getProfile } from '@/api/profiles'
-import { cloneGraphTemplate, createBlankGraphTemplate, deleteGraphTemplate, listGraphTemplates } from '@/api/workflow-graph'
+import {
+  archiveGraphTemplate,
+  cloneGraphTemplate,
+  createBlankGraphTemplate,
+  deleteGraphTemplate,
+  listGraphTemplates,
+} from '@/api/workflow-graph'
 import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -23,6 +29,8 @@ const emit = defineEmits<{
 }>()
 
 const loading = ref(false)
+const statusFilter = ref<'working' | 'all' | 'draft' | 'active' | 'archived'>('working')
+const searchQuery = ref('')
 const templates = ref<GraphTemplateSummary[]>([])
 const selectedTemplate = ref<GraphTemplateSummary | null>(null)
 const dialogVisible = ref(false)
@@ -34,6 +42,22 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 const instantiateDepartmentOptions = computed(() => departmentOptions.value)
+
+const listStatusParam = computed((): Array<'draft' | 'active' | 'archived'> | undefined => {
+  if (statusFilter.value === 'all') {
+    return ['draft', 'active', 'archived']
+  }
+  if (statusFilter.value === 'draft') {
+    return ['draft']
+  }
+  if (statusFilter.value === 'active') {
+    return ['active']
+  }
+  if (statusFilter.value === 'archived') {
+    return ['archived']
+  }
+  return ['draft', 'active']
+})
 
 function canInstantiateTemplate(template: GraphTemplateSummary): boolean {
   return props.canPublish && templateSupportsDirectInstantiation(template)
@@ -71,7 +95,11 @@ async function loadInstantiateDepartmentContext(): Promise<void> {
 async function loadTemplates(): Promise<void> {
   loading.value = true
   try {
-    templates.value = await listGraphTemplates({ manage: props.canManage })
+    templates.value = await listGraphTemplates({
+      manage: props.canManage,
+      status: listStatusParam.value,
+      q: searchQuery.value,
+    })
     if (!selectedTemplate.value && templates.value.length > 0) {
       selectedTemplate.value = templates.value[0] ?? null
     }
@@ -85,10 +113,12 @@ async function loadTemplates(): Promise<void> {
 
 function openInstantiate(template: GraphTemplateSummary): void {
   if (!canInstantiateTemplate(template)) {
-    if (template.run_kind === 'production') {
-      ElMessage.info('单题制作模板由选题会批次汇总派发后自动 fork，不支持在此直接实例化')
+    if (template.capabilities?.derived_hints?.includes('仅子流程')) {
+      ElMessage.info('仅子流程模板，不支持直接实例化')
     } else if (!props.canPublish) {
       ElMessage.warning('当前账号无权发布组织任务')
+    } else {
+      ElMessage.info('当前不可实例化')
     }
     return
   }
@@ -99,6 +129,10 @@ function openInstantiate(template: GraphTemplateSummary): void {
 function openEdit(template: GraphTemplateSummary): void {
   if (!props.canManage) {
     ElMessage.warning('当前账号无权编辑任务模板')
+    return
+  }
+  if (template.status !== 'draft') {
+    ElMessage.info('已发布模板不可原地修改。请使用另存新版本或派生草稿。')
     return
   }
   selectedTemplate.value = template
@@ -138,6 +172,26 @@ async function handleClone(template: GraphTemplateSummary): Promise<void> {
     void router.push({ name: 'task-template-designer', params: { id: forked.id } })
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
+  }
+}
+
+async function handleArchive(template: GraphTemplateSummary): Promise<void> {
+  if (!props.canManage || template.status !== 'active') {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认归档「${template.name}」？归档后不可原地编辑；可在列表中筛选查看。`,
+      '归档任务模板',
+      { type: 'warning', confirmButtonText: '归档', cancelButtonText: '取消' },
+    )
+    await archiveGraphTemplate(template.id)
+    ElMessage.success('模板已归档')
+    await loadTemplates()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(getErrorMessage(error))
+    }
   }
 }
 
@@ -189,6 +243,27 @@ onMounted(() => {
             <strong>任务模板</strong>
             <p class="graph-templates__hint">选模板 → 填写 launch 信息 → 实例化派发。</p>
           </div>
+          <el-select
+            v-model="statusFilter"
+            style="width: 140px"
+            data-testid="graph-template-status-filter"
+            @change="loadTemplates"
+          >
+            <el-option label="草稿+已发布" value="working" />
+            <el-option label="全部" value="all" />
+            <el-option label="草稿" value="draft" />
+            <el-option label="已发布" value="active" />
+            <el-option label="已归档" value="archived" />
+          </el-select>
+          <el-input
+            v-model="searchQuery"
+            clearable
+            placeholder="搜索名称或编码"
+            style="width: 200px"
+            data-testid="graph-template-search"
+            @clear="loadTemplates"
+            @keyup.enter="loadTemplates"
+          />
           <el-button v-if="canManage" type="primary" data-testid="graph-template-create" @click="handleCreateBlank">
             新建模板
           </el-button>
@@ -203,11 +278,27 @@ onMounted(() => {
       >
         <el-table-column prop="name" label="模板名称" min-width="180" />
         <el-table-column prop="code" label="编码" min-width="200" />
-        <el-table-column label="类型" width="100">
+        <el-table-column label="标签 / 能力" min-width="200">
           <template #default="{ row }: { row: GraphTemplateSummary }">
-            <el-tag effect="plain" type="primary">
-              {{ row.run_kind === 'batch' ? '批次' : row.run_kind === 'production' ? '制作' : '图' }}
+            <el-tag
+              v-for="tag in row.tags ?? []"
+              :key="tag"
+              size="small"
+              effect="plain"
+              class="graph-templates__tag"
+            >
+              {{ tag }}
             </el-tag>
+            <el-tag
+              v-for="hint in row.capabilities?.derived_hints ?? []"
+              :key="hint"
+              size="small"
+              type="info"
+              effect="plain"
+            >
+              {{ hint }}
+            </el-tag>
+            <span v-if="!(row.tags?.length) && !(row.capabilities?.derived_hints?.length)">—</span>
           </template>
         </el-table-column>
         <el-table-column label="版本" width="72" prop="version" />
@@ -226,7 +317,7 @@ onMounted(() => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="{ row }: { row: GraphTemplateSummary }">
             <el-button
               v-if="canManage"
@@ -247,15 +338,24 @@ onMounted(() => {
               复制
             </el-button>
             <el-button
-              v-if="canManage"
+              v-if="canManage && row.status === 'draft'"
               link
               data-testid="graph-template-edit"
               @click.stop="openEdit(row)"
             >
               改名
             </el-button>
+            <el-button
+              v-if="canManage && row.status === 'active'"
+              link
+              type="warning"
+              data-testid="graph-template-archive"
+              @click.stop="handleArchive(row)"
+            >
+              归档
+            </el-button>
             <el-tooltip
-              v-if="canManage && (row.run_count_total ?? 0) > 0"
+              v-if="canManage && row.status === 'draft' && (row.run_count_total ?? 0) > 0"
               content="已有运行实例，不可删除"
               placement="top"
             >
@@ -264,7 +364,7 @@ onMounted(() => {
               </span>
             </el-tooltip>
             <el-button
-              v-else-if="canManage"
+              v-else-if="canManage && row.status === 'draft'"
               link
               type="danger"
               data-testid="graph-template-delete"
@@ -273,8 +373,8 @@ onMounted(() => {
               删除
             </el-button>
             <el-tooltip
-              v-if="row.run_kind === 'production'"
-              content="由选题会批次汇总派发后自动 fork，不支持直接实例化"
+              v-if="!canInstantiateTemplate(row)"
+              :content="row.capabilities?.derived_hints?.includes('仅子流程') ? '仅子流程模板，不支持直接实例化' : '当前不可实例化'"
               placement="top"
             >
               <span>
@@ -287,7 +387,6 @@ onMounted(() => {
               v-else
               type="primary"
               link
-              :disabled="!canInstantiateTemplate(row)"
               data-testid="graph-template-instantiate"
               @click.stop="openInstantiate(row)"
             >
@@ -320,6 +419,7 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .graph-templates__hint {
@@ -331,5 +431,10 @@ onMounted(() => {
 .graph-templates__active-runs {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+
+.graph-templates__tag {
+  margin-right: 4px;
+  margin-bottom: 2px;
 }
 </style>

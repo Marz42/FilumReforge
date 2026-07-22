@@ -19,6 +19,11 @@ vi.mock('@/composables/useTaskCenterPermissions', () => ({
   }),
 }))
 
+vi.mock('@/api/departments', () => ({
+  listDepartments: vi.fn().mockResolvedValue([]),
+  listDepartmentTree: vi.fn().mockResolvedValue([]),
+}))
+
 vi.mock('@/api/workflow-graph', () => ({
   getGraphTemplateDesigner: vi.fn().mockResolvedValue({
     id: 'tpl-1',
@@ -73,5 +78,30 @@ describe('GraphTemplateDesignerView', () => {
     expect(wrapper.text()).toContain('选题会（批次）')
     expect(wrapper.find('[data-testid="designer-save"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="designer-add-edge"]').exists()).toBe(true)
+  })
+
+  it('hides save-settings and shows immutability banner for active templates', async () => {
+    const { getGraphTemplateDesigner } = await import('@/api/workflow-graph')
+    vi.mocked(getGraphTemplateDesigner).mockResolvedValueOnce({
+      id: 'tpl-1',
+      code: 'topic_meeting_batch_v1',
+      base_code: 'topic_meeting_batch_v1',
+      name: '选题会（批次）',
+      description: null,
+      status: 'active',
+      version: 1,
+      run_kind: 'batch',
+      tags: ['视频'],
+      capabilities: { can_instantiate_directly: true, derived_hints: ['可直接发起'] },
+      config: { aggregate_mode: 'batch', launch_schema: { fields: [] } },
+      has_instances: false,
+      structure_locked: false,
+      nodes: [],
+      edges: [],
+    })
+    const wrapper = mount(GraphTemplateDesignerView, { global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="designer-save-settings"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('不可原地修改')
   })
 })

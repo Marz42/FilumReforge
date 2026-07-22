@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { listDepartments, listDepartmentTree } from '@/api/departments'
 import {
+  archiveGraphTemplate,
   dryRunGraphTemplate,
   exportGraphTemplate,
   forkGraphTemplateVersion,
@@ -12,7 +13,7 @@ import {
   importGraphTemplateDraft,
   publishGraphTemplate,
   saveGraphTemplateDraft,
-  updateGraphTemplate,
+  updateGraphTemplateTags,
   validateGraphTemplate,
 } from '@/api/workflow-graph'
 import GraphTemplateDagPreview from '@/components/workflow/GraphTemplateDagPreview.vue'
@@ -50,17 +51,18 @@ const saving = ref(false)
 const validating = ref(false)
 const publishing = ref(false)
 const forking = ref(false)
+const archiving = ref(false)
 const dryRunning = ref(false)
 const dryRunVisible = ref(false)
 const dryRunResult = ref<GraphTemplateDryRunResult | null>(null)
 const importInputRef = ref<HTMLInputElement | null>(null)
 const detail = ref<GraphTemplateDesignerDetail | null>(null)
 const validationErrors = ref<string[]>([])
+const tagInput = ref<string[]>([])
 
 const form = reactive({
   name: '',
   description: '',
-  runKind: 'batch' as 'batch' | 'production',
   aggregateMode: 'streaming' as 'batch' | 'streaming',
   launchSchemaJson: '{}',
   rootAssigneeVar: '',
@@ -90,7 +92,10 @@ const { ensureLoaded, canAdministerTaskTemplates } = useTaskCenterPermissions()
 
 const templateId = computed(() => String(route.params.id ?? ''))
 const isDraft = computed(() => detail.value?.status === 'draft')
+const isArchived = computed(() => detail.value?.status === 'archived')
+const definitionLocked = computed(() => !isDraft.value)
 const structureLocked = computed(() => detail.value?.structure_locked ?? false)
+const graphLocked = computed(() => structureLocked.value || definitionLocked.value)
 const selectedNode = computed(() =>
   nodeRows.value.find((node) => node.node_key === selectedNodeKey.value) ?? null,
 )
@@ -124,7 +129,7 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
   detail.value = next
   form.name = next.name
   form.description = next.description ?? ''
-  form.runKind = (next.config?.run_kind === 'production' ? 'production' : 'batch')
+  tagInput.value = [...(next.tags ?? [])]
   form.aggregateMode = (next.config?.aggregate_mode === 'streaming' ? 'streaming' : 'batch')
   form.rootAssigneeVar = (next.config?.root_assignee_var as string) ?? ''
   form.aggregateNodeKey = (next.config?.aggregate_node_key as string) ?? ''
@@ -256,7 +261,6 @@ function buildTemplateConfig(): Record<string, unknown> | null {
   }
   const config: Record<string, unknown> = {
     ...(detail.value?.config ?? {}),
-    run_kind: form.runKind,
     launch_schema: launchSchema,
     aggregate_mode: form.aggregateMode,
   }
@@ -436,27 +440,44 @@ async function handleSave(): Promise<void> {
   }
 }
 
-async function handleSaveActiveSettings(): Promise<void> {
-  if (!templateId.value || isDraft.value) {
+async function handleSaveTags(): Promise<void> {
+  if (!templateId.value) {
     return
   }
   saving.value = true
   try {
-    const config = buildTemplateConfig()
-    if (config === null) {
-      return
-    }
-    await updateGraphTemplate(templateId.value, {
-      name: form.name.trim(),
-      description: form.description.trim() || null,
-      config,
-    })
+    await updateGraphTemplateTags(templateId.value, tagInput.value)
     applyDetail(await getGraphTemplateDesigner(templateId.value))
-    ElMessage.success('设置已保存')
+    ElMessage.success('标签已保存')
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
   } finally {
     saving.value = false
+  }
+}
+
+async function handleArchive(): Promise<void> {
+  if (!templateId.value || detail.value?.status !== 'active') {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认归档「${detail.value.name}」？归档后不可原地编辑。`,
+      '归档模板',
+      { type: 'warning', confirmButtonText: '归档', cancelButtonText: '取消' },
+    )
+  } catch {
+    return
+  }
+  archiving.value = true
+  try {
+    await archiveGraphTemplate(templateId.value)
+    ElMessage.success('模板已归档')
+    void router.push({ name: 'task-templates', query: { status: 'archived' } })
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    archiving.value = false
   }
 }
 
@@ -642,7 +663,7 @@ onMounted(async () => {
         <el-button :loading="dryRunning" data-testid="designer-dry-run" @click="handleDryRun">试跑</el-button>
         <el-button data-testid="designer-export" @click="handleExportJson">导出 JSON</el-button>
         <el-button
-          v-if="isDraft && !structureLocked"
+          v-if="isDraft && !graphLocked"
           data-testid="designer-import"
           @click="openImportPicker"
         >
@@ -660,16 +681,23 @@ onMounted(async () => {
           保存草稿
         </el-button>
         <el-button
-          v-if="!isDraft"
-          type="primary"
-          plain
-          :loading="saving"
-          data-testid="designer-save-settings"
-          @click="handleSaveActiveSettings"
+          :loading="forking"
+          :type="definitionLocked ? 'primary' : 'default'"
+          data-testid="designer-fork"
+          @click="handleForkVersion"
         >
-          保存设置
+          另存新版本
         </el-button>
-        <el-button :loading="forking" data-testid="designer-fork" @click="handleForkVersion">另存新版本</el-button>
+        <el-button
+          v-if="detail?.status === 'active'"
+          type="warning"
+          plain
+          :loading="archiving"
+          data-testid="designer-archive"
+          @click="handleArchive"
+        >
+          归档
+        </el-button>
         <el-button
           v-if="isDraft"
           type="primary"
@@ -683,12 +711,12 @@ onMounted(async () => {
     </header>
 
     <el-alert
-      v-if="detail && !isDraft"
+      v-if="detail && definitionLocked"
       type="info"
       :closable="false"
       show-icon
       class="designer__alert"
-      title="已发布模板：可「保存设置」更新名称、schedulable、launch_schema 等；改节点/边请「另存新版本」。"
+      title="已发布模板不可原地修改。请使用另存新版本或派生草稿。"
     />
 
     <el-alert
@@ -708,21 +736,57 @@ onMounted(async () => {
       <el-card shadow="never" class="designer__panel">
         <template #header><strong>模板信息</strong></template>
         <el-form label-position="top">
-          <el-form-item label="模板类型">
-            <el-radio-group v-model="form.runKind" :disabled="structureLocked && !isDraft">
-              <el-radio value="batch">批次（选题会 / 多步骤流程）</el-radio>
-              <el-radio value="production">制作（由批次 fork，不可直接实例化）</el-radio>
-            </el-radio-group>
-            <p class="designer__hint">创建后不可更改。批次模板可直接实例化；制作模板由选题会汇总派发后自动 fork。</p>
-          </el-form-item>
           <el-form-item label="名称" required>
-            <el-input v-model="form.name" maxlength="120" show-word-limit />
+            <el-input v-model="form.name" :disabled="definitionLocked" maxlength="120" show-word-limit />
           </el-form-item>
           <el-form-item label="说明">
-            <el-input v-model="form.description" type="textarea" :rows="3" maxlength="2000" show-word-limit />
+            <el-input
+              v-model="form.description"
+              :disabled="definitionLocked"
+              type="textarea"
+              :rows="3"
+              maxlength="2000"
+              show-word-limit
+            />
+          </el-form-item>
+          <el-form-item label="标签">
+            <el-select
+              v-model="tagInput"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              :disabled="isArchived"
+              placeholder="输入后回车添加"
+              data-testid="designer-tags"
+              style="width: 100%"
+            />
+            <el-button
+              class="designer__tag-save"
+              size="small"
+              :loading="saving"
+              :disabled="isArchived"
+              data-testid="designer-tags-save"
+              @click="handleSaveTags"
+            >
+              保存标签
+            </el-button>
+          </el-form-item>
+          <el-form-item v-if="detail?.capabilities" label="派生能力（只读）">
+            <div data-testid="designer-capabilities">
+              <el-tag
+                v-for="hint in detail.capabilities.derived_hints"
+                :key="hint"
+                size="small"
+                effect="plain"
+              >
+                {{ hint }}
+              </el-tag>
+              <span v-if="!detail.capabilities.derived_hints.length">—</span>
+            </div>
           </el-form-item>
           <el-form-item label="汇总模式">
-            <el-radio-group v-model="form.aggregateMode" :disabled="structureLocked && !isDraft">
+            <el-radio-group v-model="form.aggregateMode" :disabled="graphLocked">
               <el-radio value="batch">batch（结束采集后汇总）</el-radio>
               <el-radio value="streaming">streaming（增量派发）</el-radio>
             </el-radio-group>
@@ -730,6 +794,7 @@ onMounted(async () => {
           <el-form-item label="launch_schema（JSON）">
             <el-input
               v-model="form.launchSchemaJson"
+              :disabled="definitionLocked"
               type="textarea"
               :rows="10"
               class="designer__json"
@@ -739,6 +804,7 @@ onMounted(async () => {
           <el-form-item label="根任务执行人变量">
             <el-input
               v-model="form.rootAssigneeVar"
+              :disabled="definitionLocked"
               maxlength="64"
               placeholder="例如 manager_user_id"
             />
@@ -747,33 +813,36 @@ onMounted(async () => {
           <el-form-item label="汇总节点键">
             <el-input
               v-model="form.aggregateNodeKey"
+              :disabled="definitionLocked"
               maxlength="64"
               placeholder="例如 N2_AGGREGATE"
             />
             <p class="designer__hint">streaming 模式下分配菜单的控制节点。与对应节点的 node_key 一致。</p>
           </el-form-item>
           <el-form-item label="允许周期定时（F-24 schedulable）">
-            <el-switch v-model="form.schedulable" data-testid="designer-schedulable" />
+            <el-switch v-model="form.schedulable" :disabled="definitionLocked" data-testid="designer-schedulable" />
             <p class="designer__hint">开启后模板可被「建立任务 → 定时派发」选用；须为 batch 采集类模板。</p>
           </el-form-item>
           <el-form-item label="完成后触发下一模板（F-23）">
-            <el-switch v-model="form.onCompleteEnabled" />
+            <el-switch v-model="form.onCompleteEnabled" :disabled="definitionLocked" />
           </el-form-item>
           <el-form-item v-if="form.onCompleteEnabled" label="下一模板 code">
             <el-input
               v-model="form.onCompleteNextTemplateCode"
+              :disabled="definitionLocked"
               maxlength="64"
               placeholder="例如 video_production_per_topic_v1"
               data-testid="designer-on-complete-code"
             />
           </el-form-item>
           <el-form-item v-if="form.onCompleteEnabled" label="继承 inputs">
-            <el-switch v-model="form.onCompleteCarryInputs" />
+            <el-switch v-model="form.onCompleteCarryInputs" :disabled="definitionLocked" />
           </el-form-item>
           <el-form-item label="作用范围（部门可见与可发起）">
             <el-tree-select
               v-model="form.scopeDepartmentIds"
               :data="departmentTree"
+              :disabled="definitionLocked"
               multiple
               show-checkbox
               check-strictly
@@ -793,11 +862,13 @@ onMounted(async () => {
               >
                 <el-input
                   v-model="row.policy_ref"
+                  :disabled="definitionLocked"
                   placeholder="策略名（如 copywriters）"
                   data-testid="designer-policy-ref"
                 />
                 <el-select
                   v-model="row.department_id"
+                  :disabled="definitionLocked"
                   filterable
                   clearable
                   placeholder="选择部门"
@@ -810,9 +881,9 @@ onMounted(async () => {
                     :value="option.value"
                   />
                 </el-select>
-                <el-button link type="danger" @click="removeParticipantPolicyRow(index)">删除</el-button>
+                <el-button link type="danger" :disabled="definitionLocked" @click="removeParticipantPolicyRow(index)">删除</el-button>
               </div>
-              <el-button size="small" data-testid="designer-add-policy" @click="addParticipantPolicyRow">
+              <el-button size="small" :disabled="definitionLocked" data-testid="designer-add-policy" @click="addParticipantPolicyRow">
                 添加策略
               </el-button>
             </div>
@@ -827,11 +898,13 @@ onMounted(async () => {
               >
                 <el-input
                   v-model="row.pool_key"
+                  :disabled="definitionLocked"
                   placeholder="pool_key"
                   data-testid="designer-pool-key"
                 />
                 <el-select
                   v-model="row.department_id"
+                  :disabled="definitionLocked"
                   filterable
                   clearable
                   placeholder="选择部门"
@@ -844,9 +917,9 @@ onMounted(async () => {
                     :value="option.value"
                   />
                 </el-select>
-                <el-button link type="danger" @click="removeDepartmentPoolRow(index)">删除</el-button>
+                <el-button link type="danger" :disabled="definitionLocked" @click="removeDepartmentPoolRow(index)">删除</el-button>
               </div>
-              <el-button size="small" data-testid="designer-add-pool" @click="addDepartmentPoolRow">
+              <el-button size="small" :disabled="definitionLocked" data-testid="designer-add-pool" @click="addDepartmentPoolRow">
                 添加 pool
               </el-button>
             </div>
@@ -870,14 +943,14 @@ onMounted(async () => {
           <el-table-column prop="node_key" label="节点键" min-width="100" show-overflow-tooltip />
           <el-table-column label="标题" min-width="120">
             <template #default="{ row }">
-              <el-input v-model="row.title" :disabled="structureLocked" size="small" />
+              <el-input v-model="row.title" :disabled="graphLocked" size="small" />
             </template>
           </el-table-column>
           <el-table-column label="派发" width="112">
             <template #default="{ row }">
               <el-select
                 v-model="row.assignment_mode"
-                :disabled="structureLocked"
+                :disabled="graphLocked"
                 size="small"
                 class="designer__cell-select"
                 @change="handleAssignmentModeChange(row)"
@@ -891,7 +964,7 @@ onMounted(async () => {
             <template #default="{ row }">
               <el-select
                 v-model="row.join_mode"
-                :disabled="structureLocked || row.assignment_mode === 'single'"
+                :disabled="graphLocked || row.assignment_mode === 'single'"
                 size="small"
                 class="designer__cell-select"
               >
@@ -904,7 +977,7 @@ onMounted(async () => {
             <template #default="{ row }">
               <el-select
                 v-model="row.routing_mode"
-                :disabled="structureLocked"
+                :disabled="graphLocked"
                 size="small"
                 class="designer__cell-select"
               >
@@ -919,7 +992,7 @@ onMounted(async () => {
             <template #default="{ row }">
               <el-input-number
                 v-model="row.sort_order"
-                :disabled="structureLocked"
+                :disabled="graphLocked"
                 size="small"
                 class="designer__cell-number"
                 :min="0"
@@ -936,7 +1009,7 @@ onMounted(async () => {
             type="textarea"
             :rows="12"
             class="designer__json"
-            :disabled="structureLocked"
+            :disabled="graphLocked"
             spellcheck="false"
           />
           <h3 class="designer__subheading">routing_rules（JSON 数组）</h3>
@@ -949,7 +1022,7 @@ onMounted(async () => {
             type="textarea"
             :rows="8"
             class="designer__json"
-            :disabled="structureLocked"
+            :disabled="graphLocked"
             spellcheck="false"
           />
         </div>
@@ -960,7 +1033,7 @@ onMounted(async () => {
           <div class="designer__card-header">
             <strong>边与路由</strong>
             <el-button
-              v-if="!structureLocked"
+              v-if="!graphLocked"
               size="small"
               data-testid="designer-add-edge"
               @click="addEdgeRow"
@@ -1004,7 +1077,7 @@ onMounted(async () => {
             <template #default="{ row }">
               <el-select
                 v-model="row.from_node_key"
-                :disabled="structureLocked"
+                :disabled="graphLocked"
                 size="small"
                 class="designer__cell-select"
                 filterable
@@ -1022,7 +1095,7 @@ onMounted(async () => {
             <template #default="{ row }">
               <el-select
                 v-model="row.to_node_key"
-                :disabled="structureLocked"
+                :disabled="graphLocked"
                 size="small"
                 class="designer__cell-select"
                 filterable
@@ -1038,14 +1111,14 @@ onMounted(async () => {
           </el-table-column>
           <el-table-column label="打回" width="72" align="center">
             <template #default="{ row }">
-              <el-checkbox v-model="row.is_reject_path" :disabled="structureLocked" />
+              <el-checkbox v-model="row.is_reject_path" :disabled="graphLocked" />
             </template>
           </el-table-column>
           <el-table-column label="优先级" width="116" align="center">
             <template #default="{ row }">
               <el-input-number
                 v-model="row.priority"
-                :disabled="structureLocked"
+                :disabled="graphLocked"
                 size="small"
                 class="designer__cell-number"
                 :min="0"
@@ -1057,13 +1130,13 @@ onMounted(async () => {
             <template #default="{ row }">
               <el-input
                 v-model="row.conditionJson"
-                :disabled="structureLocked"
+                :disabled="graphLocked"
                 size="small"
                 spellcheck="false"
               />
             </template>
           </el-table-column>
-          <el-table-column v-if="!structureLocked" label="操作" width="56" align="center">
+          <el-table-column v-if="!graphLocked" label="操作" width="56" align="center">
             <template #default="{ $index }">
               <el-button link type="danger" @click="removeEdgeRow($index)">删</el-button>
             </template>
@@ -1237,6 +1310,10 @@ onMounted(async () => {
 .designer__node-config h3 {
   margin: 0 0 8px;
   font-size: 14px;
+}
+
+.designer__tag-save {
+  margin-top: 8px;
 }
 
 .designer__alert {

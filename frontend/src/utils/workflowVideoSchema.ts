@@ -107,13 +107,24 @@ export function resolveParticipantPolicyRefs(
 }
 
 export function templateSupportsDirectInstantiation(
-  template: { run_kind?: string | null; config?: Record<string, unknown> } | null | undefined,
+  template:
+    | {
+        run_kind?: string | null
+        status?: string
+        config?: Record<string, unknown>
+        capabilities?: { can_instantiate_directly?: boolean }
+      }
+    | null
+    | undefined,
 ): boolean {
   if (!template) {
     return false
   }
+  if (template.capabilities && typeof template.capabilities.can_instantiate_directly === 'boolean') {
+    return template.capabilities.can_instantiate_directly
+  }
   if (template.run_kind === 'production') {
     return false
   }
-  return true
+  return template.status === 'active' || template.status === undefined
 }

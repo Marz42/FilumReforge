@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveUserPoolKey } from '@/utils/workflowVideoSchema'
+import { resolveUserPoolKey, templateSupportsDirectInstantiation } from '@/utils/workflowVideoSchema'
 
 describe('resolveUserPoolKey', () => {
   it('uses pool_key from schema snapshot when present', () => {
@@ -37,5 +37,21 @@ describe('resolveUserPoolKey', () => {
 
   it('returns empty string when no user column and no node default', () => {
     expect(resolveUserPoolKey(undefined, 'N1_PROPOSE')).toBe('')
+  })
+})
+
+describe('templateSupportsDirectInstantiation', () => {
+  it('prefers capabilities over legacy run_kind', () => {
+    expect(
+      templateSupportsDirectInstantiation({
+        run_kind: 'production',
+        status: 'active',
+        capabilities: { can_instantiate_directly: true },
+      }),
+    ).toBe(true)
+  })
+
+  it('falls back to run_kind=production block', () => {
+    expect(templateSupportsDirectInstantiation({ run_kind: 'production', status: 'active' })).toBe(false)
   })
 })
