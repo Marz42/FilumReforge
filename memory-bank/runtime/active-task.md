@@ -1,15 +1,10 @@
-# Active Task: 模板引擎解耦 — Phase 1 待启动
+# Active Task: B1 — Alembic tags 列
 
-**Status:** Phase 0 complete  
-**Spec:** docs/superpowers/specs/2026-07-22-template-engine-decouple-design.md  
-**ADR:** memory-bank/knowledge/decisions/adr-017-template-engine-decouple.md
+**Status:** in-progress
+**Plan:** memory-bank/knowledge/plans/2026-07-22-template-decouple-phase1-plan.md
 
-## Phase 0（已完成）
-- [x] Design spec
-- [x] `task-center.md` §7.7
-- [x] `graph-engine-schema.md` tags + TemplateCapabilities + run_kind deprecated
-- [x] ADR-017
-- [x] progress.md
-
-## 下一步（Phase 1）
-实现：archive UI、`tags` 列 + PATCH、capabilities 门控、去掉类型 radio、ACTIVE 不可原地改定义、list search/filter。
+## Task B1
+- 文件: backend/alembic/versions/20260722_01_workflow_graph_template_tags.py
+- 添加 tags JSONB 列，默认 '[]'
+- 对视频 seed 模板回填默认 tag
+- 跑 migration + 验证
