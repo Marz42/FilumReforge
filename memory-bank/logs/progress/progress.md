@@ -16,6 +16,31 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（模板引擎解耦 · Phase 0）
+
+### 2026-07-22 — Phase 0 complete — template engine decouple spec + memory bank
+
+**完成事项**:
+- [x] Spec：[`docs/superpowers/specs/2026-07-22-template-engine-decouple-design.md`](../../../docs/superpowers/specs/2026-07-22-template-engine-decouple-design.md)（tags / capabilities / ui_profile / dual-read / 归档 UI）
+- [x] Memory Bank：`task-center.md` §7.7 · `graph-engine-schema.md`（`tags` + TemplateCapabilities · `run_kind` deprecated）
+- [x] ADR-017：[`adr-017-template-engine-decouple.md`](../../knowledge/decisions/adr-017-template-engine-decouple.md)
+- [x] 开放问题默认值已确认（free-form tags、fork match code→base_code、ACTIVE 可改 tags、有 ACTIVE schedule 时硬挡归档）
+
+**状态**：Phase 0（设计 + 文档）完成；**无源码改动**。Phase 1 实现待启动。
+
+**下一步**：Phase 1 — archive UI、`tags` 列、capabilities 门控、去掉设计器类型 radio、ACTIVE 不可原地改定义。
+
+---
+
+## 会话摘要（模板设计器审计 · 探索报告）
+
+### 2026-07-22 — GraphTemplateDesigner 三问题探索（无代码）
+
+**完成事项**:
+- [x] 只读审计归档 / 批次·制作类型 / 设计器与图引擎差距
+- [x] 产出 [`docs/superpowers/reports/2026-07-21-template-designer-audit.md`](../../../docs/superpowers/reports/2026-07-21-template-designer-audit.md)
+- [x] 结论：归档 API（`PATCH .../status`）已有、缺 UI；`run_kind` 存于 `config`；P0 补归档按钮
+
 ## 会话摘要（Iteration 3-F 测试手册与提交收口）
 
 ### 2026-07-16 22:07 — 固化测试、迁移、回填与七天观测操作

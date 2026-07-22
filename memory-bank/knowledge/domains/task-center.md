@@ -112,7 +112,7 @@ flowchart TB
 2. **Hydration**：`GET /tasks?ids=` batch（看板/甘特/列表 v2）。
 3. **详情**：`GET /tasks/{id}` + 图任务 `GET /workflow-graph/instances/...`。
 4. **graph-first 列表**：`_graph_task_projection_map` → `run_label` / `user_facing_state`（B-05/B-15）；按 `source_id` 回退解析实例时同时限定 `source_type="task"`，防止跨来源 UUID 碰撞。
-5. **批次 ROOT 投影**（`0.91.1`）：`workflow_graph_root_task` + `run_kind=batch` 时，列表 `status` 以 **`WorkflowGraphInstance.status`** 为准，不因 N2 engine-skip 的节点 `COMPLETED` 提前进历史；实例 `ACTIVE` 阶段标签「汇总派发：待确认派发」。
+5. **批次 ROOT 投影**（`0.91.1`）：`workflow_graph_root_task` + 实例 `context.run_kind=batch`（**legacy**，见 §7.7 / ADR-017）时，列表 `status` 以 **`WorkflowGraphInstance.status`** 为准，不因 N2 engine-skip 的节点 `COMPLETED` 提前进历史；实例 `ACTIVE` 阶段标签「汇总派发：待确认派发」。
 
 图锚点：`extra_metadata.workflow_graph_instance_id`。
 
@@ -183,7 +183,7 @@ Feature flags：`TASK_CENTER_V2_ENABLED` · `WORKFLOW_GRAPH_ENGINE_ENABLED` · `
 
 ## 7. 任务流
 
-> 决策：**ADR-010** · 对照视频 v1 为当前参考实现
+> 决策：**ADR-010** · **ADR-017**（模板引擎解耦）· 对照视频 v1 为当前参考实现
 
 ### 7.1 设计意图（产品）
 
@@ -316,7 +316,7 @@ flowchart LR
 
 | 项 | 规则 |
 |----|------|
-| 模板准入 | `config.schedulable=true` · `run_kind=batch` · 非 streaming · 含 multi_instance 采集 |
+| 模板准入 | `config.schedulable=true` · ~~`run_kind=batch`~~（**deprecated**，改由 §7.7 capabilities）· 非 streaming · 含 multi_instance 采集 |
 | 作用域 | `self` 或 `subtree`（递归 active 子部门）；可排除部门/人员 |
 | 参与人 | `all` / `subset`；运行时以部门 manager 为 actor |
 | 重叠 | 发布/启用时校验：同模板+部门无 ACTIVE Run；tick 时 skip |
@@ -324,6 +324,56 @@ flowchart LR
 | API | `GET/POST/PATCH /workflow-graph/schedules` · `POST .../run-now` |
 | 通知 | 创建/启用 → manager「下一次开始于 …」 |
 | Worker | `run_due_task_schedules_job` · cron 每 5 分钟 |
+
+### 7.7 Template Engine Decouple（ADR-017 · Phase 0 设计）
+
+> Spec：[`docs/superpowers/specs/2026-07-22-template-engine-decouple-design.md`](../../../docs/superpowers/specs/2026-07-22-template-engine-decouple-design.md)  
+> 目标：图模板引擎保持 **垂直无关的通用 DAG**；视频选题会（batch / production）是产品 profile，不再是引擎类型系统。
+
+| 轴 | 现状（系统类型） | 目标（引擎原生） |
+|----|------------------|------------------|
+| 分类 | `config.run_kind ∈ {batch, production}` 作 authoring 类型 | **User tags**（`tags: string[]`）— 纯标签，**零行为影响** |
+| 运行门控 | 分支读 `run_kind` | **`TemplateCapabilities`** — 从图谱结构 + 显式 opt-in 派生 |
+| 节点 UI | 埋在 raw JSON | **`ui_profile`** 保持节点级 **内部运行时机制**；不升格为「模板类型」 |
+| 遗留视频 v1 | 每次保存写 `run_kind` | 旧 seed **只读保留**；**新模板永不写 `run_kind`** |
+
+**Tags（用户分类）**
+
+- 存列 `workflow_graph_templates.tags JSONB NOT NULL DEFAULT '[]'`（非 `config` 内嵌，便于 ACTIVE 元数据编辑）。
+- 自由词汇（如 `视频`、`选题会`、`制作链`）；引擎 **从不** 按 tag 值分支。
+- DRAFT/ACTIVE 可改 tags；ARCHIVED 只读。列表 chips / 搜索 / 过滤可用。
+
+**Capabilities（图结构派生）**
+
+服务端计算并返回于 list/detail/designer：
+
+| 字段 | 含义（摘要） |
+|------|----------------|
+| `can_instantiate_directly` | ACTIVE + 有拓扑起点 + 非「仅 fork 子流程」 |
+| `can_schedule` | `schedulable` + multi_instance + 可直接发起 + 非 streaming（**无** `run_kind` 检查） |
+| `is_fork_target` | 被其他模板 `child_template_code` / `on_confirm` 引用 |
+| `has_multi_instance` / `has_launch_entry` | 结构事实 |
+| `derived_hints` | UX 文案（可发起 / 可调度 / 仅子流程…），不作门控枚举 |
+
+**`ui_profile`**
+
+- 仍在节点 `config.ui_profile`，实例化写入 Task metadata。
+- 设计器可结构化选择（Phase 2），文案为「节点运行时外观 / Action Profile」，**不是**模板类型。
+
+**Legacy 兼容（dual-read）**
+
+| 层 | 规则 |
+|----|------|
+| `config.run_kind` | **Deprecated**。旧 seed（`topic_meeting_batch_v1` / `video_production_per_topic_v1`）保留只读；新 blank / 新 save **不写** |
+| 直接发起 / 调度 | 优先 `capabilities.*`；计算不可用时回退 legacy `run_kind` |
+| API `run_kind` | 有则继续投影；OpenAPI 标 deprecated；同时返回 `tags` + `capabilities` |
+| 实例 `context.run_kind` | 过渡期可为视频 v1 面板兼容标签；长期改 key `ui_profile` / 图形状 |
+
+**归档（UI 可用）**
+
+- 后端 `PATCH .../templates/{id}/status` → `archived` **已存在**。
+- Phase 1：列表行 + 设计器工具栏补 Archive；状态筛选含「已归档」；草稿仍用 Delete。
+- 无 unarchive（M-09 可选后期）。
 
 ---
 
@@ -491,6 +541,7 @@ flowchart LR
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-22 | §7.7 Template Engine Decouple（ADR-017）：tags 替代 `run_kind`、capabilities 图派生、归档 UI、dual-read |
 | 2026-07-18 | `0.92.1` Task Center P0–P2 审计修复收口：并发锁/校验、分页/附件/时间归一化、防自审与图实例来源过滤 |
 | 2026-07-11 | S-01 权限、上海周期、DB 聚合、摘要/负载/明细 implemented · pending UAT |
 | 2026-07-11 | 对齐 F-22/F-28/B-12/F-26 当前事实、测试基线与 S-01 聚合缺口 |

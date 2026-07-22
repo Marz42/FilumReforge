@@ -1,7 +1,7 @@
 # Decisions Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: f91a55001648b612 -->
+<!-- checksum: 100491b43aae03a4 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -22,6 +22,7 @@
 | [adr-014-task-work-item-link-boundary.md](adr-014-task-work-item-link-boundary.md) | `paradigma-decision` | ADR-014: 保留 Task 接口并建立正式工作项 Link | Task 工作项<br>节点 Link<br>双写收口 ... | - | - |
 | [adr-015-approval-handler-reuse.md](adr-015-approval-handler-reuse.md) | `paradigma-decision` | ADR-015: 通过 Handler 复用现有审批引擎 | 审批 Handler<br>审批引擎复用<br>approval handler ... | - | - |
 | [adr-016-object-authorization-scope-legacy-executor.md](adr-016-object-authorization-scope-legacy-executor.md) | `paradigma-decision` | ADR-016: 对象级授权、显式 scope 与 legacy executor | 对象级授权<br>scope_mode<br>legacy executor ... | - | - |
+| [adr-017-template-engine-decouple.md](adr-017-template-engine-decouple.md) | `paradigma-decision` | ADR-017: 模板引擎业务语义解耦 — Tags 替代 run_kind | 模板引擎解耦<br>tags<br>run_kind ... | - | - |
 | [decisions.md](decisions.md) | `paradigma-decision` | ADR 合集 (已拆分) | ADR<br>决策<br>合辑 ... | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->
