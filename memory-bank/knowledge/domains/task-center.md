@@ -7,7 +7,7 @@ tags:
   - 任务中心
   - Inbox
   - 跟踪
-timestamp: 2026-07-15T21:22:42+08:00
+timestamp: 2026-07-28T10:47:27+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -27,7 +27,7 @@ paradigma:
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同全貌：**产品架构 · 单步/任务流/统计 · 实现与差距 · 改造跟踪**。  
-> **最后同步**：2026-07-18 @ **0.92.1** · Task Center P0–P2 审计修复完成
+> **最后同步**：2026-07-28 @ **0.92.1 + Unreleased** · Template Engine Decouple Phase 1 收口、Phase 2 structured authoring 首批完成
 > **排期**：[`roadmap.md`](../roadmap.md) · **决策**：[`decisions.md`](../decisions.md) ADR-009 · ADR-010  
 > **契约**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)
 
@@ -75,7 +75,7 @@ flowchart TB
 | **单步任务** | ⚠️ 基本可用 | 权限/握手可用；**F-22 抄送 ✅** · **F-21 跨部门 ✅** |
 | **任务流** | ⚠️ 视频 v1 可用 | fork/制作链 ✅ · **F-28 ✅** · **F-23 模板链 ✅** · **W-08 streaming N2 ✅** |
 | **任务统计** | ✅ 待验收 | S-01 周期/权限/DB 聚合/负载/明细；Run 事件保留 |
-| **设计器** | ✅ D1–D3 | JSON 编辑为主 → **F-26** 表单化 |
+| **设计器** | ✅ D1–D3 + ADR-017 P1/P2 | tags/capabilities/归档 + `ui_profile`/context/launch/routing 结构化编辑；高级 JSON 保留 |
 | **架构债** | ⏳ | Legacy E 历史表族清理；**F-05** Shell 拆分（当前 1841 行） |
 
 ---
@@ -325,7 +325,7 @@ flowchart LR
 | 通知 | 创建/启用 → manager「下一次开始于 …」 |
 | Worker | `run_due_task_schedules_job` · cron 每 5 分钟 |
 
-### 7.7 Template Engine Decouple（ADR-017 · Phase 0 设计）
+### 7.7 Template Engine Decouple（ADR-017 · Phase 1 complete / Phase 2 pending UAT）
 
 > Spec：[`docs/superpowers/specs/2026-07-22-template-engine-decouple-design.md`](../../../docs/superpowers/specs/2026-07-22-template-engine-decouple-design.md)  
 > 目标：图模板引擎保持 **垂直无关的通用 DAG**；视频选题会（batch / production）是产品 profile，不再是引擎类型系统。
@@ -358,7 +358,8 @@ flowchart LR
 **`ui_profile`**
 
 - 仍在节点 `config.ui_profile`，实例化写入 Task metadata。
-- 设计器可结构化选择（Phase 2），文案为「节点运行时外观 / Action Profile」，**不是**模板类型。
+- 设计器已支持常用 profile 下拉 + 自定义输入，文案为「节点运行时外观 / Action Profile」，**不是**模板类型。
+- `context_schema`、`launch_schema.fields` 与常用 routing IF/ELSE 已提供结构化/高级 JSON 双模式；复杂嵌套条件保持 JSON 原样，不做有损降级。
 
 **Legacy 兼容（dual-read）**
 

@@ -28,7 +28,7 @@ paradigma:
 ---
 # Project Filum 工作流图引擎稳健升级迭代方案
 
-> **状态**：Iteration 0–2 已完成并验收；Iteration 3 A–E 已提交。2026-07-16 已完成强制 Iteration 3-F 工程实现和本地自动化；目标环境 7 天观测及 31 项最终批准未完成，Iteration 4 继续 blocked。
+> **状态**：Iteration 0–2 已完成并验收；Iteration 3 A–E 已提交。2026-07-16 已完成强制 Iteration 3-F 工程实现和本地自动化；目标环境 7 天观测及 31 项最终批准未完成。2026-07-28 用户授权启动 Iteration 4 向下兼容开发，但生产切流继续 blocked。
 > **输入**：根目录 `workflow-graph-engine-upgrade-guidance-report.md`、现行 ORM / Service / API / 测试，以及 [`workflow-graph-engine.md`](../domains/workflow-graph-engine.md) as-built。  
 > **与旧计划关系**：[`workflow-refactor-implementation-plan.md`](./workflow-refactor-implementation-plan.md) 记录 Phase 1–11 的历史实施主线；本文只规划其后的结构收敛与正确性升级，不回写历史阶段。
 
@@ -357,6 +357,8 @@ paradigma:
 ---
 
 ## 9. Iteration 4：P1 业务能力 Handler 化
+
+> **2026-07-28 启动说明**：用户已明确授权开始 Iteration 4 开发，执行计划见 [`workflow-graph-engine-iteration4-handler-plan.md`](./workflow-graph-engine-iteration4-handler-plan.md)。该授权允许契约、代码和本地测试推进，不等价于 Iteration 3-F 生产准入通过；未完成 7 天证据与 31/31 报告前不得生产切流或收缩兼容层。
 
 ### 目标
 

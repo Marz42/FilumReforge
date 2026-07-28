@@ -67,12 +67,21 @@ async def test_d2_save_draft_persists_edges_and_modes(db_session) -> None:
     payload=WorkflowGraphTemplateDraftSaveRequest(
       name=draft.name,
       config=dict(draft.config or {}),
+      context_schema={
+        "type": "object",
+        "properties": {"amount": {"type": "number", "description": "预算"}},
+        "required": ["amount"],
+      },
       nodes=nodes,
       edges=edges,
     ),
   )
   assert len(saved.edges) == len(edges)
   assert saved.nodes[0].assignment_mode == "single"
+  assert saved.context_schema["required"] == ["amount"]
+
+  exported = await service.export_template(actor=admin, template_id=draft.id)
+  assert exported.template.context_schema == saved.context_schema
 
 
 @pytest.mark.asyncio

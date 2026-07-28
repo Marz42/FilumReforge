@@ -1709,14 +1709,14 @@ Expected: all tests `PASS`
 
 ## Exit checklist (Phase 1)
 
-- [ ] M-01: `archiveGraphTemplate` + list/designer archive + confirm
-- [ ] M-02: status filter shows archived; default draft+active unchanged
-- [ ] M-03: no type radio; tags + capabilities on list; gates use capabilities (+ legacy fallback)
-- [ ] M-04: ACTIVE/ARCHIVED definition edits disabled; tags-only PATCH works
-- [ ] M-05: `q` search + status filter compose
-- [ ] Video v1 seeds still instantiate/fork/schedule (regression suite green)
-- [ ] Update `memory-bank/knowledge/contracts/database/graph-engine-schema.md` + `data-contracts` in implementation session
+- [x] M-01: `archiveGraphTemplate` + list/designer archive + confirm
+- [x] M-02: status filter shows archived; default draft+active unchanged
+- [x] M-03: no type radio; tags + capabilities on list; gates use capabilities (+ legacy fallback)
+- [x] M-04: ACTIVE/ARCHIVED definition edits disabled; tags-only PATCH works
+- [x] M-05: `q` search + status filter compose
+- [x] Video v1 seeds still instantiate/fork/schedule (regression suite green)
+- [x] Update `memory-bank/knowledge/contracts/database/graph-engine-schema.md` + `data-contracts` in implementation session
 
 # Status
 
-**proposed**
+**complete**（2026-07-28；Backend 419 collected 全量通过，Frontend 59 files / 168 tests + type-check/build、视频 mock E2E 2/2 通过）

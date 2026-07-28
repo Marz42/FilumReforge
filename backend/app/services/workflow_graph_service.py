@@ -43,6 +43,14 @@ from app.services.workflow_definition_snapshot import (
 )
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.human_task_coordinator import HumanTaskCoordinator
+from app.services.workflow_node_handlers import (
+  WorkflowCapabilityCommand,
+  WorkflowCapabilityContext,
+  WorkflowCapabilityOutcome,
+  WorkflowCapabilityResult,
+  WorkflowNodeHandlerRegistry,
+  build_default_workflow_node_handler_registry,
+)
 from app.models import (
   User,
   WorkflowGraphInstance,
@@ -89,9 +97,114 @@ class WorkflowGraphService:
     self,
     session: AsyncSession,
     notification_service: NotificationService | None = None,
+    node_handler_registry: WorkflowNodeHandlerRegistry | None = None,
   ) -> None:
     self._session = session
     self._notification_service = notification_service
+    self._node_handlers = node_handler_registry or build_default_workflow_node_handler_registry()
+
+  @staticmethod
+  def _capability_context(
+    *,
+    node_type: WorkflowGraphNodeType,
+    node_key: str,
+    engine_state: WorkflowNodeEngineState,
+    business_state: WorkflowNodeBusinessState,
+    config: dict[str, Any] | None,
+  ) -> WorkflowCapabilityContext:
+    return WorkflowCapabilityContext(
+      node_type=node_type,
+      node_key=node_key,
+      engine_state=engine_state,
+      business_state=business_state,
+      config=dict(config or {}),
+    )
+
+  def _activation_result(
+    self,
+    *,
+    node_type: WorkflowGraphNodeType,
+    node_key: str,
+    config: dict[str, Any] | None,
+  ) -> WorkflowCapabilityResult:
+    handler = self._node_handlers.resolve(node_type)
+    if handler is None:
+      return WorkflowCapabilityResult(
+        capability_key=f"legacy_{node_type.value}",
+        outcome=WorkflowCapabilityOutcome.WAITING,
+        engine_state=WorkflowNodeEngineState.ACTIVATED,
+        business_state=WorkflowNodeBusinessState.ASSIGNED,
+      )
+    return handler.activate(
+      self._capability_context(
+        node_type=node_type,
+        node_key=node_key,
+        engine_state=WorkflowNodeEngineState.PENDING,
+        business_state=WorkflowNodeBusinessState.DRAFT,
+        config=config,
+      )
+    )
+
+  def _completion_result(
+    self,
+    *,
+    node_instance: WorkflowNodeInstance,
+    payload: dict[str, object] | None = None,
+  ) -> WorkflowCapabilityResult:
+    handler = self._node_handlers.resolve(node_instance.node_type)
+    if handler is None:
+      return WorkflowCapabilityResult(
+        capability_key=f"legacy_{node_instance.node_type.value}",
+        outcome=WorkflowCapabilityOutcome.SUCCEEDED,
+        engine_state=WorkflowNodeEngineState.COMPLETED,
+        business_state=WorkflowNodeBusinessState.DONE,
+        result=dict(payload or {}),
+      )
+    return handler.command(
+      self._capability_context(
+        node_type=node_instance.node_type,
+        node_key=node_instance.node_key,
+        engine_state=node_instance.engine_state,
+        business_state=node_instance.business_state,
+        config=dict(node_instance.config or {}),
+      ),
+      command=WorkflowCapabilityCommand.COMPLETE,
+      payload=payload,
+    )
+
+  def _map_capability_result(
+    self,
+    *,
+    node_type: WorkflowGraphNodeType,
+    result: WorkflowCapabilityResult,
+  ) -> dict[str, object]:
+    handler = self._node_handlers.resolve(node_type)
+    if handler is not None:
+      return dict(handler.map_result(result))
+    return {
+      "capability_key": result.capability_key,
+      "outcome": result.outcome.value,
+      "result": dict(result.result),
+      "diagnostics": dict(result.diagnostics),
+      "side_effects": list(result.side_effects),
+    }
+
+  @staticmethod
+  def _apply_capability_result(
+    *,
+    node_instance: WorkflowNodeInstance,
+    result: WorkflowCapabilityResult,
+    now: datetime,
+  ) -> None:
+    node_instance.engine_state = result.engine_state
+    node_instance.business_state = result.business_state
+    if result.engine_state == WorkflowNodeEngineState.ACTIVATED:
+      node_instance.activated_at = now
+    elif result.engine_state == WorkflowNodeEngineState.COMPLETED:
+      node_instance.completed_at = now
+    elif result.engine_state == WorkflowNodeEngineState.TERMINATED:
+      node_instance.terminated_at = now
+    node_instance.node_instance_version += 1
 
   @staticmethod
   def _ensure_snapshot_integrity(graph_instance: WorkflowGraphInstance) -> None:
@@ -433,12 +546,6 @@ class WorkflowGraphService:
 
     for template_node in replay_template_nodes:
       is_target = template_node.id == target_template_node.id
-      clone_engine_state = (
-        WorkflowNodeEngineState.ACTIVATED if is_target else WorkflowNodeEngineState.PENDING
-      )
-      clone_business_state = (
-        WorkflowNodeBusinessState.ASSIGNED if is_target else WorkflowNodeBusinessState.DRAFT
-      )
       clone_config = dict(template_node.config or {})
       clone_config["deep_rejection"] = {
         "target_node_key": target_node_key,
@@ -448,6 +555,15 @@ class WorkflowGraphService:
         "triggered_by_user_id": str(actor_id),
         "triggered_at": now.isoformat(),
       }
+      activation_result = (
+        self._activation_result(
+          node_type=template_node.node_type,
+          node_key=template_node.node_key,
+          config=clone_config,
+        )
+        if is_target
+        else None
+      )
 
       clone_node_instance = WorkflowNodeInstance(
         instance_id=graph_instance.id,
@@ -455,8 +571,16 @@ class WorkflowGraphService:
         node_key=template_node.node_key,
         title=template_node.title,
         node_type=template_node.node_type,
-        engine_state=clone_engine_state,
-        business_state=clone_business_state,
+        engine_state=(
+          activation_result.engine_state
+          if activation_result is not None
+          else WorkflowNodeEngineState.PENDING
+        ),
+        business_state=(
+          activation_result.business_state
+          if activation_result is not None
+          else WorkflowNodeBusinessState.DRAFT
+        ),
         assignee_user_id=latest_assignee_by_template_node_id.get(template_node.id),
         iteration=next_iteration,
         node_instance_version=1,
@@ -669,6 +793,16 @@ class WorkflowGraphService:
 
   async def create_single_node_instance(self, *, seed: SingleNodeWorkflowSeed) -> tuple[WorkflowGraphInstance, WorkflowNodeInstance]:
     now = datetime.now(UTC)
+    node_config: dict[str, Any] = {
+      "description": seed.description,
+      "priority": seed.priority.value,
+      "due_date": seed.due_date.isoformat() if seed.due_date is not None else None,
+    }
+    activation_result = self._activation_result(
+      node_type=WorkflowGraphNodeType.TASK,
+      node_key="task-node",
+      config=node_config,
+    )
     instance = WorkflowGraphInstance(
       initiator_user_id=seed.creator_id,
       department_id=seed.department_id,
@@ -692,17 +826,15 @@ class WorkflowGraphService:
       node_key="task-node",
       title=seed.title,
       node_type=WorkflowGraphNodeType.TASK,
-      engine_state=WorkflowNodeEngineState.ACTIVATED,
-      business_state=WorkflowNodeBusinessState.ASSIGNED,
+      engine_state=activation_result.engine_state,
+      business_state=activation_result.business_state,
       assignee_user_id=seed.assignee_id,
       iteration=1,
       node_instance_version=1,
-      config={
-        "description": seed.description,
-        "priority": seed.priority.value,
-        "due_date": seed.due_date.isoformat() if seed.due_date is not None else None,
-      },
-      activated_at=now,
+      config=node_config,
+      activated_at=(
+        now if activation_result.engine_state == WorkflowNodeEngineState.ACTIVATED else None
+      ),
     )
     self._session.add(node_instance)
     await self._session.flush()
@@ -788,8 +920,25 @@ class WorkflowGraphService:
 
     for node in nodes:
       is_start = in_degree[node.id] == 0
-      engine_state = WorkflowNodeEngineState.ACTIVATED if is_start else WorkflowNodeEngineState.PENDING
-      business_state = WorkflowNodeBusinessState.ASSIGNED if is_start else WorkflowNodeBusinessState.DRAFT
+      activation_result = (
+        self._activation_result(
+          node_type=node.node_type,
+          node_key=node.node_key,
+          config=dict(node.config or {}),
+        )
+        if is_start
+        else None
+      )
+      engine_state = (
+        activation_result.engine_state
+        if activation_result is not None
+        else WorkflowNodeEngineState.PENDING
+      )
+      business_state = (
+        activation_result.business_state
+        if activation_result is not None
+        else WorkflowNodeBusinessState.DRAFT
+      )
 
       ni = WorkflowNodeInstance(
         instance_id=instance.id,
@@ -802,7 +951,9 @@ class WorkflowGraphService:
         iteration=1,
         node_instance_version=1,
         config=dict(node.config or {}),
-        activated_at=now if is_start else None,
+        activated_at=(
+          now if engine_state == WorkflowNodeEngineState.ACTIVATED else None
+        ),
       )
       self._session.add(ni)
       node_instances.append(ni)
@@ -897,10 +1048,15 @@ class WorkflowGraphService:
           )
 
     now = datetime.now(UTC)
-    node_instance.engine_state = WorkflowNodeEngineState.COMPLETED
-    node_instance.business_state = WorkflowNodeBusinessState.DONE
-    node_instance.completed_at = now
-    node_instance.node_instance_version += 1
+    capability_result = self._completion_result(
+      node_instance=node_instance,
+      payload={"context_updates": dict(context_updates or {})},
+    )
+    self._apply_capability_result(
+      node_instance=node_instance,
+      result=capability_result,
+      now=now,
+    )
     await self._session.flush()
 
     await WorkflowRunEventService(self._session).append(
@@ -912,6 +1068,10 @@ class WorkflowGraphService:
         "node_instance_id": str(node_instance.id),
         "node_key": node_instance.node_key,
         "instance_key": node_instance.instance_key,
+        "capability_result": self._map_capability_result(
+          node_type=node_instance.node_type,
+          result=capability_result,
+        ),
       },
     )
 
@@ -1198,11 +1358,16 @@ class WorkflowGraphService:
 
       join_mode = (downstream_template_node.join_mode or "all").strip().lower()
 
-      # 激活下游节点
-      downstream_ni.engine_state = WorkflowNodeEngineState.ACTIVATED
-      downstream_ni.business_state = WorkflowNodeBusinessState.ASSIGNED
-      downstream_ni.activated_at = now
-      downstream_ni.node_instance_version += 1
+      # 激活下游节点；业务状态映射由 Handler 返回，Runtime 只应用结果。
+      self._apply_capability_result(
+        node_instance=downstream_ni,
+        result=self._activation_result(
+          node_type=downstream_ni.node_type,
+          node_key=downstream_ni.node_key,
+          config=dict(downstream_ni.config or {}),
+        ),
+        now=now,
+      )
 
       if (
         downstream_ni.assignee_user_id is None
@@ -1680,10 +1845,15 @@ class WorkflowGraphService:
     template = runtime_template(graph_instance.definition_snapshot)
     initiator = await self._session.get(User, graph_instance.initiator_user_id)
     for target_instance in target_instances:
-      target_instance.engine_state = WorkflowNodeEngineState.ACTIVATED
-      target_instance.business_state = WorkflowNodeBusinessState.ASSIGNED
-      target_instance.activated_at = now
-      target_instance.node_instance_version += 1
+      self._apply_capability_result(
+        node_instance=target_instance,
+        result=self._activation_result(
+          node_type=target_instance.node_type,
+          node_key=target_instance.node_key,
+          config=dict(target_instance.config or {}),
+        ),
+        now=now,
+      )
       if target_instance.assignee_user_id is None and template is not None and initiator is not None:
         ensure_active_user(initiator)
         target_instance.assignee_user_id = await resolve_node_assignee_id(
@@ -2031,11 +2201,32 @@ class WorkflowGraphService:
     for notice_node in notice_nodes:
       if notice_node.engine_state != WorkflowNodeEngineState.ACTIVATED:
         continue
-      notice_node.engine_state = WorkflowNodeEngineState.COMPLETED
-      notice_node.business_state = WorkflowNodeBusinessState.DONE
-      notice_node.completed_at = now
-      notice_node.node_instance_version += 1
+      capability_result = self._completion_result(
+        node_instance=notice_node,
+        payload={"completion_mode": "automatic"},
+      )
+      self._apply_capability_result(
+        node_instance=notice_node,
+        result=capability_result,
+        now=now,
+      )
       await self._session.flush()
+
+      await WorkflowRunEventService(self._session).append(
+        instance_id=graph_instance.id,
+        event_type="node_auto_completed",
+        actor_user_id=None,
+        aggregate_version=notice_node.node_instance_version,
+        payload={
+          "node_instance_id": str(notice_node.id),
+          "node_key": notice_node.node_key,
+          "instance_key": notice_node.instance_key,
+          "capability_result": self._map_capability_result(
+            node_type=notice_node.node_type,
+            result=capability_result,
+          ),
+        },
+      )
 
       await self._activate_downstream(
         graph_instance=graph_instance,

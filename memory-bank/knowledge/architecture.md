@@ -6,7 +6,7 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-07-16T21:19:21+08:00
+timestamp: 2026-07-28T11:35:18+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -24,8 +24,8 @@ paradigma:
 ---
 # Project Filum 架构基线
 
-**文档版本**: v3.16.2（与产品 SemVer [`VERSION`](../../VERSION) 独立）
-**最后同步**: 2026-07-16 · 下一焦点: [workflow-graph-engine-iteration3f-readiness-gate-plan.md](./plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md)
+**文档版本**: v3.18.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
+**最后同步**: 2026-07-28 · 当前焦点: [workflow-graph-engine-iteration4-handler-plan.md](./plans/workflow-graph-engine-iteration4-handler-plan.md)
 
 ## 1. 文档定位
 
@@ -76,13 +76,15 @@ paradigma:
 - Stage 2 Phase 6 补丁增强：人员工作台账号页已明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；管理员可删除未建档且未被业务数据引用的账号
 - Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
 - Inbox-first 任务中心：主筛选 **待处理 / 跟踪 / 历史**；页头 **建立任务** 为居中 **Dialog**（含未保存关闭确认）；筛选摘要卡；`GET /api/v1/tasks/search`；`FilumDateTimePicker` / `FilumDateTimeRangePicker`；全局 **个人备忘** 为右下角浮窗（列表 + 新建/编辑 Dialog，可选 `title`）；任务模板在 `/task-templates`
-- 工作流图引擎 schema 现为 **十四表**：十三表运行时/Link/receipt 基线 + `workflow_operational_incidents`。新模板 Run 使用 snapshot format v2 / `graph-v3`；既有 executor 不原地升级。Iteration 3-F 以 `WorkItemWriteService` / `WorkflowRuntimeWriteService` 固化独占写端口，`HumanTaskCoordinator` 只编排同一 UoW，全仓库 AST guard 阻止越界写和内部 commit；Link 支持 iteration/superseded，readiness API/CLI 可查询 fallback、Coordinator/Receipt/Outbox 异常、engine version 与未迁移对象。兼容 JSON 仍双写，目标环境连续 7 天零 fallback 且最终批准前 Iteration 4 保持 blocked
+- 工作流图引擎 schema 现为 **十四表**：十三表运行时/Link/receipt 基线 + `workflow_operational_incidents`。新模板 Run 使用 snapshot format v2 / `graph-v3`；既有 executor 不原地升级。Iteration 3-F 以 `WorkItemWriteService` / `WorkflowRuntimeWriteService` 固化独占写端口，`HumanTaskCoordinator` 只编排同一 UoW，全仓库 AST guard 阻止越界写和内部 commit；Link 支持 iteration/superseded，readiness API/CLI 可查询 fallback、Coordinator/Receipt/Outbox 异常、engine version 与未迁移对象。兼容 JSON 仍双写；Iteration 4 可进行向下兼容开发，但生产切流仍须目标环境连续 7 天零 fallback 与最终 31/31 批准
+- 工作流图引擎 Iteration 4-A（@ 2026-07-28）：新增 `WorkflowNodeHandlerRegistry` 与统一 `WorkflowCapabilityResult`，Handler 契约声明 definition validation、activate、command、cancel、retry、interruptible、compensation、side effects 与 result mapping；HumanTask/Notice 已注册，Runtime 的激活/完成状态映射消费统一结果并写入 RunEvent 审计，Approval 暂走 legacy 等待 I4-C
 - 工作流重构 Phase 3：后端已新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` 等 feature flag、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在手动创建任务且开关开启时走“graph instance + node instance + 兼容 Task 投影”双写路径；兼容 `Task` 行仍是列表与详情载体，`TaskCenterService` 仍委托 `TaskService.list_task_inbox()` 等三接口，但在 `TASK_CENTER_V2_ENABLED=true`（`backend/app/core/config.py` 默认）时上述列表优先使用 `_graph_task_projection_map` 解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，未命中图投影时回落既有 legacy 规则
 - 工作流重构单节点交付闭环首轮：基于上述 Phase 3 双写链路，`TaskService` / `tasks` API 已新增“提交交付物”“通过验收”“打回返工”动作，交付快照写入 `workflow_deliverables`，兼容 `Task` 投影通过 `extra_metadata` 暴露最近交付说明、最近提交时间、返工原因、返工次数与最近质量评分；`TaskCenterService` / `task-center` API / `TaskCenterView` 已同步投影待验收、最近提交时间、返工次数、质量评分等跟踪信号；同时禁止 graph 手动任务通过通用状态流转接口直接跳过交付 / 验收动作
 - 工作流重构 Phase 4：graph 手动任务默认以 `ASSIGNED` 节点业务态创建；`TaskService` / `tasks` API / `TasksView` 已新增“接受任务”“退回协商”“转办”动作，`todo -> doing` 现在要求执行人先确认接单；兼容读取侧继续使用 `Task.extra_metadata` + `TaskCenterService` 投影当前握手阶段、当前处理人与最近协商 / 转办原因
 - graph-v3 运行时：显式 `exclusive/inclusive/parallel/first_match`，未选专属路径 `skipped`，Join 只等待实际产生分支，no-route/死 Join 写 failed diagnostics；完成要求合法 End、无活动/悬挂/失败节点。Context patch 使用 expected version + diff event；Deep-Reject 失效旧 traversal/dependency 并阻断旧 iteration；所有节点命令统一 Run→Node 锁顺序
 - 工作流重构 Phase 8-9：Wait-Any（`join_mode=any`）并发撤权与幂等保护、被撤权 `TERMINATED` 节点按终态参与实例完成判定；深度打回（`deep_reject_to_upstream`）可达性校验与 append-only 版本链（`iteration+1` 克隆）、超出 `max_iterations` 阻止；`TasksView` 展示 V{n} 版本角标与打回原因
 - 工作流重构 Phase 10 前端化：`frontend/src/api/workflow-graph.ts` 新增 `getWorkflowGraphInstance`；`frontend/src/types/api.ts` 补充 `WorkflowGraphInstanceDetail` / `WorkflowNodeInstanceSummary` 等图引擎 TS 类型；`TasksView` 打开图任务详情时 fetch 图实例并渲染节点板块列表（标题 / engine_state 标签 / V{n} 角标 / 耗时）；`TaskCenterView` 任务跟踪表格新增逾期标签（due_date < now && status != done）与催办按钮（写入系统催办评论）；**图模板设计器**（@ 2026-06-21 功能，@ 2026-06-22 UX）：`GraphTemplateDesignerView.vue` 全页 authoring（config/节点/边/routing_rules/校验/发布/导入导出/dry-run），`GraphTemplateDagPreview.vue` 拓扑预览（横/纵、图例、打回正交圆角通道），`GraphTemplatesPanel` 列表 Run 统计 + 空白新建
+- 模板引擎解耦 Phase 1/2（@ 2026-07-28）：模板以自由 `tags` 分类、服务端 `TemplateCapabilities` 统一发起/调度门控，列表支持归档/状态/搜索，ACTIVE 定义锁定但可改 tags；设计器已为节点 `ui_profile`、模板 `context_schema`、`launch_schema.fields` 与常用 IF/ELSE `routing_rules` 提供结构化/高级 JSON 双模式。旧 seed `config.run_kind` 与实例兼容标签暂保留 dual-read
 - 工作流重构 Phase 11-A / routing_rules 旧系统桥接：新建 `backend/app/services/condition_evaluator.py` 作为两套工作流系统（图引擎 + 旧模板系统）共享的条件求值模块，提供 `is_else_condition` / `evaluate_condition` / `evaluate_routing_rules` 函数，支持 `eq/neq/gt/gte/lt/lte/in/not_in/contains/exists` 与嵌套 `all/any`；`WorkflowGraphService` 的内联条件求值方法全部迁移至该模块；`TaskService._activate_ready_template_steps` 新增 `_routing_rules_allow_step_activation` 静态方法，当上游 `TaskTemplateStep.config.routing_rules` 存在时以 `instance.payload` 作为上下文评估条件，仅激活命中目标的下游步骤；无规则时保持完全向后兼容
 - 工作流重构 Phase 11-B/11-C/11-D（已完成）：`WorkflowGraphService` 新增 `takeover_node_instance()`（管理员接管节点、写 takeover 审计信息），并引入 `_write_outbox_event()` 在事务内写入 `workflow_outbox_events`；新增 `backend/app/workers/workflow_outbox_worker.py` 消费 outbox 事件，`backend/app/workers/arq_worker.py` 已注册 30 秒定时任务 `process_workflow_outbox_events_job`，对 `PENDING/RETRYING` 事件执行异步投递与指数退避重试，超上限置 `FAILED`；11-D 已补 graph 写接口事务提交、管理员接管后的手动 `Task` 投影同步（执行人 / 握手标签 / 任务中心入口）、`TaskService` 对失效 graph 节点的 accept / reject / delegate 守卫、`complete_node_instance()` 对 `COMPLETED` 重放的幂等返回与对 `TERMINATED` 迟到提交的 409 拦截，以及 Wait-All / Wait-Any 重放、stale deep-reject、complete API 重放稳定快照的回归覆盖；生产环境 `FRONTEND_APP_URL` 也已改为必填，避免邀请注册链接回落到 localhost
 - 工作流重构 Phase 11-E/11-F（已完成）：`backend/app/services/legacy_task_graph_migration_service.py`、`backend/app/scripts/migrate_legacy_tasks_to_graph.py` 与 `backend/app/scripts/rollback_legacy_task_migration.py` 已支持 legacy task 批次迁移 / rollback；`TaskService.list_task_inbox()`、`list_task_tracking()`、`list_task_history()` 现已在 `TASK_CENTER_V2_ENABLED` 下默认走 graph-first with legacy fallback，优先解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，修正 migrated review task 的责任链展示；`WORKFLOW_GRAPH_ENGINE_ENABLED` 与 `TASK_CENTER_V2_ENABLED` 默认值均已切到 `true`，旧创建 / 旧读侧仅保留为显式关闭开关时的紧急回退

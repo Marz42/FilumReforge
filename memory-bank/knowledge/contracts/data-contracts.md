@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-16T21:19:21+08:00
+timestamp: 2026-07-28T10:47:27+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -32,8 +32,8 @@ paradigma:
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
-**版本**: v3.16.2（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-07-16 · Iteration 3-F 写所有权、Link 生命周期、运维异常与 readiness · 产品基线 `0.92.0` + Unreleased
+**版本**: v3.17.0（与 [`architecture.md`](../architecture.md) 同步）
+**最后同步**: 2026-07-28 · Template Engine Decouple Phase 1 收口 + Phase 2 structured authoring · 产品基线 `0.92.1` + Unreleased
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -51,6 +51,7 @@ paradigma:
   - Iteration 4 准入：Admin-only `GET .../admin/iteration4-readiness`；无管理权限统一 404
   - 图模板管理：`GET/PATCH .../templates/{id}`、`GET .../feature-flags`
   - **图模板设计器（F-18–F-20 @ 2026-06-21）**：`GET .../templates?scope=manage`；`POST .../templates`（clone）；`GET/PUT .../templates/{id}/designer|draft`；`POST .../templates/{id}/versions`；`PATCH .../templates/{id}/status`；`GET .../templates/{id}/validate`；`GET/POST .../templates/{id}/export|import`；`POST .../templates/import`；`POST .../templates/{id}/dry-run`；`GET .../templates/{id}/stats`
+  - **ADR-017 Phase 1/2（2026-07-28）**：summary/detail/designer 返回 `tags` + `capabilities`；manage list 支持 `status` + `q`；`PATCH .../templates/{id}/tags`；designer/detail 返回既有 `context_schema`，draft save 可选写入且省略时保留原值；常用 `ui_profile` / launch / routing 结构化 authoring 不改变运行时契约
   - 视频 v1 表单/批次：`POST .../templates/{id}/runs`、`.../node-instances/{id}/submit-capture`、`.../finalize-topics`、`.../instances/{id}/dispatch-topic`（TC-P1 增量派发）、`.../instances/{id}/reject-captures`、`POST .../tasks/{task_id}/reject-production`（TC-P1-7 制作审核退回）、`.../fork-production-runs` 等
 - **视频 v1 Pydantic**: `backend/app/schemas/workflow_video.py`（`launch_schema` / `capture_schema` / `aggregate_schema` 等）
   - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409

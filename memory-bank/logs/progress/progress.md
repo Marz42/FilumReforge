@@ -16,6 +16,59 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（工作流图引擎 · Iteration 4 启动）
+
+### 2026-07-28 11:35 — 缺口入库；I4-A Handler 契约与 Registry 完成
+
+**完成事项**:
+- [x] 将模板解耦 UAT、M-09、`run_kind` dual-read 与 Iteration 3-F 目标环境/7 天/31 项准入缺口写入 active task 和 I4 计划
+- [x] 明确治理边界：用户授权 Iteration 4 向下兼容开发；生产切流和兼容层收缩仍受 I3-F 硬门禁约束
+- [x] 新增 `WorkflowCapabilityResult`、Handler 生命周期契约和 `WorkflowNodeHandlerRegistry`
+- [x] 注册 HumanTask/Notice Handler；Approval 保持 legacy，等待 I4-C
+- [x] `WorkflowGraphService` 的初始/下游激活、HumanTask 完成与 Notice 自动完成消费统一 Capability Result
+- [x] 节点完成 RunEvent 增加 capability outcome/result/diagnostics/side-effects 审计；无 schema 或公共 API 变更
+
+**验证**:
+- Backend Iteration 2–4 / I3-F ownership / 视频专项：**41 PASS**
+- Backend 全量：**423 collected，PASS**（登记的 PostgreSQL 环境用例按既有规则 skip）；`compileall` PASS
+- Frontend：**59 files / 168 tests PASS**；`vue-tsc --build` 与 production build PASS
+- `ruff` 未安装于当前 Python dev 环境，无法执行该可选检查；`git diff --check` PASS
+
+**遗留/下一步**:
+- [ ] I4-B：把 HumanTask cancel/retry 与 Coordinator/UoW 接线补齐，验证 Work Item/Link/RunEvent/Outbox 原子性。
+- [ ] I4-C：适配既有轻量审批引擎；当前 Approval 仍明确走 legacy。
+- [ ] I3-F 目标环境回填、连续 7 天证据和 31/31 最终报告完成前不生产切流。
+- [ ] 模板解耦 Phase 2 UAT、M-09 与 `run_kind` dual-read 继续按缺口表跟踪。
+
+## 会话摘要（模板引擎解耦 · Phase 1 收口 + Phase 2 启动）
+
+### 2026-07-28 10:47 — Phase 1 complete；Phase 2 structured authoring 首批完成，待 UAT
+
+**完成事项**:
+- [x] 恢复前端 `node_modules` 与后端 dev 依赖；未修改 lockfile / `pyproject.toml`
+- [x] Phase 1 archive/tags/capabilities/ACTIVE lock/search/filter 全量回归并更新退出清单为 complete
+- [x] M-06：节点 inspector 增加常用 `ui_profile` 下拉、allow-create 自定义和高级 config JSON
+- [x] M-07：designer/detail 返回 `context_schema`；draft save 可选写入且旧客户端省略时保留原值；前端支持 JSON Schema/flat 常用键与高级 JSON
+- [x] M-08：`launch_schema.fields` 结构化编辑；常用 routing IF/ELSE/操作符/目标节点表单；嵌套 `all/any` 等高级形状自动保留 JSON 模式
+- [x] 导出模板不再把 `context_schema` 固定写成 `{}`，保存/读取/导出形成回环
+- [x] 新增 Phase 2 计划并同步 active task、architecture、data contracts、graph schema、task-center domain 与 changelog
+
+**验证**:
+- Backend DB-backed 专项：**11/11 PASS**；TemplateCapabilities：**6/6 PASS**；全量：**419 collected，PASS**（登记的 PostgreSQL 环境用例按既有规则 skip）；`compileall` PASS
+- Frontend：**59 files / 168 tests PASS**（167 全量 + 新增 structured payload 回环专项）；`vue-tsc --build` PASS；Vite production build PASS
+- Playwright 视频工作流 mock E2E：**2/2 PASS**（选题采集/汇总 + 两题 fork 子 Run）
+- Phase 1 收口前独立专项：GraphTemplatesPanel / Designer / workflowVideoSchema **10/10 PASS**
+
+**环境说明**:
+- 受限沙箱内 aiosqlite worker thread 无法执行，最小 `SELECT 1` 会超时；DB-backed pytest 改在获准的沙箱外执行并全部通过，属于执行环境限制而非代码失败。
+- `npm ci` 仍提示仓库既有 Vite 8/devtools peer warning、npm 9 engine warning，并报告 2 个 high audit 项；本轮未擅自执行 `npm audit fix`。
+- Production build 仍有约 1.98 MB 主 chunk warning，为既有前端拆包技术债。
+
+**遗留/下一步**:
+- [ ] 用户验收 Phase 2 设计器交互与文案。
+- [ ] M-09 unarchive 保持 deferred，需先确认 sibling ACTIVE 冲突与审计策略。
+- [ ] template `run_kind` dual-read 在视频兼容面解除前继续保留，不在本批次删除。
+
 ## 会话摘要（模板引擎解耦 · Phase 0）
 
 ### 2026-07-22 — Phase 0 complete — template engine decouple spec + memory bank

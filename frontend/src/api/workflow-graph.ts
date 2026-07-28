@@ -100,6 +100,7 @@ export async function listGraphTemplates(options?: {
 }
 
 export interface GraphTemplateDetail extends GraphTemplateSummary {
+  context_schema?: Record<string, unknown>
   nodes: Array<{
     id: string
     node_key: string
@@ -179,6 +180,7 @@ export async function saveGraphTemplateDraft(
     name: string
     description?: string | null
     config: Record<string, unknown>
+    context_schema?: Record<string, unknown>
     scope_mode?: 'global' | 'departments'
     scope_department_ids?: string[]
     nodes: Array<{

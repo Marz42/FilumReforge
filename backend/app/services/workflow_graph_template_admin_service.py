@@ -196,6 +196,8 @@ class WorkflowGraphTemplateAdminService:
       existing=dict(template.config or {}),
       incoming=dict(payload.config or {}),
     )
+    if payload.context_schema is not None:
+      template.context_schema = dict(payload.context_schema)
     if payload.scope_mode is not None or payload.scope_department_ids is not None:
       scope_mode, scope_ids = normalize_scope(
         scope_mode=(
@@ -390,7 +392,7 @@ class WorkflowGraphTemplateAdminService:
         name=designer.name,
         description=designer.description,
         config=dict(designer.config or {}),
-        context_schema={},
+        context_schema=dict(designer.context_schema or {}),
         scope_mode=designer.scope_mode,
         scope_department_ids=list(designer.scope_department_ids),
         nodes=[
@@ -950,6 +952,7 @@ class WorkflowGraphTemplateAdminService:
       tags=[str(tag) for tag in (template.tags or [])],
       capabilities=capabilities or TemplateCapabilitiesRead(),
       config=config,
+      context_schema=dict(template.context_schema or {}),
       scope_mode=template.scope_mode,
       scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
       nodes=nodes,
@@ -978,6 +981,7 @@ class WorkflowGraphTemplateAdminService:
       tags=[str(tag) for tag in (template.tags or [])],
       capabilities=capabilities or TemplateCapabilitiesRead(),
       config=config,
+      context_schema=dict(template.context_schema or {}),
       scope_mode=template.scope_mode,
       scope_department_ids=[str(did) for did in (template.scope_department_ids or [])],
       has_instances=has_instances,

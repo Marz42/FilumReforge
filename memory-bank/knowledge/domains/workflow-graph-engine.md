@@ -8,7 +8,7 @@ tags:
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-07-16T21:19:21+08:00
+timestamp: 2026-07-28T11:35:18+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -32,7 +32,7 @@ paradigma:
 # 领域：工作流图引擎 (Workflow Graph Engine)
 
 > 🌡️ WARM — **现行 as-built 总览**（非历史提案）。涉及模板、实例化、节点推进、Task 投影、详情页布局时优先读本文件。  
-> **最后同步**：2026-07-16 · 对照代码：`backend/app/models/workflow_graph.py`、`HumanTaskCoordinator`、`WorkflowIteration4ReadinessService`
+> **最后同步**：2026-07-28 · 对照代码：`backend/app/models/workflow_graph.py`、`HumanTaskCoordinator`、`WorkflowIteration4ReadinessService`、`workflow_node_handlers.py`
 > **计划**：[`plans/workflow-refactor-implementation-plan.md`](../plans/workflow-refactor-implementation-plan.md) · **ADR**：[`decisions/adr-005-dual-track-workflow.md`](../decisions/adr-005-dual-track-workflow.md) · [`adr-008-graph-template-designer.md`](../decisions/adr-008-graph-template-designer.md)  
 > **契约**：[`contracts/database/graph-engine-schema.md`](../contracts/database/graph-engine-schema.md) · **视频增量**：[`workflow-video-v1.md`](./workflow-video-v1.md) · **运行时链路**：[`architecture/core-workflows.md`](./architecture/core-workflows.md) §6.13B
 
@@ -218,6 +218,7 @@ flowchart TD
 | **编排钩子** | `WorkflowOrchestrationService`：模板投影 Task 的 ensure / after_node_completed / handshake → engine_state |
 | **通知** | `_write_outbox_event` → ARQ `workflow_outbox_worker`（非同步强依赖触达） |
 | **审计** | `WorkflowRunEventService.append`（与 outbox 分离） |
+| **能力 Handler** | Iteration 4-A 以 `WorkflowNodeHandlerRegistry` 解析 HumanTask/Notice，返回统一 `WorkflowCapabilityResult`；Runtime 只应用 engine/business state 与映射后的审计结果，Approval 暂保留 legacy |
 
 视频批次约定（简）：`context.run_kind`（`batch`/`production`…）· `parent_instance_id` fork · `instance_key` 多人扇出 · 详情见 [`workflow-video-v1.md`](./workflow-video-v1.md)。
 

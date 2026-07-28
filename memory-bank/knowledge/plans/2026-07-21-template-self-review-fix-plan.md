@@ -1,3 +1,20 @@
+---
+type: paradigma-plan
+title: "Template Self-Review Deadlock Fix"
+description: "模板任务自审死锁修复实施计划。"
+tags: ["plan", "task-center", "self-review", "reviewer"]
+timestamp: 2026-07-21T00:00:00+08:00
+paradigma:
+  schema_version: 0.5.0
+  temperature: warm
+  lifecycle: stable
+  update_policy: agent-editable
+  epistemic_status: confirmed
+  retrieval_hints:
+    zh: ["模板自审", "验收人", "self-review"]
+    en: ["template self review", "reviewer"]
+---
+
 # Implementation Plan: Template Self-Review Deadlock Fix
 
 **Date:** 2026-07-21  

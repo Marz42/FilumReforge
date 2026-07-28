@@ -67,6 +67,7 @@ vi.mock('@/api/workflow-graph', () => ({
 describe('GraphTemplateDesignerView', () => {
   beforeEach(() => {
     route.params.id = 'tpl-1'
+    vi.clearAllMocks()
   })
 
   it('renders designer shell with template meta', async () => {
@@ -78,6 +79,66 @@ describe('GraphTemplateDesignerView', () => {
     expect(wrapper.text()).toContain('选题会（批次）')
     expect(wrapper.find('[data-testid="designer-save"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="designer-add-edge"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="designer-launch-schema"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="designer-context-schema"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="designer-node-ui-profile"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="designer-routing-rules"]').exists()).toBe(true)
+  })
+
+  it('preserves structured authoring values in the draft payload', async () => {
+    const { getGraphTemplateDesigner, saveGraphTemplateDraft } =
+      await import('@/api/workflow-graph')
+    const base = await getGraphTemplateDesigner('fixture')
+    const configured = {
+      ...base,
+      context_schema: {
+        type: 'object',
+        properties: { amount: { type: 'number', description: '预算' } },
+        required: ['amount'],
+      },
+      config: {
+        ...base.config,
+        launch_schema: {
+          fields: [{ key: 'theme', label: '主题', type: 'text', required: true }],
+        },
+      },
+      nodes: [
+        {
+          ...base.nodes[0]!,
+          config: {
+            ...base.nodes[0]!.config,
+            ui_profile: 'video_n1_capture',
+            routing_rules: [{ else: true, target_node_key: 'N2_AGGREGATE' }],
+          },
+        },
+        {
+          id: 'n2',
+          node_key: 'N2_AGGREGATE',
+          title: '汇总',
+          sort_order: 2,
+          assignment_mode: 'single',
+          join_mode: 'all',
+          config: {},
+        },
+      ],
+    }
+    vi.mocked(getGraphTemplateDesigner).mockResolvedValueOnce(configured)
+    vi.mocked(saveGraphTemplateDraft).mockResolvedValueOnce(configured)
+
+    const wrapper = mount(GraphTemplateDesignerView, {
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+    await wrapper.find('[data-testid="designer-save"]').trigger('click')
+    await flushPromises()
+
+    const payload = vi.mocked(saveGraphTemplateDraft).mock.calls[0]![1]
+    expect(payload.context_schema).toEqual(configured.context_schema)
+    expect(payload.config.launch_schema).toEqual(configured.config.launch_schema)
+    expect(payload.nodes[0]!.config).toMatchObject({
+      ui_profile: 'video_n1_capture',
+      routing_rules: [{ else: true, target_node_key: 'N2_AGGREGATE' }],
+    })
   })
 
   it('hides save-settings and shows immutability banner for active templates', async () => {

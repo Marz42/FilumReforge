@@ -22,6 +22,9 @@ paradigma:
 
 ### Added
 
+- 工作流图引擎 Iteration 4-A：Node Handler Registry、统一 Capability Result，以及 HumanTask/Notice 的 activate/complete/cancel/retry 契约与 RunEvent 结果审计
+- 模板引擎解耦 Phase 1：图模板自由 tags、TemplateCapabilities、归档 UI、状态/搜索过滤、ACTIVE 定义锁定与 tags-only 元数据编辑（迁移 `20260722_01`）
+- 模板设计器 Phase 2 首批：节点 `ui_profile`、`context_schema`、`launch_schema.fields` 与常用 IF/ELSE routing 结构化编辑，并保留高级 JSON 模式
 - Iteration 3-F 测试操作手册：开发/CI、PostgreSQL 强制专项、Expand/Backfill/Contract 与连续 7 天 readiness 证据流程
 - Iteration 3-F：Work Item/Runtime 独占写端口、全仓库 AST ownership/commit guard、Admin readiness API 与 CLI verifier
 - Link iteration/superseded 生命周期与持久 `workflow_operational_incidents` 异常队列（Expand/Contract 迁移 `20260716_01`、`20260716_02`）
@@ -40,6 +43,7 @@ paradigma:
 
 ### Changed
 
+- 模板直接发起与周期调度改由图结构 capabilities 门控；模板级 `config.run_kind` 降级为旧视频 seed 的 deprecated dual-read 字段
 - HumanTask 跨域写入统一由 Coordinator 编排两个 flush-only writer；Link 存在时为唯一关系真相，JSON 不一致登记 incident
 - Link 回填器支持 checkpoint/batch，确定项与歧义 incident 可在同次 apply 中安全、幂等落库
 - ACTIVE/ARCHIVED 图模板改为发布后不可变；模板 seed 更新改为归档旧版本并派生新的 ACTIVE 版本

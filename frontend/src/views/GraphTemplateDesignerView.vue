@@ -23,6 +23,19 @@ import type {
   GraphTemplateDryRunResult,
   GraphTemplateNodeDetail,
 } from '@/types/workflowVideo'
+import {
+  KNOWN_NODE_UI_PROFILES,
+  buildContextSchema,
+  buildLaunchSchema,
+  buildRoutingRules,
+  parseContextSchema,
+  parseLaunchSchema,
+  parseRoutingRules,
+  type ContextFieldRow,
+  type ContextSchemaStyle,
+  type LaunchFieldRow,
+  type RoutingRuleRow,
+} from '@/utils/graphTemplateAuthoring'
 import { analyzeEdgeTopology } from '@/utils/graphTemplateTopology'
 import { getErrorMessage } from '@/utils/errors'
 
@@ -33,7 +46,10 @@ type DepartmentPoolRow = {
 
 type DesignerNodeRow = GraphTemplateNodeDetail & {
   configJson: string
+  uiProfile: string
   routingRulesJson: string
+  routingRuleRows: RoutingRuleRow[]
+  routingEditorMode: 'structured' | 'json'
 }
 
 type DesignerEdgeRow = {
@@ -65,6 +81,9 @@ const form = reactive({
   description: '',
   aggregateMode: 'streaming' as 'batch' | 'streaming',
   launchSchemaJson: '{}',
+  launchEditorMode: 'structured' as 'structured' | 'json',
+  contextSchemaJson: '{}',
+  contextEditorMode: 'structured' as 'structured' | 'json',
   rootAssigneeVar: '',
   aggregateNodeKey: '',
   schedulable: false,
@@ -79,10 +98,19 @@ type ParticipantPolicyRow = {
   department_id: string
 }
 
-const departmentTree = ref<Array<{ id: string; label: string; children?: Array<{ id: string; label: string; children?: unknown[] }> }>>([])
+const departmentTree = ref<
+  Array<{
+    id: string
+    label: string
+    children?: Array<{ id: string; label: string; children?: unknown[] }>
+  }>
+>([])
 const departmentOptions = ref<Array<{ value: string; label: string }>>([])
 const departmentPoolRows = ref<DepartmentPoolRow[]>([])
 const participantPolicyRows = ref<ParticipantPolicyRow[]>([])
+const launchFieldRows = ref<LaunchFieldRow[]>([])
+const contextFieldRows = ref<ContextFieldRow[]>([])
+const contextSchemaStyle = ref<ContextSchemaStyle>('json_schema')
 
 const nodeRows = ref<DesignerNodeRow[]>([])
 const edgeRows = ref<DesignerEdgeRow[]>([])
@@ -96,11 +124,14 @@ const isArchived = computed(() => detail.value?.status === 'archived')
 const definitionLocked = computed(() => !isDraft.value)
 const structureLocked = computed(() => detail.value?.structure_locked ?? false)
 const graphLocked = computed(() => structureLocked.value || definitionLocked.value)
-const selectedNode = computed(() =>
-  nodeRows.value.find((node) => node.node_key === selectedNodeKey.value) ?? null,
+const selectedNode = computed(
+  () => nodeRows.value.find((node) => node.node_key === selectedNodeKey.value) ?? null,
 )
 const nodeKeyOptions = computed(() =>
-  nodeRows.value.map((node) => ({ value: node.node_key, label: `${node.node_key} · ${node.title}` })),
+  nodeRows.value.map((node) => ({
+    value: node.node_key,
+    label: `${node.node_key} · ${node.title}`,
+  })),
 )
 const dagNodes = computed(() =>
   nodeRows.value.map((node) => ({
@@ -122,19 +153,39 @@ const edgeTopologyIssues = computed(() =>
     edgeRows.value,
   ),
 )
-const edgeTopologyErrors = computed(() => edgeTopologyIssues.value.filter((item) => item.level === 'error'))
-const edgeTopologyWarnings = computed(() => edgeTopologyIssues.value.filter((item) => item.level === 'warning'))
+const edgeTopologyErrors = computed(() =>
+  edgeTopologyIssues.value.filter((item) => item.level === 'error'),
+)
+const edgeTopologyWarnings = computed(() =>
+  edgeTopologyIssues.value.filter((item) => item.level === 'warning'),
+)
+
+function unmanagedNodeConfig(config: Record<string, unknown> | undefined): Record<string, unknown> {
+  const next = { ...config }
+  delete next.ui_profile
+  delete next.routing_rules
+  return next
+}
 
 function applyDetail(next: GraphTemplateDesignerDetail): void {
   detail.value = next
   form.name = next.name
   form.description = next.description ?? ''
   tagInput.value = [...(next.tags ?? [])]
-  form.aggregateMode = (next.config?.aggregate_mode === 'streaming' ? 'streaming' : 'batch')
+  form.aggregateMode = next.config?.aggregate_mode === 'streaming' ? 'streaming' : 'batch'
   form.rootAssigneeVar = (next.config?.root_assignee_var as string) ?? ''
   form.aggregateNodeKey = (next.config?.aggregate_node_key as string) ?? ''
   const launchSchema = next.config?.launch_schema
   form.launchSchemaJson = JSON.stringify(launchSchema ?? {}, null, 2)
+  const parsedLaunch = parseLaunchSchema(launchSchema)
+  launchFieldRows.value = parsedLaunch.rows
+  form.launchEditorMode = parsedLaunch.structuredCompatible ? 'structured' : 'json'
+  const contextSchema = next.context_schema ?? {}
+  form.contextSchemaJson = JSON.stringify(contextSchema, null, 2)
+  const parsedContext = parseContextSchema(contextSchema)
+  contextFieldRows.value = parsedContext.rows
+  contextSchemaStyle.value = parsedContext.style
+  form.contextEditorMode = parsedContext.structuredCompatible ? 'structured' : 'json'
   const onComplete = next.config?.on_complete as
     | { next_template_code?: string; carry_inputs?: boolean }
     | undefined
@@ -159,14 +210,20 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
           department_id: String((definition as Record<string, unknown>).department_id ?? ''),
         }))
       : []
-  nodeRows.value = next.nodes.map((node) => ({
-    ...node,
-    assignment_mode: node.assignment_mode ?? 'single',
-    join_mode: node.join_mode ?? 'all',
-    routing_mode: node.routing_mode ?? 'inclusive',
-    configJson: JSON.stringify(node.config ?? {}, null, 2),
-    routingRulesJson: JSON.stringify((node.config?.routing_rules as unknown) ?? [], null, 2),
-  }))
+  nodeRows.value = next.nodes.map((node) => {
+    const parsedRouting = parseRoutingRules(node.config?.routing_rules)
+    return {
+      ...node,
+      assignment_mode: node.assignment_mode ?? 'single',
+      join_mode: node.join_mode ?? 'all',
+      routing_mode: node.routing_mode ?? 'inclusive',
+      configJson: JSON.stringify(unmanagedNodeConfig(node.config), null, 2),
+      uiProfile: typeof node.config?.ui_profile === 'string' ? node.config.ui_profile : '',
+      routingRulesJson: JSON.stringify((node.config?.routing_rules as unknown) ?? [], null, 2),
+      routingRuleRows: parsedRouting.rows,
+      routingEditorMode: parsedRouting.structuredCompatible ? 'structured' : 'json',
+    }
+  })
   edgeRows.value = (next.edges ?? []).map((edge) => ({
     from_node_key: edge.from_node_key,
     to_node_key: edge.to_node_key,
@@ -195,17 +252,127 @@ async function loadDesigner(): Promise<void> {
   }
 }
 
-function parseLaunchSchema(): Record<string, unknown> | null {
+function parseObjectJson(value: string, label: string): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(form.launchSchemaJson || '{}') as unknown
+    const parsed = JSON.parse(value || '{}') as unknown
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return parsed as Record<string, unknown>
     }
-    ElMessage.warning('launch_schema 必须是 JSON 对象')
+    ElMessage.warning(`${label} 必须是 JSON 对象`)
     return null
   } catch {
-    ElMessage.warning('launch_schema JSON 格式无效')
+    ElMessage.warning(`${label} JSON 格式无效`)
     return null
+  }
+}
+
+function parseLaunchSchemaValue(): Record<string, unknown> | null {
+  const raw = parseObjectJson(form.launchSchemaJson, 'launch_schema')
+  if (raw === null || form.launchEditorMode === 'json') {
+    return raw
+  }
+  return buildLaunchSchema(raw, launchFieldRows.value)
+}
+
+function parseContextSchemaValue(): Record<string, unknown> | null {
+  const raw = parseObjectJson(form.contextSchemaJson, 'context_schema')
+  if (raw === null || form.contextEditorMode === 'json') {
+    return raw
+  }
+  return buildContextSchema(contextFieldRows.value, contextSchemaStyle.value, raw)
+}
+
+function addLaunchFieldRow(): void {
+  launchFieldRows.value.push({ key: '', label: '', type: 'text', required: false, policy_ref: '' })
+}
+
+function removeLaunchFieldRow(index: number): void {
+  launchFieldRows.value.splice(index, 1)
+}
+
+function addContextFieldRow(): void {
+  contextFieldRows.value.push({ key: '', type: 'string', required: false, description: '' })
+}
+
+function removeContextFieldRow(index: number): void {
+  contextFieldRows.value.splice(index, 1)
+}
+
+function setLaunchEditorMode(mode: 'structured' | 'json'): void {
+  if (mode === 'json') {
+    const base = parseObjectJson(form.launchSchemaJson, 'launch_schema') ?? {}
+    form.launchSchemaJson = JSON.stringify(buildLaunchSchema(base, launchFieldRows.value), null, 2)
+    form.launchEditorMode = mode
+    return
+  }
+  const raw = parseObjectJson(form.launchSchemaJson, 'launch_schema')
+  if (raw === null) {
+    return
+  }
+  const parsed = parseLaunchSchema(raw)
+  if (!parsed.structuredCompatible) {
+    ElMessage.warning('当前 launch_schema 含高级结构，请继续使用 JSON 模式')
+    return
+  }
+  launchFieldRows.value = parsed.rows
+  form.launchEditorMode = mode
+}
+
+function setContextEditorMode(mode: 'structured' | 'json'): void {
+  if (mode === 'json') {
+    const base = parseObjectJson(form.contextSchemaJson, 'context_schema') ?? {}
+    form.contextSchemaJson = JSON.stringify(
+      buildContextSchema(contextFieldRows.value, contextSchemaStyle.value, base),
+      null,
+      2,
+    )
+    form.contextEditorMode = mode
+    return
+  }
+  const raw = parseObjectJson(form.contextSchemaJson, 'context_schema')
+  if (raw === null) {
+    return
+  }
+  const parsed = parseContextSchema(raw)
+  if (!parsed.structuredCompatible) {
+    ElMessage.warning('当前 context_schema 含高级结构，请继续使用 JSON 模式')
+    return
+  }
+  contextFieldRows.value = parsed.rows
+  contextSchemaStyle.value = parsed.style
+  form.contextEditorMode = mode
+}
+
+function addRoutingRuleRow(kind: 'if' | 'else' = 'if'): void {
+  selectedNode.value?.routingRuleRows.push({
+    kind,
+    field: '',
+    operator: 'eq',
+    valueText: '',
+    target_node_key: '',
+  })
+}
+
+function removeRoutingRuleRow(index: number): void {
+  selectedNode.value?.routingRuleRows.splice(index, 1)
+}
+
+function setRoutingEditorMode(node: DesignerNodeRow, mode: 'structured' | 'json'): void {
+  if (mode === 'json') {
+    node.routingRulesJson = JSON.stringify(buildRoutingRules(node.routingRuleRows), null, 2)
+    node.routingEditorMode = mode
+    return
+  }
+  try {
+    const parsed = parseRoutingRules(JSON.parse(node.routingRulesJson || '[]') as unknown)
+    if (!parsed.structuredCompatible) {
+      ElMessage.warning('当前 routing_rules 含复合条件，请继续使用 JSON 模式')
+      return
+    }
+    node.routingRuleRows = parsed.rows
+    node.routingEditorMode = mode
+  } catch {
+    ElMessage.warning('routing_rules JSON 格式无效')
   }
 }
 
@@ -243,11 +410,13 @@ async function loadDepartmentTree(): Promise<void> {
     departmentTree.value = tree.map((node) => ({
       id: node.id,
       label: node.name,
-      children: (node.children ?? []).map((child: { id: string; name: string; children?: unknown[] }) => ({
-        id: child.id,
-        label: child.name,
-        children: child.children ?? [],
-      })),
+      children: (node.children ?? []).map(
+        (child: { id: string; name: string; children?: unknown[] }) => ({
+          id: child.id,
+          label: child.name,
+          children: child.children ?? [],
+        }),
+      ),
     }))
   } catch {
     departmentTree.value = []
@@ -255,17 +424,18 @@ async function loadDepartmentTree(): Promise<void> {
 }
 
 function buildTemplateConfig(): Record<string, unknown> | null {
-  const launchSchema = parseLaunchSchema()
+  const launchSchema = parseLaunchSchemaValue()
   if (launchSchema === null) {
     return null
   }
+  const existingConfig = detail.value?.config
   const config: Record<string, unknown> = {
-    ...(detail.value?.config ?? {}),
+    ...existingConfig,
     launch_schema: launchSchema,
     aggregate_mode: form.aggregateMode,
   }
-  if (typeof (detail.value?.config as Record<string, unknown>)?.seed_version === 'number') {
-    config.seed_version = (detail.value?.config as Record<string, unknown>).seed_version
+  if (typeof existingConfig?.seed_version === 'number') {
+    config.seed_version = existingConfig.seed_version
   }
   if (form.rootAssigneeVar.trim()) {
     config.root_assignee_var = form.rootAssigneeVar.trim()
@@ -327,6 +497,10 @@ function buildDraftPayload() {
   if (config === null) {
     return null
   }
+  const contextSchema = parseContextSchemaValue()
+  if (contextSchema === null) {
+    return null
+  }
   const nodes = nodeRows.value.map((node, index) => {
     let nodeConfig: Record<string, unknown>
     try {
@@ -334,23 +508,28 @@ function buildDraftPayload() {
     } catch {
       throw new Error(`节点 ${node.node_key} 的 config JSON 无效`)
     }
-    try {
-      const routingRules = JSON.parse(node.routingRulesJson || '[]') as unknown
-      if (routingRules !== undefined) {
-        if (!Array.isArray(routingRules)) {
-          throw new Error(`节点 ${node.node_key} 的 routing_rules 必须是数组`)
-        }
-        if (routingRules.length > 0) {
-          nodeConfig.routing_rules = routingRules
-        } else {
-          delete nodeConfig.routing_rules
-        }
+    if (node.uiProfile.trim()) {
+      nodeConfig.ui_profile = node.uiProfile.trim()
+    } else {
+      delete nodeConfig.ui_profile
+    }
+    let routingRules: unknown
+    if (node.routingEditorMode === 'structured') {
+      routingRules = buildRoutingRules(node.routingRuleRows)
+    } else {
+      try {
+        routingRules = JSON.parse(node.routingRulesJson || '[]') as unknown
+      } catch {
+        throw new Error(`节点 ${node.node_key} 的 routing_rules JSON 无效`)
       }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('routing_rules')) {
-        throw error
-      }
-      throw new Error(`节点 ${node.node_key} 的 routing_rules JSON 无效`)
+    }
+    if (!Array.isArray(routingRules)) {
+      throw new Error(`节点 ${node.node_key} 的 routing_rules 必须是数组`)
+    }
+    if (routingRules.length > 0) {
+      nodeConfig.routing_rules = routingRules
+    } else {
+      delete nodeConfig.routing_rules
     }
     const assignmentMode = node.assignment_mode === 'fan_out' ? 'fan_out' : 'single'
     return {
@@ -358,7 +537,7 @@ function buildDraftPayload() {
       title: node.title.trim(),
       sort_order: node.sort_order || index + 1,
       assignment_mode: assignmentMode,
-      join_mode: assignmentMode === 'single' ? 'all' : (node.join_mode === 'any' ? 'any' : 'all'),
+      join_mode: assignmentMode === 'single' ? 'all' : node.join_mode === 'any' ? 'any' : 'all',
       routing_mode: node.routing_mode ?? 'inclusive',
       assignee_rule: node.assignee_rule ?? {},
       config: nodeConfig,
@@ -385,6 +564,7 @@ function buildDraftPayload() {
     name: form.name.trim(),
     description: form.description.trim() || null,
     config,
+    context_schema: contextSchema,
     scope_mode: scopeMode,
     scope_department_ids: form.scopeDepartmentIds,
     nodes,
@@ -641,26 +821,30 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div
-    v-loading="loading"
-    class="designer page"
-    data-testid="graph-template-designer"
-  >
+  <div v-loading="loading" class="designer page" data-testid="graph-template-designer">
     <header class="designer__header">
       <div>
-        <el-button link type="primary" data-testid="designer-back" @click="goBack">← 返回模板列表</el-button>
+        <el-button link type="primary" data-testid="designer-back" @click="goBack"
+          >← 返回模板列表</el-button
+        >
         <h1 class="designer__title">
           {{ detail?.name || '模板设计器' }}
         </h1>
         <p v-if="detail" class="designer__meta">
           {{ detail.code }} · v{{ detail.version }} ·
           <el-tag size="small" effect="plain">{{ detail.status }}</el-tag>
-          <el-tag v-if="structureLocked" size="small" type="warning" effect="plain">结构已锁定</el-tag>
+          <el-tag v-if="structureLocked" size="small" type="warning" effect="plain"
+            >结构已锁定</el-tag
+          >
         </p>
       </div>
       <div class="designer__actions">
-        <el-button :loading="validating" data-testid="designer-validate" @click="handleValidate">校验</el-button>
-        <el-button :loading="dryRunning" data-testid="designer-dry-run" @click="handleDryRun">试跑</el-button>
+        <el-button :loading="validating" data-testid="designer-validate" @click="handleValidate"
+          >校验</el-button
+        >
+        <el-button :loading="dryRunning" data-testid="designer-dry-run" @click="handleDryRun"
+          >试跑</el-button
+        >
         <el-button data-testid="designer-export" @click="handleExportJson">导出 JSON</el-button>
         <el-button
           v-if="isDraft && !graphLocked"
@@ -669,7 +853,13 @@ onMounted(async () => {
         >
           导入 JSON
         </el-button>
-        <input ref="importInputRef" type="file" accept="application/json,.json" hidden @change="handleImportFile" />
+        <input
+          ref="importInputRef"
+          type="file"
+          accept="application/json,.json"
+          hidden
+          @change="handleImportFile"
+        />
         <el-button
           v-if="isDraft"
           type="primary"
@@ -737,7 +927,12 @@ onMounted(async () => {
         <template #header><strong>模板信息</strong></template>
         <el-form label-position="top">
           <el-form-item label="名称" required>
-            <el-input v-model="form.name" :disabled="definitionLocked" maxlength="120" show-word-limit />
+            <el-input
+              v-model="form.name"
+              :disabled="definitionLocked"
+              maxlength="120"
+              show-word-limit
+            />
           </el-form-item>
           <el-form-item label="说明">
             <el-input
@@ -791,15 +986,142 @@ onMounted(async () => {
               <el-radio value="streaming">streaming（增量派发）</el-radio>
             </el-radio-group>
           </el-form-item>
-          <el-form-item label="launch_schema（JSON）">
-            <el-input
-              v-model="form.launchSchemaJson"
-              :disabled="definitionLocked"
-              type="textarea"
-              :rows="10"
-              class="designer__json"
-              spellcheck="false"
-            />
+          <el-form-item label="发起表单（launch_schema）">
+            <div class="designer__authoring" data-testid="designer-launch-schema">
+              <el-radio-group
+                :model-value="form.launchEditorMode"
+                :disabled="definitionLocked"
+                size="small"
+                @change="setLaunchEditorMode($event as 'structured' | 'json')"
+              >
+                <el-radio-button value="structured">结构化</el-radio-button>
+                <el-radio-button value="json">高级 JSON</el-radio-button>
+              </el-radio-group>
+              <template v-if="form.launchEditorMode === 'structured'">
+                <div
+                  v-for="(field, index) in launchFieldRows"
+                  :key="`${field.key}-${index}`"
+                  class="designer__authoring-row designer__authoring-row--launch"
+                >
+                  <el-input v-model="field.key" :disabled="definitionLocked" placeholder="字段键" />
+                  <el-input
+                    v-model="field.label"
+                    :disabled="definitionLocked"
+                    placeholder="显示名称"
+                  />
+                  <el-select v-model="field.type" :disabled="definitionLocked" placeholder="类型">
+                    <el-option label="单行文本" value="text" />
+                    <el-option label="多行文本" value="textarea" />
+                    <el-option label="日期时间" value="datetime" />
+                    <el-option label="用户" value="user" />
+                    <el-option label="多用户" value="user_multi" />
+                    <el-option label="部门" value="department" />
+                  </el-select>
+                  <el-input
+                    v-model="field.policy_ref"
+                    :disabled="definitionLocked"
+                    placeholder="策略引用（可选）"
+                  />
+                  <el-checkbox v-model="field.required" :disabled="definitionLocked"
+                    >必填</el-checkbox
+                  >
+                  <el-button
+                    link
+                    type="danger"
+                    :disabled="definitionLocked"
+                    @click="removeLaunchFieldRow(index)"
+                    >删除</el-button
+                  >
+                </div>
+                <el-button
+                  size="small"
+                  :disabled="definitionLocked"
+                  data-testid="designer-add-launch-field"
+                  @click="addLaunchFieldRow"
+                >
+                  添加发起字段
+                </el-button>
+              </template>
+              <el-input
+                v-else
+                v-model="form.launchSchemaJson"
+                :disabled="definitionLocked"
+                type="textarea"
+                :rows="10"
+                class="designer__json"
+                spellcheck="false"
+              />
+              <p class="designer__hint">常用字段使用结构化表单；复杂扩展可切换到高级 JSON。</p>
+            </div>
+          </el-form-item>
+          <el-form-item label="运行上下文（context_schema）">
+            <div class="designer__authoring" data-testid="designer-context-schema">
+              <el-radio-group
+                :model-value="form.contextEditorMode"
+                :disabled="definitionLocked"
+                size="small"
+                @change="setContextEditorMode($event as 'structured' | 'json')"
+              >
+                <el-radio-button value="structured">结构化</el-radio-button>
+                <el-radio-button value="json">高级 JSON</el-radio-button>
+              </el-radio-group>
+              <template v-if="form.contextEditorMode === 'structured'">
+                <div
+                  v-for="(field, index) in contextFieldRows"
+                  :key="`${field.key}-${index}`"
+                  class="designer__authoring-row designer__authoring-row--context"
+                >
+                  <el-input
+                    v-model="field.key"
+                    :disabled="definitionLocked"
+                    placeholder="上下文键"
+                  />
+                  <el-select v-model="field.type" :disabled="definitionLocked" placeholder="类型">
+                    <el-option label="文本" value="string" />
+                    <el-option label="数字" value="number" />
+                    <el-option label="整数" value="integer" />
+                    <el-option label="布尔" value="boolean" />
+                    <el-option label="对象" value="object" />
+                    <el-option label="数组" value="array" />
+                  </el-select>
+                  <el-input
+                    v-model="field.description"
+                    :disabled="definitionLocked"
+                    placeholder="说明（可选）"
+                  />
+                  <el-checkbox v-model="field.required" :disabled="definitionLocked"
+                    >必填</el-checkbox
+                  >
+                  <el-button
+                    link
+                    type="danger"
+                    :disabled="definitionLocked"
+                    @click="removeContextFieldRow(index)"
+                    >删除</el-button
+                  >
+                </div>
+                <el-button
+                  size="small"
+                  :disabled="definitionLocked"
+                  data-testid="designer-add-context-field"
+                  @click="addContextFieldRow"
+                >
+                  添加上下文字段
+                </el-button>
+              </template>
+              <el-input
+                v-else
+                v-model="form.contextSchemaJson"
+                :disabled="definitionLocked"
+                type="textarea"
+                :rows="10"
+                class="designer__json"
+                spellcheck="false"
+              />
+              <p class="designer__hint">
+                用于声明 Run Context 的键与类型；高级 JSON 保留完整 schema 表达能力。
+              </p>
+            </div>
           </el-form-item>
           <el-form-item label="根任务执行人变量">
             <el-input
@@ -808,7 +1130,9 @@ onMounted(async () => {
               maxlength="64"
               placeholder="例如 manager_user_id"
             />
-            <p class="designer__hint">实例化时从 launch inputs 中读取此键的值作为根任务（ROOT）执行人。空则使用当前用户。</p>
+            <p class="designer__hint">
+              实例化时从 launch inputs 中读取此键的值作为根任务（ROOT）执行人。空则使用当前用户。
+            </p>
           </el-form-item>
           <el-form-item label="汇总节点键">
             <el-input
@@ -817,11 +1141,19 @@ onMounted(async () => {
               maxlength="64"
               placeholder="例如 N2_AGGREGATE"
             />
-            <p class="designer__hint">streaming 模式下分配菜单的控制节点。与对应节点的 node_key 一致。</p>
+            <p class="designer__hint">
+              streaming 模式下分配菜单的控制节点。与对应节点的 node_key 一致。
+            </p>
           </el-form-item>
           <el-form-item label="允许周期定时（F-24 schedulable）">
-            <el-switch v-model="form.schedulable" :disabled="definitionLocked" data-testid="designer-schedulable" />
-            <p class="designer__hint">开启后模板可被「建立任务 → 定时派发」选用；须为 batch 采集类模板。</p>
+            <el-switch
+              v-model="form.schedulable"
+              :disabled="definitionLocked"
+              data-testid="designer-schedulable"
+            />
+            <p class="designer__hint">
+              开启后模板可被「建立任务 → 定时派发」选用；须为 batch 采集类模板。
+            </p>
           </el-form-item>
           <el-form-item label="完成后触发下一模板（F-23）">
             <el-switch v-model="form.onCompleteEnabled" :disabled="definitionLocked" />
@@ -851,7 +1183,9 @@ onMounted(async () => {
               class="designer__tree-select"
               data-testid="designer-scope-departments"
             />
-            <p class="designer__hint">选择对此模板可见的部门。留空则所有部门可见。影响模板列表过滤与实例化部门下拉。</p>
+            <p class="designer__hint">
+              选择对此模板可见的部门。留空则所有部门可见。影响模板列表过滤与实例化部门下拉。
+            </p>
           </el-form-item>
           <el-form-item label="参与者策略（participant_policies）">
             <div class="designer__pool-list">
@@ -881,13 +1215,27 @@ onMounted(async () => {
                     :value="option.value"
                   />
                 </el-select>
-                <el-button link type="danger" :disabled="definitionLocked" @click="removeParticipantPolicyRow(index)">删除</el-button>
+                <el-button
+                  link
+                  type="danger"
+                  :disabled="definitionLocked"
+                  @click="removeParticipantPolicyRow(index)"
+                  >删除</el-button
+                >
               </div>
-              <el-button size="small" :disabled="definitionLocked" data-testid="designer-add-policy" @click="addParticipantPolicyRow">
+              <el-button
+                size="small"
+                :disabled="definitionLocked"
+                data-testid="designer-add-policy"
+                @click="addParticipantPolicyRow"
+              >
                 添加策略
               </el-button>
             </div>
-            <p class="designer__hint">定义实例化时可选的参与者分组。策略名与节点 config.expand_from 对应。留空则实例化时不可选参与者子集。</p>
+            <p class="designer__hint">
+              定义实例化时可选的参与者分组。策略名与节点 config.expand_from
+              对应。留空则实例化时不可选参与者子集。
+            </p>
           </el-form-item>
           <el-form-item label="department_pools（F-26）">
             <div class="designer__pool-list">
@@ -917,9 +1265,20 @@ onMounted(async () => {
                     :value="option.value"
                   />
                 </el-select>
-                <el-button link type="danger" :disabled="definitionLocked" @click="removeDepartmentPoolRow(index)">删除</el-button>
+                <el-button
+                  link
+                  type="danger"
+                  :disabled="definitionLocked"
+                  @click="removeDepartmentPoolRow(index)"
+                  >删除</el-button
+                >
               </div>
-              <el-button size="small" :disabled="definitionLocked" data-testid="designer-add-pool" @click="addDepartmentPoolRow">
+              <el-button
+                size="small"
+                :disabled="definitionLocked"
+                data-testid="designer-add-pool"
+                @click="addDepartmentPoolRow"
+              >
                 添加 pool
               </el-button>
             </div>
@@ -927,7 +1286,10 @@ onMounted(async () => {
         </el-form>
       </el-card>
 
-      <el-card shadow="never" class="designer__panel designer__panel--wide designer__panel--topology">
+      <el-card
+        shadow="never"
+        class="designer__panel designer__panel--wide designer__panel--topology"
+      >
         <template #header><strong>拓扑预览</strong></template>
         <GraphTemplateDagPreview :nodes="dagNodes" :edges="dagEdges" />
       </el-card>
@@ -1003,7 +1365,30 @@ onMounted(async () => {
         </el-table>
 
         <div v-if="selectedNode" class="designer__node-config">
-          <h3>节点 config：{{ selectedNode.node_key }}</h3>
+          <h3>节点运行时配置：{{ selectedNode.node_key }}</h3>
+          <div class="designer__node-field" data-testid="designer-node-ui-profile">
+            <label>运行时外观（ui_profile）</label>
+            <el-select
+              v-model="selectedNode.uiProfile"
+              :disabled="graphLocked"
+              filterable
+              allow-create
+              clearable
+              placeholder="选择常用 profile 或输入自定义值"
+            >
+              <el-option
+                v-for="profile in KNOWN_NODE_UI_PROFILES"
+                :key="profile.value"
+                :label="`${profile.label} · ${profile.value}`"
+                :value="profile.value"
+              />
+            </el-select>
+            <p class="designer__hint">
+              这是节点运行时 Action
+              Profile，不是模板类型；自定义值会原样保存，运行端不识别时回退通用视图。
+            </p>
+          </div>
+          <h3 class="designer__subheading">高级节点 config（JSON）</h3>
           <el-input
             v-model="selectedNode.configJson"
             type="textarea"
@@ -1012,19 +1397,114 @@ onMounted(async () => {
             :disabled="graphLocked"
             spellcheck="false"
           />
-          <h3 class="designer__subheading">routing_rules（JSON 数组）</h3>
-          <p class="designer__hint">
-            示例 IF：<code>{"condition":{"field":"amount","operator":"gt","value":1},"target_node_key":"STEP_B"}</code>
-            · ELSE：<code>{"else":true,"target_node_key":"STEP_C"}</code>
-          </p>
-          <el-input
-            v-model="selectedNode.routingRulesJson"
-            type="textarea"
-            :rows="8"
-            class="designer__json"
-            :disabled="graphLocked"
-            spellcheck="false"
-          />
+          <div class="designer__routing" data-testid="designer-routing-rules">
+            <h3 class="designer__subheading">路由规则（routing_rules）</h3>
+            <el-radio-group
+              :model-value="selectedNode.routingEditorMode"
+              :disabled="graphLocked"
+              size="small"
+              @change="setRoutingEditorMode(selectedNode, $event as 'structured' | 'json')"
+            >
+              <el-radio-button value="structured">结构化</el-radio-button>
+              <el-radio-button value="json">高级 JSON</el-radio-button>
+            </el-radio-group>
+            <template v-if="selectedNode.routingEditorMode === 'structured'">
+              <div
+                v-for="(rule, index) in selectedNode.routingRuleRows"
+                :key="`${rule.kind}-${index}`"
+                class="designer__authoring-row designer__authoring-row--routing"
+              >
+                <el-select v-model="rule.kind" :disabled="graphLocked">
+                  <el-option label="IF" value="if" />
+                  <el-option label="ELSE" value="else" />
+                </el-select>
+                <el-input
+                  v-if="rule.kind === 'if'"
+                  v-model="rule.field"
+                  :disabled="graphLocked"
+                  placeholder="上下文字段"
+                />
+                <el-select
+                  v-if="rule.kind === 'if'"
+                  v-model="rule.operator"
+                  :disabled="graphLocked"
+                >
+                  <el-option
+                    v-for="operator in [
+                      'eq',
+                      'neq',
+                      'gt',
+                      'gte',
+                      'lt',
+                      'lte',
+                      'in',
+                      'not_in',
+                      'contains',
+                      'exists',
+                    ]"
+                    :key="operator"
+                    :label="operator"
+                    :value="operator"
+                  />
+                </el-select>
+                <el-input
+                  v-if="rule.kind === 'if' && rule.operator !== 'exists'"
+                  v-model="rule.valueText"
+                  :disabled="graphLocked"
+                  placeholder="比较值（支持 JSON）"
+                />
+                <el-select
+                  v-model="rule.target_node_key"
+                  :disabled="graphLocked"
+                  filterable
+                  placeholder="目标节点"
+                >
+                  <el-option
+                    v-for="option in nodeKeyOptions"
+                    :key="option.value"
+                    :label="option.label"
+                    :value="option.value"
+                  />
+                </el-select>
+                <el-button
+                  link
+                  type="danger"
+                  :disabled="graphLocked"
+                  @click="removeRoutingRuleRow(index)"
+                  >删除</el-button
+                >
+              </div>
+              <div class="designer__authoring-actions">
+                <el-button
+                  size="small"
+                  :disabled="graphLocked"
+                  data-testid="designer-add-routing-if"
+                  @click="addRoutingRuleRow('if')"
+                  >添加 IF</el-button
+                >
+                <el-button
+                  size="small"
+                  :disabled="graphLocked"
+                  data-testid="designer-add-routing-else"
+                  @click="addRoutingRuleRow('else')"
+                  >添加 ELSE</el-button
+                >
+              </div>
+            </template>
+            <template v-else>
+              <p class="designer__hint">
+                高级模式支持嵌套 all/any 条件；保存时仍执行服务端拓扑校验。
+              </p>
+              <el-input
+                v-model="selectedNode.routingRulesJson"
+                type="textarea"
+                :rows="8"
+                class="designer__json"
+                :disabled="graphLocked"
+                spellcheck="false"
+              />
+            </template>
+          </div>
         </div>
       </el-card>
 
@@ -1044,7 +1524,8 @@ onMounted(async () => {
         </template>
         <p class="designer__hint designer__hint--edge-guide">
           <strong>正常流转</strong>（未勾选打回）：须构成无环 DAG，表示主流程顺序推进。
-          <strong>审核 / 打回</strong>（勾选打回）：允许指向上游节点，不参与主流程分层，在预览中以虚线显示。
+          <strong>审核 / 打回</strong
+          >（勾选打回）：允许指向上游节点，不参与主流程分层，在预览中以虚线显示。
         </p>
         <el-alert
           v-if="edgeTopologyErrors.length"
@@ -1145,7 +1626,12 @@ onMounted(async () => {
       </el-card>
     </div>
 
-    <el-dialog v-model="dryRunVisible" title="试跑结果" width="720px" data-testid="designer-dry-run-dialog">
+    <el-dialog
+      v-model="dryRunVisible"
+      title="试跑结果"
+      width="720px"
+      data-testid="designer-dry-run-dialog"
+    >
       <template v-if="dryRunResult">
         <el-alert
           :type="dryRunResult.valid ? 'success' : 'warning'"
@@ -1173,7 +1659,9 @@ onMounted(async () => {
         </div>
         <div class="designer__dry-run-block">
           <h4>schema_snapshot</h4>
-          <pre class="designer__json-preview">{{ JSON.stringify(dryRunResult.schema_snapshot, null, 2) }}</pre>
+          <pre class="designer__json-preview">{{
+            JSON.stringify(dryRunResult.schema_snapshot, null, 2)
+          }}</pre>
         </div>
       </template>
     </el-dialog>
@@ -1312,6 +1800,48 @@ onMounted(async () => {
   font-size: 14px;
 }
 
+.designer__node-field,
+.designer__routing,
+.designer__authoring {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.designer__node-field {
+  margin-bottom: 16px;
+}
+
+.designer__node-field > label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.designer__authoring-row {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+}
+
+.designer__authoring-row--launch {
+  grid-template-columns: 1fr 1fr;
+}
+
+.designer__authoring-row--context {
+  grid-template-columns: 1fr 1fr;
+}
+
+.designer__authoring-row--routing {
+  grid-template-columns: 88px 1fr 112px 1fr 1.2fr auto;
+}
+
+.designer__authoring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .designer__tag-save {
   margin-top: 8px;
 }
@@ -1341,6 +1871,12 @@ onMounted(async () => {
 
 @media (max-width: 960px) {
   .designer__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .designer__authoring-row--launch,
+  .designer__authoring-row--context,
+  .designer__authoring-row--routing {
     grid-template-columns: 1fr;
   }
 }

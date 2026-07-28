@@ -82,6 +82,7 @@ class WorkflowGraphTemplateNodeSummaryRead(BaseModel):
 
 
 class WorkflowGraphTemplateDetailRead(WorkflowGraphTemplateSummaryRead):
+  context_schema: dict[str, object] = Field(default_factory=dict)
   nodes: list[WorkflowGraphTemplateNodeSummaryRead] = Field(default_factory=list)
 
 
@@ -140,6 +141,7 @@ class WorkflowGraphTemplateDraftSaveRequest(BaseModel):
   name: str = Field(min_length=1, max_length=120)
   description: str | None = Field(default=None, max_length=2000)
   config: dict[str, object] = Field(default_factory=dict)
+  context_schema: dict[str, object] | None = None
   scope_mode: Literal["global", "departments"] | None = None
   scope_department_ids: list[str] | None = None
   nodes: list[WorkflowGraphTemplateNodeDraftWrite] = Field(default_factory=list)

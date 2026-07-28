@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "图引擎 Schema"
 description: "图引擎十四表：定义、运行、路径账本、HumanTask Link、命令回执、运维异常、outbox、事件与调度。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-07-16T21:19:21+08:00
+timestamp: 2026-07-28T10:47:27+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -23,7 +23,7 @@ paradigma:
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
-> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3F 迁移见 `20260713_01`、`20260715_01`、`20260715_02`、`20260715_03`、`20260716_01`、`20260716_02`；周期调度 F-24）。
+> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3F 迁移见 `20260713_01`、`20260715_01`、`20260715_02`、`20260715_03`、`20260716_01`、`20260716_02`；模板 tags 迁移 `20260722_01`；周期调度 F-24）。
 > **ORM**: `backend/app/models/workflow_graph.py` · **迁移**: `20260429_04_workflow_graph_core.py` 及后续
 
 | 表 | 职责 | 关键字段 / 约束 |
@@ -51,6 +51,7 @@ paradigma:
 - `workflow_node_instances 1:1 workflow_deliverables`（按节点快照）
 - 新写 HumanTask 投影同时写 `workflow_human_task_links` 与兼容 `Task.extra_metadata` / `Node.config.task_id`；读取 Link-first、JSON fallback。Link 存在而 JSON 不一致时以 Link 为准并登记 `link_mismatch`；fallback/回填歧义进入 operational incident。存量回填须三锚点交叉校验，不猜测修复（见 [`core-workflows.md`](../../domains/architecture/core-workflows.md) §6.13B）
 - **TC-P2** 模板节点 `config.ui_profile`（可选）：`video_n1_capture` \| `video_n2_aggregate` \| `video_production_step` \| `video_batch_root` \| `graph_manual` 等；实例化写入 `Task.extra_metadata.ui_profile`，前端 `profile.ts` 优先读取。属 **节点内部运行时机制**，不是模板级产品类型（ADR-017）
+- **Phase 2 authoring 契约（2026-07-28）**：designer/detail 读取返回 `context_schema`；`PUT .../templates/{id}/draft` 可选接收 `context_schema`，省略时保留原值。设计器对 `context_schema`、`config.launch_schema.fields`、节点 `config.ui_profile` 与常用 `config.routing_rules` 提供结构化表单；高级 JSON 保留完整表达能力
 - **TemplateCapabilities**（计算字段，非持久列；ADR-017）：`can_instantiate_directly` / `can_schedule` / `is_fork_target` / `has_multi_instance` / `has_launch_entry` / `derived_hints[]` — 由图谱结构（拓扑起点、`multi_instance`+`expand_from`、fork 引用）+ 显式 opt-in（`schedulable`、`launch_schema`）派生；list/detail/designer API 返回。用户 **tags 不参与** 任何门控
 - **`config.run_kind`**（**deprecated / legacy**）：历史 JSONB 键 `batch` \| `production`，曾作模板级产品类型与发起/调度门控。旧视频 seed 只读保留；新模板不写。过渡期 dual-read：capabilities 优先，不可用时回退 `run_kind`。实例 `context.run_kind` 可为视频 v1 面板兼容标签。见 [`domains/task-center.md`](../../domains/task-center.md) §7.7 · spec `2026-07-22-template-engine-decouple-design.md`
 - **运行时路由**用边 `condition`（`condition_evaluator`）；节点 `config.routing_rules` 仅设计时拓扑校验，不驱动图前进
