@@ -4,11 +4,11 @@
 
 ## 🔥 HOT（每次对话必读）
 
-`memory-bank/knowledge/project-brief.md` · `memory-bank/knowledge/architecture.md` · `memory-bank/knowledge/contracts/data-contracts.md` · `memory-bank/knowledge/conventions.md` · `memory-bank/runtime/active-task.md` · `memory-bank/logs/progress/progress.md`
+`memory-bank/runtime/active-task.md` → `memory-bank/knowledge/index.md` → `project-brief.md` · `architecture.md` · `contracts/data-contracts.md` · `contracts/repository-contract.md` · `conventions.md`；续接任务再读 `memory-bank/logs/progress/` 最近 session log。
 
 ## 工作方式
 
-简体中文 | 写代码前读 HOT | schema 破坏性变更须用户同意 | 不默认 commit | 会话结束追加 `progress.md`
+简体中文 | 写代码前读 HOT | schema 破坏性变更须用户同意 | 不默认 commit | 阶段 checkpoint 更新 active-task/contracts | 会话结束创建独立 session log | `pd-sync-index --write` 后运行 `pd-check-all`
 
 ## 专项入口
 
@@ -16,8 +16,8 @@
 |------|------|
 | 会话启动 | `INIT_PROMPT.md` |
 | 对齐审查 | `.github/prompts/memory-bank-alignment-review.prompt.md` |
-| ADR / 术语 / 坑位 | `memory-bank/decisions.md` 等 |
-| 子系统细节 | `memory-bank/domains/*.md` |
+| ADR / 术语 / 坑位 | `memory-bank/knowledge/decisions/`、`glossary.md`、`known-issues/` |
+| 子系统细节 | `memory-bank/knowledge/domains/*.md` |
 | 部署 | `memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md` |
 
-技术细节见 `memory-bank/conventions.md` 与 `backend/README.md`、`frontend/README.md`。
+技术细节见 `memory-bank/knowledge/conventions.md` 与 `backend/README.md`、`frontend/README.md`。

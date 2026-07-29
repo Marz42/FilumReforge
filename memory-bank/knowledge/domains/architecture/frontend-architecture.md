@@ -268,13 +268,13 @@ paradigma:
 
 ## 9. 当前验证基线
 
-详见 [progress.md](../../../logs/progress/progress.md) 测试基线表与 [data-contracts.md](../../contracts/data-contracts.md) §维护规则。
+详见 [progress summary](../../../logs/progress/summary.md)、最近独立 session log 与 [data-contracts.md](../../contracts/data-contracts.md) §维护规则。
 
 ## 10. 维护规则
 
 - 宏观架构、运行时、模块职责、核心流程 → 更新本文件
 - schema、枚举、实体关系 → 更新 [data-contracts.md](../../contracts/data-contracts.md)
-- 阶段状态与验测 → 更新 [progress.md](../../../logs/progress/progress.md)
+- 阶段状态与验测 → 新建 `logs/progress/YYYY-MM-DD-<task>.md` 独立 session log
 - 产品边界 → 更新 [project-brief.md](../../project-brief.md)
 - 当前任务 → 更新 [active-task.md](../../../runtime/active-task.md)
 

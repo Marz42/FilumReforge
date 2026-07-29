@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: b2c5118fd571348f -->
+<!-- checksum: 85262366a4e2e88e -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -11,6 +11,7 @@
 | [2026-07-28-template-decouple-phase2-plan.md](2026-07-28-template-decouple-phase2-plan.md) | `paradigma-plan` | Template Engine Decouple — Phase 2 Structured Authoring | 模板引擎解耦 Phase 2<br>结构化编辑<br>ui_profile ... | - | - |
 | [2026-07-29-iteration4-preflight-alignment-plan.md](2026-07-29-iteration4-preflight-alignment-plan.md) | `paradigma-plan` | Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化 | Iteration 4 前置<br>文档漂移<br>视频去特殊化 ... | - | - |
 | [2026-07-29-video-domain-neutral-migration-inventory.md](2026-07-29-video-domain-neutral-migration-inventory.md) | `paradigma-plan` | 视频模板领域中立迁移清单 | 视频模板去特殊化<br>run_kind 退出<br>通用工作流能力 ... | - | - |
+| [2026-07-30-template-availability-paradigma-upgrade-plan.md](2026-07-30-template-availability-paradigma-upgrade-plan.md) | `paradigma-plan` | 已发布模板可用部门治理与 Paradigma 0.5.0 协议升级 | 模板可用部门<br>已发布模板授权<br>范围审计 ... | - | - |
 | [implementation-plan.md](implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [improvements-stage2-implementation-plan.md](improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [paradigma-memory-bank-refactor-plan.md](paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

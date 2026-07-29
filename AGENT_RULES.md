@@ -4,8 +4,9 @@
 > 请根据本文件创建或维护对应的 IDE 适配器（如 `.cursor/rules/*.mdc`、
 > `.github/copilot-instructions.md`），并确保适配器与本文件保持同步。
 >
-> **协议基座**: 基于 [Marz42/paradigma](https://github.com/Marz42/paradigma) v0.5.0 定制；
-> **Phase 0–7 已完成**，三态结构迁移完成。
+> **协议基座**: 基于 [Marz42/paradigma](https://github.com/Marz42/paradigma) `0.5.0`
+>（主分支 `c4c5e06b1ace2a510dbe365819776258de9e3e51`）定制；三态结构、阶段 checkpoint、
+> 独立 session log、Harness 诊断与可选 `DESIGN.md` 域均已启用。
 
 ---
 
@@ -47,6 +48,7 @@ Memory-Bank 内的文件按使用频率分为三个温度等级，由 frontmatte
 ## 🔥 HOT（每次对话必读）
 
 - `memory-bank/runtime/active-task.md` — 当前唯一聚焦任务
+- `memory-bank/knowledge/index.md` — 长期知识路由入口；generated block 不手工编辑
 - `memory-bank/knowledge/project-brief.md` — 产品愿景、受众、功能边界、技术栈摘要
 - `memory-bank/knowledge/architecture.md` — 工程蓝图：模块、运行时、核心流程
 - `memory-bank/knowledge/contracts/data-contracts.md` — schema、枚举、实体关系、API 索引
@@ -69,6 +71,7 @@ Memory-Bank 内的文件按使用频率分为三个温度等级，由 frontmatte
 - `memory-bank/knowledge/decisions/*.md` — 架构决策 (ADR，独立文件)
 - `memory-bank/knowledge/known-issues/*.md` — 已知坑位（独立文件）
 - `memory-bank/knowledge/glossary.md` — 项目术语表
+- `memory-bank/logs/progress/*.md` — 独立会话日志；按需读取最近记录
 - `memory-bank/history/`、`memory-bank/archive/`
 
 ---
@@ -94,10 +97,13 @@ Memory-Bank 内的文件按使用频率分为三个温度等级，由 frontmatte
 
 在开始任何需求、修 Bug 或写代码之前，你必须**主动读取**：
 
-- 🔥 所有 HOT 文件
+- `memory-bank/runtime/active-task.md` 与 `memory-bank/knowledge/index.md`
+- 🔥 其余 HOT 文件
 - 🌡️ 与当前任务相关的 WARM 文件
 - 🧊 排查 Bug 或对齐审查时，按需读取 COLD 文件
+- `memory-bank/logs/progress/` 下最近的 session log（续接任务时）
 - 若任务涉及前端/UI 且根目录存在 `DESIGN.md`，将其作为额外 WARM 参考
+- 根据 index 与 frontmatter `relations` 补读必要依赖；one-shot retrieval 只是第一跳
 - 继续开发类任务：执行 `git log --oneline -n 20` 确认最近主线
 
 ## 2. 思考与计划 (Plan Phase)
@@ -107,6 +113,12 @@ Memory-Bank 内的文件按使用频率分为三个温度等级，由 frontmatte
 - 若涉及架构决策，完成后应新增或追加 ADR 到 `knowledge/decisions/`。
 - 文档与代码冲突时：以代码、迁移、测试、可运行命令为行为事实，再区分「文档漂移」与「实现缺口」。
 
+### Plan Phase checkpoint
+
+- 新架构决策立即写入 `knowledge/decisions/`。
+- 模块设计变化同步 `knowledge/domains/`。
+- 将高层计划细化到 `runtime/active-task.md` checklist，完成后再进入执行。
+
 ## 3. 执行与开发 (Execution Phase)
 
 - 遵循单一职责；业务逻辑优先放在 `backend/app/services/`，route 保持薄。
@@ -115,6 +127,14 @@ Memory-Bank 内的文件按使用频率分为三个温度等级，由 frontmatte
 - **不要大段重写 memory-bank**；仅在确认事实后做最小、可验证的更新。
 - 注释解释「为什么」，而非「做了什么」。
 - 如有 API/DB schema 变更 → 同步更新 `knowledge/contracts/`。
+- 长期事实写入 `knowledge/`，运行状态写入 `runtime/`，过程记录写入 `logs/`。
+- 不手工维护 generated block；索引、checksum 和 summary 由 `.paradigma/tools/` 生成。
+
+### Execution checkpoint
+
+- API/DB 契约变更后立即更新 contracts。
+- 新规范或新坑位分别更新 conventions / known-issues。
+- 每完成一个关键子步骤就更新 active-task checklist，避免只在会话末尾补写状态。
 
 ### Filum 技术边界（不可违背）
 
@@ -135,7 +155,9 @@ Memory-Bank 内的文件按使用频率分为三个温度等级，由 frontmatte
 
 ### 每次对话结束必须做
 
-1. **追加 `memory-bank/logs/progress/progress.md`**（文首「会话摘要」区），记录：完成事项、踩坑、遗留、下一步；时间戳通过工具获取。
+1. **创建独立 session log**：`memory-bank/logs/progress/YYYY-MM-DD-<task-slug>.md`，
+   使用 `paradigma-session-log` frontmatter，记录目标、动作、修改、决策、知识更新和后续；
+   时间戳通过工具获取。旧 `memory-bank/logs/progress/progress.md` 仅作为升级前历史汇总保留，不再追加。
 
 ### 当涉及实质性修改时
 
@@ -145,13 +167,16 @@ Memory-Bank 内的文件按使用频率分为三个温度等级，由 frontmatte
 5. 新架构决策 → 追加 `knowledge/decisions/` 独立 ADR
 6. 新坑位 → 追加 `knowledge/known-issues/` 独立文件
 7. 更新 `runtime/active-task.md` check-list
-8. **运行质量校验**：`python .paradigma/tools/pd-check-all.py`
-9. **版本号评估**（SemVer，见 `VERSION` 与 `conventions.md`）：
+8. 运行 `python .paradigma/tools/pd-sync-index.py --write` 更新 generated indexes。
+9. **运行质量校验**：`python .paradigma/tools/pd-check-all.py`
+10. 任务完成且 active-task 可归档时，可运行 `python .paradigma/tools/pd-archive-task.py --write`；
+    session logs 过长时运行 `python .paradigma/tools/pd-compact-progress.py --write`，不得删除原始日志。
+11. **版本号评估**（SemVer，见 `VERSION` 与 `conventions.md`）：
    - 纯文档/注释 → 通常不升版本
    - Bug 修复（API 不变）→ PATCH
    - 向下兼容新功能 → MINOR（Agent 建议，用户确认）
    - 不兼容 API / schema → MAJOR（**须用户明确同意**）
-   - 需要时：更新 `VERSION` + `logs/changelog.md` + 在 progress 记录
+   - 需要时：更新 `VERSION` + `logs/changelog.md` + 在 session log 记录
 
 ### 对话结束时告知用户
 

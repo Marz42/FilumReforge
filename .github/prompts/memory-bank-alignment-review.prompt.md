@@ -29,12 +29,15 @@ git log --oneline -n 20
 
 先阅读以下文件：
 
-- `memory-bank/project-brief.md`
-- `memory-bank/architecture.md`
-- `memory-bank/data-contracts.md`
-- `memory-bank/progress.md`
-- `memory-bank/roadmap.md`
-- `memory-bank/plans/implementation-plan.md`
+- `memory-bank/runtime/active-task.md`
+- `memory-bank/knowledge/index.md`
+- `memory-bank/knowledge/project-brief.md`
+- `memory-bank/knowledge/architecture.md`
+- `memory-bank/knowledge/contracts/data-contracts.md`
+- `memory-bank/knowledge/contracts/repository-contract.md`
+- `memory-bank/logs/progress/` 下最近的 session log
+- `memory-bank/knowledge/roadmap.md`
+- `memory-bank/knowledge/plans/implementation-plan.md`
 - `memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md`
 - `README.md`
 - `backend/README.md`
@@ -97,3 +100,4 @@ git log --oneline -n 20
 - 不要把 `design-document.md` 中的目标态当作当前实现事实
 - 不要忽略最近提交已经新增但旧 README 仍未同步的事实；这类情况应明确标记为“文档漂移”
 - 如果 `memory-bank` 与代码冲突，必须以可验证的代码、迁移、测试和运行命令为准
+- 不要追加旧 `memory-bank/logs/progress/progress.md`；审查完成后创建独立 session log，并运行 `pd-sync-index.py --write` 与 `pd-check-all.py`

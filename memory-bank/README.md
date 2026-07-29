@@ -1,8 +1,8 @@
 # memory-bank 文档索引
 
-本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.90.0`）。
+本目录是 Project Filum 的**外部记忆系统**，已对齐 Paradigma Harness `0.5.0`（三态结构、阶段 checkpoint、独立 session log、Harness 诊断和可选 DESIGN 域）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)。
 
-> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → **Iteration 4 Preflight**：文档对齐、视频模板领域中立、前端稳定化 · 计划 [`2026-07-29-iteration4-preflight-alignment-plan.md`](./knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md)
+> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → 已发布模板可用部门治理 + Paradigma `0.5.0` 协议升级 · 计划 [`2026-07-30-template-availability-paradigma-upgrade-plan.md`](./knowledge/plans/2026-07-30-template-availability-paradigma-upgrade-plan.md)
 
 > **`knowledge/manuals/` ≈ Paradigma `manuals/`**：路径名保留 `knowledge/manuals/`，语义为部署运维与测试操作手册。
 
@@ -17,7 +17,7 @@
 | [data-contracts.md](./knowledge/contracts/data-contracts.md) | schema、枚举、实体关系、API 索引 |
 | [conventions.md](./knowledge/conventions.md) | 编码与协作规范 |
 | [active-task.md](./runtime/active-task.md) | 当前唯一聚焦任务 |
-| [progress.md](./logs/progress/progress.md) | 会话摘要 + 阶段验收与测试基线 |
+| [knowledge/index.md](./knowledge/index.md) | generated 长期知识路由入口 |
 
 ---
 
@@ -27,6 +27,7 @@
 | --- | --- |
 | [roadmap.md](./knowledge/roadmap.md) | 宏观里程碑与版本焦点 |
 | [changelog.md](./logs/changelog.md) | SemVer 发布历史 |
+| [logs/progress/](./logs/progress/) | 每次会话一个 append-only session log；旧 `progress.md` 仅保留历史 |
 | [domains/](./knowledge/domains/) | 子系统领域文档 |
 | [plans/](./knowledge/plans/) | 细粒度实施计划 |
 | [plans/tc-p2-views-stats-plan.md](./knowledge/plans/tc-p2-views-stats-plan.md) | TC-P2 落地计划（三视图 + 统计 + Shell） |
@@ -97,7 +98,9 @@
 | 产品边界 | `project-brief.md` |
 | 编码规范 | `conventions.md` |
 | 当前任务 | `active-task.md` |
-| 阶段验测、会话结束 | `progress.md` |
+| 阶段验测、会话结束 | `logs/progress/YYYY-MM-DD-<task>.md` 独立 session log |
 | 排期与阶段出口 | `roadmap.md` + `plans/`（**当前**: [`task-center-enhance.md`](./plans/task-center-enhance.md)） |
 | ADR / 坑位 / 术语 | `decisions.md` / `known-issues.md` / `glossary.md` |
 | 运维步骤 | `knowledge/manuals/` |
+
+generated index 不手工修改。更新 source 文档后先运行 `python .paradigma/tools/pd-sync-index.py --write`，再运行 `python .paradigma/tools/pd-check-all.py`。任务完成可用 `pd-archive-task.py --write` 归档，日志压缩只生成 summary，不删除原始 session log。

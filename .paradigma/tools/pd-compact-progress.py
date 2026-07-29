@@ -13,7 +13,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 PROGRESS_ROOT = ROOT / "memory-bank" / "logs" / "progress"
 SUMMARY_PATH = PROGRESS_ROOT / "summary.md"
-EXCLUDED = {"index.md", "summary.md"}
+# Filum keeps the pre-0.5 monolithic log as read-only migration history.
+EXCLUDED = {"index.md", "summary.md", "progress.md"}
 
 
 def title_for(path: Path, text: str) -> str:

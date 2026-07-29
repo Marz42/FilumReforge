@@ -75,7 +75,7 @@ paradigma:
 - 业务：`backend/app/services/`；数据库写操作包在事务中
 - 模型变更：同步 `backend/app/models/` + Alembic 迁移 + **`data-contracts.md`**
 - 异常：业务异常抛自定义类，由 `error_handlers.py` 统一转换
-- 图引擎 / 工作流 E / 视频 v1：改动前读 `architecture.md` 对应链路与 `progress.md` 边界说明
+- 图引擎 / 工作流 E / 视频 v1：改动前读 `architecture.md` 对应链路、`knowledge/index.md` 路由与最近相关 session log
 
 ---
 
@@ -118,7 +118,7 @@ paradigma:
 | 向下兼容新功能 | MINOR（建议后用户确认） |
 | 不兼容 API/schema | MAJOR（**须用户同意**） |
 
-递增时：更新根目录 `VERSION` + `changelog.md`（Phase 3 起）+ `progress.md` 记录。
+递增时：更新根目录 `VERSION` + `changelog.md`（Phase 3 起）+ 当次独立 session log。
 
 ---
 
@@ -149,7 +149,7 @@ bash scripts/check-release.sh   # Linux 原生目录
 ## Agent 协作
 
 - schema/API 破坏性变更 → **先征求用户同意**
-- 会话结束 → 追加 `progress.md` 会话摘要（见 `AGENT_RULES.md` Update Phase）
+- 会话结束 → 新建 `logs/progress/YYYY-MM-DD-<task>.md` 独立 session log（见 `AGENT_RULES.md` Update Phase）
 - 对齐审查 → `.github/prompts/memory-bank-alignment-review.prompt.md`
 
 ---

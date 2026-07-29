@@ -1,38 +1,54 @@
-# Active Task: Iteration 4 完成 — 分批发布与 I3-F 生产门禁
+---
+type: paradigma-runtime-state
+title: Active Task
+description: 已发布模板可用部门治理与 Paradigma 0.5.0 协议升级。
+tags: [runtime, active-task, workflow-template, paradigma]
+timestamp: 2026-07-30T02:32:40+08:00
+paradigma:
+  layer: runtime
+  temperature: hot
+  lifecycle: ephemeral
+  okf_export: false
+  update_policy: agent-editable
+  archive_to: /memory-bank/logs/progress/
+---
 
-**Status:** I4-A–I4-E complete · pre-I4E release candidate evaluated · production cutover gated
-**Plan:** memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
-**Preflight:** memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md
+# Active Task
 
-## Current gaps
-- [x] 视频模板领域中立依赖盘点与兼容退出清单
-- [x] 前端反馈第一批 6 项已实现并经用户首轮验测修正（消息一键已读、隐藏 AI 入口、任务排序、详情拆分、跟踪/历史精简列表行）
-- [x] 前端第一批真实登录态视觉 UAT 已用 `123@example.com` / `admin@example.com` 完成；类型检查、构建与 174 项单测通过
-- [x] ADR-019 已确认；旧 completion policy / `self_review_fallback` / Deliverable contributor / 测试入口已盘点
-- [ ] 系统管理员业务边界改造 deferred（KI-011），不属于 Iteration 4
-- [ ] 模板解耦 Phase 2 设计器交互与文案待用户 UAT
-- [ ] M-09 unarchive 待 sibling ACTIVE 冲突与审计策略决策
-- [x] Runtime / TaskService / Task Center / 前端行为分支已迁为 capability snapshot / task capability；`run_kind` / `video_*` 只在兼容适配器双读
-- [ ] 公共 API、历史 Run 与旧客户端对兼容字段的调用归零后，再删除 `run_kind` / `ui_profile` dual-read
-- [ ] Iteration 3-F 目标环境 Expand/Contract、Link 回填与恢复/回滚演练
-- [ ] 连续 7 天 Link reconciliation 100%、runtime JSON fallback 0、open P0/P1 incident 0
-- [ ] Iteration 3-F 最终 31/31 准入报告与用户批准
+## Task ID
 
-## Iteration 4
-- [x] 用户授权启动开发；未将尚缺的生产准入证据记为通过
-- [x] I4-A：Node Handler Registry + unified Capability Result
-- [x] Preflight P0：memory-bank 事实对齐与 ADR-018 入库
-- [x] Preflight P3：ADR-019 决策对象与参与者重叠规则入库
-- [x] Preflight P1：视频作为普通模板包；迁移清单已形成，不新增 `VideoHandler`
-- [x] Preflight P2：第一批前端问题均属交互/视觉稳定化，无新增 P0 数据/权限或 P1 状态推进阻塞
-- [x] I4-B：HumanTask 激活/完成/取消/重试已统一消费 Capability Result；Link/RunEvent/Outbox 同 UoW 回滚与参与者重叠合法场景已覆盖
-- [x] I4-C：Approval 默认 Registry、旧审批实例幂等关联、动作前 overlap 校验、当前 Deliverable 版本事实、结果回传/重复回调、轮次/票数/代理审计与同 UoW 通知边界已完成
-- [x] I4-D：Deliverable 多版本/accepted snapshot、Notification queued/sent/all-channels-success 策略，以及失败/重试/取消统一 Capability Result 已完成
-- [x] I4-E：领域中立 capability snapshot、runtime policy、task capability、非视频对照与兼容适配层完成
+template-availability-paradigma-050
 
-## Release boundary
-- Iteration 4 工程开发已完成；前端 P2 后续反馈继续独立分级。
-- 前序能力建议以 `8244af0` 作为先行发布候选；尚未实际部署，需先核对服务器 commit 并完成预发 smoke。
-- 管理员业务权限解耦延后；I4 不改变现有 Admin 兼容行为。
-- Iteration 4 可进行向下兼容的代码开发和本地验证。
-- Iteration 3-F 硬门禁未完成前，不做生产切流、不删除兼容路径、不宣称 runtime readiness 已通过。
+## User Request
+
+实现通用的已发布模板可用部门管理并在前端体现；将 Memory-Bank Paradigma 协议升级到上游最新版并更新相关系统 Prompt。
+
+## Current Status
+
+completed — 通用模板 scope 治理和 Paradigma 0.5.0 协议升级均已完成并通过全量回归，等待下一项用户任务。
+
+## Checklist
+
+- [x] 盘点模板 scope、父子模板引用和管理权限
+- [x] 核对 Paradigma 上游最新版 `0.5.0`
+- [x] 实现 ACTIVE 模板 scope 单调扩大与审计 API
+- [x] 实现前端可用部门管理与审计历史
+- [x] 升级三态运行协议、独立 session logs 与系统 Prompt
+- [x] 完成全量测试、文档同步和提交
+
+## Relevant Knowledge
+
+- `memory-bank/knowledge/plans/2026-07-30-template-availability-paradigma-upgrade-plan.md`
+- `memory-bank/knowledge/domains/workflow-graph-engine.md`
+- `memory-bank/knowledge/contracts/data-contracts.md`
+- `memory-bank/knowledge/decisions/adr-018-domain-neutral-workflow-templates.md`
+- `docs/rfc/paradigma-okf-compatible-runtime.md`
+
+## Blockers
+
+- 无。上游参考克隆的 fast-forward 曾因网络审批超时未完成；本次版本和协议差异已通过官方 GitHub 主分支核验并记录 commit。
+
+## Notes
+
+- Iteration 4 A–E 已完成；I3-F 生产门禁、系统管理员业务边界和先行发布仍按原计划保留。
+- 已发布模板原地缩小范围继续禁止，避免改变进行中或尚待派生子 Run 的授权语义。

@@ -7,14 +7,17 @@ alwaysApply: true
 
 > 同步自 `AGENT_RULES.md`；三态结构 runtime/logs/knowledge
 
+## Read
+先读 `runtime/active-task` → `knowledge/index` → HOT；续接任务再读 `logs/progress/` 最近 session log。根据 index/relations 选择 WARM/COLD；UI 任务额外读 `DESIGN.md`。
+
 ## 🔥 HOT
-`knowledge/project-brief` · `knowledge/architecture` · `knowledge/contracts/data-contracts` · `knowledge/contracts/repository-contract` · `knowledge/conventions` · `runtime/active-task`
+`knowledge/index` · `knowledge/project-brief` · `knowledge/architecture` · `knowledge/contracts/data-contracts` · `knowledge/contracts/repository-contract` · `knowledge/conventions` · `runtime/active-task`
 
 ## 🌡️ WARM
 `knowledge/roadmap` · `logs/changelog` · `knowledge/domains/*` · `knowledge/plans/*` · `knowledge/manuals/*` · `design-document` · `tech-stack` · 子项目 README · `DESIGN.md`(前端任务时)
 
 ## 🧊 COLD
-`knowledge/decisions/*` · `knowledge/known-issues/*` · `knowledge/glossary` · `history/` · `archive/`
+`knowledge/decisions/*` · `knowledge/known-issues/*` · `knowledge/glossary` · `logs/progress/*` · `history/` · `archive/`
 
-## Update
-会话结束追加 `logs/progress/progress.md`；schema→`knowledge/contracts/data-contracts`；架构→`knowledge/architecture`；ADR→`knowledge/decisions/` 独立文件；坑位→`knowledge/known-issues/` 独立文件；版本→`VERSION`+`logs/changelog`；运行 `python .paradigma/tools/pd-check-all.py`
+## Checkpoints / Update
+Plan 后立即同步 ADR/domain/active-task；Execution 关键步骤同步 contracts/conventions/known-issues/checklist。会话结束创建 `logs/progress/YYYY-MM-DD-<task>.md`；旧 `logs/progress/progress.md` 不再追加。运行 `pd-sync-index.py --write` 后再运行 `pd-check-all.py`；完成任务可用 `pd-archive-task.py --write`，日志压缩只生成 summary、不删除源日志。

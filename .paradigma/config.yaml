@@ -21,3 +21,4 @@ template_root: memory-bank-template
 # 记录当前项目使用的 Paradigma 模板库版本号。
 # 运行 pd-diagnose.py 可以检查是否有更新。
 paradigma_harness_version: "0.5.0"
+paradigma_upstream_commit: "c4c5e06b1ace2a510dbe365819776258de9e3e51"

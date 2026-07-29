@@ -15,11 +15,13 @@ applyTo:
   - 🔥 `project-brief.md` — 产品摘要
   - 🔥 `architecture.md` — 工程蓝图、流程
   - 🔥 `data-contracts.md` — **schema、枚举、API**（不再写入 architecture 正文）
-  - 🔥 `conventions.md`、`active-task.md`、`progress.md`
+  - 🔥 `knowledge/index.md`、`conventions.md`、`active-task.md`
   - 🌡️ `roadmap.md`、`plans/`、`domains/`
-  - 🧊 `decisions.md`、`known-issues.md`、`glossary.md`、`knowledge/manuals/`
+  - 🧊 `decisions/`、`known-issues/`、`glossary.md`、`knowledge/manuals/`、`logs/progress/` session logs
 - 写文档前先核对实现事实；优先用模型、迁移、服务、路由、测试和可运行命令作证据。
 - 继续开发类任务：先看 `git log --oneline -n 20` 与 `plans/implementation-plan.md`、`roadmap.md`。
 - 对齐审查区分：已对齐 / 文档漂移 / 实现未落地。
-- 重大实现变化：模块流程 → `architecture.md`；schema → `data-contracts.md`；验测 → `progress.md`；产品边界 → `project-brief.md`。
+- 重大实现变化：模块流程 → `architecture.md`；schema → `data-contracts.md`；验测 → 独立 session log；产品边界 → `project-brief.md`。
+- 先更新 source document，再运行 `pd-sync-index.py --write`；禁止手工维护 generated block。
+- 旧 `memory-bank/logs/progress/progress.md` 是升级前历史汇总，不再追加。
 - `archive/`、`history/proposals/` 为历史材料，不作现行事实来源。

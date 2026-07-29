@@ -22,7 +22,7 @@ paradigma:
 
 **版本**: v1.0  
 **日期**: 2026-06-17  
-**状态**: Phase 4 已完成（2026-06-17）；Paradigma 对齐 **Phase 0–4 全部完成**  
+**状态**: Phase 0–4 已完成（2026-06-17）；0.5.0 运行协议升级已完成（2026-07-30）
 **参考基座**: [Marz42/paradigma](https://github.com/Marz42/paradigma)（本地参考克隆 `paradigma/`，已加入 `.gitignore`，不纳入 git）
 
 ### 已确认决策（2026-06-17）
@@ -316,11 +316,13 @@ Paradigma 用 `.template.md` 供 greenfield 复制；Filum 作为 **已有项目
 - [x] 对齐审查 `history/reports/alignment-assessment-20260617.md`
 - [x] `VERSION` → `0.87.1`；`design-document` / `tech-stack` 已标【已迁移】
 
-### Phase 5 — 持续运营
+### Phase 5 — 持续运营（Paradigma 0.5.0）
 
-- [ ] 每次 Agent 会话结束写 progress 会话摘要
-- [ ] 每个 Stage/W 阶段完成：更新 roadmap + domains + data-contracts
-- [ ] 协议变更：先改 `AGENT_RULES.md`，再同步 `.mdc` 与 copilot-instructions
+- [x] 会话日志迁移为 `memory-bank/logs/progress/YYYY-MM-DD-<task>.md` 独立 append-only 文件；旧 `progress.md` 冻结为历史基线
+- [x] 引入三态目录、`knowledge/index.md` 读取路由、Plan/Execution checkpoint 与 progress summary
+- [x] 协议源、Cursor/Copilot 适配器、INIT_PROMPT 的 Mode G/H 已同步到 0.5.0
+- [ ] 每个 Stage/W 阶段完成：持续更新 roadmap + domains + data-contracts + 当次 session log
+- [ ] 协议变更：先改 `AGENT_RULES.md`，再同步 `.mdc`、Copilot instructions 与 INIT_PROMPT
 
 ---
 
