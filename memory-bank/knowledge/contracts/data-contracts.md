@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-29T21:42:00+08:00
+timestamp: 2026-07-30T00:56:25+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -33,7 +33,7 @@ paradigma:
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
 **版本**: v3.20.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-07-29 · Iteration 4 Preflight / ADR-018 / ADR-019 · 产品基线 `0.92.1` + Unreleased
+**最后同步**: 2026-07-30 · Iteration 4-D Deliverable / Notification Handler · 产品基线 `0.92.1` + Unreleased
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -58,7 +58,9 @@ paradigma:
   - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
 - **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](../domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](../domains/task-center.md)
 - **ADR-018 领域中立边界**：上述视频专用 schema/API 是当前兼容事实，不是新的引擎类型；迁移目标是表单、集合、聚合、交付/返工和子 Run 等通用能力。迁移完成前不破坏现有公共 API。
-- **ADR-019 决策语义边界**：集合确认、独立交付验收、正式业务审批与多人会签具有不同参与者重叠规则；贡献者优先按 Deliverable submitter/version 判断。具体配置/API 形状尚待 I4-B/C 设计评审，本轮无 schema 变更。Admin 兼容行为不在 I4 修改。
+- **ADR-019 决策语义边界**：集合确认、独立交付验收、正式业务审批与多人会签具有不同参与者重叠规则；贡献者优先按 Deliverable 当前 submitter/version/signature 判断。I4-B/C 已完成语义映射与旧审批桥接；Admin 兼容行为不在 I4 修改。
+- **I4-D Deliverable JSON v2（无 schema/API 破坏）**：现有 `workflow_deliverables.payload` 双写 `latest_submission` / `submission_history` 兼容字段，并增加 `schema_version=2`、`current_submission_version`、`review_history`、`accepted_submission_version`、`accepted_submission_signature` 与不可变 `accepted_submission` 快照；每条 review 绑定 submission version/signature。
+- **I4-D Notification completion policy**：`NotificationMessage.payload.completion_policy` 可选 `queued|sent|all_channels_success`，省略时默认 `all_channels_success`；消息完成按全部 delivery 计算，worker 的 delivery 子集不得提前完成整条消息。
 - **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](../domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
 - **S-01 周期统计契约**（2026-07-11 批准）：`GET /api/v1/tasks/stats/scopes|summary|workload|details`；统一 `start_date` / `end_date`（Asia/Shanghai、含首尾日期、最长 366 天）、`department_id?`、`include_subtree`；Employee 仅本人，经理/数据代理限有效管理范围，Admin/HR 全局；排除 `metadata.admin_archived=true` 与 `metadata.workflow_graph_root_task=true`。指标为新增、完成、到期、逾期、已成熟截止任务的按期完成率、当前未完成；details 以 `metric` + UUID cursor 分页。
 - **图模板部门作用范围**：显式 `scope_mode=global|departments`；`global` 不允许部门列表，`departments` 至少一个部门；Run 创建先解析最终部门再校验 scope（迁移 `20260713_01`）。
@@ -77,7 +79,7 @@ paradigma:
 - 时间统一使用 `timestamptz`
 - 动态业务字段使用 `jsonb`
 - 附件统一采用 `attachments + attachment_links`
-- 通知统一采用 `notification_messages + notification_deliveries`；工作流 Outbox 通过 `notification_messages.deduplication_key` 按 event id 去重
+- 通知统一采用 `notification_messages + notification_deliveries`；工作流 Outbox 通过 `notification_messages.deduplication_key` 按 event id 去重；消息完成策略默认要求全部 delivery 成功
 - 任务相关沟通固定绑定 `task_comments`
 - 高敏档案字段继续允许存放在 `profiles.custom_fields`，但必须由字段定义与权限表驱动展示
 - `Leader` 优先通过组织关系与授权推导，不强制引入新的全局角色枚举
@@ -191,8 +193,8 @@ paradigma:
 
 权威数字见 [`progress.md`](../../logs/progress/progress.md) 最新会话摘要（2026-07-28 @ I4-A）：
 
-- backend：**423 collected，适用用例 PASS**；登记的 PostgreSQL 环境用例按既有规则 skip；`compileall` PASS
-- Iteration 2–4 / I3-F ownership / 视频专项：**41 PASS**
+- backend：**441 collected / 10 skipped / 0 failed**；登记的 PostgreSQL 环境用例按既有规则 skip；`compileall` PASS
+- Iteration 4-D / I3-F ownership / 视频兼容专项：**42 PASS**
 - frontend：Vitest **59 文件 / 168 用例 PASS**；`vue-tsc --build` 与 production build PASS
 - 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**
 - 未纳入每次刷新：live/docker-gui、目标环境 I3-F 7 天 readiness、Ubuntu 回滚演练

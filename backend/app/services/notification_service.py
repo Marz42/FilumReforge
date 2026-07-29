@@ -17,6 +17,10 @@ from app.core.exceptions import NotFoundError
 from app.integrations.notifications.queue import NotificationQueuePublisher
 from app.models import NotificationDelivery, NotificationMessage as NotificationMessageModel, PushSubscription
 from app.schemas.messages import NotificationMessage
+from app.services.workflow_delivery_handlers import (
+  NotificationCapabilityHandler,
+)
+from app.services.workflow_node_handlers import WorkflowCapabilityOutcome
 
 
 class NotificationService:
@@ -27,6 +31,7 @@ class NotificationService:
   ) -> None:
     self._session = session
     self._queue_publisher = queue_publisher
+    self._capability_handler = NotificationCapabilityHandler()
 
   async def _resolve_channels(self, *, message: NotificationMessage) -> list[NotificationChannel]:
     channels = list(dict.fromkeys(message.channels))
@@ -60,6 +65,7 @@ class NotificationService:
   ) -> NotificationMessageModel:
     if publish and not commit:
       raise ValueError("Notification publish requires committed rows.")
+    self._capability_handler.resolve_policy(message.payload)
     notification_message = None
     deliveries: list[NotificationDelivery] = []
     if deduplication_key:
@@ -138,21 +144,36 @@ class NotificationService:
   ) -> None:
     if self._queue_publisher is None:
       return
+    notification_message_id = notification_message.id
     payload = {
-      "message_id": str(notification_message.id),
+      "message_id": str(notification_message_id),
       "delivery_ids": [str(delivery.id) for delivery in deliveries],
       "source_type": notification_message.source_type,
       "message_type": notification_message.message_type,
     }
     if notification_message.status == NotificationMessageStatus.FAILED:
-      notification_message.status = NotificationMessageStatus.QUEUED
-      notification_message.completed_at = None
-      for delivery in deliveries:
-        if delivery.status == NotificationDeliveryStatus.FAILED:
-          delivery.status = NotificationDeliveryStatus.PENDING
-          delivery.error_message = None
+      retry_result = self._capability_handler.retry(
+        delivery_statuses=[delivery.status for delivery in deliveries],
+      )
+      if "retry_failed_deliveries" in retry_result.side_effects:
+        notification_message.status = NotificationMessageStatus.QUEUED
+        notification_message.completed_at = None
+        for delivery in deliveries:
+          if delivery.status == NotificationDeliveryStatus.FAILED:
+            delivery.status = NotificationDeliveryStatus.RETRYING
+            delivery.error_message = None
       # Persist retryability before publishing so the consumer never observes stale FAILED rows.
       await self._session.commit()
+      refreshed_message = await self._session.scalar(
+        select(NotificationMessageModel)
+        .execution_options(populate_existing=True)
+        .options(selectinload(NotificationMessageModel.deliveries))
+        .where(NotificationMessageModel.id == notification_message_id)
+      )
+      if refreshed_message is None:  # pragma: no cover - guarded by the loaded identity
+        raise NotFoundError("待重试通知不存在。")
+      notification_message = refreshed_message
+      deliveries = list(refreshed_message.deliveries)
     try:
       await self._queue_publisher.publish(payload)
     except Exception as exc:  # noqa: BLE001
@@ -165,5 +186,17 @@ class NotificationService:
         delivery.attempt_count += 1
         delivery.attempted_at = failure_time
         delivery.error_message = error_message
+      await self._session.commit()
+      await self._session.refresh(notification_message)
+      return
+
+    completion_result = self._capability_handler.evaluate(
+      policy=self._capability_handler.resolve_policy(notification_message.payload),
+      enqueued=True,
+      delivery_statuses=[delivery.status for delivery in deliveries],
+    )
+    if completion_result.outcome == WorkflowCapabilityOutcome.SUCCEEDED:
+      notification_message.status = NotificationMessageStatus.COMPLETED
+      notification_message.completed_at = datetime.now(UTC)
       await self._session.commit()
       await self._session.refresh(notification_message)

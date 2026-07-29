@@ -8,7 +8,7 @@ tags:
   - iteration-4
   - handler
   - capability
-timestamp: 2026-07-30T00:22:49+08:00
+timestamp: 2026-07-30T00:56:25+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -21,7 +21,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 4 · 业务能力 Handler 化实施计划
 
-> **状态**：I4-A、I4-B、I4-C 已完成。HumanTask 与 Approval 均已通过纯 Handler Result 接入 Runtime；Approval 复用既有轻量审批引擎，在同一 UoW 内完成预校验、旧审批状态更新、结果回传和通知落库，并保留旧管理角色 override 兼容。前端 P2 第一批 6 项已实现，后续反馈持续接收。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
+> **状态**：I4-A 至 I4-D 已完成。HumanTask、Approval、Deliverable 与 Notification 均已通过纯 Handler Result 或边界清晰的应用协调接入；交付版本/验收快照及通知完成策略不再由 Runtime 猜测。前端 P2 第一批 6 项已实现，后续反馈持续接收。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
 
 ## 1. 目标
 
@@ -74,9 +74,9 @@ paradigma:
 
 ### I4-D · Deliverable / Notification
 
-- [ ] Deliverable 支持 submission/review 多版本并保留 accepted submission。
-- [ ] Notification 明确 queued/sent/all-channels-success 完成策略。
-- [ ] 失败、重试、取消与补偿进入统一 Capability Result。
+- [x] Deliverable 以兼容 JSON v2 保存带 version/signature 的 submission/review 历史，并固定 accepted submission snapshot；下游附件继承优先读取被接受版本。
+- [x] Notification 明确 `queued`、`sent`、`all_channels_success` 三种完成策略；默认保持最严格的全渠道成功，worker 按消息全部 delivery 判定而非当前任务子集。
+- [x] Deliverable / Notification 的失败、重试、取消与补偿进入统一 Capability Result；通知失败重投已消费 `retry_failed_deliveries` side effect，旧 API 与数据库 schema 不变。
 
 ### I4-E · 领域中立化与兼容迁移
 

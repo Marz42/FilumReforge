@@ -61,6 +61,8 @@ from app.schemas.messages import NotificationMessage
 from app.services.notification_source import build_task_source_payload
 from app.services.workflow_graph_service import SingleNodeWorkflowSeed, WorkflowGraphService
 from app.services.human_task_coordinator import HumanTaskCoordinator
+from app.services.workflow_delivery_handlers import DeliverableCapabilityHandler
+from app.services.workflow_node_handlers import WorkflowCapabilityResult
 from app.services.workflow_node_config_helpers import resolve_completion_policy
 from app.services.workflow_rule_resolver import resolve_user_targets_from_rule
 from app.services.access_control import (
@@ -414,6 +416,7 @@ class TaskService:
     self._settings = settings
     self._workflow_graph_service = workflow_graph_service
     self._human_task_coordinator = HumanTaskCoordinator(session)
+    self._deliverable_handler = DeliverableCapabilityHandler()
 
   def _workflow_graph_engine_enabled(self) -> bool:
     return bool(self._settings is not None and self._settings.workflow_graph_engine_enabled)
@@ -2179,47 +2182,47 @@ class TaskService:
     summary: str | None,
     attachment_ids: list[str],
     submitted_at: datetime,
-  ) -> None:
+    auto_accept: bool = False,
+  ) -> WorkflowCapabilityResult | None:
     instance, node_instance = await self._load_workflow_graph_projection(task=task)
     if instance is None or node_instance is None:
-      return
+      return None
 
-    submission_entry: dict[str, Any] = {
-      "submitted_at": submitted_at.isoformat(),
-      "submitted_by_user_id": str(actor.id),
-      "summary": summary,
-      "attachment_ids": attachment_ids,
-    }
     deliverable = await self._session.scalar(
       select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id)
     )
+    current_payload = dict(deliverable.payload or {}) if deliverable is not None else {}
+    capability_result = self._deliverable_handler.submit(
+      payload=current_payload,
+      submitted_by_user_id=str(actor.id),
+      submitted_at=submitted_at,
+      summary=summary,
+      attachment_ids=attachment_ids,
+      signature_prefix=f"task:{task.id}",
+      current_signature=(deliverable.signature if deliverable is not None else None),
+      auto_accept=auto_accept,
+    )
+    payload = dict(capability_result.result["deliverable_payload"])
+    signature = str(capability_result.result["current_submission_signature"])
     if deliverable is None:
       deliverable = WorkflowDeliverable(
         node_instance_id=node_instance.id,
         submitted_by_user_id=actor.id,
         submitted_at=submitted_at,
         summary=summary,
-        payload={
-          "latest_submission": submission_entry,
-          "submission_history": [submission_entry],
-        },
-        signature=f"task:{task.id}:submission:1",
+        payload=payload,
+        signature=signature,
       )
       self._session.add(deliverable)
       await self._session.flush()
-      return
+      return capability_result
 
-    payload = dict(deliverable.payload or {})
-    history_raw = payload.get("submission_history")
-    history: list[dict[str, Any]] = list(history_raw) if isinstance(history_raw, list) else []
-    history.append(submission_entry)
-    payload["latest_submission"] = submission_entry
-    payload["submission_history"] = history
     deliverable.submitted_by_user_id = actor.id
     deliverable.submitted_at = submitted_at
     deliverable.summary = summary
     deliverable.payload = payload
-    deliverable.signature = f"task:{task.id}:submission:{len(history)}"
+    deliverable.signature = signature
+    return capability_result
 
   async def _record_task_review_result(
     self,
@@ -2229,32 +2232,31 @@ class TaskService:
     action: str,
     comment: str | None,
     reviewed_at: datetime,
+    quality_score: int | None = None,
     rework_count: int | None = None,
-  ) -> None:
+  ) -> WorkflowCapabilityResult | None:
     instance, node_instance = await self._load_workflow_graph_projection(task=task)
     if instance is None or node_instance is None:
-      return
+      return None
 
     deliverable = await self._session.scalar(
       select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == node_instance.id)
     )
     if deliverable is None:
-      return
+      return None
 
-    review_entry: dict[str, Any] = {
-      "action": action,
-      "comment": comment,
-      "reviewed_at": reviewed_at.isoformat(),
-      "reviewed_by_user_id": str(actor.id),
-    }
-    if rework_count is not None:
-      review_entry["rework_count"] = rework_count
-
-    payload = dict(deliverable.payload or {})
-    payload["latest_review"] = review_entry
-    if rework_count is not None:
-      payload["rework_count"] = rework_count
-    deliverable.payload = payload
+    capability_result = self._deliverable_handler.review(
+      payload=dict(deliverable.payload or {}),
+      reviewed_by_user_id=str(actor.id),
+      reviewed_at=reviewed_at,
+      approve=action == "approve_completion",
+      comment=comment,
+      quality_score=quality_score,
+      rework_count=rework_count,
+      current_signature=deliverable.signature,
+    )
+    deliverable.payload = dict(capability_result.result["deliverable_payload"])
+    return capability_result
 
   async def _sync_graph_projection_for_task_status(
     self,
@@ -3264,19 +3266,19 @@ class TaskService:
     if not normalized_summary and not validated_attachment_ids:
       raise ConflictError("交付说明或附件至少提供一项。")
 
+    _instance, _node, _template_node, completion_policy = await self._load_template_graph_node_context(
+      task=task,
+    )
+    direct_complete = completion_policy == "on_submit_deliverable"
     now = datetime.now(UTC)
-    await self._upsert_task_deliverable(
+    deliverable_result = await self._upsert_task_deliverable(
       task=task,
       actor=actor,
       summary=normalized_summary,
       attachment_ids=validated_attachment_ids,
       submitted_at=now,
+      auto_accept=direct_complete,
     )
-
-    _instance, _node, _template_node, completion_policy = await self._load_template_graph_node_context(
-      task=task,
-    )
-    direct_complete = completion_policy == "on_submit_deliverable"
 
     metadata = self._copy_task_metadata(task)
     metadata.update(
@@ -3310,6 +3312,19 @@ class TaskService:
           "summary": normalized_summary,
           "attachment_ids": validated_attachment_ids,
           "status": TaskStatus.DONE.value,
+          "deliverable_outcome": (
+            deliverable_result.outcome.value if deliverable_result is not None else None
+          ),
+          "deliverable_version": (
+            deliverable_result.result.get("current_submission_version")
+            if deliverable_result is not None
+            else None
+          ),
+          "deliverable_signature": (
+            deliverable_result.result.get("current_submission_signature")
+            if deliverable_result is not None
+            else None
+          ),
         },
       )
       await self._maybe_progress_template_graph_after_completion(
@@ -3365,6 +3380,19 @@ class TaskService:
         "attachment_ids": validated_attachment_ids,
         "status": target_task_status.value,
         "blocked_reason": task.blocked_reason,
+        "deliverable_outcome": (
+          deliverable_result.outcome.value if deliverable_result is not None else None
+        ),
+        "deliverable_version": (
+          deliverable_result.result.get("current_submission_version")
+          if deliverable_result is not None
+          else None
+        ),
+        "deliverable_signature": (
+          deliverable_result.result.get("current_submission_signature")
+          if deliverable_result is not None
+          else None
+        ),
       },
     )
     await self._session.commit()
@@ -3929,12 +3957,13 @@ class TaskService:
       task.status = TaskStatus.DONE
       task.updated_at = now
       task.completed_at = now
-      await self._record_task_review_result(
+      deliverable_result = await self._record_task_review_result(
         task=task,
         actor=actor,
         action="approve_completion",
         comment=normalized_comment,
         reviewed_at=now,
+        quality_score=quality_score,
       )
       await self._sync_graph_projection_for_task_status(
         task=task,
@@ -3952,6 +3981,19 @@ class TaskService:
           "comment": normalized_comment,
           "quality_score": quality_score,
           "status": TaskStatus.DONE.value,
+          "deliverable_outcome": (
+            deliverable_result.outcome.value if deliverable_result is not None else None
+          ),
+          "reviewed_submission_version": (
+            deliverable_result.result.get("reviewed_submission_version")
+            if deliverable_result is not None
+            else None
+          ),
+          "reviewed_submission_signature": (
+            deliverable_result.result.get("reviewed_submission_signature")
+            if deliverable_result is not None
+            else None
+          ),
         },
       )
       await self._maybe_progress_template_graph_after_completion(
@@ -3981,7 +4023,7 @@ class TaskService:
     task.updated_at = now
     task.completed_at = None
     task.started_at = task.started_at or now
-    await self._record_task_review_result(
+    deliverable_result = await self._record_task_review_result(
       task=task,
       actor=actor,
       action="return_for_rework",
@@ -4006,6 +4048,19 @@ class TaskService:
         "comment": normalized_comment,
         "rework_count": rework_count,
         "status": TaskStatus.DOING.value,
+        "deliverable_outcome": (
+          deliverable_result.outcome.value if deliverable_result is not None else None
+        ),
+        "reviewed_submission_version": (
+          deliverable_result.result.get("reviewed_submission_version")
+          if deliverable_result is not None
+          else None
+        ),
+        "reviewed_submission_signature": (
+          deliverable_result.result.get("reviewed_submission_signature")
+          if deliverable_result is not None
+          else None
+        ),
       },
     )
     await self._session.commit()

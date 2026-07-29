@@ -1161,14 +1161,30 @@ async def test_phase5_graph_task_supports_deliverable_review_and_rework_cycle(db
   assert stored_deliverable is not None
   assert stored_deliverable.summary == "第二版交付说明"
   assert stored_deliverable.payload["latest_review"]["action"] == "approve_completion"
+  assert stored_deliverable.payload["schema_version"] == 2
+  assert stored_deliverable.payload["current_submission_version"] == 2
+  assert stored_deliverable.payload["accepted_submission_version"] == 2
+  assert stored_deliverable.payload["accepted_submission_signature"] == stored_deliverable.signature
+  assert stored_deliverable.payload["accepted_submission"]["summary"] == "第二版交付说明"
+  assert [review["submission_version"] for review in stored_deliverable.payload["review_history"]] == [1, 2]
+  assert stored_deliverable.payload["review_history"][0]["action"] == "return_for_rework"
+  assert stored_deliverable.payload["review_history"][1]["quality_score"] == 5
   assert approved_task.extra_metadata["latest_review_quality_score"] == 5
   assert len(stored_deliverable.payload["submission_history"]) == 2
-  assert [log.detail.get("action") for log in task_logs if log.action_type == TaskActionType.STATUS_CHANGED][-4:] == [
+  deliverable_logs = [
+    log.detail for log in task_logs if log.action_type == TaskActionType.STATUS_CHANGED
+  ][-4:]
+  assert [detail.get("action") for detail in deliverable_logs] == [
     "submit_deliverable",
     "return_for_rework",
     "submit_deliverable",
     "approve_completion",
   ]
+  assert [
+    detail.get("deliverable_version", detail.get("reviewed_submission_version"))
+    for detail in deliverable_logs
+  ] == [1, 1, 2, 2]
+  assert all(detail.get("deliverable_outcome") for detail in deliverable_logs)
   assert task_logs[-1].detail.get("quality_score") == 5
 
 

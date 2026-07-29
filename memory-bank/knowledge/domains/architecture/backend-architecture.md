@@ -62,6 +62,7 @@ paradigma:
 | `backend/app/services/report_center_service.py` | 汇报中心聚合服务，输出待处理、我发起、历史、目标选项与审批选项 |
 | `backend/app/services/workflow_engine_service.py` | 流程定义、流程实例、审批动作、打回 / 驳回 / 代理审批；图 Approval 来源在旧状态变更前调用 Runtime bridge，并在同一 UoW 回传结果，提交后再发布通知 |
 | `backend/app/services/approval_capability_coordinator.py` | Iteration 4-C Approval 适配器：按稳定 correlation key 幂等关联图节点与既有审批实例，维护绑定配置但不自行提交事务 |
+| `backend/app/services/workflow_delivery_handlers.py` | Iteration 4-D 纯能力策略：Deliverable 版本/评审/accepted snapshot 与 Notification completion/failure/retry/cancel 统一映射为 Capability Result |
 | `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
 | `backend/app/services/message_center_service.py` | Step 6 消息聚合服务：按当前用户隔离 inbox，输出来源模块 / 对象 / 回跳、未读 / 已确认状态与筛选统计 |
 | `backend/app/services/notification_source.py` | Step 6 通知来源辅助：统一 task / report / announcement / workflow 的来源 payload 与回跳协议 |
@@ -211,8 +212,9 @@ paradigma:
 1. 业务服务构造 `NotificationMessage`。
 2. `NotificationService.send()` 写入 `notification_messages` 与 `notification_deliveries`。
 3. `RedisNotificationQueuePublisher` 通过 ARQ 把消息投递任务入 Redis。
-4. `app.workers.arq_worker` 消费任务并回写状态。
-5. 逾期任务扫描通过 cron 任务触发。
+4. `app.workers.arq_worker` 消费任务，并由 Notification Capability Handler 按整条消息的全部 delivery 回写状态，不能以当前 delivery 子集提前完成。
+5. `payload.completion_policy` 可选 `queued`、`sent`、`all_channels_success`；省略时默认全渠道成功。
+6. 失败重投经统一 `retry_failed_deliveries` side effect 将失败 delivery 转入重试；逾期任务扫描通过 cron 任务触发。
 
 ### 6.4 附件绑定链路（当前）
 

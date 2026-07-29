@@ -231,6 +231,16 @@ async def test_upstream_deliverable_attachments_are_inherited_once(db_session) -
     checksum_sha256="0" * 64,
     uploader_id=admin.id,
   )
+  latest_unaccepted_attachment = Attachment(
+    storage_provider="local",
+    bucket="test",
+    object_key="inherit/unaccepted.md",
+    original_filename="unaccepted.md",
+    mime_type="text/markdown",
+    size_bytes=4,
+    checksum_sha256="1" * 64,
+    uploader_id=admin.id,
+  )
   target_task = Task(
     title="下游任务",
     creator_id=admin.id,
@@ -239,14 +249,17 @@ async def test_upstream_deliverable_attachments_are_inherited_once(db_session) -
     priority=TaskPriority.MEDIUM,
     source_type=TaskSourceType.TEMPLATE,
   )
-  db_session.add_all([attachment, target_task])
+  db_session.add_all([attachment, latest_unaccepted_attachment, target_task])
   await db_session.flush()
   db_session.add(
     WorkflowDeliverable(
       node_instance_id=upstream.id,
       submitted_by_user_id=admin.id,
       submitted_at=datetime.now(UTC),
-      payload={"latest_submission": {"attachment_ids": [str(attachment.id), "invalid"]}},
+      payload={
+        "accepted_submission": {"attachment_ids": [str(attachment.id), "invalid"]},
+        "latest_submission": {"attachment_ids": [str(latest_unaccepted_attachment.id)]},
+      },
     )
   )
   await db_session.flush()

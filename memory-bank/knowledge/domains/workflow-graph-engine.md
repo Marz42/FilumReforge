@@ -167,7 +167,7 @@ erDiagram
 - 新普通任务在 `WORKFLOW_STANDALONE_MANUAL_TASKS_ENABLED=true` 时不创建单节点 Run；兼容开关只影响后续新建。Task/Runtime 跨域同步集中到 `HumanTaskCoordinator`。
 - RunEvent 信封含 event/aggregate version、command/causation/correlation、actor、occurred_at；Outbox event id 映射通知唯一 dedup key，崩溃重试复用稳定 message/delivery id。
 
-**Deliverable / Outbox / RunEvent / Schedule** — 见契约摘要；run_event 已知类型含：`run_instantiated`、`node_completed`、`capture_submitted`、`aggregate_confirmed`、`capture_closed`、`topic_dispatched`、`capture_rejected`、`production_deep_reject`、`admin_cancelled` 等。
+**Deliverable / Outbox / RunEvent / Schedule** — I4-D 在既有 1:1 Deliverable 行内采用兼容 JSON v2：submission/review 均绑定 version/signature，验收通过固定 accepted snapshot；旧 latest/history 字段继续双写。下游附件继承优先消费 accepted submission。run_event 已知类型含：`run_instantiated`、`node_completed`、`capture_submitted`、`aggregate_confirmed`、`capture_closed`、`topic_dispatched`、`capture_rejected`、`production_deep_reject`、`admin_cancelled` 等。
 
 ### 3.4 条件表达式（运行时）
 
@@ -218,9 +218,9 @@ flowchart TD
 | **并发** | 所有节点命令统一先锁 Run、再锁 NodeInstance；唯一约束保证 traversal/dependency 不重复 |
 | **接管** | `takeover_node_instance`：改办理人 + outbox + 同步手动 Task 投影 |
 | **编排钩子** | `WorkflowOrchestrationService`：模板投影 Task 的 ensure / after_node_completed / handshake → engine_state |
-| **通知** | `_write_outbox_event` → ARQ `workflow_outbox_worker`（非同步强依赖触达） |
+| **通知** | `_write_outbox_event` → ARQ worker；消息 completion policy 为 queued / sent / all-channels-success，默认全渠道成功，按消息全部 delivery 聚合 |
 | **审计** | `WorkflowRunEventService.append`（与 outbox 分离） |
-| **能力 Handler** | Iteration 4-A 以 `WorkflowNodeHandlerRegistry` 解析 HumanTask/Notice，返回统一 `WorkflowCapabilityResult`；Runtime 只应用 engine/business state 与映射后的审计结果，Approval 暂保留 legacy |
+| **能力 Handler** | Iteration 4-A–D 已覆盖 HumanTask、Approval、Deliverable、Notification；纯 Handler 返回统一 `WorkflowCapabilityResult`，Runtime/应用协调层负责落库与 side effect |
 
 当前视频兼容约定（简）：`context.run_kind`（`batch`/`production`…）· `parent_instance_id` fork · `instance_key` 多人扇出。按 ADR-018，`run_kind` 是待退出兼容标签，fork / 多实例能力应保持领域中立。详情见 [`workflow-video-v1.md`](./workflow-video-v1.md)。
 

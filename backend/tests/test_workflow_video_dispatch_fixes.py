@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.core.enums import TaskSourceType, TaskStatus, WorkflowNodeEngineState
 from app.core.exceptions import ConflictError
-from app.models import Task, WorkflowGraphInstance, WorkflowNodeInstance
+from app.models import Task, WorkflowDeliverable, WorkflowGraphInstance, WorkflowNodeInstance
 from app.schemas.workflow_video import ApprovedTopic, ParticipantsSnapshotEntry, TopicCaptureRow
 from app.services.task_service import TaskService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
@@ -95,6 +95,13 @@ async def test_n3_submit_deliverable_advances_to_script_review(db_session) -> No
   assert n4_node is not None
   assert n3_node.engine_state == WorkflowNodeEngineState.COMPLETED
   assert n4_node.engine_state == WorkflowNodeEngineState.ACKNOWLEDGED
+  deliverable = await db_session.scalar(
+    select(WorkflowDeliverable).where(WorkflowDeliverable.node_instance_id == n3_node.id)
+  )
+  assert deliverable is not None
+  assert deliverable.payload["accepted_submission_version"] == 1
+  assert deliverable.payload["accepted_submission_signature"] == deliverable.signature
+  assert deliverable.payload["latest_review"]["action"] == "auto_accept_submission"
 
   n4_tasks = list(
     await db_session.scalars(

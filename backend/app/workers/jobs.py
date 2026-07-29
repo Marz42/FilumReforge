@@ -26,6 +26,8 @@ from app.integrations.notifications.factory import build_notification_adapters
 from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.hr_lifecycle_service import HRLifecycleService
 from app.services.notification_service import NotificationService
+from app.services.workflow_delivery_handlers import NotificationCapabilityHandler
+from app.services.workflow_node_handlers import WorkflowCapabilityOutcome
 from app.services.task_service import TaskService
 from app.services.workflow_engine_service import WorkflowEngineService
 from app.schemas.messages import NotificationMessage
@@ -80,7 +82,6 @@ async def process_notification_message_payload(
   adapter_map = adapters or build_notification_adapters(session=session, settings=resolved_settings)
   now = datetime.now(UTC)
   message.status = NotificationMessageStatus.PROCESSING
-  all_successful = True
   for delivery in deliveries:
     if delivery.status == NotificationDeliveryStatus.SENT:
       continue
@@ -92,7 +93,6 @@ async def process_notification_message_payload(
     if adapter is None:
       delivery.status = NotificationDeliveryStatus.FAILED
       delivery.error_message = f"未配置通知通道适配器：{delivery.channel.value}"
-      all_successful = False
       continue
 
     try:
@@ -103,19 +103,26 @@ async def process_notification_message_payload(
     except Exception as exc:  # noqa: BLE001
       delivery.status = NotificationDeliveryStatus.FAILED
       delivery.error_message = str(exc)
-      all_successful = False
       continue
 
     delivery.status = NotificationDeliveryStatus.SENT
     delivery.external_message_id = external_message_id
     delivery.delivered_at = now
 
-  message.status = (
-    NotificationMessageStatus.COMPLETED
-    if all_successful
-    else NotificationMessageStatus.FAILED
+  completion_result = NotificationCapabilityHandler().evaluate(
+    policy=NotificationCapabilityHandler.resolve_policy(message.payload),
+    enqueued=True,
+    delivery_statuses=[delivery.status for delivery in message.deliveries],
   )
-  message.completed_at = now
+  if completion_result.outcome == WorkflowCapabilityOutcome.SUCCEEDED:
+    message.status = NotificationMessageStatus.COMPLETED
+    message.completed_at = now
+  elif completion_result.outcome == WorkflowCapabilityOutcome.FAILED:
+    message.status = NotificationMessageStatus.FAILED
+    message.completed_at = now
+  else:
+    message.status = NotificationMessageStatus.QUEUED
+    message.completed_at = None
   await session.commit()
   await session.refresh(message)
   return message

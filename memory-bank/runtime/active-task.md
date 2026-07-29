@@ -1,6 +1,6 @@
-# Active Task: Iteration 4-D — Deliverable / Notification Handler
+# Active Task: Iteration 4-E — 领域中立化与兼容迁移
 
-**Status:** in-progress · I4-A/I4-B/I4-C complete · I4-D next · production cutover gated
+**Status:** in-progress · I4-A–I4-D complete · I4-E next · production cutover gated
 **Plan:** memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
 **Preflight:** memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md
 
@@ -26,11 +26,11 @@
 - [x] Preflight P2：第一批前端问题均属交互/视觉稳定化，无新增 P0 数据/权限或 P1 状态推进阻塞
 - [x] I4-B：HumanTask 激活/完成/取消/重试已统一消费 Capability Result；Link/RunEvent/Outbox 同 UoW 回滚与参与者重叠合法场景已覆盖
 - [x] I4-C：Approval 默认 Registry、旧审批实例幂等关联、动作前 overlap 校验、当前 Deliverable 版本事实、结果回传/重复回调、轮次/票数/代理审计与同 UoW 通知边界已完成
-- [ ] I4-D：Deliverable / Notification Handler
+- [x] I4-D：Deliverable 多版本/accepted snapshot、Notification queued/sent/all-channels-success 策略，以及失败/重试/取消统一 Capability Result 已完成
 - [ ] I4-E：领域中立化；把视频专用分支迁为通用能力与兼容适配层
 
 ## Release boundary
-- Preflight P0/P1/P3 已通过，I4-C 已完成，下一批进入 I4-D；前端 P2 持续接收并独立分级。
+- Preflight P0/P1/P3 已通过，I4-D 已完成，下一批进入 I4-E；前端 P2 持续接收并独立分级。
 - 管理员业务权限解耦延后；I4 不改变现有 Admin 兼容行为。
 - Iteration 4 可进行向下兼容的代码开发和本地验证。
 - Iteration 3-F 硬门禁未完成前，不做生产切流、不删除兼容路径、不宣称 runtime readiness 已通过。

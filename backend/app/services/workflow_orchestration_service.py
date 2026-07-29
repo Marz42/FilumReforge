@@ -311,7 +311,11 @@ class WorkflowOrchestrationService:
     if upstream_deliverable is None or not isinstance(upstream_deliverable.payload, dict):
       return
 
-    submission = upstream_deliverable.payload.get("latest_submission") or {}
+    submission = (
+      upstream_deliverable.payload.get("accepted_submission")
+      or upstream_deliverable.payload.get("latest_submission")
+      or {}
+    )
     attachment_ids = submission.get("attachment_ids")
     if not isinstance(attachment_ids, list) or not attachment_ids:
       return

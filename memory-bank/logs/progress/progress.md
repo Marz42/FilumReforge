@@ -2254,3 +2254,12 @@ Stage 2、UI IA、工作流图引擎 Phase 11、**TCE Phase 1–5**、**图模�
 - 旧审批状态、图节点/RunEvent 与通知消息在同一事务落库，通知只在提交成功后发布；整体 rollback 与回调幂等均有测试。
 - 保留既有 `ADMIN/HR` 审批 override，并显式记录 `legacy_management_override`；系统管理员业务边界仍按 KI-011 延后。
 - 验证：上述定向回归 **24 passed**；Backend 全量 **435 collected / 10 skipped / 0 failed**；`compileall` 与 Paradigma **All 5 checks passed**。
+
+## 2026-07-30 00:56 · Iteration 4-D Deliverable / Notification Handler 完成
+
+- 新增纯 `DeliverableCapabilityHandler`：在现有 1:1 Deliverable 行内生成 JSON v2 submission/review 版本链，每次评审绑定 version/signature，验收通过保存 accepted submission snapshot；旧 latest/history 字段继续兼容。
+- `TaskService` 的提交、返工、验收已消费 Capability Result，并在 TaskLog 记录 outcome、版本和签名；无需数据库迁移或 API 变更。
+- 下游附件继承改为优先读取 accepted submission，避免以后读取漂移的 latest submission；无 accepted snapshot 的历史数据继续回退 latest。
+- 新增纯 `NotificationCapabilityHandler`，明确 queued、sent、all-channels-success 三种完成策略，默认全渠道成功；worker 改为聚合整条消息全部 delivery，修复子集任务提前完成消息。
+- 通知入队失败、重新发布和取消/补偿均有统一 Capability Result；实际重投消费 `retry_failed_deliveries` 并持久化 RETRYING 后重新入队。
+- 验证：I4-D/I3-F ownership/视频兼容定向 **42 passed**；Backend 全量 **441 collected / 10 skipped / 0 failed**；`compileall` 与 Paradigma **All 5 checks passed**。
