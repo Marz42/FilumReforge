@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Mapping
 from uuid import uuid4
 
@@ -24,6 +25,7 @@ from app.models import (
   WorkflowGraphInstance,
   WorkflowHumanTaskLink,
   WorkflowNodeInstance,
+  WorkflowOutboxEvent,
   WorkflowRunEvent,
 )
 from app.services.human_task_coordinator import HumanTaskCoordinator
@@ -192,6 +194,8 @@ class _RecordingHumanTaskHandler(HumanTaskNodeHandler):
   def __init__(self) -> None:
     self.activations = 0
     self.commands = 0
+    self.cancellations = 0
+    self.retries = 0
 
   def activate(self, context: WorkflowCapabilityContext):  # noqa: ANN201
     self.activations += 1
@@ -206,6 +210,14 @@ class _RecordingHumanTaskHandler(HumanTaskNodeHandler):
   ):  # noqa: ANN201
     self.commands += 1
     return super().command(context, command=command, payload=payload)
+
+  def cancel(self, context: WorkflowCapabilityContext):  # noqa: ANN201
+    self.cancellations += 1
+    return super().cancel(context)
+
+  def retry(self, context: WorkflowCapabilityContext):  # noqa: ANN201
+    self.retries += 1
+    return super().retry(context)
 
 
 @pytest.mark.asyncio
@@ -381,3 +393,269 @@ async def test_i4_collection_coordinator_can_finalize_after_abc_contribute(db_se
   }
   assert diagnostics["contributor_resolution"] == "deliverable_current_submitter"
   assert diagnostics["actor_is_contributor"] is True
+
+
+@pytest.mark.asyncio
+async def test_i4_admin_cancel_consumes_human_task_handler_result(db_session) -> None:  # noqa: ANN001, E501
+  handler = _RecordingHumanTaskHandler()
+  registry = WorkflowNodeHandlerRegistry()
+  registry.register(handler)
+  registry.register(NoticeNodeHandler())
+  actor = User(
+    email="iteration4-cancel@example.com",
+    password_hash="hashed",
+    role=UserRole.ADMIN,
+    status=UserStatus.ACTIVE,
+  )
+  db_session.add(actor)
+  await db_session.flush()
+  service = WorkflowGraphService(db_session, node_handler_registry=registry)
+  instance, node = await service.create_single_node_instance(
+    seed=SingleNodeWorkflowSeed(
+      title="Cancel through capability result",
+      creator_id=actor.id,
+      assignee_id=actor.id,
+      department_id=None,
+      description=None,
+      due_date=None,
+      priority=TaskPriority.MEDIUM,
+    )
+  )
+  task = Task(
+    title="Linked cancellable work item",
+    creator_id=actor.id,
+    assignee_id=actor.id,
+    status=TaskStatus.DOING,
+    priority=TaskPriority.MEDIUM,
+    source_type=TaskSourceType.MANUAL,
+    extra_metadata={},
+  )
+  db_session.add(task)
+  await db_session.flush()
+  link = await HumanTaskCoordinator(db_session).bind_projection_task(
+    task=task,
+    node_instance=node,
+    source="manual_compat",
+  )
+
+  await service.cancel_instance_by_admin(
+    actor_id=actor.id,
+    instance_id=instance.id,
+    reason="cancel contract test",
+  )
+  await db_session.flush()
+
+  assert handler.cancellations == 1
+  assert node.engine_state == WorkflowNodeEngineState.TERMINATED
+  assert node.business_state == WorkflowNodeBusinessState.CANCELLED
+  assert node.node_instance_version == 2
+  assert link.lifecycle == "cancelled"
+  assert task.status == TaskStatus.DOING
+  event = await db_session.scalar(
+    select(WorkflowRunEvent).where(WorkflowRunEvent.event_type == "node_cancelled")
+  )
+  assert event is not None
+  assert event.payload["reason"] == "cancel contract test"
+  assert event.payload["capability_result"]["outcome"] == "cancelled"
+  assert event.payload["capability_result"]["side_effects"] == ["terminate_work_item"]
+
+
+@pytest.mark.asyncio
+async def test_i4_retry_restores_runtime_link_event_and_outbox_in_one_uow(db_session) -> None:  # noqa: ANN001, E501
+  handler = _RecordingHumanTaskHandler()
+  registry = WorkflowNodeHandlerRegistry()
+  registry.register(handler)
+  registry.register(NoticeNodeHandler())
+  actor = User(
+    email="iteration4-retry@example.com",
+    password_hash="hashed",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  db_session.add(actor)
+  await db_session.flush()
+  instance = WorkflowGraphInstance(
+    initiator_user_id=actor.id,
+    source_type=TaskSourceType.TEMPLATE.value,
+    status=WorkflowGraphInstanceStatus.FAILED,
+    current_node_key=None,
+    result="failed",
+    diagnostics={"code": "capability_failed"},
+    context={
+      "run_kind": "production",
+      "failure": {"code": "capability_failed"},
+    },
+    completed_at=datetime.now(UTC),
+  )
+  db_session.add(instance)
+  await db_session.flush()
+  node = WorkflowNodeInstance(
+    instance_id=instance.id,
+    node_key="retry-human-task",
+    title="Retry HumanTask",
+    node_type=WorkflowGraphNodeType.TASK,
+    engine_state=WorkflowNodeEngineState.FAILED,
+    business_state=WorkflowNodeBusinessState.DOING,
+    assignee_user_id=actor.id,
+    node_instance_version=2,
+    config={},
+  )
+  db_session.add(node)
+  await db_session.flush()
+  task = Task(
+    title="Retry linked work item",
+    creator_id=actor.id,
+    assignee_id=actor.id,
+    status=TaskStatus.DOING,
+    priority=TaskPriority.MEDIUM,
+    source_type=TaskSourceType.TEMPLATE,
+    extra_metadata={},
+  )
+  db_session.add(task)
+  await db_session.flush()
+  link = await HumanTaskCoordinator(db_session).bind_projection_task(
+    task=task,
+    node_instance=node,
+    source="manual_compat",
+  )
+  link.lifecycle = "invalidated"
+  link.invalidated_at = datetime.now(UTC)
+  await db_session.commit()
+  instance_id = instance.id
+  node_id = node.id
+  link_id = link.id
+  task_id = task.id
+
+  await WorkflowGraphService(db_session, node_handler_registry=registry).retry_node_instance(
+    node_instance_id=node_id,
+    actor_id=actor.id,
+    commit=False,
+  )
+
+  assert handler.retries == 1
+  assert node.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert node.business_state == WorkflowNodeBusinessState.ASSIGNED
+  assert node.node_instance_version == 3
+  assert link.lifecycle == "active"
+  assert link.invalidated_at is None
+  assert task.status == TaskStatus.DOING
+  assert instance.status == WorkflowGraphInstanceStatus.ACTIVE
+  assert instance.result is None
+  assert instance.diagnostics == {}
+  assert "failure" not in instance.context
+  assert instance.current_node_key == node.node_key
+  event = await db_session.scalar(
+    select(WorkflowRunEvent).where(WorkflowRunEvent.event_type == "node_retried")
+  )
+  assert event is not None
+  assert event.payload["capability_result"]["outcome"] == "waiting"
+  outbox = await db_session.scalar(
+    select(WorkflowOutboxEvent).where(
+      WorkflowOutboxEvent.event_type == "workflow_node_activated"
+    )
+  )
+  assert outbox is not None
+  assert outbox.node_instance_id == node.id
+
+  await db_session.rollback()
+  persisted_instance = await db_session.get(WorkflowGraphInstance, instance_id)
+  persisted_node = await db_session.get(WorkflowNodeInstance, node_id)
+  persisted_link = await db_session.get(WorkflowHumanTaskLink, link_id)
+  persisted_task = await db_session.get(Task, task_id)
+  assert persisted_instance is not None
+  assert persisted_instance.status == WorkflowGraphInstanceStatus.FAILED
+  assert persisted_instance.result == "failed"
+  assert persisted_instance.context["failure"]["code"] == "capability_failed"
+  assert persisted_node is not None
+  assert persisted_node.engine_state == WorkflowNodeEngineState.FAILED
+  assert persisted_node.node_instance_version == 2
+  assert persisted_link is not None
+  assert persisted_link.lifecycle == "invalidated"
+  assert persisted_task is not None
+  assert persisted_task.status == TaskStatus.DOING
+  assert await db_session.scalar(
+    select(WorkflowRunEvent.id).where(WorkflowRunEvent.event_type == "node_retried")
+  ) is None
+  assert await db_session.scalar(
+    select(WorkflowOutboxEvent.id).where(
+      WorkflowOutboxEvent.event_type == "workflow_node_activated"
+    )
+  ) is None
+
+
+@pytest.mark.asyncio
+async def test_i4_prior_contribution_does_not_block_a_distinct_downstream_work_item(db_session) -> None:  # noqa: ANN001, E501
+  actor = User(
+    email="iteration4-distinct-subject@example.com",
+    password_hash="hashed",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  db_session.add(actor)
+  await db_session.flush()
+  instance = WorkflowGraphInstance(
+    initiator_user_id=actor.id,
+    source_type=TaskSourceType.TEMPLATE.value,
+    status=WorkflowGraphInstanceStatus.ACTIVE,
+    current_node_key="downstream-delivery",
+    context={},
+  )
+  db_session.add(instance)
+  await db_session.flush()
+  upstream = WorkflowNodeInstance(
+    instance_id=instance.id,
+    node_key="upstream-contribution",
+    title="Upstream contribution",
+    node_type=WorkflowGraphNodeType.TASK,
+    engine_state=WorkflowNodeEngineState.COMPLETED,
+    business_state=WorkflowNodeBusinessState.DONE,
+    assignee_user_id=actor.id,
+    node_instance_version=2,
+    config={},
+  )
+  downstream = WorkflowNodeInstance(
+    instance_id=instance.id,
+    node_key="downstream-delivery",
+    title="Distinct downstream delivery",
+    node_type=WorkflowGraphNodeType.TASK,
+    engine_state=WorkflowNodeEngineState.ACTIVATED,
+    business_state=WorkflowNodeBusinessState.DOING,
+    assignee_user_id=actor.id,
+    config={"decision_semantic": "work_item_complete"},
+  )
+  db_session.add_all([upstream, downstream])
+  await db_session.flush()
+  db_session.add(
+    WorkflowDeliverable(
+      node_instance_id=upstream.id,
+      submitted_by_user_id=actor.id,
+      summary="Earlier contribution",
+      payload={},
+      signature="earlier-contribution",
+    )
+  )
+  await db_session.flush()
+
+  await WorkflowGraphService(db_session).complete_node_instance(
+    node_instance_id=downstream.id,
+    actor_id=actor.id,
+    commit=False,
+  )
+
+  assert downstream.engine_state == WorkflowNodeEngineState.COMPLETED
+  events = list(
+    await db_session.scalars(
+      select(WorkflowRunEvent).where(WorkflowRunEvent.event_type == "node_completed")
+    )
+  )
+  event = next(
+    item for item in events if item.payload["node_instance_id"] == str(downstream.id)
+  )
+  diagnostics = event.payload["capability_result"]["diagnostics"]
+  assert diagnostics["decision_semantic"] == "work_item_complete"
+  assert diagnostics["decision_subject"] == {
+    "kind": "work_item",
+    "node_instance_id": str(downstream.id),
+  }
+  assert diagnostics["contributor_user_ids"] == []
+  assert diagnostics["actor_is_contributor"] is False

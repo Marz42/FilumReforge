@@ -133,7 +133,7 @@ class HumanTaskCoordinator:
     if result.engine_state == WorkflowNodeEngineState.ACTIVATED:
       node_changes.update(
         {
-          "activated_at": node_instance.activated_at or reference_time,
+          "activated_at": reference_time,
           "completed_at": None,
           "terminated_at": None,
         }
@@ -143,7 +143,12 @@ class HumanTaskCoordinator:
       node_changes.update({"completed_at": reference_time, "terminated_at": None})
       link_lifecycle = "completed"
     elif result.engine_state == WorkflowNodeEngineState.TERMINATED:
-      node_changes.update({"terminated_at": reference_time})
+      node_changes.update(
+        {
+          "terminated_at": reference_time,
+          "completed_at": node_instance.completed_at or reference_time,
+        }
+      )
       link_lifecycle = "cancelled"
     elif result.engine_state in {
       WorkflowNodeEngineState.FAILED,

@@ -1,6 +1,6 @@
-# Active Task: Iteration 4-B — HumanTask Handler 纵切
+# Active Task: Iteration 4-C — Approval Handler 适配
 
-**Status:** in-progress · I4-A complete · I4-B resumed · production cutover gated
+**Status:** in-progress · I4-A/I4-B complete · I4-C next · production cutover gated
 **Plan:** memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
 **Preflight:** memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md
 
@@ -24,7 +24,7 @@
 - [x] Preflight P3：ADR-019 决策对象与参与者重叠规则入库
 - [x] Preflight P1：视频作为普通模板包；迁移清单已形成，不新增 `VideoHandler`
 - [x] Preflight P2：第一批前端问题均属交互/视觉稳定化，无新增 P0 数据/权限或 P1 状态推进阻塞
-- [ ] I4-B：首个完成/集合确认纵切已接入 Coordinator；cancel/retry、完整 UoW 与剩余语义矩阵待完成
+- [x] I4-B：HumanTask 激活/完成/取消/重试已统一消费 Capability Result；Link/RunEvent/Outbox 同 UoW 回滚与参与者重叠合法场景已覆盖
 - [ ] I4-C：Approval Handler 适配现有轻量审批引擎并消费 ADR-019 决策策略
 - [ ] I4-D：Deliverable / Notification Handler
 - [ ] I4-E：领域中立化；把视频专用分支迁为通用能力与兼容适配层

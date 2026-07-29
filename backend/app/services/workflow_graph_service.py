@@ -283,6 +283,43 @@ class WorkflowGraphService:
       node_instance.terminated_at = now
     node_instance.node_instance_version += 1
 
+  def _cancellation_result(
+    self,
+    *,
+    node_instance: WorkflowNodeInstance,
+  ) -> WorkflowCapabilityResult | None:
+    """Return a Handler result when the node owns an interruptible capability."""
+    handler = self._node_handlers.resolve(node_instance.node_type)
+    if handler is None or node_instance.node_type != WorkflowGraphNodeType.TASK:
+      return None
+    return handler.cancel(
+      self._capability_context(
+        node_type=node_instance.node_type,
+        node_key=node_instance.node_key,
+        engine_state=node_instance.engine_state,
+        business_state=node_instance.business_state,
+        config=dict(node_instance.config or {}),
+      )
+    )
+
+  def _retry_result(
+    self,
+    *,
+    node_instance: WorkflowNodeInstance,
+  ) -> WorkflowCapabilityResult:
+    handler = self._node_handlers.resolve(node_instance.node_type)
+    if handler is None or node_instance.node_type != WorkflowGraphNodeType.TASK:
+      raise ConflictError("当前节点能力尚不支持应用层重试。")
+    return handler.retry(
+      self._capability_context(
+        node_type=node_instance.node_type,
+        node_key=node_instance.node_key,
+        engine_state=node_instance.engine_state,
+        business_state=node_instance.business_state,
+        config=dict(node_instance.config or {}),
+      )
+    )
+
   @staticmethod
   def _ensure_snapshot_integrity(graph_instance: WorkflowGraphInstance) -> None:
     if graph_instance.executor_kind != SNAPSHOT_EXECUTOR_KIND:
@@ -1163,6 +1200,73 @@ class WorkflowGraphService:
     )
     await HumanTaskCoordinator(self._session).sync_link_lifecycles_for_instance(
       instance_id=graph_instance.id,
+    )
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
+
+  async def retry_node_instance(
+    self,
+    *,
+    node_instance_id: UUID,
+    actor_id: UUID,
+    commit: bool = True,
+  ) -> None:
+    """Retry a failed/suspended HumanTask inside the caller-owned transaction."""
+    graph_instance, node_instance = await self._lock_graph_and_node_instance(
+      node_instance_id=node_instance_id,
+    )
+    self._ensure_snapshot_integrity(graph_instance)
+    if graph_instance.status in {
+      WorkflowGraphInstanceStatus.COMPLETED,
+      WorkflowGraphInstanceStatus.CANCELLED,
+      WorkflowGraphInstanceStatus.TERMINATED,
+    }:
+      raise ConflictError("已结束的工作流图实例不能重试节点。")
+
+    now = datetime.now(UTC)
+    capability_result = self._retry_result(node_instance=node_instance)
+    await self._apply_capability_result(
+      node_instance=node_instance,
+      result=capability_result,
+      now=now,
+    )
+
+    context = dict(graph_instance.context or {})
+    context.pop("failure", None)
+    await HumanTaskCoordinator(self._session).coordinate_mutations(
+      graph_instance=graph_instance,
+      instance_changes={
+        "status": WorkflowGraphInstanceStatus.ACTIVE,
+        "result": None,
+        "diagnostics": {},
+        "context": context,
+        "completed_at": None,
+        "cancelled_at": None,
+        "current_node_key": node_instance.node_key,
+      },
+    )
+    await self._session.flush()
+
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type="node_retried",
+      actor_user_id=actor_id,
+      aggregate_version=node_instance.node_instance_version,
+      payload={
+        "node_instance_id": str(node_instance.id),
+        "node_key": node_instance.node_key,
+        "instance_key": node_instance.instance_key,
+        "capability_result": self._map_capability_result(
+          node_type=node_instance.node_type,
+          result=capability_result,
+        ),
+      },
+    )
+    await self.enqueue_node_activated_notifications(
+      instance=graph_instance,
+      node_instances=[node_instance],
     )
     if commit:
       await self._session.commit()
@@ -2499,7 +2603,9 @@ class WorkflowGraphService:
     }:
       node_instances = list(
         await self._session.scalars(
-          select(WorkflowNodeInstance).where(WorkflowNodeInstance.instance_id == instance_id)
+          select(WorkflowNodeInstance)
+          .where(WorkflowNodeInstance.instance_id == instance_id)
+          .with_for_update()
         )
       )
       for node_instance in node_instances:
@@ -2508,11 +2614,37 @@ class WorkflowGraphService:
           WorkflowNodeEngineState.TERMINATED,
         }:
           continue
-        node_instance.engine_state = WorkflowNodeEngineState.TERMINATED
-        node_instance.business_state = WorkflowNodeBusinessState.CANCELLED
-        node_instance.terminated_at = now
-        node_instance.completed_at = node_instance.completed_at or now
-        node_instance.node_instance_version += 1
+        capability_result = self._cancellation_result(node_instance=node_instance)
+        if capability_result is not None:
+          await self._apply_capability_result(
+            node_instance=node_instance,
+            result=capability_result,
+            now=now,
+          )
+          await WorkflowRunEventService(self._session).append(
+            instance_id=graph_instance.id,
+            event_type="node_cancelled",
+            actor_user_id=actor_id,
+            aggregate_version=node_instance.node_instance_version,
+            payload={
+              "node_instance_id": str(node_instance.id),
+              "node_key": node_instance.node_key,
+              "instance_key": node_instance.instance_key,
+              "reason": reason,
+              "capability_result": self._map_capability_result(
+                node_type=node_instance.node_type,
+                result=capability_result,
+              ),
+            },
+          )
+        else:
+          # Legacy/automatic capabilities remain system-terminable while their
+          # dedicated Handler migrations are still pending in I4-C/I4-D.
+          node_instance.engine_state = WorkflowNodeEngineState.TERMINATED
+          node_instance.business_state = WorkflowNodeBusinessState.CANCELLED
+          node_instance.terminated_at = now
+          node_instance.completed_at = node_instance.completed_at or now
+          node_instance.node_instance_version += 1
 
       context = dict(graph_instance.context or {})
       context["admin_archived"] = True

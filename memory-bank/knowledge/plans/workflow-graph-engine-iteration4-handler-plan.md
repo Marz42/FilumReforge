@@ -21,7 +21,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 4 · 业务能力 Handler 化实施计划
 
-> **状态**：I4-A 已完成。2026-07-29 Preflight P0/P1/P3 收口后，用户授权恢复 I4-B；首个纵切已将 HumanTask Capability Result 经 Coordinator 落到 Runtime/Link，并加入 `collection_finalize`。前端 P2 第一批 6 项已实现，后续反馈持续接收。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
+> **状态**：I4-A、I4-B 已完成。2026-07-29 Preflight P0/P1/P3 收口后，HumanTask 的激活、完成、取消、重试均已由纯 Handler Result 经 Coordinator/Runtime owner 落库；`collection_finalize` 与普通完成已分离，参与者重叠合法矩阵已补齐。前端 P2 第一批 6 项已实现，后续反馈持续接收。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
 
 ## 1. 目标
 
@@ -55,12 +55,12 @@ paradigma:
 ### I4-B · HumanTask
 
 - [x] HumanTask 激活返回等待 Work Item 的能力结果。
-- [ ] 完成/取消/重试统一映射到 Runtime 状态，不由 Handler 直接写 ORM。
-- [x] 完成结果经 `HumanTaskCoordinator` 与 owner-only Runtime write port 应用，并同步 Link；cancel/retry 接线仍待后续纵切。
-- [ ] Work Item / Link / RunEvent / Outbox 保持同一 UoW。
+- [x] 完成/取消/重试统一映射到 Runtime 状态，不由 Handler 直接写 ORM。
+- [x] 完成、取消、重试结果经 `HumanTaskCoordinator` 与 owner-only Runtime write port 应用，并同步 Link。
+- [x] Work Item / Link / RunEvent / Outbox 保持同一 caller-owned UoW；重试已覆盖 flush 后整体 rollback，管理员归档仍由 `TaskService` 在同一事务收口 Work Item。
 - [x] 将普通完成与 `collection_finalize` 分开建模；集合负责人可同时是集合贡献者。
 - [x] 命令结果携带决策语义、决策对象、贡献者和 actor overlap 诊断，不由 Runtime 根据 assignee 相等关系猜测。
-- [ ] 覆盖 A/B/C 均提交、A 汇总推进，以及 A 前序贡献但处理不同下游交付的合法场景。
+- [x] 覆盖 A/B/C 均提交、A 汇总推进，以及 A 前序贡献但处理不同下游交付的合法场景。
 
 ### I4-C · Approval
 

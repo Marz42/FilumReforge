@@ -16,6 +16,25 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（Iteration 4-B · HumanTask Handler 收口）
+
+### 2026-07-29 23:39 — 取消/重试接线、事务证据与语义矩阵完成
+
+**完成事项**:
+- [x] HumanTask 管理员取消由 Handler 返回纯 `CapabilityResult`，经 `HumanTaskCoordinator` / Runtime write port 更新 Node 与 Link，并追加 `node_cancelled` RunEvent；非 HumanTask 能力继续保留 I4-C/I4-D 前的系统终止兼容路径
+- [x] 新增内部 `retry_node_instance()` 应用命令：仅接受 FAILED/SUSPENDED HumanTask，恢复 Run/Node/Link，清理失败诊断，追加 `node_retried`，并复用现有激活通知 Outbox；未新增公开 API 或 schema
+- [x] Work Item 状态继续由 `TaskService` 持有；管理员归档在既有 caller-owned 事务内统一提交，重试 `commit=False` 覆盖 Run/Node/Link/RunEvent/Outbox 整体 rollback
+- [x] 补齐“A 前序提交过内容、但处理不同下游 Work Item”合法场景，证明贡献者事实按当前决策对象隔离，不因人员重叠自动阻断
+
+**验证**:
+- 定向 pytest：Iteration 4 Handler + F-29 管理员归档 **14 PASS**
+- Backend 全量：使用仓库内专用 `--basetemp` 后 **100% PASS**（登记的 PostgreSQL 用例按既有规则 skip）；系统 Temp 首轮仅因 Windows `PermissionError` 产生 setup error，无断言失败
+- `python -m compileall -q app tests` PASS；当前 dev venv 未安装 ruff/mypy，未将其记为通过
+
+**结论**:
+- I4-B 验收项完成；活动焦点转入 I4-C Approval Handler
+- 生产切流仍受 Iteration 3-F 目标环境回填、连续 7 天观测与最终 31/31 准入报告约束
+
 ## 会话摘要（Iteration 4 · 前端第一批用户验测修正）
 
 ### 2026-07-29 23:20 — 去除卡片套卡片并完成真实账号 UAT
