@@ -17,11 +17,15 @@ class WorkflowCapabilityOutcome(StrEnum):
   SUCCEEDED = "succeeded"
   FAILED = "failed"
   CANCELLED = "cancelled"
+  BLOCKED = "blocked"
 
 
 class WorkflowCapabilityCommand(StrEnum):
   COMPLETE = "complete"
   FINALIZE_COLLECTION = "finalize_collection"
+  APPROVE = "approve"
+  REJECT = "reject"
+  RETURN = "return"
 
 
 class WorkflowDecisionSemantic(StrEnum):
@@ -287,6 +291,144 @@ class NoticeNodeHandler(_BaseWorkflowNodeHandler):
       WorkflowNodeEngineState.SUSPENDED,
     }:
       raise WorkflowCapabilityOperationError("Notice 只有 FAILED/SUSPENDED 状态可以重试。")
+    return self.activate(context)
+
+
+class ApprovalNodeHandler(_BaseWorkflowNodeHandler):
+  """Pure adapter contract for the existing Workflow approval engine."""
+
+  capability_key = "approval"
+  node_type = WorkflowGraphNodeType.APPROVAL
+  interruptible = True
+  compensation = "cancel_approval_instance"
+  declared_side_effects = ("ensure_approval_instance",)
+
+  _supported_semantics = {
+    WorkflowDecisionSemantic.DELIVERABLE_ACCEPTANCE,
+    WorkflowDecisionSemantic.BUSINESS_APPROVAL,
+    WorkflowDecisionSemantic.COSIGN,
+  }
+
+  def validate_definition(self, config: Mapping[str, object]) -> tuple[str, ...]:
+    raw_semantic = config.get("decision_semantic")
+    if raw_semantic is None:
+      return ("Approval 必须显式配置 decision_semantic。",)
+    try:
+      semantic = WorkflowDecisionSemantic(str(raw_semantic))
+    except ValueError:
+      return (f"Approval 使用了未知 decision_semantic={raw_semantic}。",)
+    if semantic not in self._supported_semantics:
+      return (f"Approval 不支持 decision_semantic={semantic.value}。",)
+    return ()
+
+  def activate(self, context: WorkflowCapabilityContext) -> WorkflowCapabilityResult:
+    del context
+    return self._result(
+      outcome=WorkflowCapabilityOutcome.WAITING,
+      engine_state=WorkflowNodeEngineState.ACTIVATED,
+      business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+    )
+
+  def command(
+    self,
+    context: WorkflowCapabilityContext,
+    *,
+    command: WorkflowCapabilityCommand,
+    payload: Mapping[str, object] | None = None,
+  ) -> WorkflowCapabilityResult:
+    if command not in {
+      WorkflowCapabilityCommand.APPROVE,
+      WorkflowCapabilityCommand.REJECT,
+      WorkflowCapabilityCommand.RETURN,
+    }:
+      raise WorkflowCapabilityOperationError(
+        f"Approval Handler 不支持命令：{command.value}。"
+      )
+    raw_semantic = context.config.get("decision_semantic")
+    try:
+      semantic = WorkflowDecisionSemantic(str(raw_semantic))
+    except ValueError as exc:
+      raise WorkflowCapabilityOperationError("Approval 缺少有效 decision_semantic。") from exc
+    if semantic not in self._supported_semantics:
+      raise WorkflowCapabilityOperationError(
+        f"Approval 不支持 decision_semantic={semantic.value}。"
+      )
+
+    command_payload = dict(payload or {})
+    raw_contributors = command_payload.get("contributor_user_ids")
+    contributor_user_ids = (
+      [str(user_id) for user_id in raw_contributors]
+      if isinstance(raw_contributors, (list, tuple))
+      else []
+    )
+    raw_decision_makers = command_payload.get("decision_maker_user_ids")
+    decision_maker_user_ids = (
+      [str(user_id) for user_id in raw_decision_makers]
+      if isinstance(raw_decision_makers, (list, tuple))
+      else []
+    )
+    from app.services.workflow_decision_policy import evaluate_actor_overlap
+
+    policy = evaluate_actor_overlap(
+      semantic=semantic,
+      actor_user_id=(
+        str(command_payload["actor_user_id"])
+        if command_payload.get("actor_user_id") is not None
+        else None
+      ),
+      contributor_user_ids=contributor_user_ids,
+      decision_maker_user_ids=decision_maker_user_ids,
+      allow_contributor_cosign=bool(context.config.get("allow_contributor_cosign", False)),
+    )
+    diagnostics = {
+      **dict(policy.diagnostics),
+      "decision_subject": (
+        dict(command_payload["decision_subject"])
+        if isinstance(command_payload.get("decision_subject"), Mapping)
+        else {}
+      ),
+    }
+    if not policy.allowed:
+      return self._result(
+        outcome=WorkflowCapabilityOutcome.BLOCKED,
+        engine_state=WorkflowNodeEngineState.SUSPENDED,
+        business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+        result=command_payload,
+        diagnostics=diagnostics,
+        side_effects=(),
+      )
+
+    result_payload = {**command_payload, "decision": command.value}
+    if command == WorkflowCapabilityCommand.REJECT:
+      business_state = WorkflowNodeBusinessState.REJECTED
+    elif command == WorkflowCapabilityCommand.RETURN:
+      business_state = WorkflowNodeBusinessState.RETURNED_FOR_REWORK
+    else:
+      business_state = WorkflowNodeBusinessState.DONE
+    return self._result(
+      outcome=WorkflowCapabilityOutcome.SUCCEEDED,
+      engine_state=WorkflowNodeEngineState.COMPLETED,
+      business_state=business_state,
+      result=result_payload,
+      diagnostics=diagnostics,
+      side_effects=(),
+    )
+
+  def cancel(self, context: WorkflowCapabilityContext) -> WorkflowCapabilityResult:
+    del context
+    return self._result(
+      outcome=WorkflowCapabilityOutcome.CANCELLED,
+      engine_state=WorkflowNodeEngineState.TERMINATED,
+      business_state=WorkflowNodeBusinessState.CANCELLED,
+      side_effects=("cancel_approval_instance",),
+    )
+
+  def retry(self, context: WorkflowCapabilityContext) -> WorkflowCapabilityResult:
+    if context.engine_state not in {
+      WorkflowNodeEngineState.FAILED,
+      WorkflowNodeEngineState.SUSPENDED,
+    }:
+      raise WorkflowCapabilityOperationError("Approval 只有 FAILED/SUSPENDED 状态可以重试。")
     return self.activate(context)
 
 

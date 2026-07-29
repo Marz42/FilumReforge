@@ -2393,38 +2393,9 @@ class TaskService:
     metadata = self._copy_task_metadata(task)
     metadata["latest_review_state"] = "pending_review"
     if selected is None:
-      # Check whether every exclusion was solely due to self-review (candidate == assignee_id).
-      # If so, allow an audited self-review fallback instead of hard-blocking the task.
-      all_candidates = await self._review_fallback_candidates(
-        task=task,
-        initial_reviewer_ids=initial_reviewer_ids,
-      )
-      all_excluded_as_self = bool(all_candidates) and all(
-        cid == task.assignee_id for _, cid in all_candidates
-      )
-      if all_excluded_as_self:
-        metadata["reviewer_id"] = str(task.assignee_id)
-        metadata["reviewer_ids"] = [str(task.assignee_id)]
-        metadata["reviewer_source"] = "self_review_fallback"
-        metadata["self_review_fallback"] = True
-        metadata.pop("review_blocked_reason", None)
-        task.extra_metadata = metadata
-        task.status = TaskStatus.REVIEW
-        task.blocked_reason = None
-        await self._create_task_log(
-          task_id=task.id,
-          operator_id=operator_id,
-          action_type=TaskActionType.STATUS_CHANGED,
-          from_status=TaskStatus.BLOCKED,
-          to_status=TaskStatus.REVIEW,
-          detail={
-            "action": "self_review_fallback_activated",
-            "reviewer_user_id": str(task.assignee_id),
-            "reason": "all_candidates_excluded_as_self_review",
-          },
-        )
-        return task.assignee_id
       metadata.pop("reviewer_id", None)
+      metadata.pop("reviewer_source", None)
+      metadata.pop("self_review_fallback", None)
       metadata["reviewer_ids"] = []
       metadata["review_blocked_reason"] = "no_eligible_reviewer"
       task.extra_metadata = metadata
@@ -2447,6 +2418,7 @@ class TaskService:
     metadata["reviewer_id"] = str(reviewer_id)
     metadata["reviewer_ids"] = [str(reviewer_id)]
     metadata["reviewer_source"] = source
+    metadata.pop("self_review_fallback", None)
     metadata.pop("review_blocked_reason", None)
     task.extra_metadata = metadata
     task.status = TaskStatus.REVIEW
@@ -2468,16 +2440,12 @@ class TaskService:
     )
 
   async def _ensure_task_reviewer(self, *, actor: User, task: Task) -> None:
-    # Historically, template graph projections let the executor pass this
-    # permission check to keep review nodes operable. P1-10 replaces that
-    # implicit self-review escape hatch with an explicit, audited reviewer
-    # chain and administrator reassignment mechanism.
+    # Strict acceptance never changes policy because the eligible reviewer
+    # set is empty. Historical self_review_fallback metadata is ignored.
     if self._is_template_graph_task(task):
       if actor.role == UserRole.ADMIN:
         return
       metadata = self._copy_task_metadata(task)
-      if metadata.get("self_review_fallback") is True and actor.id == task.assignee_id:
-        return
       if actor.id == task.assignee_id:
         raise ConflictError("Self-review is not permitted for template tasks")
       reviewer_id = self._read_uuid_metadata(metadata, "reviewer_id")

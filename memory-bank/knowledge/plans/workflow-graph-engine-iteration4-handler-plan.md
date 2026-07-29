@@ -64,9 +64,9 @@ paradigma:
 
 ### I4-C · Approval
 
-- [ ] 按 ADR-019 映射 `deliverable_acceptance`、`business_approval` 与 `cosign`；`collection_finalize` 不伪装成 Approval。
+- [x] 纯 Approval Handler / 决策策略已按 ADR-019 映射 `deliverable_acceptance`、`business_approval` 与 `cosign`；`collection_finalize` 保持 HumanTask 命令。默认 Registry 切换仍等待旧审批引擎适配。
 - [ ] 贡献者事实优先取 Deliverable submitter/version，其次才回退到节点执行人、Task assignee 或发起人。
-- [ ] 严格策略无合法候选人时返回可诊断 BLOCKED；不得按候选数量自动启用 `self_review_fallback`。
+- [x] 严格策略无合法候选人时返回可诊断 BLOCKED；`TaskService` 不再按候选数量自动启用 `self_review_fallback`，历史 fallback metadata 也不能绕过严格验收。
 - [ ] 先适配现有 `WorkflowDefinition / WorkflowInstance / WorkflowStepRun`。
 - [ ] 固化 round、decision、票数与代理审批审计。
 - [ ] 区分业务拒绝与技术失败；不在 Runtime 核心计算审批票数。

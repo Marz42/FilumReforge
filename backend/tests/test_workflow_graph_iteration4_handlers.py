@@ -31,6 +31,7 @@ from app.models import (
 from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_graph_service import SingleNodeWorkflowSeed, WorkflowGraphService
 from app.services.workflow_node_handlers import (
+  ApprovalNodeHandler,
   HumanTaskNodeHandler,
   NoticeNodeHandler,
   WorkflowCapabilityCommand,
@@ -188,6 +189,144 @@ def test_i4_notice_handler_declares_automatic_non_interruptible_contract() -> No
   assert mapped["result"] == {"completion_mode": "automatic"}
   with pytest.raises(WorkflowCapabilityOperationError, match="不支持人工取消"):
     handler.cancel(_context(node_type=WorkflowGraphNodeType.NOTICE))
+
+
+def test_i4_approval_handler_blocks_same_subject_submitter_without_fallback() -> None:
+  handler = ApprovalNodeHandler()
+  actor_id = str(uuid4())
+  context = WorkflowCapabilityContext(
+    node_type=WorkflowGraphNodeType.APPROVAL,
+    node_key="accept-deliverable",
+    engine_state=WorkflowNodeEngineState.ACTIVATED,
+    business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+    config={"decision_semantic": "deliverable_acceptance"},
+  )
+
+  result = handler.command(
+    context,
+    command=WorkflowCapabilityCommand.APPROVE,
+    payload={
+      "actor_user_id": actor_id,
+      "contributor_user_ids": [actor_id],
+      "decision_maker_user_ids": [actor_id],
+      "decision_subject": {"kind": "deliverable", "version": 2},
+    },
+  )
+
+  assert result.outcome == WorkflowCapabilityOutcome.BLOCKED
+  assert result.engine_state == WorkflowNodeEngineState.SUSPENDED
+  assert result.diagnostics["policy_code"] == "submitter_cannot_be_only_acceptor"
+  assert result.diagnostics["decision_subject"] == {"kind": "deliverable", "version": 2}
+  assert "self_review_fallback" not in result.diagnostics
+
+
+def test_i4_approval_handler_scopes_overlap_to_current_decision_subject() -> None:
+  handler = ApprovalNodeHandler()
+  actor_id = str(uuid4())
+  current_submitter_id = str(uuid4())
+  context = WorkflowCapabilityContext(
+    node_type=WorkflowGraphNodeType.APPROVAL,
+    node_key="accept-distinct-deliverable",
+    engine_state=WorkflowNodeEngineState.ACTIVATED,
+    business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+    config={"decision_semantic": "deliverable_acceptance"},
+  )
+
+  result = handler.command(
+    context,
+    command=WorkflowCapabilityCommand.APPROVE,
+    payload={
+      "actor_user_id": actor_id,
+      "contributor_user_ids": [current_submitter_id],
+      "decision_maker_user_ids": [actor_id],
+      "decision_subject": {"kind": "deliverable", "version": 3},
+    },
+  )
+
+  assert result.outcome == WorkflowCapabilityOutcome.SUCCEEDED
+  assert result.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert result.diagnostics["actor_is_contributor"] is False
+  assert result.diagnostics["policy_code"] == "deliverable_acceptance_allowed"
+
+
+def test_i4_approval_handler_allows_configured_contributor_cosign_only_with_independent_peer() -> None:
+  handler = ApprovalNodeHandler()
+  contributor_id = str(uuid4())
+  independent_id = str(uuid4())
+  context = WorkflowCapabilityContext(
+    node_type=WorkflowGraphNodeType.APPROVAL,
+    node_key="cosign",
+    engine_state=WorkflowNodeEngineState.ACTIVATED,
+    business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+    config={
+      "decision_semantic": "cosign",
+      "allow_contributor_cosign": True,
+    },
+  )
+
+  allowed = handler.command(
+    context,
+    command=WorkflowCapabilityCommand.APPROVE,
+    payload={
+      "actor_user_id": contributor_id,
+      "contributor_user_ids": [contributor_id],
+      "decision_maker_user_ids": [contributor_id, independent_id],
+    },
+  )
+  blocked = handler.command(
+    context,
+    command=WorkflowCapabilityCommand.APPROVE,
+    payload={
+      "actor_user_id": contributor_id,
+      "contributor_user_ids": [contributor_id],
+      "decision_maker_user_ids": [contributor_id],
+    },
+  )
+
+  assert allowed.outcome == WorkflowCapabilityOutcome.SUCCEEDED
+  assert allowed.diagnostics["policy_code"] == "cosign_allowed"
+  assert blocked.outcome == WorkflowCapabilityOutcome.BLOCKED
+  assert blocked.diagnostics["policy_code"] == "contributor_cannot_be_only_cosign_decider"
+
+
+def test_i4_approval_handler_requires_explicit_semantic_and_decision_maker() -> None:
+  handler = ApprovalNodeHandler()
+  assert handler.validate_definition({}) == (
+    "Approval 必须显式配置 decision_semantic。",
+  )
+  context = WorkflowCapabilityContext(
+    node_type=WorkflowGraphNodeType.APPROVAL,
+    node_key="business-approval",
+    engine_state=WorkflowNodeEngineState.ACTIVATED,
+    business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+    config={"decision_semantic": "business_approval"},
+  )
+  actor_id = str(uuid4())
+  no_candidate_result = handler.command(
+    context,
+    command=WorkflowCapabilityCommand.APPROVE,
+    payload={
+      "actor_user_id": actor_id,
+      "contributor_user_ids": [],
+      "decision_maker_user_ids": [],
+    },
+  )
+  contributor_result = handler.command(
+    context,
+    command=WorkflowCapabilityCommand.APPROVE,
+    payload={
+      "actor_user_id": actor_id,
+      "contributor_user_ids": [actor_id],
+      "decision_maker_user_ids": [actor_id],
+    },
+  )
+  assert no_candidate_result.outcome == WorkflowCapabilityOutcome.BLOCKED
+  assert no_candidate_result.diagnostics["policy_code"] == "no_eligible_decision_maker"
+  assert contributor_result.outcome == WorkflowCapabilityOutcome.BLOCKED
+  assert (
+    contributor_result.diagnostics["policy_code"]
+    == "contributor_cannot_approve_business_subject"
+  )
 
 
 class _RecordingHumanTaskHandler(HumanTaskNodeHandler):

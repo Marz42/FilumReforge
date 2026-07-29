@@ -16,6 +16,26 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（Iteration 4-C · Approval Handler 第一批）
+
+### 2026-07-29 23:49 — 移除自动自审降级并建立决策重叠契约
+
+**完成事项**:
+- [x] 删除模板严格验收的 `self_review_fallback` 自动激活；候选耗尽统一进入 `TaskStatus.BLOCKED + no_eligible_reviewer`，历史 fallback metadata 不能再让执行人验收自己的模板任务
+- [x] 保留现有 Admin 审批 override，未提前实施已 deferred 的系统管理员业务边界改造
+- [x] 新增纯 Approval Handler 与通用 actor-overlap 决策策略，覆盖 `deliverable_acceptance`、`business_approval`、`cosign`，并新增可诊断 `CapabilityOutcome.BLOCKED -> Node SUSPENDED`
+- [x] 覆盖同交付版本提交者为唯一验收人时阻塞、不同决策对象允许、贡献者会签需显式允许且必须存在独立决策人、无候选阻塞、业务对象贡献者不得批准
+- [x] Approval Handler 暂不注册到默认 Runtime；旧 Approval 节点行为不变，等待下一批通过适配器关联 `WorkflowInstance / WorkflowStepRun`
+
+**验证**:
+- 定向 pytest：Iteration 4 Handler + P1-10 review safety **20 PASS**
+- Backend 全量：**100% PASS**（登记的 PostgreSQL 用例按既有规则 skip）
+- `python -m compileall -q app tests` PASS
+
+**下一步**:
+- 为 `WorkflowEngineService` 增加 caller-owned transaction 入口，并以 correlation/idempotency key 关联图 Approval 节点
+- 从 Deliverable 当前版本解析贡献者事实，完成 approved/rejected/returned 回传与重复回调保护
+
 ## 会话摘要（Iteration 4-B · HumanTask Handler 收口）
 
 ### 2026-07-29 23:39 — 取消/重试接线、事务证据与语义矩阵完成

@@ -25,7 +25,7 @@
 - [x] Preflight P1：视频作为普通模板包；迁移清单已形成，不新增 `VideoHandler`
 - [x] Preflight P2：第一批前端问题均属交互/视觉稳定化，无新增 P0 数据/权限或 P1 状态推进阻塞
 - [x] I4-B：HumanTask 激活/完成/取消/重试已统一消费 Capability Result；Link/RunEvent/Outbox 同 UoW 回滚与参与者重叠合法场景已覆盖
-- [ ] I4-C：Approval Handler 适配现有轻量审批引擎并消费 ADR-019 决策策略
+- [ ] I4-C：纯 Approval Handler、ADR-019 overlap policy 与严格无候选 BLOCKED 已完成；下一批适配现有轻量审批引擎、Deliverable 版本事实与回调幂等
 - [ ] I4-D：Deliverable / Notification Handler
 - [ ] I4-E：领域中立化；把视频专用分支迁为通用能力与兼容适配层
 

@@ -203,11 +203,10 @@ async def test_no_eligible_reviewer_blocks_until_admin_reassignment(db_session) 
     initial_reviewer_ids=[admin_assignee.id],
   )
 
-  assert reviewer_id is not None
-  assert reviewer_id == admin_assignee.id
-  assert task.status == TaskStatus.REVIEW
-  assert task.blocked_reason is None
-  assert task.extra_metadata["self_review_fallback"] is True
+  assert reviewer_id is None
+  assert task.status == TaskStatus.BLOCKED
+  assert task.blocked_reason == "no_eligible_reviewer"
+  assert "self_review_fallback" not in task.extra_metadata
 
 
 @pytest.mark.asyncio
@@ -243,11 +242,8 @@ async def test_admin_can_review_any_template_task(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_self_review_fallback_activated_when_only_candidate_is_assignee(db_session) -> None:
-  """Scenario A: creator == assignee, no supervisor, no dept head, no other admins.
-  _activate_template_review must set self_review_fallback=True and return assignee_id,
-  allowing the assignee to later call review_task_deliverable without error.
-  """
+async def test_strict_review_blocks_when_only_candidate_is_assignee(db_session) -> None:
+  """Strict acceptance must not change policy when the candidate set is exhausted."""
   # Single user: both creator and assignee; also the workflow admin (template.created_by).
   # No other users exist, so system_admins list is also empty after excluding self.
   sole_user = await _user(db_session, email="sole@example.com")
@@ -269,33 +265,25 @@ async def test_self_review_fallback_activated_when_only_candidate_is_assignee(db
     initial_reviewer_ids=[sole_user.id],
   )
 
-  assert reviewer_id == sole_user.id
-  assert task.status == TaskStatus.REVIEW
-  assert task.blocked_reason is None
-  assert task.extra_metadata["reviewer_id"] == str(sole_user.id)
-  assert task.extra_metadata["reviewer_source"] == "self_review_fallback"
-  assert task.extra_metadata["self_review_fallback"] is True
+  assert reviewer_id is None
+  assert task.status == TaskStatus.BLOCKED
+  assert task.blocked_reason == "no_eligible_reviewer"
+  assert task.extra_metadata["reviewer_ids"] == []
+  assert task.extra_metadata["review_blocked_reason"] == "no_eligible_reviewer"
+  assert "self_review_fallback" not in task.extra_metadata
 
-  fallback_log = await db_session.scalar(
+  blocked_log = await db_session.scalar(
     select(TaskLog).where(
       TaskLog.task_id == task.id,
-      TaskLog.detail["action"].as_string() == "self_review_fallback_activated",
+      TaskLog.detail["action"].as_string() == "review_activation_blocked",
     )
   )
-  assert fallback_log is not None
-  assert fallback_log.detail["reviewer_user_id"] == str(sole_user.id)
-
-  # Assignee must now be able to review their own task
-  reviewed = await service.review_task_deliverable(
-    actor=sole_user,
-    task_id=task.id,
-    approve=True,
-  )
-  assert reviewed.status == TaskStatus.DONE
+  assert blocked_log is not None
+  assert blocked_log.detail["reason"] == "no_eligible_reviewer"
 
 
 @pytest.mark.asyncio
-async def test_self_review_fallback_does_not_fire_when_inactive_candidate_exists(db_session) -> None:
+async def test_no_eligible_reviewer_blocks_when_inactive_candidate_exists(db_session) -> None:
   """Spec criterion 5: if a candidate is excluded for *non-self-review* reasons
   (inactive account), the task must still BLOCK, not fall back to self-review.
   """
@@ -328,10 +316,8 @@ async def test_self_review_fallback_does_not_fire_when_inactive_candidate_exists
 
 
 @pytest.mark.asyncio
-async def test_self_review_fallback_flag_allows_assignee_to_review(db_session) -> None:
-  """Unit-level: if extra_metadata already contains self_review_fallback=True,
-  _ensure_task_reviewer must allow actor == assignee without raising.
-  """
+async def test_stale_self_review_fallback_flag_does_not_allow_assignee(db_session) -> None:
+  """Historical fallback metadata cannot weaken the current strict policy."""
   assignee = await _user(db_session, email="fallback-assignee@example.com")
   task = await _template_review_task(
     db_session,
@@ -351,13 +337,12 @@ async def test_self_review_fallback_flag_allows_assignee_to_review(db_session) -
   await db_session.flush()
 
   service = TaskService(db_session)
-  # Must not raise ConflictError
-  reviewed = await service.review_task_deliverable(
-    actor=assignee,
-    task_id=task.id,
-    approve=True,
-  )
-  assert reviewed.status == TaskStatus.DONE
+  with pytest.raises(ConflictError, match="Self-review is not permitted for template tasks"):
+    await service.review_task_deliverable(
+      actor=assignee,
+      task_id=task.id,
+      approve=True,
+    )
 
 
 @pytest.mark.asyncio
