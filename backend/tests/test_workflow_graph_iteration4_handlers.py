@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.enums import (
+  ApprovalMode,
   TaskPriority,
   TaskSourceType,
   TaskStatus,
@@ -15,20 +16,34 @@ from app.core.enums import (
   UserStatus,
   WorkflowGraphInstanceStatus,
   WorkflowGraphNodeType,
+  WorkflowGraphTemplateStatus,
+  WorkflowDefinitionStatus,
+  WorkflowInstanceStatus,
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
+  WorkflowStepRunStatus,
+  WorkflowStepType,
 )
+from app.core.exceptions import ConflictError
 from app.models import (
   Task,
   User,
   WorkflowDeliverable,
+  WorkflowDefinition,
   WorkflowGraphInstance,
+  WorkflowGraphTemplate,
+  WorkflowGraphTemplateNode,
   WorkflowHumanTaskLink,
+  WorkflowInstance,
   WorkflowNodeInstance,
   WorkflowOutboxEvent,
   WorkflowRunEvent,
+  WorkflowStep,
+  WorkflowStepRun,
 )
+from app.services.approval_capability_coordinator import ApprovalCapabilityCoordinator
 from app.services.human_task_coordinator import HumanTaskCoordinator
+from app.services.workflow_engine_service import WorkflowEngineService
 from app.services.workflow_graph_service import SingleNodeWorkflowSeed, WorkflowGraphService
 from app.services.workflow_node_handlers import (
   ApprovalNodeHandler,
@@ -39,7 +54,6 @@ from app.services.workflow_node_handlers import (
   WorkflowCapabilityOperationError,
   WorkflowCapabilityOutcome,
   WorkflowDecisionSemantic,
-  WorkflowNodeHandlerNotFoundError,
   WorkflowNodeHandlerRegistrationError,
   WorkflowNodeHandlerRegistry,
   build_default_workflow_node_handler_registry,
@@ -61,14 +75,12 @@ def _context(
   )
 
 
-def test_i4_default_registry_is_explicit_for_supported_and_legacy_node_types() -> None:
+def test_i4_default_registry_is_explicit_for_supported_node_types() -> None:
   registry = build_default_workflow_node_handler_registry()
 
   assert registry.require(WorkflowGraphNodeType.TASK).capability_key == "human_task"
+  assert registry.require(WorkflowGraphNodeType.APPROVAL).capability_key == "approval"
   assert registry.require(WorkflowGraphNodeType.NOTICE).capability_key == "notice"
-  assert registry.resolve(WorkflowGraphNodeType.APPROVAL) is None
-  with pytest.raises(WorkflowNodeHandlerNotFoundError, match="approval"):
-    registry.require(WorkflowGraphNodeType.APPROVAL)
 
   with pytest.raises(WorkflowNodeHandlerRegistrationError, match="task"):
     registry.register(HumanTaskNodeHandler())
@@ -271,6 +283,7 @@ def test_i4_approval_handler_allows_configured_contributor_cosign_only_with_inde
       "actor_user_id": contributor_id,
       "contributor_user_ids": [contributor_id],
       "decision_maker_user_ids": [contributor_id, independent_id],
+      "decision_complete": False,
     },
   )
   blocked = handler.command(
@@ -283,7 +296,8 @@ def test_i4_approval_handler_allows_configured_contributor_cosign_only_with_inde
     },
   )
 
-  assert allowed.outcome == WorkflowCapabilityOutcome.SUCCEEDED
+  assert allowed.outcome == WorkflowCapabilityOutcome.WAITING
+  assert allowed.engine_state == WorkflowNodeEngineState.ACKNOWLEDGED
   assert allowed.diagnostics["policy_code"] == "cosign_allowed"
   assert blocked.outcome == WorkflowCapabilityOutcome.BLOCKED
   assert blocked.diagnostics["policy_code"] == "contributor_cannot_be_only_cosign_decider"
@@ -327,6 +341,29 @@ def test_i4_approval_handler_requires_explicit_semantic_and_decision_maker() -> 
     contributor_result.diagnostics["policy_code"]
     == "contributor_cannot_approve_business_subject"
   )
+
+
+def test_i4_approval_handler_preserves_explicit_legacy_management_override() -> None:
+  actor_id = str(uuid4())
+  result = ApprovalNodeHandler().command(
+    WorkflowCapabilityContext(
+      node_type=WorkflowGraphNodeType.APPROVAL,
+      node_key="legacy-management-approval",
+      engine_state=WorkflowNodeEngineState.ACTIVATED,
+      business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+      config={"decision_semantic": WorkflowDecisionSemantic.BUSINESS_APPROVAL.value},
+    ),
+    command=WorkflowCapabilityCommand.APPROVE,
+    payload={
+      "actor_user_id": actor_id,
+      "contributor_user_ids": [actor_id],
+      "decision_maker_user_ids": [],
+      "legacy_management_override": True,
+    },
+  )
+
+  assert result.outcome == WorkflowCapabilityOutcome.SUCCEEDED
+  assert result.diagnostics["policy_code"] == "legacy_management_override"
 
 
 class _RecordingHumanTaskHandler(HumanTaskNodeHandler):
@@ -798,3 +835,398 @@ async def test_i4_prior_contribution_does_not_block_a_distinct_downstream_work_i
   }
   assert diagnostics["contributor_user_ids"] == []
   assert diagnostics["actor_is_contributor"] is False
+
+
+@pytest.mark.asyncio
+async def test_i4_approval_adapter_links_legacy_engine_and_rolls_back_as_one_uow(db_session) -> None:  # noqa: ANN001, E501
+  initiator = User(
+    email="iteration4-approval-initiator@example.com",
+    password_hash="hashed",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  reviewer = User(
+    email="iteration4-approval-reviewer@example.com",
+    password_hash="hashed",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  db_session.add_all([initiator, reviewer])
+  await db_session.flush()
+  definition = WorkflowDefinition(
+    code="iteration4-approval-adapter",
+    name="Iteration 4 Approval Adapter",
+    scope_type="workflow_graph_node",
+    status=WorkflowDefinitionStatus.ACTIVE,
+    version=1,
+    config={},
+    created_by=initiator.id,
+  )
+  db_session.add(definition)
+  await db_session.flush()
+  db_session.add(
+    WorkflowStep(
+      definition_id=definition.id,
+      step_key="accept",
+      name="Accept delivery",
+      step_type=WorkflowStepType.APPROVAL,
+      approval_mode=ApprovalMode.SINGLE,
+      assignee_rule={"type": "user", "user_id": str(reviewer.id)},
+      sort_order=1,
+      config={},
+    )
+  )
+  graph_template = WorkflowGraphTemplate(
+    code="iteration4-approval-graph",
+    base_code="iteration4-approval-graph",
+    version=1,
+    name="Iteration 4 Approval Graph",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=initiator.id,
+  )
+  db_session.add(graph_template)
+  await db_session.flush()
+  db_session.add(
+    WorkflowGraphTemplateNode(
+      template_id=graph_template.id,
+      node_key="accept-delivery",
+      title="Accept delivery",
+      node_type=WorkflowGraphNodeType.APPROVAL,
+      sort_order=1,
+      config={
+        "decision_semantic": "deliverable_acceptance",
+        "workflow_definition_id": str(definition.id),
+      },
+    )
+  )
+  await db_session.flush()
+  graph_service = WorkflowGraphService(db_session)
+
+  result = await graph_service.create_multi_node_instance(
+    template_id=graph_template.id,
+    initiator_id=initiator.id,
+  )
+  approval_node = result.node_instances[0]
+  assert approval_node.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert approval_node.business_state == WorkflowNodeBusinessState.PENDING_REVIEW
+  approval_instance = await db_session.scalar(
+    select(WorkflowInstance).where(
+      WorkflowInstance.source_type == "workflow_graph_node",
+      WorkflowInstance.source_id == approval_node.id,
+    )
+  )
+  assert approval_instance is not None
+  assert approval_node.config["approval_instance_id"] == str(approval_instance.id)
+  step_run = await db_session.scalar(
+    select(WorkflowStepRun).where(WorkflowStepRun.instance_id == approval_instance.id)
+  )
+  assert step_run is not None
+  assert step_run.assignee_user_id == reviewer.id
+
+  duplicate = await ApprovalCapabilityCoordinator(db_session).ensure_instance(
+    graph_instance=result.instance,
+    node_instance=approval_node,
+  )
+  assert duplicate is not None
+  assert duplicate.created is False
+  assert duplicate.instance.id == approval_instance.id
+  assert len(
+    list(
+      await db_session.scalars(
+        select(WorkflowInstance).where(
+          WorkflowInstance.source_type == "workflow_graph_node",
+          WorkflowInstance.source_id == approval_node.id,
+        )
+      )
+    )
+  ) == 1
+
+  source_node = WorkflowNodeInstance(
+    instance_id=result.instance.id,
+    node_key="delivery-source",
+    title="Delivery source",
+    node_type=WorkflowGraphNodeType.TASK,
+    engine_state=WorkflowNodeEngineState.COMPLETED,
+    business_state=WorkflowNodeBusinessState.DONE,
+    assignee_user_id=initiator.id,
+    node_instance_version=2,
+    config={},
+  )
+  db_session.add(source_node)
+  await db_session.flush()
+  db_session.add(
+    WorkflowDeliverable(
+      node_instance_id=source_node.id,
+      submitted_by_user_id=initiator.id,
+      submitted_at=datetime.now(UTC),
+      summary="Current version",
+      payload={"submission_history": [{"submitted_by_user_id": str(initiator.id)}]},
+      signature="delivery:v2",
+    )
+  )
+  approval_node.config = {
+    **approval_node.config,
+    "decision_subject": {
+      "kind": "deliverable",
+      "source_node_instance_id": str(source_node.id),
+      "version": 2,
+    },
+  }
+  await db_session.commit()
+  graph_instance_id = result.instance.id
+  approval_node_id = approval_node.id
+  approval_instance_id = approval_instance.id
+  step_run_id = step_run.id
+
+  acted_instance = await WorkflowEngineService(
+    db_session,
+    approval_graph_bridge=graph_service,
+  ).act_step_run(
+    actor=reviewer,
+    step_run_id=step_run_id,
+    action="approve",
+    commit=False,
+  )
+  assert acted_instance.status == WorkflowInstanceStatus.APPROVED
+
+  assert approval_node.engine_state == WorkflowNodeEngineState.COMPLETED
+  assert result.instance.status == WorkflowGraphInstanceStatus.COMPLETED
+  consumed_event = await db_session.scalar(
+    select(WorkflowRunEvent).where(
+      WorkflowRunEvent.instance_id == graph_instance_id,
+      WorkflowRunEvent.event_type == "approval_result_consumed",
+    )
+  )
+  assert consumed_event is not None
+  capability_result = consumed_event.payload["capability_result"]
+  assert capability_result["diagnostics"]["policy_code"] == "deliverable_acceptance_allowed"
+  assert capability_result["result"]["contributor_resolution"] == "deliverable_current_submitter"
+  assert capability_result["result"]["deliverable_signature"] == "delivery:v2"
+  assert capability_result["result"]["approval_round"] == 1
+  assert capability_result["result"]["approval_mode"] == ApprovalMode.SINGLE.value
+  assert capability_result["result"]["vote_audit"] == [
+    {
+      "step_run_id": str(step_run_id),
+      "assignee_user_id": str(reviewer.id),
+      "delegated_from_user_id": None,
+      "status": WorkflowStepRunStatus.APPROVED.value,
+    }
+  ]
+
+  await graph_service.consume_approval_result(
+    node_instance_id=approval_node_id,
+    approval_instance_id=approval_instance_id,
+    step_run_id=step_run_id,
+    actor_id=reviewer.id,
+    action="approve",
+    commit=False,
+  )
+  assert len(
+    list(
+      await db_session.scalars(
+        select(WorkflowRunEvent).where(
+          WorkflowRunEvent.instance_id == graph_instance_id,
+          WorkflowRunEvent.event_type == "approval_result_consumed",
+        )
+      )
+    )
+  ) == 1
+
+  await db_session.rollback()
+  persisted_graph = await db_session.get(WorkflowGraphInstance, graph_instance_id)
+  persisted_node = await db_session.get(WorkflowNodeInstance, approval_node_id)
+  persisted_approval = await db_session.get(WorkflowInstance, approval_instance_id)
+  persisted_step_run = await db_session.get(WorkflowStepRun, step_run_id)
+  assert persisted_graph is not None
+  assert persisted_graph.status == WorkflowGraphInstanceStatus.ACTIVE
+  assert persisted_node is not None
+  assert persisted_node.engine_state == WorkflowNodeEngineState.ACTIVATED
+  assert persisted_approval is not None
+  assert persisted_approval.status == WorkflowInstanceStatus.IN_PROGRESS
+  assert persisted_step_run is not None
+  assert persisted_step_run.status == WorkflowStepRunStatus.PENDING
+  assert await db_session.scalar(
+    select(WorkflowRunEvent.id).where(
+      WorkflowRunEvent.instance_id == graph_instance_id,
+      WorkflowRunEvent.event_type == "approval_result_consumed",
+    )
+  ) is None
+
+
+@pytest.mark.asyncio
+async def test_i4_approval_bridge_blocks_only_acceptor_and_rechecks_new_version(db_session) -> None:  # noqa: ANN001, E501
+  actor = User(
+    email="iteration4-self-reviewer@example.com",
+    password_hash="test",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  replacement_submitter = User(
+    email="iteration4-rework-submitter@example.com",
+    password_hash="test",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  db_session.add_all([actor, replacement_submitter])
+  await db_session.flush()
+  definition = WorkflowDefinition(
+    code="iteration4-strict-approval",
+    name="Iteration 4 Strict Approval",
+    scope_type="workflow_graph_node",
+    status=WorkflowDefinitionStatus.ACTIVE,
+    version=1,
+    config={},
+    created_by=actor.id,
+  )
+  db_session.add(definition)
+  await db_session.flush()
+  db_session.add(
+    WorkflowStep(
+      definition_id=definition.id,
+      step_key="accept",
+      name="Accept delivery",
+      step_type=WorkflowStepType.APPROVAL,
+      approval_mode=ApprovalMode.SINGLE,
+      assignee_rule={"type": "user", "user_id": str(actor.id)},
+      sort_order=1,
+      config={},
+    )
+  )
+  graph_template = WorkflowGraphTemplate(
+    code="iteration4-strict-approval-graph",
+    base_code="iteration4-strict-approval-graph",
+    version=1,
+    name="Iteration 4 Strict Approval Graph",
+    status=WorkflowGraphTemplateStatus.ACTIVE,
+    created_by=actor.id,
+  )
+  db_session.add(graph_template)
+  await db_session.flush()
+  db_session.add(
+    WorkflowGraphTemplateNode(
+      template_id=graph_template.id,
+      node_key="accept-delivery",
+      title="Accept delivery",
+      node_type=WorkflowGraphNodeType.APPROVAL,
+      sort_order=1,
+      config={
+        "decision_semantic": WorkflowDecisionSemantic.DELIVERABLE_ACCEPTANCE.value,
+        "workflow_definition_id": str(definition.id),
+      },
+    )
+  )
+  await db_session.flush()
+  graph_service = WorkflowGraphService(db_session)
+  result = await graph_service.create_multi_node_instance(
+    template_id=graph_template.id,
+    initiator_id=actor.id,
+  )
+  approval_node = result.node_instances[0]
+  approval_instance = await db_session.scalar(
+    select(WorkflowInstance).where(
+      WorkflowInstance.source_type == "workflow_graph_node",
+      WorkflowInstance.source_id == approval_node.id,
+    )
+  )
+  assert approval_instance is not None
+  step_run = await db_session.scalar(
+    select(WorkflowStepRun).where(WorkflowStepRun.instance_id == approval_instance.id)
+  )
+  assert step_run is not None
+
+  source_node = WorkflowNodeInstance(
+    instance_id=result.instance.id,
+    node_key="delivery-source",
+    title="Delivery source",
+    node_type=WorkflowGraphNodeType.TASK,
+    engine_state=WorkflowNodeEngineState.COMPLETED,
+    business_state=WorkflowNodeBusinessState.DONE,
+    assignee_user_id=actor.id,
+    config={},
+  )
+  db_session.add(source_node)
+  await db_session.flush()
+  deliverable = WorkflowDeliverable(
+    node_instance_id=source_node.id,
+    submitted_by_user_id=actor.id,
+    submitted_at=datetime.now(UTC),
+    summary="Self-submitted current version",
+    payload={},
+    signature="delivery:self-v1",
+  )
+  db_session.add(deliverable)
+  approval_node.config = {
+    **approval_node.config,
+    "decision_subject": {
+      "kind": "deliverable",
+      "source_node_instance_id": str(source_node.id),
+      "version": 1,
+    },
+  }
+  await db_session.commit()
+
+  engine = WorkflowEngineService(db_session, approval_graph_bridge=graph_service)
+  for _ in range(2):
+    with pytest.raises(ConflictError, match="submitter_cannot_be_only_acceptor"):
+      await engine.act_step_run(
+        actor=actor,
+        step_run_id=step_run.id,
+        action="approve",
+      )
+
+  await db_session.refresh(step_run)
+  await db_session.refresh(approval_instance)
+  await db_session.refresh(approval_node)
+  assert step_run.status == WorkflowStepRunStatus.PENDING
+  assert approval_instance.status == WorkflowInstanceStatus.IN_PROGRESS
+  assert approval_node.engine_state == WorkflowNodeEngineState.SUSPENDED
+  assert approval_node.business_state == WorkflowNodeBusinessState.PENDING_REVIEW
+  blocked_events = list(
+    await db_session.scalars(
+      select(WorkflowRunEvent).where(
+        WorkflowRunEvent.instance_id == result.instance.id,
+        WorkflowRunEvent.event_type == "approval_blocked",
+      )
+    )
+  )
+  assert len(blocked_events) == 1
+  assert (
+    blocked_events[0].payload["capability_result"]["diagnostics"]["policy_code"]
+    == "submitter_cannot_be_only_acceptor"
+  )
+
+  deliverable.submitted_by_user_id = replacement_submitter.id
+  deliverable.submitted_at = datetime.now(UTC)
+  deliverable.summary = "Reworked by an independent contributor"
+  deliverable.signature = "delivery:rework-v2"
+  approval_node.config = {
+    **approval_node.config,
+    "decision_subject": {
+      **approval_node.config["decision_subject"],
+      "version": 2,
+    },
+  }
+  await db_session.commit()
+
+  completed = await engine.act_step_run(
+    actor=actor,
+    step_run_id=step_run.id,
+    action="approve",
+  )
+  await db_session.refresh(approval_node)
+  assert completed.status == WorkflowInstanceStatus.APPROVED
+  assert approval_node.engine_state == WorkflowNodeEngineState.COMPLETED
+  consumed_event = await db_session.scalar(
+    select(WorkflowRunEvent).where(
+      WorkflowRunEvent.instance_id == result.instance.id,
+      WorkflowRunEvent.event_type == "approval_result_consumed",
+    )
+  )
+  assert consumed_event is not None
+  assert (
+    consumed_event.payload["capability_result"]["result"]["deliverable_signature"]
+    == "delivery:rework-v2"
+  )
+  assert consumed_event.payload["capability_result"]["result"]["contributor_user_ids"] == [
+    str(replacement_submitter.id)
+  ]

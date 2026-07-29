@@ -8,7 +8,7 @@ tags:
   - iteration-4
   - handler
   - capability
-timestamp: 2026-07-29T21:42:00+08:00
+timestamp: 2026-07-30T00:22:49+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -21,7 +21,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 4 · 业务能力 Handler 化实施计划
 
-> **状态**：I4-A、I4-B 已完成。2026-07-29 Preflight P0/P1/P3 收口后，HumanTask 的激活、完成、取消、重试均已由纯 Handler Result 经 Coordinator/Runtime owner 落库；`collection_finalize` 与普通完成已分离，参与者重叠合法矩阵已补齐。前端 P2 第一批 6 项已实现，后续反馈持续接收。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
+> **状态**：I4-A、I4-B、I4-C 已完成。HumanTask 与 Approval 均已通过纯 Handler Result 接入 Runtime；Approval 复用既有轻量审批引擎，在同一 UoW 内完成预校验、旧审批状态更新、结果回传和通知落库，并保留旧管理角色 override 兼容。前端 P2 第一批 6 项已实现，后续反馈持续接收。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
 
 ## 1. 目标
 
@@ -64,13 +64,13 @@ paradigma:
 
 ### I4-C · Approval
 
-- [x] 纯 Approval Handler / 决策策略已按 ADR-019 映射 `deliverable_acceptance`、`business_approval` 与 `cosign`；`collection_finalize` 保持 HumanTask 命令。默认 Registry 切换仍等待旧审批引擎适配。
-- [ ] 贡献者事实优先取 Deliverable submitter/version，其次才回退到节点执行人、Task assignee 或发起人。
+- [x] 纯 Approval Handler / 决策策略已按 ADR-019 映射 `deliverable_acceptance`、`business_approval` 与 `cosign`；`collection_finalize` 保持 HumanTask 命令；默认 Registry 已在旧审批引擎桥接完成后启用 Approval。
+- [x] 贡献者事实优先取当前 Deliverable submitter/signature，其次才回退到显式配置、源节点执行人或业务流程发起人；返工更新当前交付后会重新解析。
 - [x] 严格策略无合法候选人时返回可诊断 BLOCKED；`TaskService` 不再按候选数量自动启用 `self_review_fallback`，历史 fallback metadata 也不能绕过严格验收。
-- [ ] 先适配现有 `WorkflowDefinition / WorkflowInstance / WorkflowStepRun`。
-- [ ] 固化 round、decision、票数与代理审批审计。
-- [ ] 区分业务拒绝与技术失败；不在 Runtime 核心计算审批票数。
-- [ ] 最小矩阵：同版本提交者独自验收拒绝；不同下游交付允许；贡献者会签非唯一决定者按显式策略允许；返工新版本重算贡献者。
+- [x] 已适配现有 `WorkflowDefinition / WorkflowInstance / WorkflowStepRun`：节点激活按 correlation key 幂等关联审批实例，旧审批动作经 API bridge 自动回传 Runtime。
+- [x] RunEvent 固化 approval round/mode、decision、每票状态、代理来源、当前交付签名与策略诊断；重复成功回调和重复阻断均幂等。
+- [x] 业务拒绝映射为 `REJECTED`，策略阻断映射为 `SUSPENDED/PENDING_REVIEW`，不与技术失败混同；票数仍由旧审批引擎计算，Runtime 只消费结果。
+- [x] 最小矩阵：同版本提交者独自验收阻断；不同决策对象允许；贡献者会签非唯一决定者按显式策略允许；返工新版本重算贡献者。
 
 ### I4-D · Deliverable / Notification
 
@@ -96,7 +96,7 @@ paradigma:
 
 ## 5. I4-A 验收
 
-- Registry 能稳定解析 HumanTask/Notice，未知/重复能力有确定错误。
-- HumanTask 与 Notice 的 activate/complete/cancel/retry 映射有纯单测。
+- Registry 能稳定解析 HumanTask/Approval/Notice，未知/重复能力有确定错误。
+- HumanTask、Approval 与 Notice 的生命周期/命令映射有纯单测。
 - `WorkflowGraphService` 的相关状态迁移消费统一 Capability Result，既有行为回归不变。
 - I3-F 写所有权 AST guard、Backend 全量与 compileall 通过。

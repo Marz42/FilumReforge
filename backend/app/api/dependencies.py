@@ -308,8 +308,13 @@ def get_task_memo_service(
 def get_workflow_engine_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
   notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
 ) -> WorkflowEngineService:
-  return WorkflowEngineService(session, notification_service)
+  return WorkflowEngineService(
+    session,
+    notification_service,
+    approval_graph_bridge=workflow_graph_service,
+  )
 
 
 def get_message_center_service(

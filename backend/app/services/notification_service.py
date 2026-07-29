@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,7 @@ from app.core.enums import (
   NotificationMessageStatus,
   PushSubscriptionStatus,
 )
+from app.core.exceptions import NotFoundError
 from app.integrations.notifications.queue import NotificationQueuePublisher
 from app.models import NotificationDelivery, NotificationMessage as NotificationMessageModel, PushSubscription
 from app.schemas.messages import NotificationMessage
@@ -53,7 +55,11 @@ class NotificationService:
     message: NotificationMessage,
     *,
     deduplication_key: str | None = None,
+    commit: bool = True,
+    publish: bool = True,
   ) -> NotificationMessageModel:
+    if publish and not commit:
+      raise ValueError("Notification publish requires committed rows.")
     notification_message = None
     deliveries: list[NotificationDelivery] = []
     if deduplication_key:
@@ -91,39 +97,17 @@ class NotificationService:
         )
         deliveries.append(delivery)
       self._session.add_all(deliveries)
-      await self._session.commit()
-      await self._session.refresh(notification_message)
-
-    if self._queue_publisher is not None:
-      payload = {
-        "message_id": str(notification_message.id),
-        "delivery_ids": [str(delivery.id) for delivery in deliveries],
-        "source_type": notification_message.source_type,
-        "message_type": notification_message.message_type,
-      }
-      if notification_message.status == NotificationMessageStatus.FAILED:
-        notification_message.status = NotificationMessageStatus.QUEUED
-        notification_message.completed_at = None
-        for delivery in deliveries:
-          if delivery.status == NotificationDeliveryStatus.FAILED:
-            delivery.status = NotificationDeliveryStatus.PENDING
-            delivery.error_message = None
-        # Persist retryability before publishing so the consumer never observes stale FAILED rows.
-        await self._session.commit()
-      try:
-        await self._queue_publisher.publish(payload)
-      except Exception as exc:  # noqa: BLE001
-        failure_time = datetime.now(UTC)
-        error_message = f"通知入队失败：{exc}"
-        notification_message.status = NotificationMessageStatus.FAILED
-        notification_message.completed_at = failure_time
-        for delivery in deliveries:
-          delivery.status = NotificationDeliveryStatus.FAILED
-          delivery.attempt_count += 1
-          delivery.attempted_at = failure_time
-          delivery.error_message = error_message
+      if commit:
         await self._session.commit()
         await self._session.refresh(notification_message)
+      else:
+        await self._session.flush()
+
+    if publish:
+      await self._publish(
+        notification_message=notification_message,
+        deliveries=deliveries,
+      )
 
     hydrated_message = await self._session.scalar(
       select(NotificationMessageModel)
@@ -131,3 +115,55 @@ class NotificationService:
       .where(NotificationMessageModel.id == notification_message.id)
     )
     return hydrated_message or notification_message
+
+  async def publish_persisted(self, *, message_id: UUID) -> NotificationMessageModel:
+    notification_message = await self._session.scalar(
+      select(NotificationMessageModel)
+      .options(selectinload(NotificationMessageModel.deliveries))
+      .where(NotificationMessageModel.id == message_id)
+    )
+    if notification_message is None:
+      raise NotFoundError("待投递通知不存在。")
+    await self._publish(
+      notification_message=notification_message,
+      deliveries=list(notification_message.deliveries),
+    )
+    return notification_message
+
+  async def _publish(
+    self,
+    *,
+    notification_message: NotificationMessageModel,
+    deliveries: list[NotificationDelivery],
+  ) -> None:
+    if self._queue_publisher is None:
+      return
+    payload = {
+      "message_id": str(notification_message.id),
+      "delivery_ids": [str(delivery.id) for delivery in deliveries],
+      "source_type": notification_message.source_type,
+      "message_type": notification_message.message_type,
+    }
+    if notification_message.status == NotificationMessageStatus.FAILED:
+      notification_message.status = NotificationMessageStatus.QUEUED
+      notification_message.completed_at = None
+      for delivery in deliveries:
+        if delivery.status == NotificationDeliveryStatus.FAILED:
+          delivery.status = NotificationDeliveryStatus.PENDING
+          delivery.error_message = None
+      # Persist retryability before publishing so the consumer never observes stale FAILED rows.
+      await self._session.commit()
+    try:
+      await self._queue_publisher.publish(payload)
+    except Exception as exc:  # noqa: BLE001
+      failure_time = datetime.now(UTC)
+      error_message = f"通知入队失败：{exc}"
+      notification_message.status = NotificationMessageStatus.FAILED
+      notification_message.completed_at = failure_time
+      for delivery in deliveries:
+        delivery.status = NotificationDeliveryStatus.FAILED
+        delivery.attempt_count += 1
+        delivery.attempted_at = failure_time
+        delivery.error_message = error_message
+      await self._session.commit()
+      await self._session.refresh(notification_message)

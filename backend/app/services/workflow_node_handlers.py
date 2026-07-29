@@ -367,28 +367,43 @@ class ApprovalNodeHandler(_BaseWorkflowNodeHandler):
       if isinstance(raw_decision_makers, (list, tuple))
       else []
     )
-    from app.services.workflow_decision_policy import evaluate_actor_overlap
-
-    policy = evaluate_actor_overlap(
-      semantic=semantic,
-      actor_user_id=(
-        str(command_payload["actor_user_id"])
-        if command_payload.get("actor_user_id") is not None
-        else None
-      ),
-      contributor_user_ids=contributor_user_ids,
-      decision_maker_user_ids=decision_maker_user_ids,
-      allow_contributor_cosign=bool(context.config.get("allow_contributor_cosign", False)),
+    actor_user_id = (
+      str(command_payload["actor_user_id"])
+      if command_payload.get("actor_user_id") is not None
+      else None
     )
-    diagnostics = {
-      **dict(policy.diagnostics),
-      "decision_subject": (
-        dict(command_payload["decision_subject"])
-        if isinstance(command_payload.get("decision_subject"), Mapping)
-        else {}
-      ),
-    }
-    if not policy.allowed:
+    legacy_management_override = bool(command_payload.get("legacy_management_override"))
+    if legacy_management_override:
+      diagnostics = {
+        "decision_semantic": semantic.value,
+        "actor_user_id": actor_user_id,
+        "contributor_user_ids": contributor_user_ids,
+        "decision_maker_user_ids": decision_maker_user_ids,
+        "actor_is_contributor": actor_user_id in contributor_user_ids,
+        "non_contributor_decision_maker_count": len(
+          [user_id for user_id in decision_maker_user_ids if user_id not in contributor_user_ids]
+        ),
+        "policy_code": "legacy_management_override",
+      }
+      policy_allowed = True
+    else:
+      from app.services.workflow_decision_policy import evaluate_actor_overlap
+
+      policy = evaluate_actor_overlap(
+        semantic=semantic,
+        actor_user_id=actor_user_id,
+        contributor_user_ids=contributor_user_ids,
+        decision_maker_user_ids=decision_maker_user_ids,
+        allow_contributor_cosign=bool(context.config.get("allow_contributor_cosign", False)),
+      )
+      diagnostics = dict(policy.diagnostics)
+      policy_allowed = policy.allowed
+    diagnostics["decision_subject"] = (
+      dict(command_payload["decision_subject"])
+      if isinstance(command_payload.get("decision_subject"), Mapping)
+      else {}
+    )
+    if not policy_allowed:
       return self._result(
         outcome=WorkflowCapabilityOutcome.BLOCKED,
         engine_state=WorkflowNodeEngineState.SUSPENDED,
@@ -399,6 +414,15 @@ class ApprovalNodeHandler(_BaseWorkflowNodeHandler):
       )
 
     result_payload = {**command_payload, "decision": command.value}
+    if not bool(command_payload.get("decision_complete", True)):
+      return self._result(
+        outcome=WorkflowCapabilityOutcome.WAITING,
+        engine_state=WorkflowNodeEngineState.ACKNOWLEDGED,
+        business_state=WorkflowNodeBusinessState.PENDING_REVIEW,
+        result=result_payload,
+        diagnostics=diagnostics,
+        side_effects=(),
+      )
     if command == WorkflowCapabilityCommand.REJECT:
       business_state = WorkflowNodeBusinessState.REJECTED
     elif command == WorkflowCapabilityCommand.RETURN:
@@ -458,5 +482,6 @@ class WorkflowNodeHandlerRegistry:
 def build_default_workflow_node_handler_registry() -> WorkflowNodeHandlerRegistry:
   registry = WorkflowNodeHandlerRegistry()
   registry.register(HumanTaskNodeHandler())
+  registry.register(ApprovalNodeHandler())
   registry.register(NoticeNodeHandler())
   return registry

@@ -181,7 +181,7 @@ erDiagram
 
 ## 4. 运行时推进（引擎）
 
-Iteration 4 的参与者重叠规则见 [`ADR-019`](../decisions/adr-019-decision-subject-actor-overlap.md)：`collection_finalize` 属于协调推进，可允许负责人同时是集合贡献者；独立交付验收和正式业务审批则按决策对象/版本应用职责分离。I4-B 首个纵切已让 HumanTask 命令显式携带 decision semantic/subject，并从目标集合节点的 Deliverable 解析 contributors 写入 RunEvent；Runtime 不以 actor 与 assignee 是否相等直接推断规则。
+Iteration 4 的参与者重叠规则见 [`ADR-019`](../decisions/adr-019-decision-subject-actor-overlap.md)：`collection_finalize` 属于协调推进，可允许负责人同时是集合贡献者；独立交付验收和正式业务审批则按决策对象/版本应用职责分离。I4-B 已让 HumanTask 命令显式携带 decision semantic/subject；I4-C 进一步由 `ApprovalCapabilityCoordinator` 把 Approval 节点幂等关联到既有 `WorkflowInstance / WorkflowStepRun`，审批动作在旧状态机变更前执行策略校验，再于同一事务回传 Runtime。贡献者以当前 Deliverable submitter/signature 为首选事实，审批事件记录轮次、票状态及代理来源；Runtime 不按 actor/assignee 相等关系猜测规则，也不复制审批票数状态机。
 
 核心服务：`WorkflowGraphService`（`backend/app/services/workflow_graph_service.py`）。
 

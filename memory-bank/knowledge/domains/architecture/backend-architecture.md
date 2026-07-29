@@ -60,7 +60,8 @@ paradigma:
 | `backend/app/models/report.py` | 汇报中心领域模型：`reports`、`report_routes` |
 | `backend/app/services/report_service.py` | 汇报生命周期服务，处理逐级流转、代理委托、归档与审批挂接 |
 | `backend/app/services/report_center_service.py` | 汇报中心聚合服务，输出待处理、我发起、历史、目标选项与审批选项 |
-| `backend/app/services/workflow_engine_service.py` | 流程定义、流程实例、审批动作、打回 / 驳回 / 代理审批 |
+| `backend/app/services/workflow_engine_service.py` | 流程定义、流程实例、审批动作、打回 / 驳回 / 代理审批；图 Approval 来源在旧状态变更前调用 Runtime bridge，并在同一 UoW 回传结果，提交后再发布通知 |
+| `backend/app/services/approval_capability_coordinator.py` | Iteration 4-C Approval 适配器：按稳定 correlation key 幂等关联图节点与既有审批实例，维护绑定配置但不自行提交事务 |
 | `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
 | `backend/app/services/message_center_service.py` | Step 6 消息聚合服务：按当前用户隔离 inbox，输出来源模块 / 对象 / 回跳、未读 / 已确认状态与筛选统计 |
 | `backend/app/services/notification_source.py` | Step 6 通知来源辅助：统一 task / report / announcement / workflow 的来源 payload 与回跳协议 |

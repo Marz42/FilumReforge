@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -41,14 +42,40 @@ def _step_iteration_value(step_run: WorkflowStepRun) -> int:
     return 1
 
 
+class WorkflowApprovalGraphBridge(Protocol):
+  async def validate_approval_action(
+    self,
+    *,
+    node_instance_id: UUID,
+    approval_instance_id: UUID,
+    step_run_id: UUID,
+    actor_id: UUID,
+    action: str,
+  ) -> str | None: ...
+
+  async def consume_approval_result(
+    self,
+    *,
+    node_instance_id: UUID,
+    approval_instance_id: UUID,
+    step_run_id: UUID,
+    actor_id: UUID,
+    action: str,
+    commit: bool = True,
+  ) -> None: ...
+
+
 class WorkflowEngineService:
   def __init__(
     self,
     session: AsyncSession,
     notification_service: NotificationService | None = None,
+    approval_graph_bridge: WorkflowApprovalGraphBridge | None = None,
   ) -> None:
     self._session = session
     self._notification_service = notification_service
+    self._approval_graph_bridge = approval_graph_bridge
+    self._pending_notification_ids: list[UUID] = []
 
   def _definition_statement(self):
     return select(WorkflowDefinition).options(
@@ -255,7 +282,7 @@ class WorkflowEngineService:
         if message_type in {"workflow_completed", "workflow_rejected", "workflow_returned"}
         else "pending"
       )
-    await self._notification_service.send(
+    notification = await self._notification_service.send(
       NotificationMessage(
         source_type="workflow",
         source_id=instance.id,
@@ -271,8 +298,20 @@ class WorkflowEngineService:
           extra_payload=dict(payload or {}),
         ),
         channels=list(DEFAULT_USER_NOTIFICATION_CHANNELS),
-      )
+      ),
+      commit=False,
+      publish=False,
     )
+    self._pending_notification_ids.append(notification.id)
+
+  async def _publish_pending_notifications(self) -> None:
+    if self._notification_service is None:
+      self._pending_notification_ids.clear()
+      return
+    message_ids = list(dict.fromkeys(self._pending_notification_ids))
+    self._pending_notification_ids.clear()
+    for message_id in message_ids:
+      await self._notification_service.publish_persisted(message_id=message_id)
 
   async def _get_instance_step_runs(self, *, instance: WorkflowInstance) -> list[WorkflowStepRun]:
     loaded_step_runs = instance.__dict__.get("step_runs")
@@ -606,8 +645,12 @@ class WorkflowEngineService:
     source_type: str,
     source_id: UUID | None = None,
     payload: dict[str, object] | None = None,
+    commit: bool = True,
   ) -> WorkflowInstance:
     ensure_active_user(actor)
+    if not commit and self._notification_service is not None:
+      raise ConflictError("caller-owned 审批事务不能使用会自行提交的 NotificationService。")
+    self._pending_notification_ids.clear()
     definition = await self._get_definition_or_raise(
       actor=actor,
       definition_id=definition_id,
@@ -630,7 +673,11 @@ class WorkflowEngineService:
     self._session.add(instance)
     await self._session.flush()
     await self._enter_step(instance=instance, step=self._ordered_steps(definition)[0])
-    await self._session.commit()
+    if commit:
+      await self._session.commit()
+      await self._publish_pending_notifications()
+    else:
+      await self._session.flush()
     return await self.get_instance(actor=actor, instance_id=instance.id)
 
   async def act_step_run(
@@ -640,8 +687,12 @@ class WorkflowEngineService:
     step_run_id: UUID,
     action: str,
     comment: str | None = None,
+    commit: bool = True,
   ) -> WorkflowInstance:
     ensure_active_user(actor)
+    if not commit and self._notification_service is not None:
+      raise ConflictError("caller-owned 审批事务不能使用会自行提交的 NotificationService。")
+    self._pending_notification_ids.clear()
     normalized_action = action.strip().lower()
     if normalized_action not in {"approve", "reject", "return"}:
       raise ConflictError("不支持的审批动作。")
@@ -665,6 +716,25 @@ class WorkflowEngineService:
       if step is None:
         raise NotFoundError("审批步骤不存在。")
     current_batch_runs = await self._resolve_current_batch_runs(instance=instance, step_run=step_run)
+    graph_node_instance_id = (
+      instance.source_id if instance.source_type == "workflow_graph_node" else None
+    )
+    if graph_node_instance_id is not None:
+      if self._approval_graph_bridge is None:
+        raise ConflictError("图 Approval 实例缺少 Runtime bridge，不能处理审批动作。")
+      blocked_code = await self._approval_graph_bridge.validate_approval_action(
+        node_instance_id=graph_node_instance_id,
+        approval_instance_id=instance.id,
+        step_run_id=step_run.id,
+        actor_id=actor.id,
+        action=normalized_action,
+      )
+      if blocked_code is not None:
+        if commit:
+          await self._session.commit()
+        else:
+          await self._session.flush()
+        raise ConflictError(f"审批动作被决策策略阻止：{blocked_code}。")
     now = datetime.now(UTC)
 
     step_run.acted_at = now
@@ -734,5 +804,19 @@ class WorkflowEngineService:
           payload={"step_key": target_step.step_key, "comment": step_run.comment},
         )
 
-    await self._session.commit()
+    if graph_node_instance_id is not None:
+      await self._approval_graph_bridge.consume_approval_result(
+        node_instance_id=graph_node_instance_id,
+        approval_instance_id=instance.id,
+        step_run_id=step_run.id,
+        actor_id=actor.id,
+        action=normalized_action,
+        commit=False,
+      )
+
+    if commit:
+      await self._session.commit()
+      await self._publish_pending_notifications()
+    else:
+      await self._session.flush()
     return await self.get_instance(actor=actor, instance_id=instance.id)

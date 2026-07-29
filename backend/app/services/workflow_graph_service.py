@@ -15,12 +15,14 @@ from app.core.enums import (
   WorkflowGraphInstanceStatus,
   WorkflowGraphNodeType,
   WorkflowGraphTemplateStatus,
+  WorkflowInstanceStatus,
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
   WorkflowOutboxEventStatus,
+  WorkflowStepRunStatus,
 )
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
-from app.services.access_control import ensure_active_user
+from app.services.access_control import MANAGEMENT_ROLES, ensure_active_user
 from app.services.condition_evaluator import (
   evaluate_condition,
   evaluate_routing_rules,
@@ -41,8 +43,9 @@ from app.services.workflow_definition_snapshot import (
   runtime_nodes,
   runtime_template,
 )
-from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.approval_capability_coordinator import ApprovalCapabilityCoordinator
 from app.services.human_task_coordinator import HumanTaskCoordinator
+from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_node_handlers import (
   WorkflowCapabilityCommand,
   WorkflowCapabilityContext,
@@ -60,9 +63,12 @@ from app.models import (
   WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
   WorkflowDeliverable,
+  WorkflowInstance,
   WorkflowNodeInstance,
   WorkflowNodeActivationDependency,
   WorkflowRunEvent,
+  WorkflowStep,
+  WorkflowStepRun,
 )
 from app.models.workflow_graph import WorkflowOutboxEvent
 
@@ -130,6 +136,11 @@ class WorkflowGraphService:
     config: dict[str, Any] | None,
   ) -> WorkflowCapabilityResult:
     handler = self._node_handlers.resolve(node_type)
+    if (
+      node_type == WorkflowGraphNodeType.APPROVAL
+      and not str((config or {}).get("decision_semantic") or "").strip()
+    ):
+      handler = None
     if handler is None:
       return WorkflowCapabilityResult(
         capability_key=f"legacy_{node_type.value}",
@@ -154,6 +165,11 @@ class WorkflowGraphService:
     payload: dict[str, object] | None = None,
   ) -> WorkflowCapabilityResult:
     handler = self._node_handlers.resolve(node_instance.node_type)
+    if (
+      node_instance.node_type == WorkflowGraphNodeType.APPROVAL
+      and not str((node_instance.config or {}).get("decision_semantic") or "").strip()
+    ):
+      handler = None
     if handler is None:
       return WorkflowCapabilityResult(
         capability_key=f"legacy_{node_instance.node_type.value}",
@@ -241,6 +257,128 @@ class WorkflowGraphService:
       "contributor_resolution": contributor_resolution,
     }
 
+  async def _approval_command_payload(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+    approval_instance: WorkflowInstance,
+    step_run: WorkflowStepRun,
+    actor_id: UUID,
+  ) -> dict[str, object]:
+    config = dict(node_instance.config or {})
+    raw_subject = config.get("decision_subject")
+    decision_subject = dict(raw_subject) if isinstance(raw_subject, dict) else {}
+    contributor_user_ids: list[str] = []
+    contributor_resolution = "none"
+    deliverable_signature: str | None = None
+
+    source_node: WorkflowNodeInstance | None = None
+    raw_source_node_id = decision_subject.get("source_node_instance_id")
+    if raw_source_node_id is not None:
+      try:
+        source_node_id = UUID(str(raw_source_node_id))
+      except ValueError as exc:
+        raise ConflictError("Approval decision_subject.source_node_instance_id 无效。") from exc
+      source_node = await self._session.get(WorkflowNodeInstance, source_node_id)
+      if source_node is None or source_node.instance_id != graph_instance.id:
+        raise ConflictError("Approval decision_subject 引用了当前 Run 之外的节点。")
+    else:
+      source_node_key = str(decision_subject.get("source_node_key") or "").strip()
+      if source_node_key:
+        source_node = await self._session.scalar(
+          select(WorkflowNodeInstance).where(
+            WorkflowNodeInstance.instance_id == graph_instance.id,
+            WorkflowNodeInstance.node_key == source_node_key,
+            WorkflowNodeInstance.iteration == node_instance.iteration,
+          )
+        )
+
+    if source_node is not None:
+      deliverable = await self._session.scalar(
+        select(WorkflowDeliverable).where(
+          WorkflowDeliverable.node_instance_id == source_node.id
+        )
+      )
+      if deliverable is not None and deliverable.submitted_by_user_id is not None:
+        contributor_user_ids = [str(deliverable.submitted_by_user_id)]
+        contributor_resolution = "deliverable_current_submitter"
+        deliverable_signature = deliverable.signature
+
+    if not contributor_user_ids:
+      raw_contributors = config.get("contributor_user_ids")
+      if isinstance(raw_contributors, list) and raw_contributors:
+        contributor_user_ids = list(dict.fromkeys(str(user_id) for user_id in raw_contributors))
+        contributor_resolution = "explicit_config"
+      elif source_node is not None and source_node.assignee_user_id is not None:
+        contributor_user_ids = [str(source_node.assignee_user_id)]
+        contributor_resolution = "source_node_assignee_fallback"
+      elif str(config.get("decision_semantic")) == WorkflowDecisionSemantic.BUSINESS_APPROVAL.value:
+        contributor_user_ids = [str(graph_instance.initiator_user_id)]
+        contributor_resolution = "run_initiator_fallback"
+
+    current_iteration = int(step_run.payload.get("iteration", 1))
+    batch_runs = list(
+      await self._session.scalars(
+        select(WorkflowStepRun).where(
+          WorkflowStepRun.instance_id == approval_instance.id,
+          WorkflowStepRun.step_id == step_run.step_id,
+        )
+      )
+    )
+    decision_maker_user_ids = list(
+      dict.fromkeys(
+        str(batch_run.assignee_user_id)
+        for batch_run in batch_runs
+        if int(batch_run.payload.get("iteration", 1)) == current_iteration
+      )
+    )
+    actor = await self._session.get(User, actor_id)
+    legacy_management_override = actor is not None and actor.role in MANAGEMENT_ROLES
+    approval_step = step_run.__dict__.get("step")
+    if approval_step is None:
+      approval_step = await self._session.get(WorkflowStep, step_run.step_id)
+    approval_mode = (
+      approval_step.approval_mode.value
+      if approval_step is not None and approval_step.approval_mode is not None
+      else None
+    )
+    vote_audit = [
+      {
+        "step_run_id": str(batch_run.id),
+        "assignee_user_id": str(batch_run.assignee_user_id),
+        "delegated_from_user_id": (
+          str(batch_run.delegated_from_user_id)
+          if batch_run.delegated_from_user_id is not None
+          else None
+        ),
+        "status": batch_run.status.value,
+      }
+      for batch_run in batch_runs
+      if int(batch_run.payload.get("iteration", 1)) == current_iteration
+    ]
+    decision_complete = approval_instance.status in {
+      WorkflowInstanceStatus.APPROVED,
+      WorkflowInstanceStatus.COMPLETED,
+      WorkflowInstanceStatus.REJECTED,
+    }
+    return {
+      "actor_user_id": str(actor_id),
+      "decision_subject": decision_subject,
+      "contributor_user_ids": contributor_user_ids,
+      "contributor_resolution": contributor_resolution,
+      "decision_maker_user_ids": decision_maker_user_ids,
+      "legacy_management_override": legacy_management_override,
+      "decision_complete": decision_complete,
+      "approval_round": current_iteration,
+      "approval_mode": approval_mode,
+      "vote_audit": vote_audit,
+      "approval_instance_id": str(approval_instance.id),
+      "approval_step_run_id": str(step_run.id),
+      "approval_instance_status": approval_instance.status.value,
+      "deliverable_signature": deliverable_signature,
+    }
+
   def _map_capability_result(
     self,
     *,
@@ -277,11 +415,41 @@ class WorkflowGraphService:
     node_instance.business_state = result.business_state
     if result.engine_state == WorkflowNodeEngineState.ACTIVATED:
       node_instance.activated_at = now
+    elif result.engine_state == WorkflowNodeEngineState.ACKNOWLEDGED:
+      node_instance.acknowledged_at = node_instance.acknowledged_at or now
     elif result.engine_state == WorkflowNodeEngineState.COMPLETED:
       node_instance.completed_at = now
     elif result.engine_state == WorkflowNodeEngineState.TERMINATED:
       node_instance.terminated_at = now
     node_instance.node_instance_version += 1
+
+  async def _materialize_capability_side_effects(
+    self,
+    *,
+    graph_instance: WorkflowGraphInstance,
+    node_instance: WorkflowNodeInstance,
+    result: WorkflowCapabilityResult,
+  ) -> None:
+    if "ensure_approval_instance" not in result.side_effects:
+      return
+    binding = await ApprovalCapabilityCoordinator(self._session).ensure_instance(
+      graph_instance=graph_instance,
+      node_instance=node_instance,
+    )
+    if binding is None or not binding.created:
+      return
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type="approval_instance_linked",
+      actor_user_id=None,
+      aggregate_version=node_instance.node_instance_version,
+      payload={
+        "node_instance_id": str(node_instance.id),
+        "node_key": node_instance.node_key,
+        "approval_instance_id": str(binding.instance.id),
+        "approval_correlation_key": binding.correlation_key,
+      },
+    )
 
   def _cancellation_result(
     self,
@@ -1078,6 +1246,19 @@ class WorkflowGraphService:
     instance.current_node_key = start_node_key
     await self._session.flush()
 
+    for node_instance in node_instances:
+      if node_instance.engine_state != WorkflowNodeEngineState.ACTIVATED:
+        continue
+      await self._materialize_capability_side_effects(
+        graph_instance=instance,
+        node_instance=node_instance,
+        result=self._activation_result(
+          node_type=node_instance.node_type,
+          node_key=node_instance.node_key,
+          config=dict(node_instance.config or {}),
+        ),
+      )
+
     # Phase 7: Notice Node 触达即完成，不阻塞主链。
     await self._auto_complete_activated_notice_nodes(
       graph_instance=instance,
@@ -1272,6 +1453,238 @@ class WorkflowGraphService:
       await self._session.commit()
     else:
       await self._session.flush()
+
+  async def consume_approval_result(
+    self,
+    *,
+    node_instance_id: UUID,
+    approval_instance_id: UUID,
+    step_run_id: UUID,
+    actor_id: UUID,
+    action: str,
+    commit: bool = True,
+  ) -> None:
+    """Consume a legacy approval action through the graph Approval Handler."""
+    graph_instance, node_instance = await self._lock_graph_and_node_instance(
+      node_instance_id=node_instance_id,
+    )
+    if not ApprovalCapabilityCoordinator.is_managed_node(node_instance):
+      raise ConflictError("当前节点不是已适配的 Approval 能力。")
+    configured_instance_id = str((node_instance.config or {}).get("approval_instance_id") or "")
+    if configured_instance_id != str(approval_instance_id):
+      raise ConflictError("审批实例与 Approval 节点绑定不一致。")
+
+    approval_instance = await self._session.get(WorkflowInstance, approval_instance_id)
+    step_run = await self._session.get(WorkflowStepRun, step_run_id)
+    if approval_instance is None or step_run is None:
+      raise NotFoundError("审批实例或审批步骤不存在。")
+    if (
+      approval_instance.source_type != "workflow_graph_node"
+      or approval_instance.source_id != node_instance.id
+      or step_run.instance_id != approval_instance.id
+    ):
+      raise ConflictError("审批结果不属于当前 Approval 节点。")
+
+    normalized_action = action.strip().lower()
+    command_by_action = {
+      "approve": WorkflowCapabilityCommand.APPROVE,
+      "reject": WorkflowCapabilityCommand.REJECT,
+      "return": WorkflowCapabilityCommand.RETURN,
+    }
+    command = command_by_action.get(normalized_action)
+    if command is None:
+      raise ConflictError("不支持的 Approval 结果动作。")
+    expected_step_status = {
+      "approve": WorkflowStepRunStatus.APPROVED,
+      "reject": WorkflowStepRunStatus.REJECTED,
+      "return": WorkflowStepRunStatus.RETURNED,
+    }[normalized_action]
+    if step_run.status != expected_step_status:
+      raise ConflictError("审批步骤状态与回传动作不一致。")
+
+    sync_key = ":".join(
+      [
+        str(approval_instance.id),
+        str(step_run.id),
+        normalized_action,
+        approval_instance.status.value,
+        step_run.status.value,
+      ]
+    )
+    if (node_instance.config or {}).get("approval_last_sync_key") == sync_key:
+      if commit:
+        await self._session.commit()
+      return
+    if node_instance.engine_state in {
+      WorkflowNodeEngineState.COMPLETED,
+      WorkflowNodeEngineState.TERMINATED,
+    }:
+      raise ConflictError("Approval 节点已结束，不能消费新的审批结果。")
+
+    handler = self._node_handlers.require(WorkflowGraphNodeType.APPROVAL)
+    capability_result = handler.command(
+      self._capability_context(
+        node_type=node_instance.node_type,
+        node_key=node_instance.node_key,
+        engine_state=node_instance.engine_state,
+        business_state=node_instance.business_state,
+        config=dict(node_instance.config or {}),
+      ),
+      command=command,
+      payload=await self._approval_command_payload(
+        graph_instance=graph_instance,
+        node_instance=node_instance,
+        approval_instance=approval_instance,
+        step_run=step_run,
+        actor_id=actor_id,
+      ),
+    )
+    now = datetime.now(UTC)
+    await self._apply_capability_result(
+      node_instance=node_instance,
+      result=capability_result,
+      now=now,
+    )
+    node_instance.config = {
+      **dict(node_instance.config or {}),
+      "approval_last_sync_key": sync_key,
+      "approval_last_synced_at": now.isoformat(),
+    }
+    await self._session.flush()
+
+    event_type = (
+      "approval_blocked"
+      if capability_result.outcome == WorkflowCapabilityOutcome.BLOCKED
+      else "approval_result_consumed"
+    )
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type=event_type,
+      actor_user_id=actor_id,
+      aggregate_version=node_instance.node_instance_version,
+      payload={
+        "node_instance_id": str(node_instance.id),
+        "node_key": node_instance.node_key,
+        "approval_instance_id": str(approval_instance.id),
+        "approval_step_run_id": str(step_run.id),
+        "action": normalized_action,
+        "capability_result": self._map_capability_result(
+          node_type=node_instance.node_type,
+          result=capability_result,
+        ),
+      },
+    )
+    if capability_result.engine_state == WorkflowNodeEngineState.COMPLETED:
+      await self._activate_downstream(
+        graph_instance=graph_instance,
+        completed_node_instance=node_instance,
+        now=now,
+      )
+    else:
+      graph_instance.current_node_key = node_instance.node_key
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
+
+  async def validate_approval_action(
+    self,
+    *,
+    node_instance_id: UUID,
+    approval_instance_id: UUID,
+    step_run_id: UUID,
+    actor_id: UUID,
+    action: str,
+  ) -> str | None:
+    """Persist a diagnosable BLOCKED result before the legacy engine mutates."""
+    graph_instance, node_instance = await self._lock_graph_and_node_instance(
+      node_instance_id=node_instance_id,
+    )
+    if not ApprovalCapabilityCoordinator.is_managed_node(node_instance):
+      raise ConflictError("当前节点不是已适配的 Approval 能力。")
+    if str((node_instance.config or {}).get("approval_instance_id") or "") != str(
+      approval_instance_id
+    ):
+      raise ConflictError("审批实例与 Approval 节点绑定不一致。")
+    approval_instance = await self._session.get(WorkflowInstance, approval_instance_id)
+    step_run = await self._session.get(WorkflowStepRun, step_run_id)
+    if approval_instance is None or step_run is None:
+      raise NotFoundError("审批实例或审批步骤不存在。")
+    if (
+      approval_instance.source_type != "workflow_graph_node"
+      or approval_instance.source_id != node_instance.id
+      or step_run.instance_id != approval_instance.id
+    ):
+      raise ConflictError("审批动作不属于当前 Approval 节点。")
+    if step_run.status != WorkflowStepRunStatus.PENDING:
+      raise ConflictError("审批步骤已处理，不能重复校验。")
+
+    normalized_action = action.strip().lower()
+    command = {
+      "approve": WorkflowCapabilityCommand.APPROVE,
+      "reject": WorkflowCapabilityCommand.REJECT,
+      "return": WorkflowCapabilityCommand.RETURN,
+    }.get(normalized_action)
+    if command is None:
+      raise ConflictError("不支持的 Approval 动作。")
+    handler = self._node_handlers.require(WorkflowGraphNodeType.APPROVAL)
+    capability_result = handler.command(
+      self._capability_context(
+        node_type=node_instance.node_type,
+        node_key=node_instance.node_key,
+        engine_state=node_instance.engine_state,
+        business_state=node_instance.business_state,
+        config=dict(node_instance.config or {}),
+      ),
+      command=command,
+      payload=await self._approval_command_payload(
+        graph_instance=graph_instance,
+        node_instance=node_instance,
+        approval_instance=approval_instance,
+        step_run=step_run,
+        actor_id=actor_id,
+      ),
+    )
+    if capability_result.outcome != WorkflowCapabilityOutcome.BLOCKED:
+      return None
+
+    policy_code = str(capability_result.diagnostics.get("policy_code") or "approval_blocked")
+    block_key = ":".join(
+      [str(approval_instance.id), str(step_run.id), normalized_action, policy_code]
+    )
+    if (node_instance.config or {}).get("approval_last_block_key") == block_key:
+      return policy_code
+    now = datetime.now(UTC)
+    await self._apply_capability_result(
+      node_instance=node_instance,
+      result=capability_result,
+      now=now,
+    )
+    node_instance.config = {
+      **dict(node_instance.config or {}),
+      "approval_last_block_key": block_key,
+      "approval_last_blocked_at": now.isoformat(),
+    }
+    graph_instance.current_node_key = node_instance.node_key
+    await self._session.flush()
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type="approval_blocked",
+      actor_user_id=actor_id,
+      aggregate_version=node_instance.node_instance_version,
+      payload={
+        "node_instance_id": str(node_instance.id),
+        "node_key": node_instance.node_key,
+        "approval_instance_id": str(approval_instance.id),
+        "approval_step_run_id": str(step_run.id),
+        "action": normalized_action,
+        "capability_result": self._map_capability_result(
+          node_type=node_instance.node_type,
+          result=capability_result,
+        ),
+      },
+    )
+    return policy_code
 
   async def _resolve_outgoing_edges(
     self,
@@ -1544,14 +1957,20 @@ class WorkflowGraphService:
       join_mode = (downstream_template_node.join_mode or "all").strip().lower()
 
       # 激活下游节点；业务状态映射由 Handler 返回，Runtime 只应用结果。
+      activation_result = self._activation_result(
+        node_type=downstream_ni.node_type,
+        node_key=downstream_ni.node_key,
+        config=dict(downstream_ni.config or {}),
+      )
       await self._apply_capability_result(
         node_instance=downstream_ni,
-        result=self._activation_result(
-          node_type=downstream_ni.node_type,
-          node_key=downstream_ni.node_key,
-          config=dict(downstream_ni.config or {}),
-        ),
+        result=activation_result,
         now=now,
+      )
+      await self._materialize_capability_side_effects(
+        graph_instance=graph_instance,
+        node_instance=downstream_ni,
+        result=activation_result,
       )
 
       if (
@@ -2030,14 +2449,20 @@ class WorkflowGraphService:
     template = runtime_template(graph_instance.definition_snapshot)
     initiator = await self._session.get(User, graph_instance.initiator_user_id)
     for target_instance in target_instances:
+      activation_result = self._activation_result(
+        node_type=target_instance.node_type,
+        node_key=target_instance.node_key,
+        config=dict(target_instance.config or {}),
+      )
       await self._apply_capability_result(
         node_instance=target_instance,
-        result=self._activation_result(
-          node_type=target_instance.node_type,
-          node_key=target_instance.node_key,
-          config=dict(target_instance.config or {}),
-        ),
+        result=activation_result,
         now=now,
+      )
+      await self._materialize_capability_side_effects(
+        graph_instance=graph_instance,
+        node_instance=target_instance,
+        result=activation_result,
       )
       if target_instance.assignee_user_id is None and template is not None and initiator is not None:
         ensure_active_user(initiator)

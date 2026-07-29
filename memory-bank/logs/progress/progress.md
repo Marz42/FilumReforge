@@ -2244,3 +2244,13 @@ Stage 2、UI IA、工作流图引擎 Phase 11、**TCE Phase 1–5**、**图模�
   3. 前端 `listTasksByIds` 用 axios 默认 `ids[]=`，FastAPI 收不到 `ids`，变成拉全量任务；管理员路径更慢，易超时导致待处理列表空白。
   4. 提醒：DB 中 `task_assigned` 通知已写入且消息中心可见；问题主要是待处理分桶/列表加载，不是通知未发。
 - **修复**：管理角色也排除 inbox；inbox 显式并入 action-owner 任务；`paramsSerializer: { indexes: null }`；回归 `test_standalone_delegate_to_admin_lands_in_inbox_not_tracking`。
+
+## 2026-07-30 00:22 · Iteration 4-C Approval Handler 适配完成
+
+- Approval Handler 已进入默认 Registry；未声明 `decision_semantic` 的旧图节点继续走 legacy 映射，不静默猜测正式审批语义。
+- 新增 `ApprovalCapabilityCoordinator`，按 `workflow_graph_node:{node_instance_id}` 稳定关联既有 `WorkflowDefinition / WorkflowInstance / WorkflowStepRun`，重复激活不重复创建审批实例。
+- 旧审批动作通过 API 注入的 Runtime bridge，在旧步骤变更前执行 ADR-019 overlap policy；策略阻断持久化为可诊断 `SUSPENDED/PENDING_REVIEW`，且重复提交不重复写事件。
+- 当前 Deliverable submitter/signature 为贡献者首选事实；返工更新当前交付后重新计算。审批事件携带 round、mode、decision、票状态、代理来源和策略诊断。
+- 旧审批状态、图节点/RunEvent 与通知消息在同一事务落库，通知只在提交成功后发布；整体 rollback 与回调幂等均有测试。
+- 保留既有 `ADMIN/HR` 审批 override，并显式记录 `legacy_management_override`；系统管理员业务边界仍按 KI-011 延后。
+- 验证：上述定向回归 **24 passed**；Backend 全量 **435 collected / 10 skipped / 0 failed**；`compileall` 与 Paradigma **All 5 checks passed**。
