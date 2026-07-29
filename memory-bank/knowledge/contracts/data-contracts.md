@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-28T10:47:27+08:00
+timestamp: 2026-07-29T21:42:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -32,8 +32,8 @@ paradigma:
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
-**版本**: v3.17.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-07-28 · Template Engine Decouple Phase 1 收口 + Phase 2 structured authoring · 产品基线 `0.92.1` + Unreleased
+**版本**: v3.20.0（与 [`architecture.md`](../architecture.md) 同步）
+**最后同步**: 2026-07-29 · Iteration 4 Preflight / ADR-018 / ADR-019 · 产品基线 `0.92.1` + Unreleased
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -57,6 +57,8 @@ paradigma:
   - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409
   - **打回 metadata**（TC-P1-7）：capture 打回写入 task `extra_metadata.latest_rework_reason` + `latest_capture_state: "rejected"` → 前端用户态「已退回」
 - **领域详述**: 图引擎见 [`domains/workflow-graph-engine.md`](../domains/workflow-graph-engine.md)；视频 v1 见 [`domains/workflow-video-v1.md`](../domains/workflow-video-v1.md)；任务中心见 [`domains/task-center.md`](../domains/task-center.md)
+- **ADR-018 领域中立边界**：上述视频专用 schema/API 是当前兼容事实，不是新的引擎类型；迁移目标是表单、集合、聚合、交付/返工和子 Run 等通用能力。迁移完成前不破坏现有公共 API。
+- **ADR-019 决策语义边界**：集合确认、独立交付验收、正式业务审批与多人会签具有不同参与者重叠规则；贡献者优先按 Deliverable submitter/version 判断。具体配置/API 形状尚待 I4-B/C 设计评审，本轮无 schema 变更。Admin 兼容行为不在 I4 修改。
 - **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](../domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
 - **S-01 周期统计契约**（2026-07-11 批准）：`GET /api/v1/tasks/stats/scopes|summary|workload|details`；统一 `start_date` / `end_date`（Asia/Shanghai、含首尾日期、最长 366 天）、`department_id?`、`include_subtree`；Employee 仅本人，经理/数据代理限有效管理范围，Admin/HR 全局；排除 `metadata.admin_archived=true` 与 `metadata.workflow_graph_root_task=true`。指标为新增、完成、到期、逾期、已成熟截止任务的按期完成率、当前未完成；details 以 `metric` + UUID cursor 分页。
 - **图模板部门作用范围**：显式 `scope_mode=global|departments`；`global` 不允许部门列表，`departments` 至少一个部门；Run 创建先解析最终部门再校验 scope（迁移 `20260713_01`）。
@@ -187,15 +189,13 @@ paradigma:
 
 ## 12. 当前验证基线
 
-权威数字见 [`progress.md`](../../logs/progress/progress.md)「测试基线」表（2026-06-22 @ E2E 扩面）：
+权威数字见 [`progress.md`](../../logs/progress/progress.md) 最新会话摘要（2026-07-28 @ I4-A）：
 
-- backend：`pytest` **252 collected**（含设计器 **15** 项：`test_workflow_graph_template_designer_d{1,2,3}` + `test_workflow_graph_template_topology`）；`test_migrations.py` 需本机 PostgreSQL + `POSTGRES_TEST_ADMIN_DSN`（否则 1 skipped）；`compileall` PASS
-- frontend：vitest **45 文件 / 124 用例**（含 `GraphTemplateDesignerView.spec.ts`）；`type-check` / `build` PASS
-- Playwright core mock：**33/33**（`npm run test:e2e`：login / task-center* / task-center-interactions / designer / workflow-video-v1 等）
-- Playwright task-center 全集：**48/48**（`npm run test:e2e:task-center` = core 33 + multi-account mock 15）
-- 未纳入每次刷新：`test:e2e:all`（UAT + docker-gui）、`playwright_live`、Ubuntu 回滚演练；**待办清单**见 [`progress.md`](../../logs/progress/progress.md)「E2E 待办（Backlog）」
-
-> **2026-07-10 更新**：dev 环境已重建；当前工作区 backend **293 collected / 282 passed / 11 skipped**，Vitest **54 文件 / 143 用例**，Playwright default mock **35/35**，type-check/build PASS。仍无 pytest/Vitest 覆盖率插件或 CI；详见 `memory-bank/history/reports/test-coverage-assessment-20260710.md`。
+- backend：**423 collected，适用用例 PASS**；登记的 PostgreSQL 环境用例按既有规则 skip；`compileall` PASS
+- Iteration 2–4 / I3-F ownership / 视频专项：**41 PASS**
+- frontend：Vitest **59 文件 / 168 用例 PASS**；`vue-tsc --build` 与 production build PASS
+- 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**
+- 未纳入每次刷新：live/docker-gui、目标环境 I3-F 7 天 readiness、Ubuntu 回滚演练
 
 ## 13. 维护规则
 

@@ -16,6 +16,47 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（Iteration 4 · 决策语义与范围调整）
+
+### 2026-07-29 21:42 — ADR-019 入库；管理员治理延后
+
+**完成事项**:
+- [x] 将部门管理者参与多人提交并负责集合推进确认为合法角色重叠场景
+- [x] 新增 ADR-019：按决策对象/版本区分 `collection_finalize`、`deliverable_acceptance`、`business_approval` 与 `cosign`
+- [x] I4-B 增加集合确认 HumanTask 语义；I4-C 增加贡献者事实、严格策略阻塞与会签矩阵
+- [x] 明确 `self_review_fallback` 不再作为目标策略；不得因候选人不足自动改变节点规则
+- [x] 系统管理员仅维护、不参与业务的产品边界已确认，但实现改造 deferred 为 KI-011，不属于 Iteration 4
+- [x] 同步 active task、Preflight、I4、architecture、data contracts、graph domain、roadmap 与 project brief
+
+**范围边界**:
+- 本轮仅更新计划与文档，未修改审批/验收代码、schema、API 或测试
+- I4 不修改 `UserRole.ADMIN`、`MANAGEMENT_ROLES`、管理员候选/override 或相关兼容测试
+
+**下一步**:
+- [ ] 盘点旧 completion policy、`self_review_fallback`、Deliverable submitter/version 与测试映射
+- [ ] 完成视频领域中立依赖清单和前端问题分级后恢复 I4-B
+
+## 会话摘要（Iteration 4 Preflight · 决策归档）
+
+### 2026-07-29 21:30 — 文档对齐、视频模板领域中立与前端稳定化入库
+
+**已确认并归档**:
+- [x] I4-A 保留；I4-B 暂停，先执行 Preflight
+- [x] 新增 ADR-018：视频流程是普通图模板包，Runtime 不按业务名称、tags、模板 code、节点 key 或 UI Profile 驱动行为
+- [x] 明确不新增 `VideoHandler`；现有视频专用 service/API/Profile 作为兼容层，待抽取通用能力后退出
+- [x] 前端问题按 P0 数据/权限/错误推进、P1 流程阻塞/状态错误、P2 交互、P3 视觉分级
+- [x] 修正 README、roadmap、project brief、data contracts、architecture、图引擎/视频领域与 I4 计划的当前焦点漂移
+
+**开放决策（未进入设计/实现）**:
+- [ ] 用户补充部门管理者同时参与多人提交并负责集合验收/推进的合法场景
+- [ ] 后续需区分独立交付验收、集合确认推进与正式业务审批，再决定参与者是否允许重叠
+- [ ] 旧 `self_review_fallback` 暂不视为最终方案；本轮未修改审批/验收代码或测试
+
+**下一步**:
+- [ ] 完成视频特殊分支依赖盘点与兼容退出清单
+- [ ] 接收用户前端问题并分级
+- [ ] 用户确认参与者重叠语义后，再回写 HumanTask / Approval 设计并恢复相关开发
+
 ## 会话摘要（工作流图引擎 · Iteration 4 启动）
 
 ### 2026-07-28 11:35 — 缺口入库；I4-A Handler 契约与 Registry 完成

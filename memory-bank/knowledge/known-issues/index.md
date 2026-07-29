@@ -1,7 +1,7 @@
 # Known-Issues Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: d9bc022dd9ffe554 -->
+<!-- checksum: 63f2a9d8d7fae43b -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -16,6 +16,7 @@
 | [ki-008-docker-frontend-dependency-volume.md](ki-008-docker-frontend-dependency-volume.md) | `paradigma-known-issue` | KI-008: Docker 前端依赖命名卷可能滞后于 lockfile | Vite import-analysis<br>Docker 缺少依赖<br>node_modules 命名卷 ... | - | - |
 | [ki-009-standalone-action-dual-track.md](ki-009-standalone-action-dual-track.md) | `paradigma-known-issue` | KI-009: Standalone Work Item 详情动作仍走旧契约 | standalone<br>开始处理<br>创建人 ... | - | - |
 | [ki-010-activity-timeline-redesign.md](ki-010-activity-timeline-redesign.md) | `paradigma-known-issue` | KI-010: 活动时间线需重做为更有指向性的留痕 | 活动时间线<br>折叠<br>留痕 ... | - | - |
+| [ki-011-system-admin-business-boundary.md](ki-011-system-admin-business-boundary.md) | `paradigma-known-issue` | KI-011: 系统管理员与业务参与权限尚未解耦 | 管理员业务边界<br>系统管理员<br>管理员不参与业务 ... | - | - |
 | [known-issues.md](known-issues.md) | `paradigma-known-issue` | 已知问题合辑 (已拆分) | 已知问题<br>合辑<br>known issue | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->
@@ -40,3 +41,9 @@
 | ID | Status | Note |
 |----|--------|------|
 | [KI-010](ki-010-activity-timeline-redesign.md) | 🟡 Deferred | 默认折叠已落地；后续重做更有指向性的活动留痕 |
+
+## Open — System admin business boundary
+
+| ID | Status | Note |
+|----|--------|------|
+| [KI-011](ki-011-system-admin-business-boundary.md) | 🟡 Deferred | Admin 产品定义为纯系统维护角色；当前业务候选/override 兼容行为在 I4 后单独治理 |

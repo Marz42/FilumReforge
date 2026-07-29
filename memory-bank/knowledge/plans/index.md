@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: a96c471efd9d5212 -->
+<!-- checksum: fbea77f51de11113 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -9,6 +9,7 @@
 | [2026-07-21-template-self-review-fix-plan.md](2026-07-21-template-self-review-fix-plan.md) | `paradigma-plan` | Template Self-Review Deadlock Fix | 模板自审<br>验收人<br>self-review ... | - | - |
 | [2026-07-22-template-decouple-phase1-plan.md](2026-07-22-template-decouple-phase1-plan.md) | `paradigma-plan` | Template Engine Decouple — Phase 1 Implementation Plan | 模板引擎解耦<br>Phase 1<br>tags ... | - | - |
 | [2026-07-28-template-decouple-phase2-plan.md](2026-07-28-template-decouple-phase2-plan.md) | `paradigma-plan` | Template Engine Decouple — Phase 2 Structured Authoring | 模板引擎解耦 Phase 2<br>结构化编辑<br>ui_profile ... | - | - |
+| [2026-07-29-iteration4-preflight-alignment-plan.md](2026-07-29-iteration4-preflight-alignment-plan.md) | `paradigma-plan` | Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化 | Iteration 4 前置<br>文档漂移<br>视频去特殊化 ... | - | - |
 | [implementation-plan.md](implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [improvements-stage2-implementation-plan.md](improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [paradigma-memory-bank-refactor-plan.md](paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

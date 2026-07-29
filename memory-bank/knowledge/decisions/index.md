@@ -1,7 +1,7 @@
 # Decisions Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 100491b43aae03a4 -->
+<!-- checksum: 36c35196d54ee1c3 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -23,6 +23,8 @@
 | [adr-015-approval-handler-reuse.md](adr-015-approval-handler-reuse.md) | `paradigma-decision` | ADR-015: 通过 Handler 复用现有审批引擎 | 审批 Handler<br>审批引擎复用<br>approval handler ... | - | - |
 | [adr-016-object-authorization-scope-legacy-executor.md](adr-016-object-authorization-scope-legacy-executor.md) | `paradigma-decision` | ADR-016: 对象级授权、显式 scope 与 legacy executor | 对象级授权<br>scope_mode<br>legacy executor ... | - | - |
 | [adr-017-template-engine-decouple.md](adr-017-template-engine-decouple.md) | `paradigma-decision` | ADR-017: 模板引擎业务语义解耦 — Tags 替代 run_kind | 模板引擎解耦<br>tags<br>run_kind ... | - | - |
+| [adr-018-domain-neutral-workflow-templates.md](adr-018-domain-neutral-workflow-templates.md) | `paradigma-decision` | ADR-018: 工作流模板领域中立 — 视频流程作为普通模板包 | 工作流领域中立<br>视频普通模板<br>去视频特殊化 ... | - | - |
+| [adr-019-decision-subject-actor-overlap.md](adr-019-decision-subject-actor-overlap.md) | `paradigma-decision` | ADR-019: 按决策对象与动作语义处理参与者重叠 | 参与者重叠<br>集合确认<br>独立验收 ... | - | - |
 | [decisions.md](decisions.md) | `paradigma-decision` | ADR 合集 (已拆分) | ADR<br>决策<br>合辑 ... | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->

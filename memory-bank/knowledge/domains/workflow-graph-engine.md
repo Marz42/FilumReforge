@@ -34,7 +34,7 @@ paradigma:
 > 🌡️ WARM — **现行 as-built 总览**（非历史提案）。涉及模板、实例化、节点推进、Task 投影、详情页布局时优先读本文件。  
 > **最后同步**：2026-07-28 · 对照代码：`backend/app/models/workflow_graph.py`、`HumanTaskCoordinator`、`WorkflowIteration4ReadinessService`、`workflow_node_handlers.py`
 > **计划**：[`plans/workflow-refactor-implementation-plan.md`](../plans/workflow-refactor-implementation-plan.md) · **ADR**：[`decisions/adr-005-dual-track-workflow.md`](../decisions/adr-005-dual-track-workflow.md) · [`adr-008-graph-template-designer.md`](../decisions/adr-008-graph-template-designer.md)  
-> **契约**：[`contracts/database/graph-engine-schema.md`](../contracts/database/graph-engine-schema.md) · **视频增量**：[`workflow-video-v1.md`](./workflow-video-v1.md) · **运行时链路**：[`architecture/core-workflows.md`](./architecture/core-workflows.md) §6.13B
+> **契约**：[`contracts/database/graph-engine-schema.md`](../contracts/database/graph-engine-schema.md) · **视频参考模板包/兼容链路**：[`workflow-video-v1.md`](./workflow-video-v1.md) · **运行时链路**：[`architecture/core-workflows.md`](./architecture/core-workflows.md) §6.13B
 
 ---
 
@@ -51,7 +51,7 @@ paradigma:
 运行与 Work Item 创建路径：
 
 1. **普通 Task** — 默认 standalone；仅在 standalone 开关关闭时，新建任务走旧 `create_single_node_instance` 兼容路径
-2. **图模板 Run** — `POST /workflow-graph/templates/{id}/runs`（需 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`）→ 视频/通用模板实例化 + HumanTask Link 投影
+2. **图模板 Run** — `POST /workflow-graph/templates/{id}/runs`（需 `WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED`）→ 普通图模板实例化 + HumanTask Link 投影；视频模板当前经兼容 service 进入同一图运行时
 
 ---
 
@@ -181,6 +181,8 @@ erDiagram
 
 ## 4. 运行时推进（引擎）
 
+Iteration 4 的参与者重叠规则见 [`ADR-019`](../decisions/adr-019-decision-subject-actor-overlap.md)：`collection_finalize` 属于协调推进，可允许负责人同时是集合贡献者；独立交付验收和正式业务审批则按决策对象/版本应用职责分离。Runtime 不以 actor 与 assignee 是否相等直接推断规则。
+
 核心服务：`WorkflowGraphService`（`backend/app/services/workflow_graph_service.py`）。
 
 ```mermaid
@@ -220,7 +222,7 @@ flowchart TD
 | **审计** | `WorkflowRunEventService.append`（与 outbox 分离） |
 | **能力 Handler** | Iteration 4-A 以 `WorkflowNodeHandlerRegistry` 解析 HumanTask/Notice，返回统一 `WorkflowCapabilityResult`；Runtime 只应用 engine/business state 与映射后的审计结果，Approval 暂保留 legacy |
 
-视频批次约定（简）：`context.run_kind`（`batch`/`production`…）· `parent_instance_id` fork · `instance_key` 多人扇出 · 详情见 [`workflow-video-v1.md`](./workflow-video-v1.md)。
+当前视频兼容约定（简）：`context.run_kind`（`batch`/`production`…）· `parent_instance_id` fork · `instance_key` 多人扇出。按 ADR-018，`run_kind` 是待退出兼容标签，fork / 多实例能力应保持领域中立。详情见 [`workflow-video-v1.md`](./workflow-video-v1.md)。
 
 ---
 
@@ -319,7 +321,7 @@ Schema：`backend/app/schemas/workflow_graph.py`（+ `workflow_graph_schedule.py
 1. `getWorkflowGraphInstance` + `listInstanceEvents(limit:50)`
 2. `resolveTaskDetailProfile(task)` 决定布局
 
-**解析顺序**：显式 `metadata.ui_profile` → 按 `run_kind` / 节点键推断视频剖面 → `graph_manual`（手动握手图任务）→ `legacy_task`。
+**当前兼容解析顺序**：显式 `metadata.ui_profile` → 按 `run_kind` / 节点键推断视频剖面 → `graph_manual`（手动握手图任务）→ `legacy_task`。其中视频推断不是目标架构；Preflight 将盘点并改为显式、只影响呈现的 profile 解析。
 
 | Profile 族 | 详情表现 |
 |------------|----------|
@@ -389,5 +391,8 @@ Phase 10 目标「按节点板块聚合交付/评论/日志」**尚未实现**�
 | Admin takeover UI | 后端有、前端无 |
 | Legacy E 历史数据清理 | 对外 API 已移除；表族/ORM 仍保留兼容 |
 | 视频与通用图详情的时间线统一 | 视频隐藏节点板块，靠专用面板 + run events |
+| 模板领域中立 | Runtime / TaskService / 前端仍存在 `run_kind`、节点 key 与 `video_*` Profile 分支；ADR-018 已定，迁移待实施 |
+| 决策语义与参与者重叠 | 旧 `self_review_fallback` 仍按候选数量改变行为；ADR-019 已定，I4-B/C 待迁移 |
+| 系统管理员业务边界 | 当前 Admin 仍有业务候选/override；KI-011 deferred，不属于 I4 |
 
 调试提示：写路径须 `commit` 后跨请求可见；详情避免对 `node_instances` 懒加载；见 [`known-issues/ki-005-graph-engine-issues.md`](../known-issues/ki-005-graph-engine-issues.md)。

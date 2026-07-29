@@ -43,6 +43,11 @@ paradigma:
 
 ### Changed
 
+- Iteration 4 执行顺序增加 Preflight 门禁：先完成 memory-bank 事实对齐、视频模板领域中立设计与前端问题分级；I4-A 保留，I4-B 暂停
+- ADR-018 固定视频流程为普通图模板包，后续不新增 `VideoHandler`，现有视频专用 API/service/Profile 作为兼容层分批迁移
+- ADR-019 将集合确认、独立交付验收、正式业务审批和多人会签分开建模；旧 `self_review_fallback` 不再作为目标策略
+- 系统管理员业务边界治理明确延后至 KI-011，Iteration 4 保持现有 Admin 兼容行为
+
 - 模板直接发起与周期调度改由图结构 capabilities 门控；模板级 `config.run_kind` 降级为旧视频 seed 的 deprecated dual-read 字段
 - HumanTask 跨域写入统一由 Coordinator 编排两个 flush-only writer；Link 存在时为唯一关系真相，JSON 不一致登记 incident
 - Link 回填器支持 checkpoint/batch，确定项与歧义 incident 可在同次 apply 中安全、幂等落库

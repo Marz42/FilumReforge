@@ -6,7 +6,7 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-07-28T11:35:18+08:00
+timestamp: 2026-07-29T21:42:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -24,8 +24,8 @@ paradigma:
 ---
 # Project Filum 架构基线
 
-**文档版本**: v3.18.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
-**最后同步**: 2026-07-28 · 当前焦点: [workflow-graph-engine-iteration4-handler-plan.md](./plans/workflow-graph-engine-iteration4-handler-plan.md)
+**文档版本**: v3.20.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
+**最后同步**: 2026-07-29 · 当前焦点: [Iteration 4 Preflight](./plans/2026-07-29-iteration4-preflight-alignment-plan.md) + ADR-019
 
 ## 1. 文档定位
 
@@ -78,6 +78,8 @@ paradigma:
 - Inbox-first 任务中心：主筛选 **待处理 / 跟踪 / 历史**；页头 **建立任务** 为居中 **Dialog**（含未保存关闭确认）；筛选摘要卡；`GET /api/v1/tasks/search`；`FilumDateTimePicker` / `FilumDateTimeRangePicker`；全局 **个人备忘** 为右下角浮窗（列表 + 新建/编辑 Dialog，可选 `title`）；任务模板在 `/task-templates`
 - 工作流图引擎 schema 现为 **十四表**：十三表运行时/Link/receipt 基线 + `workflow_operational_incidents`。新模板 Run 使用 snapshot format v2 / `graph-v3`；既有 executor 不原地升级。Iteration 3-F 以 `WorkItemWriteService` / `WorkflowRuntimeWriteService` 固化独占写端口，`HumanTaskCoordinator` 只编排同一 UoW，全仓库 AST guard 阻止越界写和内部 commit；Link 支持 iteration/superseded，readiness API/CLI 可查询 fallback、Coordinator/Receipt/Outbox 异常、engine version 与未迁移对象。兼容 JSON 仍双写；Iteration 4 可进行向下兼容开发，但生产切流仍须目标环境连续 7 天零 fallback 与最终 31/31 批准
 - 工作流图引擎 Iteration 4-A（@ 2026-07-28）：新增 `WorkflowNodeHandlerRegistry` 与统一 `WorkflowCapabilityResult`，Handler 契约声明 definition validation、activate、command、cancel、retry、interruptible、compensation、side effects 与 result mapping；HumanTask/Notice 已注册，Runtime 的激活/完成状态映射消费统一结果并写入 RunEvent 审计，Approval 暂走 legacy 等待 I4-C
+- Iteration 4 Preflight（@ 2026-07-29）：I4-A 保留、I4-B 暂停；先收口文档漂移、视频模板领域中立设计与前端问题分级。ADR-018 明确视频流程是普通模板包，Runtime 不得以 `run_kind`、模板 code、节点 key、tags 或 `video_*` Profile 驱动行为，也不新增 `VideoHandler`；现有专用路径作为兼容层分批迁移
+- ADR-019（@ 2026-07-29）：参与者重叠按决策对象与动作语义处理。集合确认允许负责人同时贡献；同版本独立验收和正式业务审批默认职责分离；多人会签可显式允许重叠但贡献者不得成为唯一决定者。系统管理员业务边界改造按 KI-011 延后，不属于 I4
 - 工作流重构 Phase 3：后端已新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` 等 feature flag、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在手动创建任务且开关开启时走“graph instance + node instance + 兼容 Task 投影”双写路径；兼容 `Task` 行仍是列表与详情载体，`TaskCenterService` 仍委托 `TaskService.list_task_inbox()` 等三接口，但在 `TASK_CENTER_V2_ENABLED=true`（`backend/app/core/config.py` 默认）时上述列表优先使用 `_graph_task_projection_map` 解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，未命中图投影时回落既有 legacy 规则
 - 工作流重构单节点交付闭环首轮：基于上述 Phase 3 双写链路，`TaskService` / `tasks` API 已新增“提交交付物”“通过验收”“打回返工”动作，交付快照写入 `workflow_deliverables`，兼容 `Task` 投影通过 `extra_metadata` 暴露最近交付说明、最近提交时间、返工原因、返工次数与最近质量评分；`TaskCenterService` / `task-center` API / `TaskCenterView` 已同步投影待验收、最近提交时间、返工次数、质量评分等跟踪信号；同时禁止 graph 手动任务通过通用状态流转接口直接跳过交付 / 验收动作
 - 工作流重构 Phase 4：graph 手动任务默认以 `ASSIGNED` 节点业务态创建；`TaskService` / `tasks` API / `TasksView` 已新增“接受任务”“退回协商”“转办”动作，`todo -> doing` 现在要求执行人先确认接单；兼容读取侧继续使用 `Task.extra_metadata` + `TaskCenterService` 投影当前握手阶段、当前处理人与最近协商 / 转办原因
@@ -108,9 +110,11 @@ paradigma:
 - 生产 compose、主机部署脚本与 Nginx 生产配置已落地；**Stage 2 Phase 6** 已记录在线 Ubuntu 主机演练与 2026-05-21 测试基线；**最小回滚路径**仍待演练
 - HR 字段权限的可视化规则管理页仍偏基础
 - 消息外部渠道深化、失败重试与更完整投递观测
+- 系统管理员当前仍通过 `MANAGEMENT_ROLES`、候选链和 override 参与部分业务动作，与“仅系统维护”产品边界不一致；治理改造 deferred（KI-011），Iteration 4 保持兼容行为
 - Email / WebSocket 渠道的外部真实接入仍是最小实现后的下一步
 - 更大范围的集成测试、端到端验证扩面；docker-gui / Playwright 与发布 commit 的定期基线刷新
 - **视频工作流 v1（W0–W10 已落地，v1 硬化完成）**：排期见 `memory-bank/knowledge/plans/workflow-video-v1-implementation-plan.md` v2.0。产品口径为 **一次选题会（批次 Run）→ 选题清单 `approved_topics[]` → 按题 fork 子 Run（`video_production_per_topic_v1`）**；**无**独立「发起选题会」入口（选题会为图模板之一）。模板引擎增量：**`launch_schema` / `capture_schema` / `aggregate_schema`**（Pydantic：`backend/app/schemas/workflow_video.py`）。**W1 已落库**：`workflow_node_instances.instance_key`；`workflow_graph_instances.run_label` / `parent_instance_id`（迁移 `20260522_01`）。**W2 已落地**：`ParticipantResolutionService`（`participant_policies` + all/subset）、`POST /api/v1/workflow-graph/templates/{id}/preview-participants`；`workflow_rule_resolver` 扩展 `context_var` / `department_pool`。运行时以 `workflow_graph_*` + `Task` 为主；B-12 后 Legacy E 实例化入口已移除。开关：`workflow_graph_template_engine_enabled` 默认 `false`（ADR：`workflow-video-v1-w0-adr.md`）；`backend/app/core/workflow_video_policy.py`。**W8**：运行事件落库表 `workflow_run_events`（迁移 `20260523_01`）、`WorkflowRunEventService`、`GET /api/v1/workflow-graph/instances/{id}/events`；采集/汇总/fork/打回/实例化/节点完成等写入事件（不再使用 `context.run_events`）。**W9**：`workflow_node_activated` 写入 `workflow_outbox_events`（实例化/下游激活）；`GET/PATCH /workflow-graph/templates/{id}` 维护模板 config；`GET /workflow-graph/feature-flags`。**W10**：Playwright mock 纵向 E2E（`frontend/e2e/workflow-video-v1.spec.ts` + `workflow-video-mock.ts`）；后端 `test_workflow_video_w10_regression.py` 聚合 WFK/W5/W8 关键路径；Runbook §6–§7。
+- 上述视频 v1 纵向能力当前仍存在 `run_kind`、专用 service/API 与前端 Profile 兼容分支；这些是 as-built 事实，不是目标架构。ADR-018 要求后续抽取为表单、聚合、交付/返工、子 Run 等通用能力，视频仅保留模板包与兼容适配
 
 ## 3. 模块边界与状态映射
 

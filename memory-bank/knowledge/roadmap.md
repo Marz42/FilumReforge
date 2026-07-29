@@ -1,12 +1,12 @@
 ---
 type: paradigma-plan
 title: "Project Filum — 路线图"
-description: "宏观里程碑与任务中心改造计划 (TC-Transform)。"
+description: "宏观里程碑、当前 Iteration 4 Preflight 与历史任务中心改造记录。"
 tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-07-11T23:34:27+08:00
+timestamp: 2026-07-29T21:30:31+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -27,14 +27,14 @@ paradigma:
 ---
 # Project Filum 路线图
 
-> 🌡️ WARM — 宏观里程碑与**任务中心改造计划**。全貌见 [`domains/task-center.md`](./domains/task-center.md)。
+> 🌡️ WARM — 宏观里程碑与当前执行顺序。任务中心历史全貌见 [`domains/task-center.md`](./domains/task-center.md)。
 
 | 字段 | 内容 |
 |------|------|
-| **当前版本** | `0.92.0`（根目录 `VERSION`） |
-| **版本主题** | Paradigma v0.5.0 三态迁移 · 文档合规 |
-| **阶段** | **内测验收** — S-01 最小周期统计已实施待验收；F-05/CI 为并行技术债 |
-| **最后整理** | 2026-07-11 — S-01 权限/周期/DB 聚合/明细闭环 |
+| **当前版本** | `0.92.1`（根目录 `VERSION`）+ Unreleased |
+| **版本主题** | 工作流图引擎 Iteration 4 · 模板领域中立与稳定化 |
+| **阶段** | **Iteration 4 Preflight** — I4-A 已完成；I4-B 暂停，先做文档对齐、视频模板领域中立和前端问题分级 |
+| **最后整理** | 2026-07-29 — ADR-018 与 Preflight 计划入库 |
 
 ---
 
@@ -54,6 +54,10 @@ paradigma:
 | **生产 hotfix** | done | N3/N5/N7/N10 流转与附件 @ `efa450c` |
 | **F-29 管理员治理** | done | 归档 API · 图 Run 终止 · 跟踪督办 · 逾期延期 @ `0.91.0` |
 | **Paradigma v0.5.0 三态迁移** | done | runtime/logs/knowledge 三态 · OKF frontmatter · 文档合规 @ `0.92.0` |
+| **Task Center P0–P2 审计修复** | done | 锁/CAS · 分页/附件 · 模板评审候选链 @ `0.92.1` |
+| **工作流图引擎 Iteration 1–3-F 工程实现** | done | snapshot · graph-v3 · Link/receipt · ownership/UoW · readiness 工具；生产证据仍 gated |
+| **模板解耦 Phase 1 + Phase 2 首批** | done / UAT | tags · capabilities · archive · structured authoring |
+| **Iteration 4-A** | done | Handler Registry · unified Capability Result · HumanTask/Notice 接入 |
 
 ---
 
@@ -150,20 +154,22 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-1. **产品主线**：S-01 最小周期统计待用户验收；不含排名、评分、导出和复杂图表。
-2. **质量基线**：dev 环境与近期直接回归已恢复；覆盖率工具、CI、live/docker-gui 仍待后续治理。
-3. **并行技术债**：F-05 `TaskDetailShell` 继续拆分；Legacy E 历史表族清理策略。
-4. **运维暂缓项**：Ubuntu 最小回滚演练，上线前执行。
+1. **Preflight P0**：修正文档版本、当前焦点、验证基线与计划漂移。
+2. **Preflight P1**：按 ADR-018 盘点视频专用分支，设计通用能力与兼容退出路径；不新增 `VideoHandler`。
+3. **Preflight P2**：接收用户前端问题，按 P0–P3 分级；先处理阻塞或错误推进项。
+4. **ADR-019 落地准备**：盘点旧 `self_review_fallback` 与 completion policy，按集合确认、独立验收、正式审批、会签建立映射。
+5. **恢复 I4-B**：Preflight 门禁通过后接续 HumanTask Handler；I3-F 生产准入门禁保持不变。
+6. **明确延期**：系统管理员业务边界治理按 KI-011 在 I4 后单独规划。
 
-**下一 actionable**：完成 S-01 统计 Tab 用户验收。内测发布仍按 [`deployment-runbook §21`](./manuals/deployment-runbook-ubuntu-2404.md) 执行。
+**下一 actionable**：完成视频领域中立依赖盘点、ADR-019 旧策略映射，并接收用户前端问题清单。内测发布仍按 [`deployment-runbook §21`](./manuals/deployment-runbook-ubuntu-2404.md) 执行。
 
 ---
 
 ## 并行工作线
 
-- 产品：S-01（待验收）
-- 工程质量：F-05、测试覆盖、Legacy E 历史兼容清理
-- 业务深化：生命周期规则 UI、真实通知渠道
+- 产品/架构：ADR-019 决策语义映射；视频模板领域中立
+- 前端：问题清单待接收并分级；模板解耦 Phase 2 UAT
+- 工程质量：I3-F 目标环境证据、F-05、测试覆盖、Legacy E 历史兼容清理；KI-011 延后
 
 历史细计划：[`plans/task-center-enhance.md`](./plans/task-center-enhance.md) · 当前主线：[`plans/implementation-plan.md`](./plans/implementation-plan.md)
 

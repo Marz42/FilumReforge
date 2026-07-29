@@ -2,7 +2,7 @@
 
 本目录是 Project Filum 的**外部记忆系统**（Paradigma 对齐 Phase 0–4 已完成）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)（`0.90.0`）。
 
-> **当前实施焦点**：[`active-task.md`](../runtime/active-task.md) → **TC-Transform** · P0 **B-12** · P1 **F-28** / **F-22** · 全貌 [`domains/task-center.md`](./domains/task-center.md)
+> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → **Iteration 4 Preflight**：文档对齐、视频模板领域中立、前端稳定化 · 计划 [`2026-07-29-iteration4-preflight-alignment-plan.md`](./knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md)
 
 > **`knowledge/manuals/` ≈ Paradigma `manuals/`**：路径名保留 `knowledge/manuals/`，语义为部署运维与测试操作手册。
 
@@ -12,12 +12,12 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [project-brief.md](./project-brief.md) | 产品愿景、受众、功能边界、技术栈摘要 |
-| [architecture.md](./architecture.md) | 工程蓝图：模块、运行时、核心流程、关键文件 |
-| [data-contracts.md](./contracts/data-contracts.md) | schema、枚举、实体关系、API 索引 |
-| [conventions.md](./conventions.md) | 编码与协作规范 |
-| [active-task.md](../runtime/active-task.md) | 当前唯一聚焦任务 |
-| [progress.md](../logs/progress/progress.md) | 会话摘要 + 阶段验收与测试基线 |
+| [project-brief.md](./knowledge/project-brief.md) | 产品愿景、受众、功能边界、技术栈摘要 |
+| [architecture.md](./knowledge/architecture.md) | 工程蓝图：模块、运行时、核心流程、关键文件 |
+| [data-contracts.md](./knowledge/contracts/data-contracts.md) | schema、枚举、实体关系、API 索引 |
+| [conventions.md](./knowledge/conventions.md) | 编码与协作规范 |
+| [active-task.md](./runtime/active-task.md) | 当前唯一聚焦任务 |
+| [progress.md](./logs/progress/progress.md) | 会话摘要 + 阶段验收与测试基线 |
 
 ---
 
@@ -25,29 +25,29 @@
 
 | 路径 | 用途 |
 | --- | --- |
-| [roadmap.md](./roadmap.md) | 宏观里程碑与版本焦点 |
-| [changelog.md](./changelog.md) | SemVer 发布历史 |
-| [domains/](./domains/) | 子系统领域文档 |
-| [plans/](./plans/) | 细粒度实施计划 |
-| [plans/tc-p2-views-stats-plan.md](./plans/tc-p2-views-stats-plan.md) | TC-P2 落地计划（三视图 + 统计 + Shell） |
-| [plans/task-center-enhance.md](./plans/task-center-enhance.md) | **TCE Phase 1–5 ✅** · F-18–F-20 ✅ · **P0 B-12** · **P1 F-22** · **P2 F-21**
-| [plans/task-center-v2-implementation-plan.md](./plans/task-center-v2-implementation-plan.md) | TC-P0–P2 ✅；TC-P3 已并入 TCE Phase 5 |
-| [plans/workflow-video-v1-ui-simplification-design.md](./plans/workflow-video-v1-ui-simplification-design.md) | 任务协同 UI 简化规格 v2.1（P0–P2 ✅ @ `0.88.0`） |
+| [roadmap.md](./knowledge/roadmap.md) | 宏观里程碑与版本焦点 |
+| [changelog.md](./logs/changelog.md) | SemVer 发布历史 |
+| [domains/](./knowledge/domains/) | 子系统领域文档 |
+| [plans/](./knowledge/plans/) | 细粒度实施计划 |
+| [plans/tc-p2-views-stats-plan.md](./knowledge/plans/tc-p2-views-stats-plan.md) | TC-P2 落地计划（三视图 + 统计 + Shell） |
+| [plans/task-center-enhance.md](./knowledge/plans/task-center-enhance.md) | **TCE Phase 1–5 ✅** · F-18–F-20 ✅ · **P0 B-12** · **P1 F-22** · **P2 F-21**
+| [plans/task-center-v2-implementation-plan.md](./knowledge/plans/task-center-v2-implementation-plan.md) | TC-P0–P2 ✅；TC-P3 已并入 TCE Phase 5 |
+| [plans/workflow-video-v1-ui-simplification-design.md](./knowledge/plans/workflow-video-v1-ui-simplification-design.md) | 任务协同 UI 简化规格 v2.1（P0–P2 ✅ @ `0.88.0`） |
 | [demos/workflow-task-detail-v2.html](./demos/workflow-task-detail-v2.html) | 单页 HTML 交互 Demo（浏览器直接打开） |
 | [design-document.md](./design-document.md) | 完整产品设计（摘要见 project-brief） |
 | [tech-stack.md](./tech-stack.md) | 完整技术选型（摘要见 project-brief） |
-| [knowledge/manuals/user-manual.md](./manuals/user-manual.md) | 用户说明书 v1.2 |
+| [knowledge/manuals/user-manual.md](./knowledge/manuals/user-manual.md) | 用户说明书 v1.2 |
 
 ### domains/ 索引
 
 | 文件 | 子系统 |
 | --- | --- |
-| [hr-org.md](./domains/hr-org.md) | 组织、档案、权限、生命周期 |
-| [task-center.md](./domains/task-center.md) | 任务中心全貌：完成度、模块地图、典型场景（**主文档**） |
-| [workflow-graph-engine.md](./domains/workflow-graph-engine.md) | 图引擎 Phase 3–11 |
-| [workflow-video-v1.md](./domains/workflow-video-v1.md) | 视频工作流 v1 |
-| [messaging.md](./domains/messaging.md) | 消息、通知、回执 |
-| [knowledge-ai.md](./domains/knowledge-ai.md) | 知识库、AI Router |
+| [hr-org.md](./knowledge/domains/hr-org.md) | 组织、档案、权限、生命周期 |
+| [task-center.md](./knowledge/domains/task-center.md) | 任务中心全貌：完成度、模块地图、典型场景（**主文档**） |
+| [workflow-graph-engine.md](./knowledge/domains/workflow-graph-engine.md) | 图引擎 Phase 3–11 / Iteration 1–4 |
+| [workflow-video-v1.md](./knowledge/domains/workflow-video-v1.md) | 视频参考模板包与现有兼容实现 |
+| [messaging.md](./knowledge/domains/messaging.md) | 消息、通知、回执 |
+| [knowledge-ai.md](./knowledge/domains/knowledge-ai.md) | 知识库、AI Router |
 
 ---
 

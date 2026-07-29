@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 1cd0d148b5ffdd80 -->
+<!-- checksum: 447a12cce88bfc2d -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -36,6 +36,8 @@
 | [decisions/adr-015-approval-handler-reuse.md](decisions/adr-015-approval-handler-reuse.md) | `paradigma-decision` | ADR-015: 通过 Handler 复用现有审批引擎 | 审批 Handler<br>审批引擎复用<br>approval handler ... | - | - |
 | [decisions/adr-016-object-authorization-scope-legacy-executor.md](decisions/adr-016-object-authorization-scope-legacy-executor.md) | `paradigma-decision` | ADR-016: 对象级授权、显式 scope 与 legacy executor | 对象级授权<br>scope_mode<br>legacy executor ... | - | - |
 | [decisions/adr-017-template-engine-decouple.md](decisions/adr-017-template-engine-decouple.md) | `paradigma-decision` | ADR-017: 模板引擎业务语义解耦 — Tags 替代 run_kind | 模板引擎解耦<br>tags<br>run_kind ... | - | - |
+| [decisions/adr-018-domain-neutral-workflow-templates.md](decisions/adr-018-domain-neutral-workflow-templates.md) | `paradigma-decision` | ADR-018: 工作流模板领域中立 — 视频流程作为普通模板包 | 工作流领域中立<br>视频普通模板<br>去视频特殊化 ... | - | - |
+| [decisions/adr-019-decision-subject-actor-overlap.md](decisions/adr-019-decision-subject-actor-overlap.md) | `paradigma-decision` | ADR-019: 按决策对象与动作语义处理参与者重叠 | 参与者重叠<br>集合确认<br>独立验收 ... | - | - |
 | [decisions/decisions.md](decisions/decisions.md) | `paradigma-decision` | ADR 合集 (已拆分) | ADR<br>决策<br>合辑 ... | - | - |
 | [domains/architecture/backend-architecture.md](domains/architecture/backend-architecture.md) | `paradigma-domain` | Backend 架构细节 | 后端架构<br>FastAPI<br>service ... | - | - |
 | [domains/architecture/core-workflows.md](domains/architecture/core-workflows.md) | `paradigma-domain` | 核心流程 | 核心流程<br>运行时<br>链路 ... | - | - |
@@ -46,7 +48,7 @@
 | [domains/messaging.md](domains/messaging.md) | `paradigma-domain` | 领域：消息与通知 (Messaging) | 消息<br>通知<br>回执 ... | - | - |
 | [domains/task-center.md](domains/task-center.md) | `paradigma-domain` | 领域：任务中心 (Task Center) | 任务中心<br>Inbox<br>跟踪 ... | - | - |
 | [domains/workflow-graph-engine.md](domains/workflow-graph-engine.md) | `paradigma-domain` | 领域：工作流图引擎 (Workflow Graph Engine) | 图引擎<br>工作流<br>模板 ... | - | - |
-| [domains/workflow-video-v1.md](domains/workflow-video-v1.md) | `paradigma-domain` | 领域：视频工作流 v1 (Workflow Video v1) | 视频工作流<br>选题会<br>W0 ... | - | - |
+| [domains/workflow-video-v1.md](domains/workflow-video-v1.md) | `paradigma-domain` | 参考模板包：视频工作流 v1 (Workflow Video v1) | 视频工作流<br>选题会<br>W0 ... | - | - |
 | [glossary.md](glossary.md) | `paradigma-glossary` | Project Filum — 术语表 | 术语表<br>缩写<br>glossary ... | - | - |
 | [known-issues/ki-001-environment-toolchain.md](known-issues/ki-001-environment-toolchain.md) | `paradigma-known-issue` | KI-001: 环境与工具链问题 | 环境问题<br>工具链<br>Windows ... | - | - |
 | [known-issues/ki-002-architecture-boundaries.md](known-issues/ki-002-architecture-boundaries.md) | `paradigma-known-issue` | KI-002: 架构边界（易误判非 Bug） | 架构边界<br>Legacy E<br>图引擎 ... | - | - |
@@ -58,6 +60,7 @@
 | [known-issues/ki-008-docker-frontend-dependency-volume.md](known-issues/ki-008-docker-frontend-dependency-volume.md) | `paradigma-known-issue` | KI-008: Docker 前端依赖命名卷可能滞后于 lockfile | Vite import-analysis<br>Docker 缺少依赖<br>node_modules 命名卷 ... | - | - |
 | [known-issues/ki-009-standalone-action-dual-track.md](known-issues/ki-009-standalone-action-dual-track.md) | `paradigma-known-issue` | KI-009: Standalone Work Item 详情动作仍走旧契约 | standalone<br>开始处理<br>创建人 ... | - | - |
 | [known-issues/ki-010-activity-timeline-redesign.md](known-issues/ki-010-activity-timeline-redesign.md) | `paradigma-known-issue` | KI-010: 活动时间线需重做为更有指向性的留痕 | 活动时间线<br>折叠<br>留痕 ... | - | - |
+| [known-issues/ki-011-system-admin-business-boundary.md](known-issues/ki-011-system-admin-business-boundary.md) | `paradigma-known-issue` | KI-011: 系统管理员与业务参与权限尚未解耦 | 管理员业务边界<br>系统管理员<br>管理员不参与业务 ... | - | - |
 | [known-issues/known-issues.md](known-issues/known-issues.md) | `paradigma-known-issue` | 已知问题合辑 (已拆分) | 已知问题<br>合辑<br>known issue | - | - |
 | [manuals/deployment-runbook-ubuntu-2404.md](manuals/deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | - |
 | [manuals/e2e-gui-verification-automation-runbook.md](manuals/e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | - |
@@ -71,6 +74,7 @@
 | [plans/2026-07-21-template-self-review-fix-plan.md](plans/2026-07-21-template-self-review-fix-plan.md) | `paradigma-plan` | Template Self-Review Deadlock Fix | 模板自审<br>验收人<br>self-review ... | - | - |
 | [plans/2026-07-22-template-decouple-phase1-plan.md](plans/2026-07-22-template-decouple-phase1-plan.md) | `paradigma-plan` | Template Engine Decouple — Phase 1 Implementation Plan | 模板引擎解耦<br>Phase 1<br>tags ... | - | - |
 | [plans/2026-07-28-template-decouple-phase2-plan.md](plans/2026-07-28-template-decouple-phase2-plan.md) | `paradigma-plan` | Template Engine Decouple — Phase 2 Structured Authoring | 模板引擎解耦 Phase 2<br>结构化编辑<br>ui_profile ... | - | - |
+| [plans/2026-07-29-iteration4-preflight-alignment-plan.md](plans/2026-07-29-iteration4-preflight-alignment-plan.md) | `paradigma-plan` | Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化 | Iteration 4 前置<br>文档漂移<br>视频去特殊化 ... | - | - |
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

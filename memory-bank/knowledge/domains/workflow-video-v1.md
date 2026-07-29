@@ -1,13 +1,13 @@
 ---
 type: paradigma-domain
-title: "领域：视频工作流 v1 (Workflow Video v1)"
-description: "视频 v1：选题会批次、表单引擎、fork。"
+title: "参考模板包：视频工作流 v1 (Workflow Video v1)"
+description: "视频 v1 普通图模板包及当前兼容实现：选题会批次、表单、聚合与 fork。"
 tags:
   - domain
   - 视频工作流
   - 选题会
   - W0
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-07-29T21:30:31+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -23,12 +23,14 @@ paradigma:
       - "video workflow"
       - W0
 ---
-# 领域：视频工作流 v1 (Workflow Video v1)
+# 参考模板包：视频工作流 v1 (Workflow Video v1)
 
-> 🌡️ WARM — 涉及选题会、批次 Run、按题 fork、表单引擎时读取。
+> 🌡️ WARM — 涉及选题会、批次 Run、按题 fork、表单/聚合兼容链路时读取。视频流程是普通图模板包，不是引擎领域类型。
 
 **计划**: `plans/workflow-video-v1-implementation-plan.md` v2.0 · **ADR**: `decisions.md` ADR-006 · **运维**: `knowledge/manuals/workflow-video-v1-*.md`  
 **UI 迭代（v2 草案）**: [`plans/workflow-video-v1-ui-simplification-design.md`](../plans/workflow-video-v1-ui-simplification-design.md) · Demo: [`demos/workflow-task-detail-v2.html`](../demos/workflow-task-detail-v2.html)
+
+**目标架构**：[`ADR-018`](../decisions/adr-018-domain-neutral-workflow-templates.md) — 视频仅提供模板、schema、种子与呈现扩展；Runtime 不按视频业务词汇分支。下文的专用 service/API/Profile 是当前兼容事实，待按 Preflight 计划迁移。
 
 ---
 
@@ -56,7 +58,7 @@ Demo 环境可省略参数（须存在 `video-copywriting` / `video-voice` / `vi
 
 ---
 
-## 表单引擎
+## 当前表单/聚合兼容实现
 
 | Schema | 阶段 |
 |--------|------|
@@ -65,7 +67,7 @@ Demo 环境可省略参数（须存在 `video-copywriting` / `video-voice` / `vi
 | `aggregate_schema` | 汇总定稿 |
 
 Pydantic：`backend/app/schemas/workflow_video.py`  
-服务：`WorkflowVideoFormService`、`WorkflowVideoInstantiationService`、`WorkflowVideoForkService`、`WorkflowVideoReworkService`
+兼容服务：`WorkflowVideoFormService`、`WorkflowVideoInstantiationService`、`WorkflowVideoForkService`、`WorkflowVideoReworkService`。目标不是保留视频专用引擎层，而是将可复用行为抽取为结构化表单、集合关闭、聚合、交付/返工和子 Run 能力。
 
 **TC-P1 运行时扩展**（2026-06-18）：
 
@@ -94,6 +96,8 @@ Pydantic：`backend/app/schemas/workflow_video.py`
 
 W0–W10 **done**（见 `progress.md`「视频工作流 v1」表）
 
+W0–W10 的 done 表示既有视频黄金流程已交付，不表示领域中立迁移已完成。ADR-018 兼容迁移处于 Preflight 盘点阶段。
+
 | 阶段 | 交付摘要 |
 |------|----------|
 | W1 | `instance_key`、`run_label`、`parent_instance_id` |
@@ -108,7 +112,7 @@ W0–W10 **done**（见 `progress.md`「视频工作流 v1」表）
 
 ## 关键 API 前缀
 
-`backend/app/api/routes/workflow_video.py`（与 `workflow_graph_engine` 协同）
+`backend/app/api/routes/workflow_graph_engine.py`（前缀 `/api/v1/workflow-graph`；当前同时承载通用图 API 与视频兼容动作）
 
 ---
 
@@ -125,4 +129,12 @@ npm run test:e2e:workflow-video
 
 ## 与 legacy E
 
-`task_templates` 实例化标 **legacy**；图模板为 v1 主路径。W10 可选：开关开启时 E 内部转调 graph（未决）。
+`task_templates` 实例化标 **legacy**；图模板为当前产品主路径。B-12 后 Legacy E 产品入口已移除，旧表族仅保留历史兼容。
+
+## 领域中立迁移边界
+
+- 不改变视频模板当前业务口径与黄金流程。
+- 不新增 `VideoHandler` 或视频节点类型。
+- `run_kind`、模板 code、节点 key 与 `video_*` Profile 只作为待迁移兼容信号，不得继续扩散。
+- 公共 API 的替代契约、双读/双写窗口与退出条件须逐项记录。
+- 至少用一个非视频模板验证抽取后的通用能力，才能宣称相应特殊分支已消除。

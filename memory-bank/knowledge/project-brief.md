@@ -35,7 +35,7 @@ paradigma:
 | **一句话描述** | 面向 50–100 人企业的模块化单体内部管理平台，统一承载人事、任务协同、流程/汇报、消息、知识库与 AI 指令入口 |
 | **项目类型** | Web 应用（B 端后台 + PWA 基线） |
 | **当前版本** | `0.92.1`（根目录 `VERSION`，SemVer） |
-| **当前阶段** | **内测验收** — Paradigma v0.5.0 三态迁移完成；S-01 任务统计待产品立项 |
+| **当前阶段** | **Iteration 4 Preflight** — I4-A 已完成；I4-B 前先收口文档漂移、视频模板领域中立与前端问题分级 |
 
 ---
 
@@ -102,6 +102,13 @@ Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、�
 | **F-29 管理员任务归档** · Admin 跟踪督办 · 逾期延期 | **done** @ `0.91.0` |
 | Paradigma v0.5.0 三态迁移 · 文档大小合规 | **done** @ `0.92.0` |
 | Task Center P0–P2 审计修复 · 模板任务防自审 | **done** @ `0.92.1` |
+| 模板引擎解耦 Phase 1 | **done** @ Unreleased — tags / capabilities / archive / ACTIVE lock |
+| 模板引擎解耦 Phase 2 首批 | **implemented · pending UAT** — structured authoring |
+| 图引擎 Iteration 1–3-F | **工程实现完成 · 生产准入 gated** — 目标环境/7 天/31 项证据待补 |
+| 图引擎 Iteration 4-A | **done** — Handler Registry + unified Capability Result |
+| 图引擎 Iteration 4 Preflight | **in progress** — ADR-018 / 文档对齐 / 前端稳定化 |
+| 决策对象与参与者重叠 | **ADR-019 confirmed · pending I4-B/C** — 集合推进与独立验收分开建模 |
+| 系统管理员仅维护、不参与业务 | **产品边界 confirmed · implementation deferred** — KI-011，不属于 I4 |
 | Ubuntu 最小回滚演练 | **暂缓**（上线前再补） |
 | 真实 Email / WebSocket 外部接入深化 | 待深化 |
 | 生命周期规则化默认映射 + 前端配置入口 | 待补齐 |
@@ -123,6 +130,7 @@ Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、�
 3. **HR 数据安全** — 角色 + 组织关系 + 字段级权限三层叠加  
 4. **工作沟通可追溯** — `task_comments`，消息中心只做通知/回执  
 5. **AI 是路由器** — Tool Calling + 后端服务为真相来源  
+6. **模板领域中立** — 业务流程由普通图模板组合通用能力，Runtime 不按业务名称、tags、模板 code 或 UI Profile 分支
 
 完整阐述见 [`design-document.md`](./design-document.md) §2。
 
