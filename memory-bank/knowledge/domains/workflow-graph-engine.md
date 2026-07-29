@@ -88,6 +88,7 @@ erDiagram
 | 表 | 模型 | 职责 |
 |----|------|------|
 | `workflow_graph_templates` | `WorkflowGraphTemplate` | DAG 蓝图：版本链、`context_schema`、`config`、部门作用域 |
+| `workflow_graph_template_scope_events` | `WorkflowGraphTemplateScopeEvent` | ACTIVE 模板可用范围增量授权审计：actor、前后范围、新增部门、原因 |
 | `workflow_graph_template_nodes` | `WorkflowGraphTemplateNode` | 模板节点：`node_key`、类型、指派/汇聚模式、规则与 config |
 | `workflow_graph_template_edges` | `WorkflowGraphTemplateEdge` | 条件边：`condition`、`priority`、`is_reject_path` |
 | `workflow_graph_instances` | `WorkflowGraphInstance` | 运行实例：context、当前节点、父子 Run、来源锚点 |
@@ -128,7 +129,7 @@ erDiagram
 - 身份：`code`（唯一）· `base_code` + `version`（版本链）· `source_template_id`
 - 结构元数据：`context_schema` · `config`（JSON：`run_kind`、`launch_schema`、`participant_policies`、`on_complete`、`aggregate_mode` 等）
 - 作用域：显式 `scope_mode=global|departments`；`global` 禁止非空部门列表，`departments` 至少一个部门。创建 Run 解析最终部门后再校验 scope
-- 生命周期：仅 `DRAFT` 可编辑；`ACTIVE` 只能归档或派生新 draft；`ARCHIVED` 不可恢复/编辑。内置 seed 升级同样派生新版本
+- 生命周期：定义仅 `DRAFT` 可编辑；`ACTIVE` 定义只能归档或派生新 draft，但 availability scope 作为治理元数据可原地单调扩大并写独立审计；缩小范围仍须新版本。`ARCHIVED` 不可恢复/编辑。内置 seed 升级同样派生新版本
 
 **Node**
 
@@ -265,6 +266,8 @@ I4-E 后的新 Run 使用 `context.capability_snapshot`；Task 使用 `extra_met
 ---
 
 ## 7. API 表面（`/api/v1/workflow-graph`）
+
+- 模板可用部门治理：`PATCH /templates/{id}/availability-scope`、`GET /templates/{id}/availability-scope/events`；仅 ACTIVE 单调扩大，部门经理限自身有效管理范围，扩大为 global 仅限全局管理角色；领域中立且不按模板 code 级联。
 
 路由：`backend/app/api/routes/workflow_graph_engine.py`
 

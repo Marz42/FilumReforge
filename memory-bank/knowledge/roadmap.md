@@ -48,6 +48,7 @@ paradigma:
 | 任务中心 v2 TC-P0–P2+ | done | 三视图 · 统计 Tab · Shell @ `0.89.0` |
 | TCE Phase 1–5 | done | 读模型 · 多部门 B-16 · TC-P3 @ 2026-06-21 |
 | 图模板设计器 D1–D3 | done | authoring · 拓扑 · dry-run |
+| 已发布模板可用部门治理 | done | ADR-020 · ACTIVE 单调扩权 · 审计 · 前端入口 @ 2026-07-30 |
 | 视频 Live E2E A–F | done | streaming · 8080 7/7 @ `b3e7918` |
 | **TC-Transform Phase 0–2** | done | B-12 · F-28 · F-22 · F-23 · F-21/F-27 · W-08 · F-26 @ `2630feb` |
 | **F-24 / F-25** | done | 定时派发 · 附件预览 @ `0.90.0` |

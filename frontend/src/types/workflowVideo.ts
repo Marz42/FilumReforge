@@ -193,6 +193,29 @@ export interface GraphTemplateSummary {
   active_run_count?: number | null
 }
 
+export interface GraphTemplateScopeEvent {
+  id: string
+  template_id: string
+  actor_user_id: string
+  actor_email?: string | null
+  actor_display_name?: string | null
+  action: 'departments_added' | 'expanded_to_global' | string
+  before_scope_mode: 'global' | 'departments'
+  before_department_ids: string[]
+  after_scope_mode: 'global' | 'departments'
+  after_department_ids: string[]
+  added_department_ids: string[]
+  reason: string
+  created_at: string
+}
+
+export interface GraphTemplateAvailabilityScopeResult {
+  template_id: string
+  scope_mode: 'global' | 'departments'
+  scope_department_ids: string[]
+  change: GraphTemplateScopeEvent
+}
+
 export interface GraphTemplateNodeDetail {
   id: string
   node_key: string

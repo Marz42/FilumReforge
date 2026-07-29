@@ -65,6 +65,7 @@ paradigma:
 | `backend/app/services/workflow_delivery_handlers.py` | Iteration 4-D 纯能力策略：Deliverable 版本/评审/accepted snapshot 与 Notification completion/failure/retry/cancel 统一映射为 Capability Result |
 | `backend/app/services/workflow_template_capability_contract.py` | Iteration 4-E 领域中立能力契约：模板 capability snapshot、runtime policy、Task surface/state policy 与旧 `run_kind` / `video_*` 兼容适配 |
 | `backend/app/services/workflow_template_instantiation_service.py` | 通用模板实例化公开入口；兼容期复用旧模块中的领域中立实现，旧类名保持别名 |
+| `backend/app/services/workflow_graph_template_admin_service.py` | 图模板设计与治理；ADR-020 下可对 ACTIVE 模板单调扩大 availability scope，并与独立审计事件同事务提交 |
 | `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
 | `backend/app/services/message_center_service.py` | Step 6 消息聚合服务：按当前用户隔离 inbox，输出来源模块 / 对象 / 回跳、未读 / 已确认状态与筛选统计 |
 | `backend/app/services/notification_source.py` | Step 6 通知来源辅助：统一 task / report / announcement / workflow 的来源 payload 与回跳协议 |
@@ -363,13 +364,13 @@ paradigma:
 
 ## 9. 当前验证基线
 
-详见 [progress.md](../../../logs/progress/progress.md) 测试基线表与 [data-contracts.md](../../contracts/data-contracts.md) §维护规则。
+详见 [progress summary](../../../logs/progress/summary.md)、最近独立 session log 与 [data-contracts.md](../../contracts/data-contracts.md) §维护规则。
 
 ## 10. 维护规则
 
 - 宏观架构、运行时、模块职责、核心流程 → 更新本文件
 - schema、枚举、实体关系 → 更新 [data-contracts.md](../../contracts/data-contracts.md)
-- 阶段状态与验测 → 更新 [progress.md](../../../logs/progress/progress.md)
+- 阶段状态与验测 → 新建 `logs/progress/YYYY-MM-DD-<task>.md` 独立 session log
 - 产品边界 → 更新 [project-brief.md](../../project-brief.md)
 - 当前任务 → 更新 [active-task.md](../../../runtime/active-task.md)
 

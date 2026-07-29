@@ -83,7 +83,7 @@ paradigma:
 
 Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、工作流 E 首批、视频工作流 v1（W0–W10）、Stage 2 Phase 0–6。
 
-### 当前缺口（优先级见 `active-task.md` / `progress.md`「当前规划焦点」）
+### 当前缺口（优先级见 `active-task.md`、`roadmap.md` 与最近独立 session log）
 
 | 项 | 状态 |
 |----|------|
@@ -92,6 +92,7 @@ Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、�
 | 图模板单入口 / Legacy E UI 移除 | done @ `0.89.0` |
 | **任务中心增强**（读模型、性能、统计、多部门模板） | **done** @ 2026-06-21 — [`plans/task-center-enhance.md`](./plans/task-center-enhance.md) Phase 1–5 |
 | **图模板设计器**（D1–D3 + UX 抛光） | **done** @ 2026-06-22 |
+| **已发布模板可用部门治理**（ADR-020） | **done** @ 2026-07-30 — ACTIVE 单调扩权、审计历史、前端入口 |
 | 公开 / 审批式注册 | **明确不做** — 仅邀请制注册；未来接入邮箱发送邀请链接 |
 | 工作流 E 与图引擎产品级统一 | **done** @ `0.90.0` — B-12 Legacy E runtime 已移除 |
 | 单步任务创建抄送 | **done** @ `0.90.0` — F-22 |
@@ -145,7 +146,7 @@ Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、�
 | 表结构、枚举、API | `data-contracts.md` |
 | 编码规范 | `conventions.md` |
 | 当前在做什么 | `active-task.md` |
-| 阶段进度与验测 | `progress.md` |
+| 阶段进度与验测 | `logs/progress/summary.md` + 最近独立 session log |
 | 排期与计划 | `plans/` |
 | 部署运维 | `knowledge/manuals/`（≈ Paradigma `manuals/`） |
 

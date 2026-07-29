@@ -7,6 +7,8 @@ import type {
   GraphTemplateDryRunResult,
   GraphTemplateExportBundle,
   GraphTemplateSummary,
+  GraphTemplateAvailabilityScopeResult,
+  GraphTemplateScopeEvent,
   GraphTemplateValidateResult,
   CreateGraphTemplateScheduleRequest,
   GraphTemplateSchedule,
@@ -132,6 +134,30 @@ export async function updateGraphTemplate(
     ...data,
     config: data.config ?? {},
   }
+}
+
+export async function expandGraphTemplateAvailabilityScope(
+  templateId: string,
+  payload: {
+    scope_mode: 'global' | 'departments'
+    scope_department_ids: string[]
+    reason: string
+  },
+): Promise<GraphTemplateAvailabilityScopeResult> {
+  const { data } = await http.patch<GraphTemplateAvailabilityScopeResult>(
+    `/workflow-graph/templates/${templateId}/availability-scope`,
+    payload,
+  )
+  return data
+}
+
+export async function listGraphTemplateAvailabilityScopeEvents(
+  templateId: string,
+): Promise<GraphTemplateScopeEvent[]> {
+  const { data } = await http.get<GraphTemplateScopeEvent[]>(
+    `/workflow-graph/templates/${templateId}/availability-scope/events`,
+  )
+  return data
 }
 
 export async function getGraphTemplateDesigner(templateId: string): Promise<GraphTemplateDesignerDetail> {

@@ -52,6 +52,9 @@ from app.schemas.workflow_video import (
 )
 from app.schemas.workflow_graph import (
   TemplateCapabilitiesRead,
+  WorkflowGraphTemplateAvailabilityScopeRead,
+  WorkflowGraphTemplateAvailabilityScopeUpdateRequest,
+  WorkflowGraphTemplateScopeEventRead,
   WorkflowGraphTemplateTagsUpdateRequest,
   WorkflowNodeDeepRejectRequest,
   WorkflowGraphInstanceDetailRead,
@@ -559,6 +562,46 @@ async def update_graph_template_tags(
     actor=actor,
     template_id=template_id,
     tags=payload.tags,
+  )
+
+
+@router.patch(
+  "/templates/{template_id}/availability-scope",
+  response_model=WorkflowGraphTemplateAvailabilityScopeRead,
+  tags=["workflow-graph"],
+)
+async def expand_graph_template_availability_scope(
+  template_id: UUID,
+  payload: WorkflowGraphTemplateAvailabilityScopeUpdateRequest,
+  actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+) -> WorkflowGraphTemplateAvailabilityScopeRead:
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(actor=actor, template_id=template_id)
+  return await admin_service.expand_availability_scope(
+    actor=actor,
+    template_id=template_id,
+    payload=payload,
+  )
+
+
+@router.get(
+  "/templates/{template_id}/availability-scope/events",
+  response_model=list[WorkflowGraphTemplateScopeEventRead],
+  tags=["workflow-graph"],
+)
+async def list_graph_template_availability_scope_events(
+  template_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
+  limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> list[WorkflowGraphTemplateScopeEventRead]:
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(actor=actor, template_id=template_id)
+  return await admin_service.list_availability_scope_events(
+    actor=actor,
+    template_id=template_id,
+    limit=limit,
   )
 
 

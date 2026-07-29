@@ -1,9 +1,9 @@
 ---
 type: paradigma-contract
 title: "图引擎 Schema"
-description: "图引擎十四表：定义、运行、路径账本、HumanTask Link、命令回执、运维异常、outbox、事件与调度。"
+description: "图引擎十五表：定义、模板范围审计、运行、路径账本、HumanTask Link、命令回执、运维异常、outbox、事件与调度。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-07-28T10:47:27+08:00
+timestamp: 2026-07-30T02:18:18+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -19,16 +19,17 @@ paradigma:
 ---
 # 图引擎 Schema
 
-> WARM — **十四表** as-built：定义 / 运行 / traversal / activation dependency / HumanTask Link / command receipt / operational incident / 交付 / outbox / 运行事件 / 周期调度。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。契约索引见 [`data-contracts.md`](../data-contracts.md)。
+> WARM — **十五表** as-built：定义 / 模板范围审计 / 运行 / traversal / activation dependency / HumanTask Link / command receipt / operational incident / 交付 / outbox / 运行事件 / 周期调度。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。契约索引见 [`data-contracts.md`](../data-contracts.md)。
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
-> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3F 迁移见 `20260713_01`、`20260715_01`、`20260715_02`、`20260715_03`、`20260716_01`、`20260716_02`；模板 tags 迁移 `20260722_01`；周期调度 F-24）。
+> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3F 迁移见 `20260713_01`、`20260715_01`、`20260715_02`、`20260715_03`、`20260716_01`、`20260716_02`；模板 tags 迁移 `20260722_01`；可用范围审计迁移 `20260730_01`；周期调度 F-24）。
 > **ORM**: `backend/app/models/workflow_graph.py` · **迁移**: `20260429_04_workflow_graph_core.py` 及后续
 
 | 表 | 职责 | 关键字段 / 约束 |
 | --- | --- | --- |
-| `workflow_graph_templates` | DAG 模板定义 | `code`、`base_code`+`version`、`status`、`context_schema`、`config`、`tags JSONB NOT NULL DEFAULT '[]'`（用户分类标签，零行为影响；DRAFT/ACTIVE 可改）、`source_template_id`、`scope_mode ∈ {global,departments}`、`scope_department_ids`；ACTIVE/ARCHIVED **定义**不可原地编辑（tags 为元数据例外，见 ADR-017） |
+| `workflow_graph_templates` | DAG 模板定义 | `code`、`base_code`+`version`、`status`、`context_schema`、`config`、`tags JSONB NOT NULL DEFAULT '[]'`（用户分类标签，零行为影响；DRAFT/ACTIVE 可改）、`source_template_id`、`scope_mode ∈ {global,departments}`、`scope_department_ids`；ACTIVE/ARCHIVED **定义**不可原地编辑（tags 与 ACTIVE 单调扩大的 availability scope 为治理元数据例外，见 ADR-017/020） |
+| `workflow_graph_template_scope_events` | 模板可用范围审计 | `template_id`、`actor_user_id`、`action`、前后 `scope_mode`/部门 JSON、`added_department_ids`、`reason`、时间；只追加，不作为 Run 定义快照 |
 | `workflow_graph_template_nodes` | 模板节点 | 上述字段 + `routing_mode ∈ {exclusive,inclusive,parallel,first_match}` |
 | `workflow_graph_template_edges` | 条件边 | `from_node_id`、`to_node_id`、`condition`、`priority`、`is_reject_path`（前进路由排除 reject 边） |
 | `workflow_graph_instances` | 运行实例 | 上述运行字段 + snapshot/hash、executor/engine、`result`、`diagnostics`；新 Run=`snapshot/graph-v3`，既有 graph-v2/legacy 不原地切换 |
@@ -45,7 +46,7 @@ paradigma:
 
 **关系补充**
 
-- `workflow_graph_templates 1:N workflow_graph_template_nodes / edges / instances / schedules`
+- `workflow_graph_templates 1:N workflow_graph_template_nodes / edges / instances / schedules / scope_events`
 - `workflow_graph_instances 1:N workflow_node_instances / edge_traversals / activation_dependencies / human_task_links / operational_incidents / outbox_events / run_events`
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run fork）
 - `workflow_node_instances 1:1 workflow_deliverables`（按节点快照）

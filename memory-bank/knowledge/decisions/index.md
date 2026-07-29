@@ -1,7 +1,7 @@
 # Decisions Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 36c35196d54ee1c3 -->
+<!-- checksum: 4ae922beba214334 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -25,6 +25,7 @@
 | [adr-017-template-engine-decouple.md](adr-017-template-engine-decouple.md) | `paradigma-decision` | ADR-017: 模板引擎业务语义解耦 — Tags 替代 run_kind | 模板引擎解耦<br>tags<br>run_kind ... | - | - |
 | [adr-018-domain-neutral-workflow-templates.md](adr-018-domain-neutral-workflow-templates.md) | `paradigma-decision` | ADR-018: 工作流模板领域中立 — 视频流程作为普通模板包 | 工作流领域中立<br>视频普通模板<br>去视频特殊化 ... | - | - |
 | [adr-019-decision-subject-actor-overlap.md](adr-019-decision-subject-actor-overlap.md) | `paradigma-decision` | ADR-019: 按决策对象与动作语义处理参与者重叠 | 参与者重叠<br>集合确认<br>独立验收 ... | - | - |
+| [adr-020-published-template-availability-scope.md](adr-020-published-template-availability-scope.md) | `paradigma-decision` | ADR-020: 已发布模板可用范围作为可变治理元数据 | 已发布模板<br>可用部门<br>增量授权 ... | - | informs:../domains/workflow-graph-engine.md<br>informs:../contracts/data-contracts.md<br>implements:../plans/2026-07-30-template-availability-paradigma-upgrade-plan.md |
 | [decisions.md](decisions.md) | `paradigma-decision` | ADR 合集 (已拆分) | ADR<br>决策<br>合辑 ... | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->

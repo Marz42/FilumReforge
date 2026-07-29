@@ -15,15 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.enums import WorkflowGraphInstanceStatus, WorkflowGraphTemplateStatus
 from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.models import (
+  Department,
+  Profile,
   User,
   WorkflowGraphInstance,
   WorkflowGraphTemplate,
   WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
+  WorkflowGraphTemplateScopeEvent,
   WorkflowGraphTemplateSchedule,
 )
 from app.schemas.workflow_graph import (
   TemplateCapabilitiesRead,
+  WorkflowGraphTemplateAvailabilityScopeRead,
+  WorkflowGraphTemplateAvailabilityScopeUpdateRequest,
   WorkflowGraphTemplateCreateRequest,
   WorkflowGraphTemplateDesignerRead,
   WorkflowGraphTemplateDetailRead,
@@ -41,6 +46,7 @@ from app.schemas.workflow_graph import (
   WorkflowGraphTemplateNodeSummaryRead,
   WorkflowGraphTemplateStatsRead,
   WorkflowGraphTemplateStatusUpdateRequest,
+  WorkflowGraphTemplateScopeEventRead,
   WorkflowGraphTemplateUpdateRequest,
   WorkflowGraphTemplateValidateResponse,
 )
@@ -55,7 +61,12 @@ from app.services.workflow_definition_snapshot import (
   definition_snapshot_hash,
   normalize_scope,
 )
-from app.services.access_control import can_manage_task_templates, ensure_active_user
+from app.services.access_control import (
+  can_manage_task_templates,
+  ensure_active_user,
+  get_effective_managed_department_ids,
+  is_management_role,
+)
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_template_capabilities import (
   compute_template_capabilities,
@@ -288,6 +299,128 @@ class WorkflowGraphTemplateAdminService:
     result = await self.get_template_detail(template_id=template_id)
     await self._commit()
     return result
+
+  async def expand_availability_scope(
+    self,
+    *,
+    actor: User,
+    template_id: UUID,
+    payload: WorkflowGraphTemplateAvailabilityScopeUpdateRequest,
+  ) -> WorkflowGraphTemplateAvailabilityScopeRead:
+    """Expand an ACTIVE template's launch scope without versioning its definition."""
+    await self._ensure_manage(actor)
+    template = await self._get_template_or_raise(template_id=template_id)
+    if template.status != WorkflowGraphTemplateStatus.ACTIVE:
+      raise ConflictError("仅已发布模板可通过可用部门管理扩大范围；草稿请在设计器中修改。")
+
+    reason = payload.reason.strip()
+    if len(reason) < 2:
+      raise ConflictError("请填写至少 2 个字符的授权原因。")
+
+    before_mode, before_ids = normalize_scope(
+      scope_mode=template.scope_mode,
+      scope_department_ids=template.scope_department_ids,
+    )
+    after_mode, after_ids = normalize_scope(
+      scope_mode=payload.scope_mode,
+      scope_department_ids=list(payload.scope_department_ids),
+    )
+    before_set = set(before_ids)
+    after_set = set(after_ids)
+
+    if before_mode == "global":
+      raise ConflictError("该模板已对所有部门可用，无需继续扩大范围。")
+    if after_mode == "departments" and not before_set.issubset(after_set):
+      raise ConflictError("已发布模板仅允许扩大可用范围，不可移除已有部门；缩小范围请发布新版本。")
+    if after_mode == before_mode and after_set == before_set:
+      raise ConflictError("可用部门范围未发生变化。")
+
+    if after_mode == "departments":
+      active_department_ids = {
+        str(department_id)
+        for department_id in await self._session.scalars(
+          select(Department.id).where(
+            Department.id.in_([UUID(value) for value in after_ids]),
+            Department.is_active.is_(True),
+          )
+        )
+      }
+      missing_ids = after_set - active_department_ids
+      if missing_ids:
+        raise ConflictError(f"可用部门包含不存在或已停用的部门：{', '.join(sorted(missing_ids))}")
+
+    added_ids = sorted(after_set - before_set) if after_mode == "departments" else []
+    actor_has_global_management = is_management_role(actor)
+    if after_mode == "global" and not actor_has_global_management:
+      raise AuthorizationError("只有全局管理角色可以将模板扩大为全公司可用。")
+    if not actor_has_global_management and added_ids:
+      managed_ids = {
+        str(value)
+        for value in await get_effective_managed_department_ids(self._session, actor.id)
+      }
+      unauthorized = set(added_ids) - managed_ids
+      if unauthorized:
+        raise AuthorizationError("只能将模板授权给当前账号可管理的部门。")
+
+    event = WorkflowGraphTemplateScopeEvent(
+      template_id=template.id,
+      actor_user_id=actor.id,
+      action="expanded_to_global" if after_mode == "global" else "departments_added",
+      before_scope_mode=before_mode,
+      before_department_ids=before_ids,
+      after_scope_mode=after_mode,
+      after_department_ids=after_ids,
+      added_department_ids=added_ids,
+      reason=reason,
+    )
+    template.scope_mode = after_mode
+    template.scope_department_ids = after_ids
+    self._session.add(event)
+    await self._session.flush()
+    actor_display_name = await self._session.scalar(
+      select(Profile.real_name).where(Profile.user_id == actor.id)
+    )
+    result = WorkflowGraphTemplateAvailabilityScopeRead(
+      template_id=template.id,
+      scope_mode=after_mode,
+      scope_department_ids=after_ids,
+      change=WorkflowGraphTemplateScopeEventRead.model_validate(event).model_copy(
+        update={
+          "actor_email": actor.email,
+          "actor_display_name": actor_display_name,
+        }
+      ),
+    )
+    await self._commit()
+    return result
+
+  async def list_availability_scope_events(
+    self,
+    *,
+    actor: User,
+    template_id: UUID,
+    limit: int = 50,
+  ) -> list[WorkflowGraphTemplateScopeEventRead]:
+    await self._ensure_manage(actor)
+    await self._get_template_or_raise(template_id=template_id)
+    rows = list(
+      (
+        await self._session.execute(
+          select(WorkflowGraphTemplateScopeEvent, User.email, Profile.real_name)
+          .join(User, User.id == WorkflowGraphTemplateScopeEvent.actor_user_id)
+          .outerjoin(Profile, Profile.user_id == User.id)
+          .where(WorkflowGraphTemplateScopeEvent.template_id == template_id)
+          .order_by(WorkflowGraphTemplateScopeEvent.created_at.desc())
+          .limit(max(1, min(limit, 100)))
+        )
+      ).all()
+    )
+    return [
+      WorkflowGraphTemplateScopeEventRead.model_validate(event).model_copy(
+        update={"actor_email": email, "actor_display_name": real_name}
+      )
+      for event, email, real_name in rows
+    ]
 
   async def delete_template(
     self,

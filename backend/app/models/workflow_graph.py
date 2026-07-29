@@ -85,6 +85,39 @@ class WorkflowGraphTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     back_populates="template",
     cascade="all, delete-orphan",
   )
+  availability_scope_events = relationship(
+    "WorkflowGraphTemplateScopeEvent",
+    back_populates="template",
+    cascade="all, delete-orphan",
+    order_by="WorkflowGraphTemplateScopeEvent.created_at.desc()",
+  )
+
+
+class WorkflowGraphTemplateScopeEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+  __tablename__ = "workflow_graph_template_scope_events"
+  __table_args__ = (
+    Index("idx_wf_graph_tpl_scope_events_template", "template_id", "created_at"),
+    Index("idx_wf_graph_tpl_scope_events_actor", "actor_user_id", "created_at"),
+  )
+
+  template_id: Mapped[UUID] = mapped_column(
+    ForeignKey("workflow_graph_templates.id", name="fk_wf_graph_tpl_scope_events_template", ondelete="CASCADE"),
+    nullable=False,
+  )
+  actor_user_id: Mapped[UUID] = mapped_column(
+    ForeignKey("users.id", name="fk_wf_graph_tpl_scope_events_actor"),
+    nullable=False,
+  )
+  action: Mapped[str] = mapped_column(String(32), nullable=False)
+  before_scope_mode: Mapped[str] = mapped_column(String(16), nullable=False)
+  before_department_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
+  after_scope_mode: Mapped[str] = mapped_column(String(16), nullable=False)
+  after_department_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
+  added_department_ids: Mapped[list[Any]] = mapped_column(build_json_type(), default=list, nullable=False)
+  reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+  template = relationship("WorkflowGraphTemplate", back_populates="availability_scope_events")
+  actor = relationship("User", foreign_keys=[actor_user_id])
 
 
 class WorkflowGraphTemplateNode(UUIDPrimaryKeyMixin, TimestampMixin, Base):

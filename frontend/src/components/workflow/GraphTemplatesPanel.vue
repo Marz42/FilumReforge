@@ -13,6 +13,7 @@ import {
   listGraphTemplates,
 } from '@/api/workflow-graph'
 import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
+import GraphTemplateAvailabilityDialog from '@/components/workflow/GraphTemplateAvailabilityDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { GraphTemplateSummary } from '@/types/workflowVideo'
@@ -35,6 +36,8 @@ const templates = ref<GraphTemplateSummary[]>([])
 const selectedTemplate = ref<GraphTemplateSummary | null>(null)
 const dialogVisible = ref(false)
 const editDialogVisible = ref(false)
+const availabilityDialogVisible = ref(false)
+const availabilityTemplate = ref<GraphTemplateSummary | null>(null)
 const departmentOptions = ref<Array<{ id: string; label: string }>>([])
 const defaultDepartmentId = ref('')
 
@@ -145,6 +148,14 @@ function openDesigner(template: GraphTemplateSummary): void {
     return
   }
   void router.push({ name: 'task-template-designer', params: { id: template.id } })
+}
+
+function openAvailability(template: GraphTemplateSummary): void {
+  if (!props.canManage || template.status !== 'active') {
+    return
+  }
+  availabilityTemplate.value = template
+  availabilityDialogVisible.value = true
 }
 
 async function handleCreateBlank(): Promise<void> {
@@ -317,7 +328,7 @@ onMounted(() => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="360" fixed="right">
+        <el-table-column label="操作" width="440" fixed="right">
           <template #default="{ row }: { row: GraphTemplateSummary }">
             <el-button
               v-if="canManage"
@@ -344,6 +355,15 @@ onMounted(() => {
               @click.stop="openEdit(row)"
             >
               改名
+            </el-button>
+            <el-button
+              v-if="canManage && row.status === 'active'"
+              link
+              type="primary"
+              data-testid="graph-template-availability"
+              @click.stop="openAvailability(row)"
+            >
+              可用部门
             </el-button>
             <el-button
               v-if="canManage && row.status === 'active'"
@@ -409,6 +429,12 @@ onMounted(() => {
       v-model="editDialogVisible"
       :template="selectedTemplate"
       @saved="loadTemplates"
+    />
+
+    <GraphTemplateAvailabilityDialog
+      v-model="availabilityDialogVisible"
+      :template="availabilityTemplate"
+      @updated="loadTemplates"
     />
   </div>
 </template>

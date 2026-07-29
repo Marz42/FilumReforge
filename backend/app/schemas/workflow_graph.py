@@ -49,6 +49,37 @@ class WorkflowGraphTemplateTagsUpdateRequest(BaseModel):
   tags: list[str] = Field(default_factory=list, max_length=32)
 
 
+class WorkflowGraphTemplateAvailabilityScopeUpdateRequest(BaseModel):
+  scope_mode: Literal["global", "departments"]
+  scope_department_ids: list[UUID] = Field(default_factory=list)
+  reason: str = Field(min_length=2, max_length=500)
+
+
+class WorkflowGraphTemplateScopeEventRead(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  id: UUID
+  template_id: UUID
+  actor_user_id: UUID
+  actor_email: str | None = None
+  actor_display_name: str | None = None
+  action: str
+  before_scope_mode: Literal["global", "departments"]
+  before_department_ids: list[str] = Field(default_factory=list)
+  after_scope_mode: Literal["global", "departments"]
+  after_department_ids: list[str] = Field(default_factory=list)
+  added_department_ids: list[str] = Field(default_factory=list)
+  reason: str
+  created_at: datetime
+
+
+class WorkflowGraphTemplateAvailabilityScopeRead(BaseModel):
+  template_id: UUID
+  scope_mode: Literal["global", "departments"]
+  scope_department_ids: list[str] = Field(default_factory=list)
+  change: WorkflowGraphTemplateScopeEventRead
+
+
 class WorkflowGraphTemplateSummaryRead(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 

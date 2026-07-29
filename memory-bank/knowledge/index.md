@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 29c0b2b375a76b46 -->
+<!-- checksum: 0fe593e10cac902b -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -38,6 +38,7 @@
 | [decisions/adr-017-template-engine-decouple.md](decisions/adr-017-template-engine-decouple.md) | `paradigma-decision` | ADR-017: 模板引擎业务语义解耦 — Tags 替代 run_kind | 模板引擎解耦<br>tags<br>run_kind ... | - | - |
 | [decisions/adr-018-domain-neutral-workflow-templates.md](decisions/adr-018-domain-neutral-workflow-templates.md) | `paradigma-decision` | ADR-018: 工作流模板领域中立 — 视频流程作为普通模板包 | 工作流领域中立<br>视频普通模板<br>去视频特殊化 ... | - | - |
 | [decisions/adr-019-decision-subject-actor-overlap.md](decisions/adr-019-decision-subject-actor-overlap.md) | `paradigma-decision` | ADR-019: 按决策对象与动作语义处理参与者重叠 | 参与者重叠<br>集合确认<br>独立验收 ... | - | - |
+| [decisions/adr-020-published-template-availability-scope.md](decisions/adr-020-published-template-availability-scope.md) | `paradigma-decision` | ADR-020: 已发布模板可用范围作为可变治理元数据 | 已发布模板<br>可用部门<br>增量授权 ... | - | informs:../domains/workflow-graph-engine.md<br>informs:../contracts/data-contracts.md<br>implements:../plans/2026-07-30-template-availability-paradigma-upgrade-plan.md |
 | [decisions/decisions.md](decisions/decisions.md) | `paradigma-decision` | ADR 合集 (已拆分) | ADR<br>决策<br>合辑 ... | - | - |
 | [domains/architecture/backend-architecture.md](domains/architecture/backend-architecture.md) | `paradigma-domain` | Backend 架构细节 | 后端架构<br>FastAPI<br>service ... | - | - |
 | [domains/architecture/core-workflows.md](domains/architecture/core-workflows.md) | `paradigma-domain` | 核心流程 | 核心流程<br>运行时<br>链路 ... | - | - |
@@ -76,6 +77,7 @@
 | [plans/2026-07-28-template-decouple-phase2-plan.md](plans/2026-07-28-template-decouple-phase2-plan.md) | `paradigma-plan` | Template Engine Decouple — Phase 2 Structured Authoring | 模板引擎解耦 Phase 2<br>结构化编辑<br>ui_profile ... | - | - |
 | [plans/2026-07-29-iteration4-preflight-alignment-plan.md](plans/2026-07-29-iteration4-preflight-alignment-plan.md) | `paradigma-plan` | Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化 | Iteration 4 前置<br>文档漂移<br>视频去特殊化 ... | - | - |
 | [plans/2026-07-29-video-domain-neutral-migration-inventory.md](plans/2026-07-29-video-domain-neutral-migration-inventory.md) | `paradigma-plan` | 视频模板领域中立迁移清单 | 视频模板去特殊化<br>run_kind 退出<br>通用工作流能力 ... | - | - |
+| [plans/2026-07-30-template-availability-paradigma-upgrade-plan.md](plans/2026-07-30-template-availability-paradigma-upgrade-plan.md) | `paradigma-plan` | 已发布模板可用部门治理与 Paradigma 0.5.0 协议升级 | 模板可用部门<br>已发布模板授权<br>范围审计 ... | - | - |
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |
