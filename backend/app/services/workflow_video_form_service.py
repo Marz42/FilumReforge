@@ -53,6 +53,10 @@ from app.services.workflow_orchestration_service import WorkflowOrchestrationSer
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_rework_service import WorkflowVideoReworkService
+from app.services.workflow_template_capability_contract import (
+  COLLECTION_FINALIZE,
+  instance_supports_capability,
+)
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
 
@@ -558,8 +562,8 @@ class WorkflowVideoFormService:
       raise NotFoundError("图实例不存在。")
 
     context = dict(instance.context or {})
-    if context.get("run_kind") != "batch":
-      raise ConflictError("仅批次 Run 支持结束采集。")
+    if not instance_supports_capability(context, COLLECTION_FINALIZE):
+      raise ConflictError("当前 Run 未声明集合关闭能力。")
     if context.get("capture_closed"):
       raise ConflictError("采集已结束。")
 

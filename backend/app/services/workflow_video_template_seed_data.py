@@ -7,7 +7,7 @@ from uuid import UUID
 
 TOPIC_MEETING_BATCH_CODE = "topic_meeting_batch_v1"
 VIDEO_PRODUCTION_CODE = "video_production_per_topic_v1"
-SEED_VERSION = 4
+SEED_VERSION = 5
 
 CAPTURE_SCHEMA_TOPIC: dict[str, Any] = {
   "mode": "row_table",
@@ -75,6 +75,26 @@ def build_topic_meeting_batch_config(
   return {
     "seed_version": SEED_VERSION,
     "run_kind": "batch",
+    "category": "batch",
+    "workflow_capabilities": [
+      "structured_form_submission",
+      "collection_finalize",
+      "aggregate_confirmation",
+      "child_run_dispatch",
+    ],
+    "runtime_policy": {
+      "notify_on_node_activation": True,
+      "archive_on_completion": False,
+      "archive_on_cancel": False,
+    },
+    "instantiation_mode": "direct",
+    "root_task_capability": {
+      "surface": "run_overview",
+      "state_policy": "run_active",
+      "features": {"tracking": True, "run_dashboard": True},
+      "root_visibility": "overview",
+    },
+    "root_ui_profile": "video_batch_root",
     "aggregate_mode": "streaming",
     "aggregate_node_key": "N2_AGGREGATE",
     "child_template_code": VIDEO_PRODUCTION_CODE,
@@ -98,6 +118,24 @@ def build_production_template_config(
   return {
     "seed_version": SEED_VERSION,
     "run_kind": "production",
+    "category": "production",
+    "workflow_capabilities": [
+      "deliverable_submission",
+      "deliverable_acceptance",
+      "return_for_rework",
+    ],
+    "runtime_policy": {
+      "notify_on_node_activation": True,
+      "archive_on_completion": True,
+      "archive_on_cancel": True,
+    },
+    "instantiation_mode": "child_only",
+    "root_task_capability": {
+      "surface": "run_overview",
+      "state_policy": "run_active",
+      "root_visibility": "hidden_for_non_management",
+    },
+    "root_ui_profile": "video_production_root",
     "root_assignee_var": "script_author_id",
     "department_pools": {
       "copywriters": str(copywriting_department_id),
@@ -119,6 +157,12 @@ def build_topic_meeting_nodes() -> list[dict[str, Any]]:
         "expand_from": "copywriters",
         "participant_policy_ref": "copywriters",
         "capture_schema": CAPTURE_SCHEMA_TOPIC,
+        "task_capability": {
+          "surface": "structured_form",
+          "submit_mode": "form",
+          "state_policy": "submission",
+          "variant": "capture",
+        },
         "ui_profile": "video_n1_capture",
       },
     },
@@ -131,6 +175,11 @@ def build_topic_meeting_nodes() -> list[dict[str, Any]]:
         "kind": "single",
         "aggregate_schema": AGGREGATE_SCHEMA_TOPIC,
         "completion_policy": "on_aggregate_confirmed",
+        "task_capability": {
+          "surface": "collection",
+          "state_policy": "collection",
+          "features": {"capture_progress": True, "aggregate": True},
+        },
         "ui_profile": "video_n2_aggregate",
       },
     },
@@ -144,7 +193,17 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "title": "撰写脚本",
       "sort_order": 10,
       "assignee_rule": {"type": "context_var", "var": "script_author_id"},
-      "config": {"kind": "single", "completion_policy": "on_submit_deliverable", "ui_profile": "video_production_step"},
+      "config": {
+        "kind": "single",
+        "completion_policy": "on_submit_deliverable",
+        "task_capability": {
+          "surface": "deliverable",
+          "submit_mode": "file",
+          "state_policy": "deliverable",
+          "variant": "single",
+        },
+        "ui_profile": "video_production_step",
+      },
     },
     {
       "node_key": "N4_SCRIPT_REVIEW",
@@ -155,6 +214,11 @@ def build_production_nodes() -> list[dict[str, Any]]:
         "kind": "single",
         "acceptance_spec": {"reject_to": {"node_key": "N3_SCRIPT_WRITE"}},
         "completion_policy": "on_review_approved",
+        "task_capability": {
+          "surface": "review",
+          "submit_mode": "review",
+          "state_policy": "review",
+        },
       },
     },
     {
@@ -165,6 +229,12 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "config": {
         "kind": "single",
         "completion_policy": "on_submit_deliverable",
+        "task_capability": {
+          "surface": "deliverable",
+          "submit_mode": "file",
+          "state_policy": "deliverable",
+          "variant": "multi",
+        },
         "ui_profile": "video_production_multi",
         "max_deliverable_attachments": 10,
       },
@@ -177,6 +247,12 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "config": {
         "kind": "single",
         "capture_schema": EDIT_ASSIGN_CAPTURE_SCHEMA,
+        "task_capability": {
+          "surface": "structured_form",
+          "submit_mode": "form",
+          "state_policy": "submission",
+          "variant": "assignment",
+        },
         "ui_profile": "video_capture_assign",
       },
     },
@@ -185,7 +261,17 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "title": "粗剪制作",
       "sort_order": 60,
       "assignee_rule": {"type": "context_var", "var": "edit_assignee_id"},
-      "config": {"kind": "single", "completion_policy": "on_submit_deliverable", "ui_profile": "video_production_step"},
+      "config": {
+        "kind": "single",
+        "completion_policy": "on_submit_deliverable",
+        "task_capability": {
+          "surface": "deliverable",
+          "submit_mode": "file",
+          "state_policy": "deliverable",
+          "variant": "single",
+        },
+        "ui_profile": "video_production_step",
+      },
     },
     {
       "node_key": "N9_EDIT_REVIEW",
@@ -196,6 +282,11 @@ def build_production_nodes() -> list[dict[str, Any]]:
         "kind": "single",
         "acceptance_spec": {"reject_to": {"node_key": "N8_EDIT_WORK"}},
         "completion_policy": "on_review_approved",
+        "task_capability": {
+          "surface": "review",
+          "submit_mode": "review",
+          "state_policy": "review",
+        },
       },
     },
     {
@@ -206,6 +297,12 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "config": {
         "kind": "single",
         "completion_policy": "on_submit_deliverable",
+        "task_capability": {
+          "surface": "deliverable",
+          "submit_mode": "file",
+          "state_policy": "deliverable",
+          "variant": "platform",
+        },
         "ui_profile": "video_production_platform",
       },
     },
@@ -217,6 +314,12 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "config": {
         "kind": "single",
         "capture_schema": SCHEDULE_CAPTURE_SCHEMA,
+        "task_capability": {
+          "surface": "structured_form",
+          "submit_mode": "form",
+          "state_policy": "submission",
+          "variant": "schedule",
+        },
         "ui_profile": "video_capture_schedule",
       },
     },
@@ -225,14 +328,31 @@ def build_production_nodes() -> list[dict[str, Any]]:
       "title": "结案确认",
       "sort_order": 100,
       "assignee_rule": {"type": "department_pool", "pool_key": "post_production", "assignee_role": "manager"},
-      "config": {"kind": "single", "completion_policy": "on_review_approved"},
+      "config": {
+        "kind": "single",
+        "completion_policy": "on_review_approved",
+        "task_capability": {
+          "surface": "review",
+          "submit_mode": "review",
+          "state_policy": "review",
+        },
+      },
     },
     {
       "node_key": "N12_COSIGN",
       "title": "文案会签归档",
       "sort_order": 110,
       "assignee_rule": {"type": "department_pool", "pool_key": "copywriters", "assignee_role": "manager"},
-      "config": {"kind": "single", "completion_policy": "on_review_approved", "archive_on_complete": True},
+      "config": {
+        "kind": "single",
+        "completion_policy": "on_review_approved",
+        "archive_on_complete": True,
+        "task_capability": {
+          "surface": "review",
+          "submit_mode": "review",
+          "state_policy": "review",
+        },
+      },
     },
   ]
 

@@ -3,7 +3,7 @@ type: paradigma-domain
 title: "Backend 架构细节"
 description: "后端关键文件与 service 职责：API 路由、业务服务、模型、迁移与 worker。"
 tags: ["domain", "architecture", "backend", "fastapi"]
-timestamp: 2026-07-09T09:30:00+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -63,6 +63,8 @@ paradigma:
 | `backend/app/services/workflow_engine_service.py` | 流程定义、流程实例、审批动作、打回 / 驳回 / 代理审批；图 Approval 来源在旧状态变更前调用 Runtime bridge，并在同一 UoW 回传结果，提交后再发布通知 |
 | `backend/app/services/approval_capability_coordinator.py` | Iteration 4-C Approval 适配器：按稳定 correlation key 幂等关联图节点与既有审批实例，维护绑定配置但不自行提交事务 |
 | `backend/app/services/workflow_delivery_handlers.py` | Iteration 4-D 纯能力策略：Deliverable 版本/评审/accepted snapshot 与 Notification completion/failure/retry/cancel 统一映射为 Capability Result |
+| `backend/app/services/workflow_template_capability_contract.py` | Iteration 4-E 领域中立能力契约：模板 capability snapshot、runtime policy、Task surface/state policy 与旧 `run_kind` / `video_*` 兼容适配 |
+| `backend/app/services/workflow_template_instantiation_service.py` | 通用模板实例化公开入口；兼容期复用旧模块中的领域中立实现，旧类名保持别名 |
 | `backend/app/services/task_automation_service.py` | 周期调度、下次执行时间计算与调度触发 |
 | `backend/app/services/message_center_service.py` | Step 6 消息聚合服务：按当前用户隔离 inbox，输出来源模块 / 对象 / 回跳、未读 / 已确认状态与筛选统计 |
 | `backend/app/services/notification_source.py` | Step 6 通知来源辅助：统一 task / report / announcement / workflow 的来源 payload 与回跳协议 |

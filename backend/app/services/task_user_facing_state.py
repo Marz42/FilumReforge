@@ -6,6 +6,7 @@ from typing import Any
 
 from app.core.enums import TaskStatus, WorkflowNodeBusinessState
 from app.models import Task
+from app.services.workflow_template_capability_contract import read_task_capability
 
 TaskUserFacingState = str
 
@@ -43,33 +44,6 @@ def _has_rework_signal(metadata: dict[str, Any]) -> bool:
   )
 
 
-def _resolve_profile_id(task: Task, metadata: dict[str, Any]) -> str:
-  ui_profile = metadata.get("ui_profile")
-  if isinstance(ui_profile, str) and ui_profile.strip():
-    return ui_profile.strip()
-
-  node_key = metadata.get("template_node_key") or metadata.get("workflow_node_key")
-  node_key_text = str(node_key) if node_key is not None else ""
-  run_kind = str(metadata.get("run_kind") or "")
-
-  if task.source_type.value == "template" and metadata.get("workflow_graph_instance_id"):
-    if run_kind == "batch" and not node_key_text:
-      return "video_batch_root"
-    if node_key_text.startswith("N1_") or "PROPOSE" in node_key_text:
-      return "video_n1_capture"
-    if node_key_text.startswith("N2_") or "AGGREGATE" in node_key_text:
-      return "video_n2_aggregate"
-    if node_key_text.startswith("N7_") and "ASSIGN" in node_key_text:
-      return "video_capture_assign"
-    if node_key_text:
-      return "video_production_step"
-
-  if metadata.get("workflow_graph_instance_id") and metadata.get("workflow_node_instance_id"):
-    return "graph_manual"
-
-  return "legacy_task"
-
-
 def _map_status_fallback(status: TaskStatus) -> TaskUserFacingState:
   if status == TaskStatus.DONE:
     return "completed"
@@ -103,41 +77,34 @@ def resolve_task_user_facing_state(
   if status == TaskStatus.DONE:
     return "completed"
 
-  profile_id = _resolve_profile_id(task, metadata)
-  if graph_node_key:
-    node_key_text = graph_node_key
-    if node_key_text.startswith("N1_") or "PROPOSE" in node_key_text:
-      profile_id = "video_n1_capture"
-    elif node_key_text.startswith("N2_") or "AGGREGATE" in node_key_text:
-      profile_id = "video_n2_aggregate"
+  _ = graph_node_key  # Compatibility parameter; node names no longer drive behavior.
+  task_capability = read_task_capability(metadata) or {}
+  state_policy = str(task_capability.get("state_policy") or "default")
+  surface = str(task_capability.get("surface") or "")
 
   if graph_business_state == WorkflowNodeBusinessState.PENDING_REVIEW:
-    if profile_id == "video_production_step":
+    if state_policy in {"deliverable", "review"}:
       return "awaiting_confirm"
-    if profile_id in {"video_n1_capture", "video_n2_aggregate"}:
-      return "pending" if profile_id == "video_n2_aggregate" else "completed"
+    if state_policy in {"submission", "collection"}:
+      return "pending" if state_policy == "collection" else "completed"
 
   if graph_business_state in {
     WorkflowNodeBusinessState.ASSIGNED,
     WorkflowNodeBusinessState.ACCEPTED,
   }:
-    if profile_id == "graph_manual":
+    if surface == "manual":
       return "pending"
 
-  if profile_id == "video_batch_root":
+  if state_policy == "run_active":
     return "in_progress"
 
-  if profile_id == "video_capture_assign":
-    if status in {TaskStatus.TODO, TaskStatus.DOING}:
-      return "pending"
-
-  if profile_id in {"video_n1_capture", "video_n2_aggregate"}:
+  if state_policy in {"submission", "collection"}:
     if status in {TaskStatus.TODO, TaskStatus.DOING}:
       return "pending"
     if status == TaskStatus.REVIEW:
-      return "pending" if profile_id == "video_n2_aggregate" else "completed"
+      return "pending" if state_policy == "collection" else "completed"
 
-  if profile_id == "video_production_step":
+  if state_policy in {"deliverable", "review"}:
     if status == TaskStatus.REVIEW:
       return "awaiting_confirm"
     if status in {TaskStatus.TODO, TaskStatus.DOING}:

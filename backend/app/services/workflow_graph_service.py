@@ -46,6 +46,7 @@ from app.services.workflow_definition_snapshot import (
 from app.services.approval_capability_coordinator import ApprovalCapabilityCoordinator
 from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.workflow_template_capability_contract import resolve_instance_runtime_policy
 from app.services.workflow_node_handlers import (
   WorkflowCapabilityCommand,
   WorkflowCapabilityContext,
@@ -534,7 +535,7 @@ class WorkflowGraphService:
   ) -> None:
     """W9-1: queue async notifications when template graph nodes become active."""
     context = instance.context if isinstance(instance.context, dict) else {}
-    if not context.get("run_kind"):
+    if not resolve_instance_runtime_policy(context).notify_on_node_activation:
       return
 
     run_label = instance.run_label or str(instance.id)[:8]
@@ -2743,6 +2744,7 @@ class WorkflowGraphService:
   def _validate_controlled_context_patch(*, context_updates: dict[str, Any]) -> None:
     protected_keys = {
       "run_kind",
+      "capability_snapshot",
       "participants_snapshot",
       "schema_snapshot",
       "template_version",
@@ -2875,7 +2877,7 @@ class WorkflowGraphService:
 
     if graph_instance.status == WorkflowGraphInstanceStatus.ACTIVE:
       context = dict(graph_instance.context or {})
-      if context.get("run_kind") == "production":
+      if resolve_instance_runtime_policy(context).archive_on_completion:
         context["archived"] = True
         context["archived_at"] = now.isoformat()
         graph_instance.context = context
@@ -2973,7 +2975,7 @@ class WorkflowGraphService:
       return
 
     context = dict(graph_instance.context or {})
-    if context.get("run_kind") == "production":
+    if resolve_instance_runtime_policy(context).archive_on_completion:
       context["archived"] = True
       context["archived_at"] = now.isoformat()
       graph_instance.context = context
@@ -3076,8 +3078,8 @@ class WorkflowGraphService:
       context["admin_archived_at"] = now.isoformat()
       context["admin_archived_by_user_id"] = str(actor_id)
       context["admin_archive_reason"] = reason
-      run_kind = str(context.get("run_kind") or "")
-      if run_kind == "production":
+      runtime_policy = resolve_instance_runtime_policy(context)
+      if runtime_policy.archive_on_cancel:
         context["archived"] = True
         context["archived_at"] = now.isoformat()
       graph_instance.context = context
@@ -3099,7 +3101,7 @@ class WorkflowGraphService:
         actor_user_id=actor_id,
         payload={
           "reason": reason,
-          "run_kind": run_kind or None,
+          "archive_on_cancel": runtime_policy.archive_on_cancel,
         },
       )
 

@@ -1,4 +1,4 @@
-"""Video workflow v1 graph template instantiation (W3)."""
+"""Domain-neutral graph template instantiation with video API compatibility."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.enums import (
-  TaskDetailUiProfile,
   TaskPriority,
   TaskSourceType,
   TaskStatus,
@@ -64,6 +63,13 @@ from app.services.workflow_definition_snapshot import (
 )
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_projection_department import resolve_projection_department_id
+from app.services.workflow_template_capability_contract import (
+  build_template_capability_snapshot,
+  legacy_run_kind,
+  legacy_root_ui_profile,
+  resolve_node_task_capability,
+  resolve_root_task_capability,
+)
 
 
 @dataclass(slots=True)
@@ -74,7 +80,7 @@ class GraphTemplateRunResult:
   activated_tasks: list[Task]
 
 
-class WorkflowVideoInstantiationService:
+class WorkflowTemplateInstantiationService:
   def __init__(
     self,
     session: AsyncSession,
@@ -134,7 +140,13 @@ class WorkflowVideoInstantiationService:
     for node in nodes:
       node_config = node.config if isinstance(node.config, dict) else {}
       entry: dict[str, Any] = {"kind": node_config.get("kind", "single")}
-      for key in ("capture_schema", "aggregate_schema", "expand_from", "participant_policy_ref"):
+      for key in (
+        "capture_schema",
+        "aggregate_schema",
+        "expand_from",
+        "participant_policy_ref",
+        "task_capability",
+      ):
         if key in node_config:
           entry[key] = node_config[key]
       node_snapshots[node.node_key] = entry
@@ -264,7 +276,7 @@ class WorkflowVideoInstantiationService:
     )
 
   @staticmethod
-  def _apply_ui_profile_metadata(
+  def _apply_task_presentation_metadata(
     metadata: dict[str, object],
     *,
     template_nodes_by_key: dict[str, WorkflowGraphTemplateNode] | None,
@@ -276,13 +288,17 @@ class WorkflowVideoInstantiationService:
     if template_node is None:
       return
     node_config = template_node.config if isinstance(template_node.config, dict) else {}
+    task_capability = resolve_node_task_capability(node_config)
+    if task_capability is not None:
+      metadata["task_capability"] = task_capability
+    aggregate_schema = node_config.get("aggregate_schema")
+    if isinstance(aggregate_schema, dict):
+      source_node_key = aggregate_schema.get("source_node_key")
+      if isinstance(source_node_key, str) and source_node_key.strip():
+        metadata["collection_source_node_key"] = source_node_key.strip()
     raw_profile = node_config.get("ui_profile")
-    if not isinstance(raw_profile, str) or not raw_profile.strip():
-      return
-    try:
-      metadata["ui_profile"] = TaskDetailUiProfile(raw_profile.strip()).value
-    except ValueError:
-      return
+    if isinstance(raw_profile, str) and raw_profile.strip():
+      metadata["ui_profile"] = raw_profile.strip()
 
   async def _create_projection_task(
     self,
@@ -303,7 +319,7 @@ class WorkflowVideoInstantiationService:
       "template_node_instance_key": node_instance.instance_key,
       "run_kind": (instance.context or {}).get("run_kind"),
     }
-    self._apply_ui_profile_metadata(
+    self._apply_task_presentation_metadata(
       metadata,
       template_nodes_by_key=template_nodes_by_key,
       node_key=node_instance.node_key,
@@ -381,7 +397,8 @@ class WorkflowVideoInstantiationService:
     snapshot_payload = self._normalize_participants_snapshot(participants_snapshot)
 
     template_config = template.config if isinstance(template.config, dict) else {}
-    run_kind = str(template_config.get("run_kind") or "batch")
+    run_kind = legacy_run_kind(template_config, default="template")
+    capability_snapshot = build_template_capability_snapshot(template_config)
     schema_snapshot = self._build_schema_snapshot(template=template, nodes=nodes)
 
     if department_id is None:
@@ -417,6 +434,7 @@ class WorkflowVideoInstantiationService:
     aggregate_mode = template_config.get("aggregate_mode", "batch")
     context: dict[str, Any] = {
       "run_kind": run_kind,
+      "capability_snapshot": capability_snapshot,
       "run_label": resolved_run_label,
       "inputs": normalized_inputs,
       "participants_snapshot": snapshot_payload,
@@ -558,6 +576,7 @@ class WorkflowVideoInstantiationService:
       department_id=department_id,
       run_label=str(resolved_run_label),
       run_kind=run_kind,
+      root_task_capability=resolve_root_task_capability(template_config),
     )
 
     await self._human_task_coordinator.coordinate_mutations(
@@ -661,6 +680,7 @@ class WorkflowVideoInstantiationService:
     department_id: UUID | None,
     run_label: str,
     run_kind: str,
+    root_task_capability: dict[str, Any] | None = None,
     parent_task_id: UUID | None = None,
     extra_metadata: dict[str, object] | None = None,
   ) -> Task:
@@ -671,12 +691,16 @@ class WorkflowVideoInstantiationService:
       "template_id": str(template.id),
       "template_code": template.code,
       "run_kind": run_kind,
+      "task_capability": root_task_capability or resolve_root_task_capability(
+        template.config if isinstance(template.config, dict) else {}
+      ),
     }
     if extra_metadata:
       metadata.update(extra_metadata)
-    if run_kind == "batch":
-      metadata["ui_profile"] = TaskDetailUiProfile.VIDEO_BATCH_ROOT.value
-
+    template_config = template.config if isinstance(template.config, dict) else {}
+    root_ui_profile = legacy_root_ui_profile(template_config)
+    if root_ui_profile is not None:
+      metadata["ui_profile"] = root_ui_profile
     root_department_id = department_id
     if self._task_service is not None:
       task, _assignee = await self._task_service.create_task_record(
@@ -733,9 +757,13 @@ class WorkflowVideoInstantiationService:
       department_id=parent_instance.department_id,
     )
     schema_snapshot = self._build_schema_snapshot(template=_template, nodes=nodes)
+    template_config = _template.config if isinstance(_template.config, dict) else {}
+    run_kind = legacy_run_kind(template_config, default="template")
+    capability_snapshot = build_template_capability_snapshot(template_config)
 
     context: dict[str, Any] = {
-      "run_kind": "production",
+      "run_kind": run_kind,
+      "capability_snapshot": capability_snapshot,
       "run_label": topic.title,
       "parent_instance_id": str(parent_instance.id),
       "topic_id": str(topic.topic_id),
@@ -752,7 +780,6 @@ class WorkflowVideoInstantiationService:
     if topic.content:
       context["topic_content"] = topic.content
 
-    template_config = _template.config if isinstance(_template.config, dict) else {}
     production_pools = build_production_department_pools(
       template_pools=template_config.get("department_pools"),
       launch_department_id=parent_instance.department_id,
@@ -819,8 +846,6 @@ class WorkflowVideoInstantiationService:
           context=context,
           department_id=parent_instance.department_id,
         )
-        if node.node_key == "N3_SCRIPT_WRITE":
-          assignee_id = topic.script_author_id
       else:
         assignee_id = None
 
@@ -865,7 +890,8 @@ class WorkflowVideoInstantiationService:
       assignee_id=root_assignee_id,
       department_id=parent_instance.department_id,
       run_label=topic.title,
-      run_kind="production",
+      run_kind=run_kind,
+      root_task_capability=resolve_root_task_capability(template_config),
       parent_task_id=parent_task_id,
       extra_metadata={
         "topic_id": str(topic.topic_id),
@@ -915,7 +941,7 @@ class WorkflowVideoInstantiationService:
       payload={
         "template_id": str(_template.id),
         "template_code": _template.code,
-        "run_kind": "production",
+        "run_kind": run_kind,
         "parent_instance_id": str(parent_instance.id),
         "topic_id": str(topic.topic_id),
         "root_task_id": str(root_task.id),
@@ -931,7 +957,7 @@ class WorkflowVideoInstantiationService:
     )
 
   def to_response(self, result: GraphTemplateRunResult) -> CreateGraphTemplateRunResponse:
-    run_kind = str((result.instance.context or {}).get("run_kind") or "batch")
+    run_kind = legacy_run_kind(result.instance.context or {}, default="template")
     return CreateGraphTemplateRunResponse(
       instance_id=result.instance.id,
       root_task_id=result.root_task.id,
@@ -940,3 +966,8 @@ class WorkflowVideoInstantiationService:
       node_instance_count=len(result.node_instances),
       current_node_key=result.instance.current_node_key,
     )
+
+
+# Public compatibility alias. Existing API routes and integrations keep their
+# import path while the implementation itself is template/domain neutral.
+WorkflowVideoInstantiationService = WorkflowTemplateInstantiationService

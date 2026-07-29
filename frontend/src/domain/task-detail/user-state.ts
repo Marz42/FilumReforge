@@ -1,6 +1,6 @@
 import type { Task, TaskStatus } from '@/types/api'
 
-import { resolveTaskDetailProfile, type TaskDetailProfileId } from './profile'
+import { resolveTaskDetailProfile, type TaskDetailProfile } from './profile'
 
 export type TaskUserFacingState =
   | 'pending'
@@ -33,7 +33,7 @@ function hasReworkSignal(metadata: Record<string, unknown>): boolean {
 
 export function resolveTaskUserFacingState(
   task: Task,
-  profileId: TaskDetailProfileId,
+  profile: TaskDetailProfile,
 ): TaskUserFacingState {
   const metadata = readMetadata(task)
 
@@ -45,26 +45,20 @@ export function resolveTaskUserFacingState(
     return 'completed'
   }
 
-  if (profileId === 'video_batch_root') {
+  if (profile.statePolicy === 'run_active') {
     return 'in_progress'
   }
 
-  if (profileId === 'video_capture_assign') {
-    if (task.status === 'todo' || task.status === 'doing') {
-      return 'pending'
-    }
-  }
-
-  if (profileId === 'video_n1_capture' || profileId === 'video_n2_aggregate') {
+  if (profile.statePolicy === 'submission' || profile.statePolicy === 'collection') {
     if (task.status === 'todo' || task.status === 'doing') {
       return 'pending'
     }
     if (task.status === 'review') {
-      return profileId === 'video_n2_aggregate' ? 'pending' : 'completed'
+      return profile.statePolicy === 'collection' ? 'pending' : 'completed'
     }
   }
 
-  if (profileId === 'video_production_step') {
+  if (profile.statePolicy === 'deliverable' || profile.statePolicy === 'review') {
     if (task.status === 'review') {
       return 'awaiting_confirm'
     }
@@ -81,7 +75,7 @@ export function resolveTaskUserFacingStateForTask(
   currentUserId?: string | null,
 ): TaskUserFacingState {
   const profile = resolveTaskDetailProfile(task, { currentUserId })
-  return resolveTaskUserFacingState(task, profile.id)
+  return resolveTaskUserFacingState(task, profile)
 }
 
 function mapTaskStatusFallback(status: TaskStatus): TaskUserFacingState {

@@ -356,7 +356,7 @@ sudo journalctl -u filum-backend -u filum-worker -f
 
 ## 测试与验证
 
-**当前测试基线**（2026-07-10，基于 `72751e7` 后工作区修复）：backend **293 collected / 282 passed / 11 skipped**；frontend Vitest **54 文件 / 143 用例**；Playwright default mock **35/35**；type-check / production build PASS。权威记录见 [`progress.md`](memory-bank/logs/progress/progress.md)。
+**当前测试基线**（2026-07-30，Iteration 4-E）：backend **444 collected / 10 skipped / 0 failed**；frontend Vitest **62 文件 / 175 用例**；`vue-tsc --build` / production build PASS。Playwright/live 与 I3-F 目标环境门禁不在本次本地刷新范围。权威记录见 [`progress.md`](memory-bank/logs/progress/progress.md)。
 
 ### Backend
 

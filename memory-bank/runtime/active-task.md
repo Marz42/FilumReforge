@@ -1,6 +1,6 @@
-# Active Task: Iteration 4-E — 领域中立化与兼容迁移
+# Active Task: Iteration 4 完成 — 分批发布与 I3-F 生产门禁
 
-**Status:** in-progress · I4-A–I4-D complete · I4-E next · production cutover gated
+**Status:** I4-A–I4-E complete · pre-I4E release candidate evaluated · production cutover gated
 **Plan:** memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
 **Preflight:** memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md
 
@@ -12,7 +12,8 @@
 - [ ] 系统管理员业务边界改造 deferred（KI-011），不属于 Iteration 4
 - [ ] 模板解耦 Phase 2 设计器交互与文案待用户 UAT
 - [ ] M-09 unarchive 待 sibling ACTIVE 冲突与审计策略决策
-- [ ] 视频兼容依赖解除后再收窄 template `run_kind` dual-read
+- [x] Runtime / TaskService / Task Center / 前端行为分支已迁为 capability snapshot / task capability；`run_kind` / `video_*` 只在兼容适配器双读
+- [ ] 公共 API、历史 Run 与旧客户端对兼容字段的调用归零后，再删除 `run_kind` / `ui_profile` dual-read
 - [ ] Iteration 3-F 目标环境 Expand/Contract、Link 回填与恢复/回滚演练
 - [ ] 连续 7 天 Link reconciliation 100%、runtime JSON fallback 0、open P0/P1 incident 0
 - [ ] Iteration 3-F 最终 31/31 准入报告与用户批准
@@ -27,10 +28,11 @@
 - [x] I4-B：HumanTask 激活/完成/取消/重试已统一消费 Capability Result；Link/RunEvent/Outbox 同 UoW 回滚与参与者重叠合法场景已覆盖
 - [x] I4-C：Approval 默认 Registry、旧审批实例幂等关联、动作前 overlap 校验、当前 Deliverable 版本事实、结果回传/重复回调、轮次/票数/代理审计与同 UoW 通知边界已完成
 - [x] I4-D：Deliverable 多版本/accepted snapshot、Notification queued/sent/all-channels-success 策略，以及失败/重试/取消统一 Capability Result 已完成
-- [ ] I4-E：领域中立化；把视频专用分支迁为通用能力与兼容适配层
+- [x] I4-E：领域中立 capability snapshot、runtime policy、task capability、非视频对照与兼容适配层完成
 
 ## Release boundary
-- Preflight P0/P1/P3 已通过，I4-D 已完成，下一批进入 I4-E；前端 P2 持续接收并独立分级。
+- Iteration 4 工程开发已完成；前端 P2 后续反馈继续独立分级。
+- 前序能力建议以 `8244af0` 作为先行发布候选；尚未实际部署，需先核对服务器 commit 并完成预发 smoke。
 - 管理员业务权限解耦延后；I4 不改变现有 Admin 兼容行为。
 - Iteration 4 可进行向下兼容的代码开发和本地验证。
 - Iteration 3-F 硬门禁未完成前，不做生产切流、不删除兼容路径、不宣称 runtime readiness 已通过。

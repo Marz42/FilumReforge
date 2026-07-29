@@ -25,9 +25,12 @@ from app.services.workflow_definition_snapshot import (
 )
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
+from app.services.workflow_template_capability_contract import (
+  CHILD_RUN_DISPATCH,
+  instance_supports_capability,
+)
 
 DEFAULT_CHILD_TEMPLATE_CODE = "video_production_per_topic_v1"
-PRODUCTION_START_NODE_KEY = "N3_SCRIPT_WRITE"
 
 
 @dataclass(slots=True)
@@ -60,8 +63,8 @@ class WorkflowVideoForkService:
     if instance is None:
       raise NotFoundError("批次图实例不存在。")
     context = instance.context if isinstance(instance.context, dict) else {}
-    if str(context.get("run_kind") or "") not in {"", "batch"}:
-      raise ConflictError("仅批次选题会 Run 可按题 fork 制作子 Run。")
+    if not instance_supports_capability(context, CHILD_RUN_DISPATCH):
+      raise ConflictError("当前 Run 未声明子 Run 派发能力。")
     return instance
 
   async def _resolve_child_template_code(

@@ -1,6 +1,13 @@
 import type { Task, TaskStatus } from '@/types/api'
 
+import { resolveLegacyTaskCapabilityHint } from './legacy-profile'
+
 export type TaskDetailProfileId =
+  | 'workflow_run_overview'
+  | 'workflow_structured_form'
+  | 'workflow_collection'
+  | 'workflow_deliverable'
+  | 'workflow_review'
   | 'video_n1_capture'
   | 'video_n2_aggregate'
   | 'video_batch_root'
@@ -14,9 +21,29 @@ export type TaskDetailProfileId =
   | 'legacy_task'
 
 export type TaskSubmitMode = 'form' | 'file' | 'form+file' | 'review'
+export type WorkflowTaskSurface =
+  | 'run_overview'
+  | 'structured_form'
+  | 'collection'
+  | 'deliverable'
+  | 'review'
+  | 'manual'
+  | 'legacy'
+export type WorkflowTaskStatePolicy =
+  | 'default'
+  | 'run_active'
+  | 'submission'
+  | 'collection'
+  | 'deliverable'
+  | 'review'
 
 export interface TaskDetailProfile {
   id: TaskDetailProfileId
+  surface: WorkflowTaskSurface
+  statePolicy: WorkflowTaskStatePolicy
+  variant: string | null
+  features: Record<string, boolean>
+  rootVisibility: 'normal' | 'overview' | 'hidden_for_non_management'
   submitMode: TaskSubmitMode | null
   hideDeliverable: boolean
   hideHandshakeFields: boolean
@@ -30,55 +57,16 @@ export interface ResolveTaskDetailProfileOptions {
   currentUserId?: string | null
 }
 
-function readMetadata(task: Task | null | undefined): Record<string, unknown> {
-  return (task?.extra_metadata as Record<string, unknown> | undefined) ?? {}
+interface TaskCapabilityMetadata {
+  surface: Exclude<WorkflowTaskSurface, 'legacy'>
+  statePolicy: WorkflowTaskStatePolicy
+  variant: string | null
+  features: Record<string, boolean>
+  rootVisibility: TaskDetailProfile['rootVisibility']
+  submitMode: TaskSubmitMode | null
 }
 
-function isGraphTemplateTask(task: Task, metadata: Record<string, unknown>): boolean {
-  return task.source_type === 'template'
-    && typeof metadata.workflow_graph_instance_id === 'string'
-}
-
-function isGraphHandshakeTask(task: Task, metadata: Record<string, unknown>): boolean {
-  return task.source_type === 'manual'
-    && typeof metadata.workflow_graph_instance_id === 'string'
-    && typeof metadata.workflow_node_instance_id === 'string'
-}
-
-function nodeKey(metadata: Record<string, unknown>): string {
-  return typeof metadata.template_node_key === 'string' ? metadata.template_node_key : ''
-}
-
-function runKind(metadata: Record<string, unknown>): string {
-  return typeof metadata.run_kind === 'string' ? metadata.run_kind : ''
-}
-
-function isCaptureNode(nodeKeyValue: string): boolean {
-  return nodeKeyValue.startsWith('N1_') || nodeKeyValue.includes('PROPOSE')
-}
-
-function isAggregateNode(nodeKeyValue: string): boolean {
-  return nodeKeyValue.startsWith('N2_') || nodeKeyValue.includes('AGGREGATE')
-}
-
-function inferSubmitMode(nodeKeyValue: string): TaskSubmitMode {
-  if (isCaptureNode(nodeKeyValue)) {
-    return 'form'
-  }
-  if (
-    nodeKeyValue.includes('REVIEW')
-    || nodeKeyValue.startsWith('N4_')
-    || nodeKeyValue.startsWith('N12_')
-  ) {
-    return 'review'
-  }
-  if (nodeKeyValue.startsWith('N3_') || nodeKeyValue.includes('SCRIPT')) {
-    return 'file'
-  }
-  return 'file'
-}
-
-const VIDEO_PROFILE_DEFAULTS: Omit<TaskDetailProfile, 'id' | 'submitMode' | 'showCaptureProgress'> = {
+const WORKFLOW_PROFILE_DEFAULTS = {
   hideDeliverable: true,
   hideHandshakeFields: true,
   hideWatchers: true,
@@ -86,150 +74,70 @@ const VIDEO_PROFILE_DEFAULTS: Omit<TaskDetailProfile, 'id' | 'submitMode' | 'sho
   compactMetadata: true,
 }
 
-const TASK_DETAIL_PROFILE_IDS: TaskDetailProfileId[] = [
-  'video_n1_capture',
-  'video_n2_aggregate',
-  'video_batch_root',
-  'video_production_root',
-  'video_production_step',
-  'video_production_multi',
-  'video_production_platform',
-  'video_capture_assign',
-  'video_capture_schedule',
-  'graph_manual',
-  'legacy_task',
-]
+function readMetadata(task: Task | null | undefined): Record<string, unknown> {
+  return (task?.extra_metadata as Record<string, unknown> | undefined) ?? {}
+}
 
-function readUiProfileOverride(metadata: Record<string, unknown>): TaskDetailProfileId | null {
-  const value = metadata.ui_profile
-  if (typeof value !== 'string') {
+function readTaskCapability(metadata: Record<string, unknown>): TaskCapabilityMetadata | null {
+  const raw = metadata.task_capability
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const payload = raw as Record<string, unknown>
+  const surfaces: TaskCapabilityMetadata['surface'][] = [
+    'run_overview', 'structured_form', 'collection', 'deliverable', 'review', 'manual',
+  ]
+  if (typeof payload.surface !== 'string' || !surfaces.includes(payload.surface as TaskCapabilityMetadata['surface'])) {
     return null
   }
-  return TASK_DETAIL_PROFILE_IDS.includes(value as TaskDetailProfileId)
-    ? (value as TaskDetailProfileId)
-    : null
-}
-
-function profileFromOverride(
-  profileId: TaskDetailProfileId,
-  task: Task,
-  metadata: Record<string, unknown>,
-  currentUserId?: string | null,
-): TaskDetailProfile {
-  switch (profileId) {
-    case 'video_batch_root':
-      return {
-        id: 'video_batch_root',
-        submitMode: null,
-        showCaptureProgress: true,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    case 'video_production_root':
-      return {
-        id: 'video_production_root',
-        submitMode: null,
-        showCaptureProgress: false,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    case 'video_n2_aggregate':
-      return {
-        id: 'video_n2_aggregate',
-        submitMode: null,
-        showCaptureProgress: true,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    case 'video_n1_capture':
-      return {
-        id: 'video_n1_capture',
-        submitMode: 'form',
-        showCaptureProgress: false,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    case 'video_capture_assign':
-      return {
-        id: 'video_capture_assign',
-        submitMode: 'form',
-        showCaptureProgress: false,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    case 'video_capture_schedule':
-      return {
-        id: 'video_capture_schedule',
-        submitMode: 'form',
-        showCaptureProgress: false,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    case 'video_production_multi':
-      return {
-        id: 'video_production_multi',
-        submitMode: 'file',
-        showCaptureProgress: false,
-        hideDeliverable: true,
-        hideHandshakeFields: true,
-        hideWatchers: false,
-        collapseComments: false,
-        compactMetadata: true,
-      }
-    case 'video_production_platform':
-      return {
-        id: 'video_production_platform',
-        submitMode: 'file',
-        showCaptureProgress: false,
-        hideDeliverable: true,
-        hideHandshakeFields: true,
-        hideWatchers: false,
-        collapseComments: false,
-        compactMetadata: true,
-      }
-    case 'video_production_step': {
-      const key = nodeKey(metadata)
-      const submitMode = inferSubmitMode(key)
-      return {
-        id: 'video_production_step',
-        submitMode,
-        showCaptureProgress: false,
-        hideDeliverable: submitMode === 'file',
-        hideHandshakeFields: true,
-        hideWatchers: false,
-        collapseComments: false,
-        compactMetadata: true,
-      }
+  const submitModes: TaskSubmitMode[] = ['form', 'file', 'form+file', 'review']
+  const statePolicies: WorkflowTaskStatePolicy[] = [
+    'default', 'run_active', 'submission', 'collection', 'deliverable', 'review',
+  ]
+  const rootVisibilities: TaskDetailProfile['rootVisibility'][] = [
+    'normal', 'overview', 'hidden_for_non_management',
+  ]
+  const rawFeatures = payload.features
+  const features: Record<string, boolean> = {}
+  if (rawFeatures && typeof rawFeatures === 'object' && !Array.isArray(rawFeatures)) {
+    for (const [key, value] of Object.entries(rawFeatures as Record<string, unknown>)) {
+      features[key] = value === true
     }
-    case 'graph_manual':
-      return {
-        id: 'graph_manual',
-        submitMode: null,
-        hideDeliverable: false,
-        hideHandshakeFields: false,
-        hideWatchers: false,
-        collapseComments: false,
-        compactMetadata: false,
-        showCaptureProgress: false,
-      }
-    case 'legacy_task':
-      return {
-        id: 'legacy_task',
-        submitMode: null,
-        hideDeliverable: false,
-        hideHandshakeFields: false,
-        hideWatchers: false,
-        collapseComments: false,
-        compactMetadata: false,
-        showCaptureProgress: false,
-      }
-    default:
-      return profileFromOverride('legacy_task', task, metadata, currentUserId)
+  }
+  return {
+    surface: payload.surface as TaskCapabilityMetadata['surface'],
+    submitMode: typeof payload.submit_mode === 'string' && submitModes.includes(payload.submit_mode as TaskSubmitMode)
+      ? payload.submit_mode as TaskSubmitMode
+      : null,
+    statePolicy: typeof payload.state_policy === 'string' && statePolicies.includes(payload.state_policy as WorkflowTaskStatePolicy)
+      ? payload.state_policy as WorkflowTaskStatePolicy
+      : 'default',
+    variant: typeof payload.variant === 'string' ? payload.variant : null,
+    features,
+    rootVisibility: typeof payload.root_visibility === 'string'
+      && rootVisibilities.includes(payload.root_visibility as TaskDetailProfile['rootVisibility'])
+      ? payload.root_visibility as TaskDetailProfile['rootVisibility']
+      : 'normal',
   }
 }
 
-export function resolveTaskDetailProfile(
-  task: Task | null | undefined,
-  options: ResolveTaskDetailProfileOptions = {},
+function genericProfileId(surface: TaskCapabilityMetadata['surface']): TaskDetailProfileId {
+  switch (surface) {
+    case 'run_overview': return 'workflow_run_overview'
+    case 'structured_form': return 'workflow_structured_form'
+    case 'collection': return 'workflow_collection'
+    case 'deliverable': return 'workflow_deliverable'
+    case 'review': return 'workflow_review'
+    case 'manual': return 'graph_manual'
+  }
+}
+
+function buildProfile(
+  capability: TaskCapabilityMetadata,
+  id: TaskDetailProfileId = genericProfileId(capability.surface),
 ): TaskDetailProfile {
-  if (!task) {
+  if (capability.surface === 'manual') {
     return {
-      id: 'legacy_task',
-      submitMode: null,
+      id,
+      ...capability,
       hideDeliverable: false,
       hideHandshakeFields: false,
       hideWatchers: false,
@@ -238,88 +146,46 @@ export function resolveTaskDetailProfile(
       showCaptureProgress: false,
     }
   }
-
-  const metadata = readMetadata(task)
-  const currentUserId = options.currentUserId ?? null
-  const uiProfileOverride = readUiProfileOverride(metadata)
-  if (uiProfileOverride) {
-    return profileFromOverride(uiProfileOverride, task, metadata, currentUserId)
+  const expandedDeliverable = capability.surface === 'deliverable'
+    && capability.variant !== 'single'
+  return {
+    id,
+    ...capability,
+    ...WORKFLOW_PROFILE_DEFAULTS,
+    hideDeliverable: capability.surface === 'deliverable'
+      ? capability.submitMode === 'file'
+      : true,
+    hideWatchers: expandedDeliverable ? false : WORKFLOW_PROFILE_DEFAULTS.hideWatchers,
+    collapseComments: expandedDeliverable ? false : WORKFLOW_PROFILE_DEFAULTS.collapseComments,
+    showCaptureProgress: capability.features.capture_progress === true,
   }
+}
 
-  if (isGraphTemplateTask(task, metadata)) {
-    const isRootBatch =
-      metadata.workflow_graph_root_task === true && runKind(metadata) === 'batch'
-    const isRootProduction =
-      metadata.workflow_graph_root_task === true && runKind(metadata) === 'production'
+function legacyId(value: string): TaskDetailProfileId {
+  return value as TaskDetailProfileId
+}
 
-    if (isRootBatch) {
-      return {
-        id: 'video_batch_root',
-        submitMode: null,
-        showCaptureProgress: true,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    }
+function legacyProfile(task: Task, metadata: Record<string, unknown>, currentUserId?: string | null) {
+  const hint = resolveLegacyTaskCapabilityHint(task, metadata, currentUserId)
+  if (!hint) return null
+  return buildProfile({
+    surface: hint.surface,
+    submitMode: hint.submitMode,
+    statePolicy: hint.statePolicy,
+    variant: hint.variant,
+    features: hint.features,
+    rootVisibility: hint.rootVisibility,
+  }, legacyId(hint.legacyId))
+}
 
-    if (isRootProduction) {
-      return {
-        id: 'video_production_root',
-        submitMode: null,
-        showCaptureProgress: false,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    }
-
-    const key = nodeKey(metadata)
-
-    if (isAggregateNode(key)) {
-      return {
-        id: 'video_n2_aggregate',
-        submitMode: null,
-        showCaptureProgress: true,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    }
-
-    if (isCaptureNode(key) && task.assignee_id === currentUserId && task.status !== 'done') {
-      return {
-        id: 'video_n1_capture',
-        submitMode: 'form',
-        showCaptureProgress: false,
-        ...VIDEO_PROFILE_DEFAULTS,
-      }
-    }
-
-    if (key && !isCaptureNode(key) && !isAggregateNode(key)) {
-      const submitMode = inferSubmitMode(key)
-      return {
-        id: 'video_production_step',
-        submitMode,
-        showCaptureProgress: false,
-        hideDeliverable: submitMode === 'file',
-        hideHandshakeFields: true,
-        hideWatchers: false,
-        collapseComments: false,
-        compactMetadata: true,
-      }
-    }
-  }
-
-  if (isGraphHandshakeTask(task, metadata)) {
-    return {
-      id: 'graph_manual',
-      submitMode: null,
-      hideDeliverable: false,
-      hideHandshakeFields: false,
-      hideWatchers: false,
-      collapseComments: false,
-      compactMetadata: false,
-      showCaptureProgress: false,
-    }
-  }
-
+function legacyTaskProfile(): TaskDetailProfile {
   return {
     id: 'legacy_task',
+    surface: 'legacy',
+    statePolicy: 'default',
+    variant: null,
+    features: {},
+    rootVisibility: 'normal',
     submitMode: null,
     hideDeliverable: false,
     hideHandshakeFields: false,
@@ -330,27 +196,33 @@ export function resolveTaskDetailProfile(
   }
 }
 
+export function resolveTaskDetailProfile(
+  task: Task | null | undefined,
+  options: ResolveTaskDetailProfileOptions = {},
+): TaskDetailProfile {
+  if (!task) return legacyTaskProfile()
+  const metadata = readMetadata(task)
+  const explicitCapability = readTaskCapability(metadata)
+  if (explicitCapability) return buildProfile(explicitCapability)
+  return legacyProfile(task, metadata, options.currentUserId ?? null) ?? legacyTaskProfile()
+}
+
+export function usesWorkflowCapabilityLayout(profile: TaskDetailProfile): boolean {
+  return profile.surface !== 'legacy' && profile.surface !== 'manual'
+}
+
+/** @deprecated Compatibility helper for callers/tests during the profile migration. */
 export function isVideoWorkflowProfile(profile: TaskDetailProfile): boolean {
-  return profile.id.startsWith('video_')
+  return usesWorkflowCapabilityLayout(profile)
 }
 
 export function shouldShowLegacyStatusActions(
   profile: TaskDetailProfile,
   taskStatus: TaskStatus,
 ): boolean {
-  if (profile.id === 'graph_manual' || profile.id === 'legacy_task') {
-    return true
-  }
-  if (
-    (profile.id === 'video_production_step'
-      || profile.id === 'video_production_multi'
-      || profile.id === 'video_production_platform')
-    && taskStatus !== 'review'
-  ) {
+  if (profile.surface === 'manual' || profile.surface === 'legacy') return true
+  if (profile.surface === 'deliverable' && taskStatus !== 'review') {
     return profile.submitMode !== 'file'
-  }
-  if (profile.id === 'video_capture_assign' || profile.id === 'video_capture_schedule') {
-    return false
   }
   return false
 }

@@ -8,7 +8,7 @@ tags:
   - iteration-4
   - handler
   - capability
-timestamp: 2026-07-30T00:56:25+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -21,7 +21,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 4 · 业务能力 Handler 化实施计划
 
-> **状态**：I4-A 至 I4-D 已完成。HumanTask、Approval、Deliverable 与 Notification 均已通过纯 Handler Result 或边界清晰的应用协调接入；交付版本/验收快照及通知完成策略不再由 Runtime 猜测。前端 P2 第一批 6 项已实现，后续反馈持续接收。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
+> **状态**：I4-A 至 I4-E 已完成。HumanTask、Approval、Deliverable 与 Notification 已统一接入能力结果；模板行为由领域中立 capability snapshot、runtime policy 与 task capability 驱动，视频字段仅留在兼容适配器和模板包。前端 P2 第一批 6 项已实现。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
 
 ## 1. 目标
 
@@ -33,12 +33,12 @@ paradigma:
 |---|---|---|
 | GAP-TPL-01 | 模板解耦 Phase 2 交互尚待 UAT | 独立验收，不阻塞纯后端 Handler 契约开发 |
 | GAP-TPL-02 | M-09 unarchive 无 sibling ACTIVE / 审计策略 | 保持 deferred |
-| GAP-TPL-03 | template `run_kind` dual-read 仍被视频兼容链路使用 | I4-E 前不得删除 |
+| GAP-TPL-03 | template `run_kind` dual-read 仍被旧 API/历史 Run 使用 | 已收口到兼容适配器；调用归零前不删除 |
 | GAP-I3F-01 | 目标环境 Expand/Contract、Link 回填、恢复/回滚演练未完成 | 生产切流前补齐 |
 | GAP-I3F-02 | 连续 7 天 reconciliation/fallback/incident 证据缺失 | 生产切流前补齐并重启失败窗口 |
 | GAP-I3F-03 | 31/31 最终准入报告未生成/批准 | 保持 release gate |
 | GAP-ALIGN-01 | README / roadmap / project brief / contracts 焦点与测试基线漂移 | Preflight P0 收口 |
-| GAP-DOMAIN-01 | Runtime、TaskService 与前端仍按 `run_kind` / video profile 分支 | 按 ADR-018 盘点并迁为通用能力 |
+| GAP-DOMAIN-01 | Runtime、TaskService 与前端曾按 `run_kind` / video profile 分支 | I4-E 已迁为 capability snapshot / task capability；旧值仅兼容读取 |
 | GAP-UI-01 | 前端第一批 6 项已实现并完成真实账号首轮 UAT；后续反馈继续接收 | Preflight P2 按 P0–P3 持续分级 |
 | GAP-DECISION-01 | 旧 `self_review_fallback` 把集合推进与独立验收混为一谈 | 按 ADR-019 建立语义矩阵并迁移 |
 | GAP-ADMIN-01 | Admin 当前仍可进入业务候选/override，与维护角色定义不一致 | **deferred**；KI-011，明确不属于 I4 |
@@ -80,10 +80,10 @@ paradigma:
 
 ### I4-E · 领域中立化与兼容迁移
 
-- [ ] 盘点 Runtime / TaskService / Task Center / API / 前端内 `run_kind`、模板 code、节点 key、`ui_profile` 与视频字段分支。
-- [ ] 抽取结构化表单、集合关闭、聚合、交付/返工、子 Run 等可跨业务复用的能力。
-- [ ] 禁止新增 `VideoHandler`；视频保留为模板包、种子数据、兼容适配和黄金流程回归。
-- [ ] 兼容依赖归零后再收窄 template `run_kind` dual-read。
+- [x] 完成 Runtime / TaskService / Task Center / API / 前端的领域专用分支盘点；核心行为不再按 `run_kind`、模板 code、节点 key 或 `video_*` Profile 分支。
+- [x] 抽取 capability snapshot、runtime policy 与 task capability，覆盖结构化表单、集合关闭、聚合、交付/返工和子 Run 派发；新增非视频“合同材料收集”对照测试。
+- [x] 未新增 `VideoHandler`；视频 seed v5 只声明通用能力，现有专用 API/service 保留为兼容适配与黄金回归入口。
+- [x] template `run_kind` / `ui_profile` dual-read 已集中到后端与前端兼容适配器；公共 API、历史 Run 和旧前端依赖归零前不删除。
 
 ## 4. 兼容与门禁
 
@@ -94,7 +94,15 @@ paradigma:
 - Iteration 3-F 未完成前只开发、测试、shadow 验证，不做生产切流。
 - 任何需要 schema/API 的后续批次仍按仓库协议单独评审。
 
-## 5. I4-A 验收
+## 5. I4-E 前序能力先行发布评估
+
+- 建议候选：`8244af0`（I4-E 之前的完整截止点），包含前端第一批修复、集合负责人合法推进、严格验收语义、Approval bridge 与 I4-D 兼容修正。
+- 相对 `origin/main` `4ad6571` 无 Alembic 迁移、前端依赖锁、Docker 或环境变量变更；新 Deliverable JSON v2 为兼容增量，旧代码可忽略。
+- 不建议只 cherry-pick 单个“自审批”提交：`23d7f68`、`2485cb0`、`5056f94`、`f30d658` 存在 Handler/bridge 顺序依赖；完整截止点风险更低。
+- 上线前先核对服务器实际 commit，在预发复测 A/B/C 提交后 A 集合确认、同版本提交者不得独自验收、消息一键已读与任务列表/详情；保持现有 feature flags，不启用新的 I3-F 生产切流。
+- 回滚为纯代码回滚；无需数据库 downgrade。正式发布与回滚窗口仍按部署手册执行。
+
+## 6. I4-A 验收
 
 - Registry 能稳定解析 HumanTask/Approval/Notice，未知/重复能力有确定错误。
 - HumanTask、Approval 与 Notice 的生命周期/命令映射有纯单测。

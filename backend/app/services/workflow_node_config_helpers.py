@@ -39,6 +39,7 @@ def is_streaming_aggregate_node(
 _TEMPLATE_SYNCED_CONFIG_KEYS = (
   "completion_policy",
   "ui_profile",
+  "task_capability",
   "handshake_required",
   "max_deliverable_attachments",
 )

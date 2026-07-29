@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-30T00:56:25+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -33,7 +33,7 @@ paradigma:
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
 **版本**: v3.20.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-07-30 · Iteration 4-D Deliverable / Notification Handler · 产品基线 `0.92.1` + Unreleased
+**最后同步**: 2026-07-30 · Iteration 4-E 领域中立能力契约 · 产品基线 `0.92.1` + Unreleased
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -61,6 +61,8 @@ paradigma:
 - **ADR-019 决策语义边界**：集合确认、独立交付验收、正式业务审批与多人会签具有不同参与者重叠规则；贡献者优先按 Deliverable 当前 submitter/version/signature 判断。I4-B/C 已完成语义映射与旧审批桥接；Admin 兼容行为不在 I4 修改。
 - **I4-D Deliverable JSON v2（无 schema/API 破坏）**：现有 `workflow_deliverables.payload` 双写 `latest_submission` / `submission_history` 兼容字段，并增加 `schema_version=2`、`current_submission_version`、`review_history`、`accepted_submission_version`、`accepted_submission_signature` 与不可变 `accepted_submission` 快照；每条 review 绑定 submission version/signature。
 - **I4-D Notification completion policy**：`NotificationMessage.payload.completion_policy` 可选 `queued|sent|all_channels_success`，省略时默认 `all_channels_success`；消息完成按全部 delivery 计算，worker 的 delivery 子集不得提前完成整条消息。
+- **I4-E template capability snapshot（JSON，无 schema/API 破坏）**：新 Run 的 `context.capability_snapshot` 固化 `schema_version=1`、`capabilities[]`、`runtime.notify_on_node_activation|archive_on_completion|archive_on_cancel`、`instantiation_mode=direct|child_only` 与 `source=explicit|legacy_run_kind|default`。Runtime 只消费快照；旧 `run_kind` 仅由兼容适配器推导等价快照。
+- **I4-E task capability（Task metadata JSON）**：模板节点 `config.task_capability` / ROOT `config.root_task_capability` 投影为 `Task.extra_metadata.task_capability`，字段为 `surface=run_overview|structured_form|collection|deliverable|review|manual`、`submit_mode?`、`state_policy`、`variant?`、`features{}`、`root_visibility`。前端布局与后端用户态按此契约解析；`ui_profile` / 节点 key 推断只保留在兼容适配器。
 - **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](../domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
 - **S-01 周期统计契约**（2026-07-11 批准）：`GET /api/v1/tasks/stats/scopes|summary|workload|details`；统一 `start_date` / `end_date`（Asia/Shanghai、含首尾日期、最长 366 天）、`department_id?`、`include_subtree`；Employee 仅本人，经理/数据代理限有效管理范围，Admin/HR 全局；排除 `metadata.admin_archived=true` 与 `metadata.workflow_graph_root_task=true`。指标为新增、完成、到期、逾期、已成熟截止任务的按期完成率、当前未完成；details 以 `metric` + UUID cursor 分页。
 - **图模板部门作用范围**：显式 `scope_mode=global|departments`；`global` 不允许部门列表，`departments` 至少一个部门；Run 创建先解析最终部门再校验 scope（迁移 `20260713_01`）。
@@ -191,11 +193,11 @@ paradigma:
 
 ## 12. 当前验证基线
 
-权威数字见 [`progress.md`](../../logs/progress/progress.md) 最新会话摘要（2026-07-28 @ I4-A）：
+权威数字见 [`progress.md`](../../logs/progress/progress.md) 最新会话摘要（2026-07-30 @ I4-E）：
 
-- backend：**441 collected / 10 skipped / 0 failed**；登记的 PostgreSQL 环境用例按既有规则 skip；`compileall` PASS
-- Iteration 4-D / I3-F ownership / 视频兼容专项：**42 PASS**
-- frontend：Vitest **59 文件 / 168 用例 PASS**；`vue-tsc --build` 与 production build PASS
+- backend：**444 collected / 10 skipped / 0 failed**；登记的 PostgreSQL 环境用例按既有规则 skip；`compileall` PASS
+- Iteration 4-E / Handler / 视频黄金流程定向：**66 PASS**
+- frontend：Vitest **62 文件 / 175 用例 PASS**；`vue-tsc --build` 与 production build PASS
 - 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**
 - 未纳入每次刷新：live/docker-gui、目标环境 I3-F 7 天 readiness、Ubuntu 回滚演练
 

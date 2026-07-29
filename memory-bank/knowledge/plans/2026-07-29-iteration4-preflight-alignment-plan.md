@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化"
 description: "在 I4-B 前完成事实文档收口、视频模板去特殊化设计和前端问题分级；参与者重叠语义已由 ADR-019 固化。"
 tags: ["plan", "workflow-graph", "iteration-4", "alignment", "frontend", "domain-neutral"]
-timestamp: 2026-07-29T21:30:31+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -18,7 +18,7 @@ paradigma:
 
 ## 状态
 
-**in-progress · P0/P1/P3 已完成 · I4-B 已恢复 · P2 第一批已实现并持续接收**（2026-07-29）
+**done · P0/P1/P3 与 I4-E 迁移已完成 · P2 第一批已实现并持续接收**（2026-07-30）
 
 本计划是 [`workflow-graph-engine-iteration4-handler-plan.md`](./workflow-graph-engine-iteration4-handler-plan.md) 的前置门禁。I4-A 已完成且不回退；以下事项收口后再恢复 I4-B。
 
@@ -36,7 +36,7 @@ paradigma:
 - [x] 盘点前端详情 Profile、专用面板、动作按钮与状态投影中的视频推断。
 - [x] 将现有行为映射为表单提交、集合关闭、聚合、交付/返工、子 Run 等通用能力候选。
 - [x] 为兼容入口定义替代契约、黄金流程回归和退出条件；详见 [`视频模板领域中立迁移清单`](./2026-07-29-video-domain-neutral-migration-inventory.md)。
-- [ ] 在兼容调用归零前不删除现有路径，不宣称领域中立迁移完成。
+- [x] I4-E 已完成核心行为领域中立迁移；兼容调用归零前继续保留现有路径与 dual-read，不宣称兼容清理完成。
 
 ## P2 · 前端稳定化批次
 

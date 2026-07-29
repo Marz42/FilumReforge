@@ -9,7 +9,7 @@ type StatusAction = {
   buttonType: 'primary' | 'warning' | 'success'
 }
 
-type VideoProductionPanelExpose = {
+type WorkflowDeliverablePanelExpose = {
   submit: () => void
   submitting: boolean
 }
@@ -21,7 +21,7 @@ defineProps<{
   canDecideApproval: boolean
   approvalSubmitting: boolean
   canReviewDeliverable: boolean
-  useVideoProductionReviewMoreMenu: boolean
+  useWorkflowReviewMoreMenu: boolean
   deliverableReviewComment: string
   selectedTask: Task | null
   isGraphHandshakeTask: boolean
@@ -35,9 +35,9 @@ defineProps<{
   statusSubmitting: boolean
   canSubmitDeliverable: boolean
   selectedTaskProfile: TaskDetailProfile
-  videoProductionPanelRef: VideoProductionPanelExpose | null
+  workflowDeliverablePanelRef: WorkflowDeliverablePanelExpose | null
   deliverableSubmitting: boolean
-  usesVideoWorkflowLayout: boolean
+  usesWorkflowLayout: boolean
   graphInstance: WorkflowGraphInstanceDetail | null
   canManageCaptureReject: boolean
   canRejectProductionStep: boolean
@@ -109,7 +109,7 @@ const emit = defineEmits<{
           验收通过
         </el-button>
         <el-button
-          v-if="!useVideoProductionReviewMoreMenu"
+          v-if="!useWorkflowReviewMoreMenu"
           type="danger"
           :loading="approvalSubmitting"
           @click="emit('openReworkDialog')"
@@ -156,9 +156,9 @@ const emit = defineEmits<{
       <el-button
         v-else-if="canSubmitDeliverable && selectedTaskProfile.submitMode === 'file'"
         type="primary"
-        :loading="videoProductionPanelRef?.submitting ?? false"
+        :loading="workflowDeliverablePanelRef?.submitting ?? false"
         data-testid="video-production-header-submit"
-        @click="videoProductionPanelRef?.submit()"
+        @click="workflowDeliverablePanelRef?.submit()"
       >
         上传并提交
       </el-button>
@@ -180,7 +180,7 @@ const emit = defineEmits<{
       </el-button>
     </div>
     <TaskDetailMoreMenu
-      v-if="selectedTask && (usesVideoWorkflowLayout || canAdminArchive)"
+      v-if="selectedTask && (usesWorkflowLayout || canAdminArchive)"
       :profile="selectedTaskProfile"
       :task="selectedTask"
       :graph-instance="graphInstance"

@@ -26,6 +26,32 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 }
 
 describe('resolveTaskDetailProfile', () => {
+  it('uses domain-neutral task capability metadata without video or node-name inference', () => {
+    const task = makeTask({
+      title: '提交合同材料',
+      extra_metadata: {
+        workflow_graph_instance_id: 'inst-contract',
+        template_node_key: 'COLLECT_CONTRACT_DATA',
+        task_capability: {
+          schema_version: 1,
+          surface: 'structured_form',
+          submit_mode: 'form',
+          state_policy: 'submission',
+          variant: 'contract',
+          features: {},
+          root_visibility: 'normal',
+        },
+      },
+    })
+
+    const profile = resolveTaskDetailProfile(task, { currentUserId: 'user-1' })
+
+    expect(profile.id).toBe('workflow_structured_form')
+    expect(profile.surface).toBe('structured_form')
+    expect(profile.variant).toBe('contract')
+    expect(profile.submitMode).toBe('form')
+  })
+
   it('resolves video_n1_capture for assignee on N1 node', () => {
     const task = makeTask({
       extra_metadata: {

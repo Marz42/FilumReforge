@@ -66,7 +66,7 @@ from app.services.workflow_graph_template_topology import (
   GraphTemplateNodeSpec,
   validate_graph_template_topology,
 )
-from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
+from app.services.workflow_template_instantiation_service import WorkflowTemplateInstantiationService
 
 _CODE_VERSION_SUFFIX = re.compile(r"_v(\d+)$")
 _EXPORT_FORMAT_VERSION = 1
@@ -500,7 +500,7 @@ class WorkflowGraphTemplateAdminService:
 
     normalized_inputs: dict[str, Any] = {}
     try:
-      normalized_inputs = WorkflowVideoInstantiationService._validate_launch_inputs(
+      normalized_inputs = WorkflowTemplateInstantiationService._validate_launch_inputs(
         template=self._template_preview(template, state.config),
         inputs=dict(payload.inputs or {}),
       )
@@ -509,7 +509,7 @@ class WorkflowGraphTemplateAdminService:
 
     mock_template = self._template_preview(template, state.config)
     mock_nodes = self._mock_template_nodes(state.nodes)
-    schema_snapshot = WorkflowVideoInstantiationService._build_schema_snapshot(
+    schema_snapshot = WorkflowTemplateInstantiationService._build_schema_snapshot(
       template=mock_template,
       nodes=mock_nodes,
     )

@@ -6,7 +6,7 @@ tags:
   - project-brief
   - vision
   - filum
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -35,7 +35,7 @@ paradigma:
 | **一句话描述** | 面向 50–100 人企业的模块化单体内部管理平台，统一承载人事、任务协同、流程/汇报、消息、知识库与 AI 指令入口 |
 | **项目类型** | Web 应用（B 端后台 + PWA 基线） |
 | **当前版本** | `0.92.1`（根目录 `VERSION`，SemVer） |
-| **当前阶段** | **Iteration 4 Preflight** — I4-A 已完成；I4-B 前先收口文档漂移、视频模板领域中立与前端问题分级 |
+| **当前阶段** | **Iteration 4 工程完成** — I4-A–E 已完成；进入先行发布验证与 I3-F 生产门禁收口 |
 
 ---
 
@@ -105,9 +105,9 @@ Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、�
 | 模板引擎解耦 Phase 1 | **done** @ Unreleased — tags / capabilities / archive / ACTIVE lock |
 | 模板引擎解耦 Phase 2 首批 | **implemented · pending UAT** — structured authoring |
 | 图引擎 Iteration 1–3-F | **工程实现完成 · 生产准入 gated** — 目标环境/7 天/31 项证据待补 |
-| 图引擎 Iteration 4-A | **done** — Handler Registry + unified Capability Result |
-| 图引擎 Iteration 4 Preflight | **in progress** — ADR-018 / 文档对齐 / 前端稳定化 |
-| 决策对象与参与者重叠 | **ADR-019 confirmed · pending I4-B/C** — 集合推进与独立验收分开建模 |
+| 图引擎 Iteration 4-A–E | **done** — Handler、版本交付、通知策略、领域中立 capability snapshot / task capability |
+| 图引擎 Iteration 4 Preflight | **done** — ADR-018 / 文档对齐 / 前端第一批稳定化 |
+| 决策对象与参与者重叠 | **ADR-019 implemented** — 集合负责人可贡献并推进；同版本独立验收仍职责分离 |
 | 系统管理员仅维护、不参与业务 | **产品边界 confirmed · implementation deferred** — KI-011，不属于 I4 |
 | Ubuntu 最小回滚演练 | **暂缓**（上线前再补） |
 | 真实 Email / WebSocket 外部接入深化 | 待深化 |

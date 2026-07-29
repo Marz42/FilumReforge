@@ -1,12 +1,12 @@
 ---
 type: paradigma-plan
 title: "Project Filum — 路线图"
-description: "宏观里程碑、当前 Iteration 4 Preflight 与历史任务中心改造记录。"
+description: "宏观里程碑、Iteration 4 完成态、分批发布与历史任务中心改造记录。"
 tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-07-29T21:30:31+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -33,8 +33,8 @@ paradigma:
 |------|------|
 | **当前版本** | `0.92.1`（根目录 `VERSION`）+ Unreleased |
 | **版本主题** | 工作流图引擎 Iteration 4 · 模板领域中立与稳定化 |
-| **阶段** | **Iteration 4 Preflight** — I4-A 已完成；I4-B 暂停，先做文档对齐、视频模板领域中立和前端问题分级 |
-| **最后整理** | 2026-07-29 — ADR-018 与 Preflight 计划入库 |
+| **阶段** | **Iteration 4 工程完成** — I4-A–E 已完成；先行发布候选待预发 smoke，I3-F 生产切流仍 gated |
+| **最后整理** | 2026-07-30 — I4-E 领域中立迁移与先行发布评估完成 |
 
 ---
 
@@ -57,7 +57,7 @@ paradigma:
 | **Task Center P0–P2 审计修复** | done | 锁/CAS · 分页/附件 · 模板评审候选链 @ `0.92.1` |
 | **工作流图引擎 Iteration 1–3-F 工程实现** | done | snapshot · graph-v3 · Link/receipt · ownership/UoW · readiness 工具；生产证据仍 gated |
 | **模板解耦 Phase 1 + Phase 2 首批** | done / UAT | tags · capabilities · archive · structured authoring |
-| **Iteration 4-A** | done | Handler Registry · unified Capability Result · HumanTask/Notice 接入 |
+| **Iteration 4-A–E** | done | Handler Registry · HumanTask/Approval/Deliverable/Notification · 领域中立 capability snapshot |
 
 ---
 
@@ -154,14 +154,13 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-1. **Preflight P0**：修正文档版本、当前焦点、验证基线与计划漂移。
-2. **Preflight P1**：按 ADR-018 盘点视频专用分支，设计通用能力与兼容退出路径；不新增 `VideoHandler`。
-3. **Preflight P2**：接收用户前端问题，按 P0–P3 分级；先处理阻塞或错误推进项。
-4. **ADR-019 落地准备**：盘点旧 `self_review_fallback` 与 completion policy，按集合确认、独立验收、正式审批、会签建立映射。
-5. **恢复 I4-B**：Preflight 门禁通过后接续 HumanTask Handler；I3-F 生产准入门禁保持不变。
-6. **明确延期**：系统管理员业务边界治理按 KI-011 在 I4 后单独规划。
+1. **先行发布验证**：以 `8244af0` 为候选，在预发复测参与者重叠语义与前端第一批修复；不拆挑依赖提交。
+2. **Iteration 4-E UAT**：验证非视频模板能力声明、旧视频模板兼容 Profile 与历史 Run dual-read。
+3. **I3-F 生产门禁**：目标环境 Expand/Contract、Link 回填、恢复/回滚演练、连续 7 天观测与 31/31 报告。
+4. **前端后续反馈**：继续按 P0–P3 分级，P2/P3 可独立成批。
+5. **明确延期**：系统管理员业务边界治理按 KI-011 在 I4 后单独规划。
 
-**下一 actionable**：完成视频领域中立依赖盘点、ADR-019 旧策略映射，并接收用户前端问题清单。内测发布仍按 [`deployment-runbook §21`](./manuals/deployment-runbook-ubuntu-2404.md) 执行。
+**下一 actionable**：核对目标服务器当前 commit，以 `8244af0` 做先行发布预发 smoke；I4-E 单独进入 UAT。内测发布仍按 [`deployment-runbook §21`](./manuals/deployment-runbook-ubuntu-2404.md) 执行。
 
 ---
 

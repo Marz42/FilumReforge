@@ -64,6 +64,7 @@ from app.services.human_task_coordinator import HumanTaskCoordinator
 from app.services.workflow_delivery_handlers import DeliverableCapabilityHandler
 from app.services.workflow_node_handlers import WorkflowCapabilityResult
 from app.services.workflow_node_config_helpers import resolve_completion_policy
+from app.services.workflow_template_capability_contract import resolve_task_root_visibility
 from app.services.workflow_rule_resolver import resolve_user_targets_from_rule
 from app.services.access_control import (
   MANAGEMENT_ROLES,
@@ -457,7 +458,7 @@ class TaskService:
   ) -> TaskStatus:
     if task is not None and task.status == TaskStatus.BLOCKED:
       return TaskStatus.BLOCKED
-    if task is not None and TaskService._is_batch_graph_root_shell_task(task):
+    if task is not None and TaskService._is_run_overview_root_task(task):
       if instance.status == WorkflowGraphInstanceStatus.COMPLETED:
         return TaskStatus.DONE
       if instance.status in {
@@ -488,7 +489,7 @@ class TaskService:
     latest_action = self._read_str_metadata(metadata, "latest_handshake_action")
     step_title = (node_instance.title or node_instance.node_key or "当前步骤").strip()
 
-    if self._is_batch_graph_root_shell_task(task) and instance.status == WorkflowGraphInstanceStatus.ACTIVE:
+    if self._is_run_overview_root_task(task) and instance.status == WorkflowGraphInstanceStatus.ACTIVE:
       context = instance.context if isinstance(instance.context, dict) else {}
       if str(context.get("fork_status") or "") == "completed":
         return "批次跟进：制作进行中"
@@ -1885,18 +1886,18 @@ class TaskService:
     return TaskService._copy_task_metadata(task).get("workflow_graph_root_task") is True
 
   @staticmethod
-  def _is_production_graph_root_shell_task(task: Task) -> bool:
+  def _is_hidden_graph_root_for_non_management(task: Task) -> bool:
     metadata = TaskService._copy_task_metadata(task)
     if metadata.get("workflow_graph_root_task") is not True:
       return False
-    return str(metadata.get("run_kind") or "") == "production"
+    return resolve_task_root_visibility(metadata) == "hidden_for_non_management"
 
   @staticmethod
-  def _is_batch_graph_root_shell_task(task: Task) -> bool:
+  def _is_run_overview_root_task(task: Task) -> bool:
     metadata = TaskService._copy_task_metadata(task)
     if metadata.get("workflow_graph_root_task") is not True:
       return False
-    return str(metadata.get("run_kind") or "") == "batch"
+    return resolve_task_root_visibility(metadata) == "overview"
 
   @staticmethod
   def _read_str_metadata(metadata: dict[str, Any], key: str) -> str | None:
@@ -2871,7 +2872,7 @@ class TaskService:
         continue
       if task.id in inbox_task_ids:
         continue
-      if not is_management and self._is_production_graph_root_shell_task(task):
+      if not is_management and self._is_hidden_graph_root_for_non_management(task):
         continue
       relation_types: list[str] = []
       if task.creator_id == actor.id:

@@ -23,9 +23,9 @@ import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import { closeInstanceCapture, getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import CapturePanel from '@/components/workflow/CapturePanel.vue'
-import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
-import VideoProductionPanel from '@/components/workflow/VideoProductionPanel.vue'
-import VideoTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
+import WorkflowCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
+import WorkflowDeliverablePanel from '@/components/workflow/VideoProductionPanel.vue'
+import WorkflowTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
 import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import { resolveActiveStepTaskId } from '@/domain/workflow-graph/activeStepTask'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
@@ -40,10 +40,11 @@ import {
 } from '@/domain/task-detail/actions'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
-  isVideoWorkflowProfile,
   resolveTaskDetailProfile,
+  usesWorkflowCapabilityLayout,
 } from '@/domain/task-detail/profile'
 import { resolveTaskRunLabel } from '@/domain/task-detail/run-label'
+import { resolveInstanceCapabilities } from '@/domain/task-detail/legacy-profile'
 import {
   resolveTaskUserFacingStateForTask,
   TASK_USER_FACING_STATE_LABELS,
@@ -334,15 +335,15 @@ const canReviewDeliverable = computed(() => {
 
   return authStore.isManagementRole || user.id === task.creator_id
 })
-const useVideoProductionReviewMoreMenu = computed(
+const useWorkflowReviewMoreMenu = computed(
   () =>
-    selectedTaskProfile.value.id === 'video_production_step'
+    selectedTaskProfile.value.surface === 'review'
     && selectedTaskProfile.value.submitMode === 'review',
 )
 const canRejectProductionStep = computed(() => {
   const task = selectedTask.value
   const user = authStore.user
-  if (!task || !user || !useVideoProductionReviewMoreMenu.value || task.status !== 'review') {
+  if (!task || !user || !useWorkflowReviewMoreMenu.value || task.status !== 'review') {
     return false
   }
   return authStore.isManagementRole || user.id === task.assignee_id || user.id === task.creator_id
@@ -362,12 +363,6 @@ const canManageCaptureReject = computed(() => {
   const context = instance.context ?? {}
   const managerId = context.manager_user_id
   if (managerId != null && String(managerId) === user.id) {
-    return true
-  }
-  const aggregateNode = instance.node_instances?.find(
-    (node) => node.node_key.startsWith('N2_') || node.node_key.includes('AGGREGATE'),
-  )
-  if (aggregateNode?.assignee_user_id === user.id) {
     return true
   }
   return false
@@ -434,25 +429,21 @@ const isGraphTemplateTask = computed(() => {
   }
   return typeof selectedTaskMetadata.value.workflow_graph_instance_id === 'string'
 })
-const graphTemplateNodeKey = computed(() => {
-  const value = selectedTaskMetadata.value.template_node_key
-  return typeof value === 'string' ? value : ''
-})
 const graphRunKind = computed(() => {
   const value = selectedTaskMetadata.value.run_kind
   return typeof value === 'string' ? value : ''
 })
-const isGraphRootBatchTask = computed(
+const isGraphCollectionRootTask = computed(
   () =>
     isGraphTemplateTask.value
     && selectedTaskMetadata.value.workflow_graph_root_task === true
-    && graphRunKind.value === 'batch',
+    && selectedTaskProfile.value.features.tracking === true,
 )
-const isGraphProductionRootTask = computed(
+const isGraphHiddenRootTask = computed(
   () =>
     isGraphTemplateTask.value
     && selectedTaskMetadata.value.workflow_graph_root_task === true
-    && graphRunKind.value === 'production',
+    && selectedTaskProfile.value.rootVisibility === 'hidden_for_non_management',
 )
 const productionActiveStepTaskId = computed(() =>
   resolveActiveStepTaskId(graphInstance.value, {
@@ -461,7 +452,7 @@ const productionActiveStepTaskId = computed(() =>
 )
 const showProductionRootStepRouter = computed(
   () =>
-    isGraphProductionRootTask.value
+    isGraphHiddenRootTask.value
     && graphInstance.value !== null
     && productionActiveStepTaskId.value !== null
     && productionActiveStepTaskId.value !== selectedTask.value?.id,
@@ -483,7 +474,7 @@ const selectedTaskUserFacingTagType = computed(() => {
   const state = selectedTaskUserFacingState.value
   return state ? userFacingStateTagType(state) : 'info'
 })
-const usesVideoWorkflowLayout = computed(() => isVideoWorkflowProfile(selectedTaskProfile.value))
+const usesWorkflowLayout = computed(() => usesWorkflowCapabilityLayout(selectedTaskProfile.value))
 const canAdminArchive = computed(() => {
   if (authStore.user?.role !== 'admin' || !selectedTask.value) {
     return false
@@ -501,81 +492,80 @@ const isSelectedTaskOverdue = computed(() => {
 const canManageDueDate = computed(() => authStore.isManagementRole)
 const batchAggregateMode = computed(() => resolveAggregateMode(graphInstance.value?.context))
 const captureClosed = computed(() => isCaptureClosed(graphInstance.value?.context))
+const instanceCapabilities = computed(() => {
+  return resolveInstanceCapabilities(graphInstance.value?.context)
+})
 const showCaptureProgressPanel = computed(
   () =>
-    selectedTaskProfile.value.id === 'video_n2_aggregate'
+    selectedTaskProfile.value.surface === 'collection'
+    && selectedTaskProfile.value.features.capture_progress === true
     && graphInstance.value !== null
     && batchAggregateMode.value === 'batch',
 )
-const showVideoTrackingPanel = computed(
+const showWorkflowTrackingPanel = computed(
   () =>
-    selectedTaskProfile.value.id === 'video_batch_root'
+    selectedTaskProfile.value.features.tracking === true
     && graphInstance.value !== null,
 )
 const showBatchRunDashboard = computed(
   () =>
-    selectedTaskProfile.value.id === 'video_batch_root'
+    selectedTaskProfile.value.features.run_dashboard === true
     && graphInstance.value !== null,
 )
 const showCloseCaptureButton = computed(
   () =>
-    isGraphRootBatchTask.value
+    isGraphCollectionRootTask.value
+    && instanceCapabilities.value.has('collection_finalize')
     && graphInstance.value !== null
     && batchAggregateMode.value === 'batch'
     && !captureClosed.value
     && canManageCaptureReject.value,
 )
 const showDetailHeaderActions = computed(() => {
-  const profileId = selectedTaskProfile.value.id
-  return profileId !== 'video_n1_capture'
-    && profileId !== 'video_capture_assign'
-    && profileId !== 'video_capture_schedule'
-    && profileId !== 'video_n2_aggregate'
-    && profileId !== 'video_batch_root'
+  const surface = selectedTaskProfile.value.surface
+  return surface !== 'structured_form'
+    && surface !== 'collection'
+    && surface !== 'run_overview'
 })
 const showCapturePanel = computed(
   () =>
-    (selectedTaskProfile.value.id === 'video_n1_capture'
-      || selectedTaskProfile.value.id === 'video_capture_assign'
-      || selectedTaskProfile.value.id === 'video_capture_schedule')
+    selectedTaskProfile.value.surface === 'structured_form'
     && selectedTask.value !== null,
 )
-const showVideoAggregatePanel = computed(
+const showWorkflowAggregatePanel = computed(
   () =>
-    selectedTaskProfile.value.id === 'video_n2_aggregate'
+    selectedTaskProfile.value.surface === 'collection'
+    && selectedTaskProfile.value.features.aggregate === true
     && batchAggregateMode.value === 'batch',
 )
-const videoProductionMode = computed((): 'single' | 'multi' | 'platform' => {
-  const profileId = selectedTaskProfile.value.id
-  if (profileId === 'video_production_multi') {
+const deliverablePanelMode = computed((): 'single' | 'multi' | 'platform' => {
+  if (selectedTaskProfile.value.variant === 'multi') {
     return 'multi'
   }
-  if (profileId === 'video_production_platform') {
+  if (selectedTaskProfile.value.variant === 'platform') {
     return 'platform'
   }
   return 'single'
 })
-const showVideoProductionPanel = computed(
+const showWorkflowDeliverablePanel = computed(
   () =>
-    (selectedTaskProfile.value.id === 'video_production_step'
-      || selectedTaskProfile.value.id === 'video_production_multi'
-      || selectedTaskProfile.value.id === 'video_production_platform')
+    selectedTaskProfile.value.surface === 'deliverable'
     && selectedTaskProfile.value.submitMode === 'file'
     && selectedTask.value !== null,
 )
-const videoProductionPanelRef = ref<InstanceType<typeof VideoProductionPanel> | null>(null)
+const workflowDeliverablePanelRef = ref<InstanceType<typeof WorkflowDeliverablePanel> | null>(null)
 const closeCaptureSubmitting = ref(false)
 const extendDueDateDialogVisible = ref(false)
 const extendDueDateValue = ref<Date | null>(null)
 const extendDueDateSubmitting = ref(false)
 const usesCompactDetailTelemetry = computed(() => TASK_CENTER_V2_UI_ENABLED)
 const compactRunEvents = computed(() =>
-  usesCompactDetailTelemetry.value || usesVideoWorkflowLayout.value
+  usesCompactDetailTelemetry.value || usesWorkflowLayout.value
     ? workflowRunEvents.value.slice(0, 3)
     : workflowRunEvents.value,
 )
 const usesCompactRunEventCards = computed(
-  () => usesCompactDetailTelemetry.value || usesVideoWorkflowLayout.value,
+  () => usesCompactDetailTelemetry.value || usesWorkflowLayout.value,
 )
 const graphParentInstanceId = computed(() => {
   if (graphInstance.value?.parent_instance_id) {
@@ -1246,7 +1236,7 @@ watch(
               :can-decide-approval="canDecideApproval"
               :approval-submitting="approvalSubmitting"
               :can-review-deliverable="canReviewDeliverable"
-              :use-video-production-review-more-menu="useVideoProductionReviewMoreMenu"
+              :use-workflow-review-more-menu="useWorkflowReviewMoreMenu"
               :deliverable-review-comment="deliverableReviewForm.comment"
               :selected-task="selectedTask"
               :is-graph-handshake-task="isGraphHandshakeTask"
@@ -1260,9 +1250,9 @@ watch(
               :status-submitting="statusSubmitting"
               :can-submit-deliverable="canSubmitDeliverable"
               :selected-task-profile="selectedTaskProfile"
-              :video-production-panel-ref="videoProductionPanelRef"
+              :workflow-deliverable-panel-ref="workflowDeliverablePanelRef"
               :deliverable-submitting="deliverableSubmitting"
-              :uses-video-workflow-layout="usesVideoWorkflowLayout"
+              :uses-workflow-layout="usesWorkflowLayout"
               :can-admin-archive="canAdminArchive"
               :graph-instance="graphInstance"
               :can-manage-capture-reject="canManageCaptureReject"
@@ -1314,8 +1304,8 @@ watch(
               :resolve-run-label="resolveTaskListRunLabel"
             />
 
-            <VideoTrackingPanel
-              v-if="showVideoTrackingPanel && graphInstance"
+            <WorkflowTrackingPanel
+              v-if="showWorkflowTrackingPanel && graphInstance"
               :graph-instance="graphInstance"
               :users="users"
               :can-manage-reject="canManageCaptureReject"
@@ -1347,7 +1337,7 @@ watch(
               :graph-instance="graphInstance"
               @open-task="(taskId: string) => emit('selectTask', taskId)"
             />
-            <VideoCaptureProgressPanel
+            <WorkflowCaptureProgressPanel
               v-if="showCaptureProgressPanel && graphInstance"
               :graph-instance="graphInstance"
             />
@@ -1357,15 +1347,15 @@ watch(
               :graph-instance="graphInstance"
               @submitted="reloadAfterAction"
             />
-            <VideoProductionPanel
-              v-if="showVideoProductionPanel && selectedTask"
-              ref="videoProductionPanelRef"
+            <WorkflowDeliverablePanel
+              v-if="showWorkflowDeliverablePanel && selectedTask"
+              ref="workflowDeliverablePanelRef"
               :task="selectedTask"
-              :mode="videoProductionMode"
+              :mode="deliverablePanelMode"
               @submitted="reloadAfterAction"
             />
             <TemplateAggregatePanel
-              v-if="showVideoAggregatePanel && selectedTask"
+              v-if="showWorkflowAggregatePanel && selectedTask"
               :task="selectedTask"
               :graph-instance="graphInstance"
               :users="users"
@@ -1497,7 +1487,7 @@ watch(
             </template>
 
             <section
-              v-if="!usesVideoWorkflowLayout"
+              v-if="!usesWorkflowLayout"
               class="page__attachments-section"
               data-testid="task-attachments-section"
             >
@@ -1622,7 +1612,7 @@ watch(
 
             <!-- 图引擎节点板块（仅图任务显示） -->
             <el-collapse
-              v-if="graphInstance && !usesVideoWorkflowLayout && usesCompactDetailTelemetry"
+              v-if="graphInstance && !usesWorkflowLayout && usesCompactDetailTelemetry"
               data-testid="task-detail-graph-collapse"
             >
               <el-collapse-item title="工作流节点追踪（完整日志见任务统计）" name="graph-nodes">
@@ -1659,7 +1649,7 @@ watch(
                 </el-space>
               </el-collapse-item>
             </el-collapse>
-            <template v-else-if="graphInstance && !usesVideoWorkflowLayout">
+            <template v-else-if="graphInstance && !usesWorkflowLayout">
               <el-divider>工作流节点追踪</el-divider>
               <el-space direction="vertical" fill class="page__node-timeline" data-testid="tasks-graph-panel">
                 <el-card
@@ -1695,7 +1685,7 @@ watch(
             </template>
 
             <TaskDetailContextPanel
-              v-if="!usesVideoWorkflowLayout"
+              v-if="!usesWorkflowLayout"
               :task="selectedTask"
               :profile="selectedTaskProfile"
               :handshake-state-label="handshakeStateLabel"
@@ -1716,7 +1706,7 @@ watch(
             />
 
             <el-collapse
-              v-if="!usesVideoWorkflowLayout"
+              v-if="!usesWorkflowLayout"
               v-model="activityTimelineExpanded"
               class="page__activity-collapse"
               data-testid="task-detail-activity-collapse"

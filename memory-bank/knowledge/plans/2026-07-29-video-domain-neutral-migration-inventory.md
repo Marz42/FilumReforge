@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "视频模板领域中立迁移清单"
 description: "盘点视频兼容路径，定义通用能力替代契约、黄金回归与退出条件。"
 tags: ["plan", "workflow-graph", "domain-neutral", "video-template", "compatibility"]
-timestamp: 2026-07-29T21:58:00+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -15,6 +15,8 @@ paradigma:
     en: ["video template neutrality", "run_kind exit", "generic workflow capability"]
 ---
 # 视频模板领域中立迁移清单
+
+> **状态（2026-07-30）**：I4-E 核心迁移完成。Runtime、TaskService、Task Center 与前端详情改为 capability snapshot / task capability；视频 seed v5 声明通用能力，旧 API/service/profile 进入兼容窗口。删除 dual-read 仍须等待调用观测归零。
 
 ## 目标与边界
 

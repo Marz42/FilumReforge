@@ -7,6 +7,7 @@ from typing import Any
 
 from app.core.enums import WorkflowGraphTemplateStatus
 from app.models import WorkflowGraphTemplate, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode
+from app.services.workflow_template_capability_contract import resolve_template_instantiation_mode
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,10 +64,6 @@ def _has_direct_launch_surface(config: dict[str, Any], *, has_multi_instance: bo
   return has_launch_schema or config.get("schedulable") is True or has_multi_instance
 
 
-def _legacy_blocks_direct_instantiation(config: dict[str, Any]) -> bool:
-  return str(config.get("run_kind") or "") == "production"
-
-
 def compute_template_capabilities(
   *,
   template: WorkflowGraphTemplate,
@@ -88,7 +85,7 @@ def compute_template_capabilities(
     and has_entry
     and not is_fork_only
   )
-  if _legacy_blocks_direct_instantiation(config):
+  if resolve_template_instantiation_mode(config) == "child_only":
     can_instantiate = False
 
   can_schedule = (

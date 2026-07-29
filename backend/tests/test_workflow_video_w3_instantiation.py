@@ -225,6 +225,11 @@ async def test_w3_instantiate_three_copywriters_three_n1_tasks(db_session) -> No
   assert (result.instance.definition_snapshot or {}).get("format_version") == 2
   assert result.instance.definition_snapshot is not None
   assert len(result.instance.definition_hash or "") == 64
+  assert set((result.instance.context or {}).get("capability_snapshot", {}).get("capabilities", [])) >= {
+    "structured_form_submission",
+    "collection_finalize",
+    "child_run_dispatch",
+  }
 
   assignee_ids = {task.assignee_id for task in result.activated_tasks}
   assert assignee_ids == {editor.id for editor in editors}
@@ -239,6 +244,11 @@ async def test_w3_instantiate_three_copywriters_three_n1_tasks(db_session) -> No
     for task in capture_tasks
   )
   assert (result.root_task.extra_metadata or {}).get("ui_profile") == "video_batch_root"
+  assert (result.root_task.extra_metadata or {}).get("task_capability", {}).get("surface") == "run_overview"
+  assert all(
+    (task.extra_metadata or {}).get("task_capability", {}).get("surface") == "structured_form"
+    for task in capture_tasks
+  )
 
   all_tasks = list(
     await db_session.scalars(select(Task).where(Task.source_type == TaskSourceType.TEMPLATE))

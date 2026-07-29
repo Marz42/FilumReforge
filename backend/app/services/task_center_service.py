@@ -26,6 +26,7 @@ from app.services.task_service import (
   TaskService,
   TaskTrackingEntry,
 )
+from app.services.workflow_template_capability_contract import resolve_template_category
 
 
 @dataclass(slots=True)
@@ -195,8 +196,7 @@ class TaskCenterService:
     summaries: list[TaskTemplateSummary] = []
     for template, node_count in rows.all():
       template_config = template.config if isinstance(template.config, dict) else {}
-      run_kind = template_config.get("run_kind")
-      category = str(run_kind) if run_kind else template.base_code
+      category = resolve_template_category(template_config, fallback=template.base_code)
       summaries.append(
         TaskTemplateSummary(
           id=template.id,

@@ -4,6 +4,7 @@ import {
   resolveTaskUserFacingState,
   TASK_USER_FACING_STATE_LABELS,
 } from './user-state'
+import { resolveTaskDetailProfile } from './profile'
 import type { Task } from '@/types/api'
 
 function makeTask(overrides: Partial<Task> = {}): Task {
@@ -30,33 +31,31 @@ function makeTask(overrides: Partial<Task> = {}): Task {
 
 describe('resolveTaskUserFacingState', () => {
   it('maps batch root to in_progress', () => {
-    const state = resolveTaskUserFacingState(makeTask(), 'video_batch_root')
+    const task = makeTask({ extra_metadata: { ui_profile: 'video_batch_root' } })
+    const state = resolveTaskUserFacingState(task, resolveTaskDetailProfile(task))
     expect(state).toBe('in_progress')
     expect(TASK_USER_FACING_STATE_LABELS[state]).toBe('进行中')
   })
 
   it('maps done tasks to completed', () => {
-    const state = resolveTaskUserFacingState(makeTask({ status: 'done' }), 'video_n1_capture')
+    const task = makeTask({ status: 'done', extra_metadata: { ui_profile: 'video_n1_capture' } })
+    const state = resolveTaskUserFacingState(task, resolveTaskDetailProfile(task))
     expect(state).toBe('completed')
   })
 
   it('maps rework metadata to returned', () => {
-    const state = resolveTaskUserFacingState(
-      makeTask({
-        extra_metadata: { latest_rework_reason: '请补充说明' },
-      }),
-      'video_n1_capture',
-    )
+    const task = makeTask({
+      extra_metadata: { latest_rework_reason: '请补充说明', ui_profile: 'video_n1_capture' },
+    })
+    const state = resolveTaskUserFacingState(task, resolveTaskDetailProfile(task))
     expect(state).toBe('returned')
   })
 
   it('maps capture reject metadata to returned', () => {
-    const state = resolveTaskUserFacingState(
-      makeTask({
-        extra_metadata: { latest_capture_state: 'rejected' },
-      }),
-      'video_n1_capture',
-    )
+    const task = makeTask({
+      extra_metadata: { latest_capture_state: 'rejected', ui_profile: 'video_n1_capture' },
+    })
+    const state = resolveTaskUserFacingState(task, resolveTaskDetailProfile(task))
     expect(state).toBe('returned')
   })
 })

@@ -36,6 +36,20 @@ async def test_w6_seed_templates_idempotent(db_session) -> None:
   assert production is not None and production.status == WorkflowGraphTemplateStatus.ACTIVE
   assert batch.config.get("seed_version") == SEED_VERSION
   assert production.config.get("seed_version") == SEED_VERSION
+  assert set(batch.config.get("workflow_capabilities") or []) == {
+    "structured_form_submission",
+    "collection_finalize",
+    "aggregate_confirmation",
+    "child_run_dispatch",
+  }
+  assert set(production.config.get("workflow_capabilities") or []) == {
+    "deliverable_submission",
+    "deliverable_acceptance",
+    "return_for_rework",
+  }
+  assert batch.config.get("runtime_policy", {}).get("notify_on_node_activation") is True
+  assert production.config.get("runtime_policy", {}).get("archive_on_completion") is True
+  assert production.config.get("instantiation_mode") == "child_only"
 
   batch_nodes = (
     await db_session.scalars(
@@ -46,6 +60,8 @@ async def test_w6_seed_templates_idempotent(db_session) -> None:
   ).all()
   assert [node.node_key for node in batch_nodes] == ["N1_PROPOSE", "N2_AGGREGATE"]
   assert batch_nodes[1].config.get("aggregate_schema", {}).get("assignee_column", {}).get("key") == "script_author_id"
+  assert batch_nodes[0].config.get("task_capability", {}).get("surface") == "structured_form"
+  assert batch_nodes[1].config.get("task_capability", {}).get("surface") == "collection"
 
   production_nodes = (
     await db_session.scalars(
@@ -59,6 +75,11 @@ async def test_w6_seed_templates_idempotent(db_session) -> None:
   assert production_nodes[-1].node_key == "N12_COSIGN"
   assert any(node.node_key == "N5_VO_UPLOAD" for node in production_nodes)
   assert not any(node.node_key == "N6_VO_REVIEW" for node in production_nodes)
+  assert {node.config.get("task_capability", {}).get("surface") for node in production_nodes} >= {
+    "structured_form",
+    "deliverable",
+    "review",
+  }
 
   edge_count = await db_session.scalar(
     select(func.count())

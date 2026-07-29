@@ -42,7 +42,7 @@ from app.services.access_control import (
 )
 from app.services.notification_service import NotificationService
 from app.services.participant_resolution_service import ParticipantResolutionService
-from app.services.workflow_video_instantiation_service import WorkflowVideoInstantiationService
+from app.services.workflow_template_instantiation_service import WorkflowTemplateInstantiationService
 
 MAX_SUBTREE_DEPARTMENTS = 100
 
@@ -86,7 +86,7 @@ class WorkflowGraphTemplateScheduleService:
     session: AsyncSession,
     *,
     notification_service: NotificationService | None = None,
-    instantiation_service: WorkflowVideoInstantiationService | None = None,
+    instantiation_service: WorkflowTemplateInstantiationService | None = None,
   ) -> None:
     self._session = session
     self._notification_service = notification_service

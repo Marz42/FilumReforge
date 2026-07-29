@@ -7,7 +7,7 @@ tags:
   - 视频工作流
   - 选题会
   - W0
-timestamp: 2026-07-29T21:30:31+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -30,14 +30,14 @@ paradigma:
 **计划**: `plans/workflow-video-v1-implementation-plan.md` v2.0 · **ADR**: `decisions.md` ADR-006 · **运维**: `knowledge/manuals/workflow-video-v1-*.md`  
 **UI 迭代（v2 草案）**: [`plans/workflow-video-v1-ui-simplification-design.md`](../plans/workflow-video-v1-ui-simplification-design.md) · Demo: [`demos/workflow-task-detail-v2.html`](../demos/workflow-task-detail-v2.html)
 
-**目标架构**：[`ADR-018`](../decisions/adr-018-domain-neutral-workflow-templates.md) — 视频仅提供模板、schema、种子与呈现扩展；Runtime 不按视频业务词汇分支。下文的专用 service/API/Profile 是当前兼容事实，待按 Preflight 计划迁移。
+**当前架构**：[`ADR-018`](../decisions/adr-018-domain-neutral-workflow-templates.md) 已由 I4-E 落地。视频仅提供 seed v5 模板、schema、兼容 API 与黄金回归；Runtime / TaskService / 前端详情核心按 capability snapshot / task capability 工作，不按视频业务词汇分支。
 
 ---
 
 ## 产品口径
 
 ```
-选题会（批次 Run）→ approved_topics[] → 按题 fork 子 Run（video_production_per_topic_v1 · seed v3）
+选题会（批次 Run）→ approved_topics[] → 按题 fork 子 Run（video_production_per_topic_v1 · seed v5）
 ```
 
 - **无**独立「发起选题会」导航；选题会为图模板 `topic_meeting_batch_v1`
@@ -67,7 +67,7 @@ Demo 环境可省略参数（须存在 `video-copywriting` / `video-voice` / `vi
 | `aggregate_schema` | 汇总定稿 |
 
 Pydantic：`backend/app/schemas/workflow_video.py`  
-兼容服务：`WorkflowVideoFormService`、`WorkflowVideoInstantiationService`、`WorkflowVideoForkService`、`WorkflowVideoReworkService`。目标不是保留视频专用引擎层，而是将可复用行为抽取为结构化表单、集合关闭、聚合、交付/返工和子 Run 能力。
+兼容服务：`WorkflowVideoFormService`、`WorkflowVideoInstantiationService`、`WorkflowVideoForkService`、`WorkflowVideoReworkService`。通用入口为 `WorkflowTemplateInstantiationService`；模板声明 `workflow_capabilities` / `runtime_policy`，节点声明 `task_capability`。兼容服务不构成视频专用引擎层。
 
 **TC-P1 运行时扩展**（2026-06-18）：
 
@@ -96,7 +96,7 @@ Pydantic：`backend/app/schemas/workflow_video.py`
 
 W0–W10 **done**（见 `progress.md`「视频工作流 v1」表）
 
-W0–W10 的 done 表示既有视频黄金流程已交付，不表示领域中立迁移已完成。ADR-018 兼容迁移处于 Preflight 盘点阶段。
+W0–W10 视频黄金流程与 I4-E 领域中立内核均已完成；旧公共 API、历史 Run 和旧客户端字段仍在兼容窗口，尚未满足删除 dual-read 的条件。
 
 | 阶段 | 交付摘要 |
 |------|----------|
@@ -135,6 +135,6 @@ npm run test:e2e:workflow-video
 
 - 不改变视频模板当前业务口径与黄金流程。
 - 不新增 `VideoHandler` 或视频节点类型。
-- `run_kind`、模板 code、节点 key 与 `video_*` Profile 只作为待迁移兼容信号，不得继续扩散。
-- 公共 API 的替代契约、双读/双写窗口与退出条件须逐项记录。
-- 至少用一个非视频模板验证抽取后的通用能力，才能宣称相应特殊分支已消除。
+- `run_kind`、模板 code、节点 key 与 `video_*` Profile 已集中为兼容信号，不得重新进入核心行为分支。
+- 公共 API 与历史数据继续双读/双写；调用观测归零后再删除兼容字段。
+- 非视频“合同材料收集”模板测试已复用结构化表单、集合与子 Run capability，证明核心契约不依赖视频命名。

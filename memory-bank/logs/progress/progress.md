@@ -2263,3 +2263,13 @@ Stage 2、UI IA、工作流图引擎 Phase 11、**TCE Phase 1–5**、**图模�
 - 新增纯 `NotificationCapabilityHandler`，明确 queued、sent、all-channels-success 三种完成策略，默认全渠道成功；worker 改为聚合整条消息全部 delivery，修复子集任务提前完成消息。
 - 通知入队失败、重新发布和取消/补偿均有统一 Capability Result；实际重投消费 `retry_failed_deliveries` 并持久化 RETRYING 后重新入队。
 - 验证：I4-D/I3-F ownership/视频兼容定向 **42 passed**；Backend 全量 **441 collected / 10 skipped / 0 failed**；`compileall` 与 Paradigma **All 5 checks passed**。
+
+## 2026-07-30 01:45 · Iteration 4-E 领域中立化与兼容迁移完成
+
+- 新增 `workflow_template_capability_contract.py`：模板在 Run 创建时冻结 `capability_snapshot`，Runtime 以声明式通知/归档策略推进；旧 `run_kind` 仅在兼容适配器推导等价快照。
+- 节点与 ROOT Task 新增 JSON `task_capability` 投影，前后端按 surface、state policy、variant、features 和 root visibility 决定用户态与布局；`ui_profile`、节点 key 和视频 Profile 推断集中到兼容适配器。
+- 视频 seed 升至 v5，以普通模板声明结构化表单、集合关闭、聚合、交付/返工和子 Run 能力；`WorkflowTemplateInstantiationService` 成为通用公开入口，旧视频类名/API 保持兼容。
+- Runtime、TaskService、Task Center 与前端详情核心中的 `run_kind` / video / 节点编号行为分支已归零；集合关闭和子 Run 派发显式校验通用 capability。
+- 新增非视频“合同材料收集”对照，证明相同 capability 不依赖视频、模板 code 或节点命名；未新增 `VideoHandler`，未改数据库 schema 或公共 API。
+- 先行发布评估：建议以 I4-E 前截止点 `8244af0` 发布前端第一批修复与 ADR-019 参与者重叠修复。相对 `origin/main` 无迁移、依赖锁或部署配置变化；提交间有 Handler/bridge 依赖，不建议拆挑。保持 feature flags，不绕过 I3-F 门禁；预发 smoke 后再上线，回滚无需 DB downgrade。
+- 验证：领域中立/Handler/视频黄金流程定向 **66 passed**；Backend 全量 **444 collected / 10 skipped / 0 failed**；Frontend **62 文件 / 175 tests passed**；`compileall`、`vue-tsc --build` 与 production build 通过；Paradigma **All 5 checks passed**。

@@ -1,4 +1,4 @@
-"""Video workflow v1 orchestration hooks (W4)."""
+"""Domain-neutral workflow orchestration hooks with legacy adapters."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from sqlalchemy.orm import selectinload
 
 from app.core.enums import (
   AttachmentTargetType,
-  TaskDetailUiProfile,
   TaskPriority,
   TaskSourceType,
   TaskStatus,
@@ -53,6 +52,10 @@ from app.services.workflow_node_config_helpers import (
   resolve_completion_policy,
 )
 from app.services.workflow_projection_department import resolve_projection_department_id
+from app.services.workflow_template_capability_contract import (
+  legacy_run_kind,
+  resolve_node_task_capability,
+)
 
 
 DEFAULT_AGGREGATE_NODE_KEY = "N2_AGGREGATE"
@@ -164,23 +167,30 @@ class WorkflowOrchestrationService:
       "template_code": template.code,
       "template_node_key": node_instance.node_key,
       "template_node_instance_key": node_instance.instance_key,
-      "run_kind": (instance.context or {}).get("run_kind"),
+      "run_kind": legacy_run_kind(instance.context or {}),
     }
     node_config = node_instance.config if isinstance(node_instance.config, dict) else {}
+    template_node_config: dict[str, Any] = {}
     raw_profile = node_config.get("ui_profile")
-    if not isinstance(raw_profile, str) or not raw_profile.strip():
-      if node_instance.template_node_id is not None:
-        template_node = await self._session.get(
-          WorkflowGraphTemplateNode,
-          node_instance.template_node_id,
-        )
-        if template_node is not None and isinstance(template_node.config, dict):
-          raw_profile = template_node.config.get("ui_profile")
+    if node_instance.template_node_id is not None:
+      template_node = await self._session.get(
+        WorkflowGraphTemplateNode,
+        node_instance.template_node_id,
+      )
+      if template_node is not None and isinstance(template_node.config, dict):
+        template_node_config = template_node.config
+        if not isinstance(raw_profile, str) or not raw_profile.strip():
+          raw_profile = template_node_config.get("ui_profile")
+    task_capability = resolve_node_task_capability({**template_node_config, **node_config})
+    if task_capability is not None:
+      metadata["task_capability"] = task_capability
+    aggregate_schema = ({**template_node_config, **node_config}).get("aggregate_schema")
+    if isinstance(aggregate_schema, dict):
+      source_node_key = aggregate_schema.get("source_node_key")
+      if isinstance(source_node_key, str) and source_node_key.strip():
+        metadata["collection_source_node_key"] = source_node_key.strip()
     if isinstance(raw_profile, str) and raw_profile.strip():
-      try:
-        metadata["ui_profile"] = TaskDetailUiProfile(raw_profile.strip()).value
-      except ValueError:
-        pass
+      metadata["ui_profile"] = raw_profile.strip()
     if node_config.get("handshake_required"):
       metadata["workflow_handshake_state"] = "assigned"
       metadata["latest_handshake_action"] = "assigned"

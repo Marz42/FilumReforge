@@ -13,6 +13,7 @@ import type { TaskDetailProfile } from '@/domain/task-detail/profile'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import type { Task, WorkflowGraphInstanceDetail } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
+import { resolveCollectionSourceNodeKey } from '@/domain/task-detail/legacy-profile'
 
 const router = useRouter()
 
@@ -48,7 +49,7 @@ const isTaskAdminArchived = computed(() => {
 
 const menuItems = computed(() => {
   const items: Array<{ key: string; label: string }> = []
-  const profileId = props.profile.id
+  const surface = props.profile.surface
 
   if (props.canAdminArchive && props.task && !isTaskAdminArchived.value) {
     items.push({ key: 'admin-archive', label: '归档任务…' })
@@ -57,12 +58,12 @@ const menuItems = computed(() => {
   if (
     props.canManageCaptureReject
     && props.graphInstance
-    && (profileId === 'video_n2_aggregate' || profileId === 'video_batch_root')
+    && (surface === 'collection' || surface === 'run_overview')
   ) {
     items.push({ key: 'reject-capture', label: '打回采集…' })
   }
 
-  if (props.canRejectProduction && props.task && profileId === 'video_production_step') {
+  if (props.canRejectProduction && props.task && surface === 'review') {
     items.push({ key: 'reject-production', label: '退回…' })
   }
 
@@ -83,7 +84,7 @@ async function loadRejectTopicOptions(): Promise<void> {
   }
   rejectTopicsLoading.value = true
   try {
-    const response = await listInstanceSubmissions(instanceId, 'N1_PROPOSE')
+    const response = await listInstanceSubmissions(instanceId, resolveCollectionSourceNodeKey(props.task!))
     const options: Array<{ value: string; label: string }> = []
     for (const submission of response.submissions) {
       if (!submission.submitted_at) {

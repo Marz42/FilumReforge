@@ -8,7 +8,7 @@ tags:
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-07-28T11:35:18+08:00
+timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -209,7 +209,7 @@ flowchart TD
 
 | 能力 | 实现要点 |
 |------|----------|
-| **实例化** | 单节点：`create_single_node_instance` · 多节点：`create_multi_node_instance` / 视频 `WorkflowVideoInstantiationService` |
+| **实例化** | 单节点：`create_single_node_instance` · 多节点：`WorkflowTemplateInstantiationService`；旧 `WorkflowVideoInstantiationService` 为兼容别名 |
 | **定义选择** | 新模板 Run 全程从创建时 snapshot 读取模板 config、节点、边、链式配置与投影编排；执行前校验 snapshot hash；legacy Run 继续读实时模板 |
 | **完成** | graph-v3 到达合法 End、无 active/pending/failed/suspended/等待 dependency 才成功；no-route/死 Join 写 `failed` 诊断 |
 | **Join** | graph-v3 只等待本 iteration 实际产生且未 skipped/terminated 的 activation；Wait-Any 记录 cancel policy 并撤权 peer |
@@ -220,9 +220,9 @@ flowchart TD
 | **编排钩子** | `WorkflowOrchestrationService`：模板投影 Task 的 ensure / after_node_completed / handshake → engine_state |
 | **通知** | `_write_outbox_event` → ARQ worker；消息 completion policy 为 queued / sent / all-channels-success，默认全渠道成功，按消息全部 delivery 聚合 |
 | **审计** | `WorkflowRunEventService.append`（与 outbox 分离） |
-| **能力 Handler** | Iteration 4-A–D 已覆盖 HumanTask、Approval、Deliverable、Notification；纯 Handler 返回统一 `WorkflowCapabilityResult`，Runtime/应用协调层负责落库与 side effect |
+| **能力 Handler** | Iteration 4-A–D 已覆盖 HumanTask、Approval、Deliverable、Notification；I4-E 以 capability snapshot / task capability 让模板行为和呈现领域中立；Runtime/应用协调层负责落库与 side effect |
 
-当前视频兼容约定（简）：`context.run_kind`（`batch`/`production`…）· `parent_instance_id` fork · `instance_key` 多人扇出。按 ADR-018，`run_kind` 是待退出兼容标签，fork / 多实例能力应保持领域中立。详情见 [`workflow-video-v1.md`](./workflow-video-v1.md)。
+I4-E 后的新 Run 使用 `context.capability_snapshot`；Task 使用 `extra_metadata.task_capability`。`context.run_kind` 与 `ui_profile` 仍为公共 API/历史 Run 兼容标签，但只在 `workflow_template_capability_contract.py` 与前端 `legacy-profile.ts` 读取，不再进入 Runtime、TaskService 或前端详情核心分支。详情见 [`workflow-video-v1.md`](./workflow-video-v1.md)。
 
 ---
 
@@ -391,8 +391,8 @@ Phase 10 目标「按节点板块聚合交付/评论/日志」**尚未实现**�
 | Admin takeover UI | 后端有、前端无 |
 | Legacy E 历史数据清理 | 对外 API 已移除；表族/ORM 仍保留兼容 |
 | 视频与通用图详情的时间线统一 | 视频隐藏节点板块，靠专用面板 + run events |
-| 模板领域中立 | Runtime / TaskService / 前端仍存在 `run_kind`、节点 key 与 `video_*` Profile 分支；ADR-018 已定，迁移待实施 |
-| 决策语义与参与者重叠 | 旧 `self_review_fallback` 仍按候选数量改变行为；ADR-019 已定，I4-B/C 待迁移 |
+| 模板领域中立 | I4-E 核心行为迁移完成；公共 API、历史 Run 和旧客户端仍需兼容字段，调用归零后才能删除 dual-read |
+| 决策语义与参与者重叠 | ADR-019 已实施：集合负责人可贡献并推进；同版本独立验收/正式审批保持职责分离；旧 fallback 不再放宽严格策略 |
 | 系统管理员业务边界 | 当前 Admin 仍有业务候选/override；KI-011 deferred，不属于 I4 |
 
 调试提示：写路径须 `commit` 后跨请求可见；详情避免对 `node_instances` 懒加载；见 [`known-issues/ki-005-graph-engine-issues.md`](../known-issues/ki-005-graph-engine-issues.md)。
