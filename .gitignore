@@ -13,6 +13,7 @@ __pycache__/
 
 backend/.venv/
 backend/.pytest_cache/
+backend/.test-tmp/
 backend/*.egg-info/
 backend/.env
 backend/.storage/

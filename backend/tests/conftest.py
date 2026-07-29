@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 # Pytest only applies `pythonpath` from the config file whose directory is the
@@ -10,6 +11,13 @@ _backend_dir = Path(__file__).resolve().parent.parent
 _backend_str = str(_backend_dir)
 if _backend_str not in sys.path:
   sys.path.insert(0, _backend_str)
+
+# Windows sandbox processes cannot necessarily access the interactive user's
+# system Temp tree. Keep pytest's numbered, process-safe temp roots inside the
+# ignored workspace directory so tmp_path works without per-command overrides.
+_test_temp_dir = _backend_dir / ".test-tmp"
+_test_temp_dir.mkdir(exist_ok=True)
+tempfile.tempdir = str(_test_temp_dir)
 
 import os
 

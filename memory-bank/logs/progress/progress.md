@@ -16,6 +16,23 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（测试环境 · Windows pytest 临时目录修复）
+
+### 2026-07-29 23:54 — 固定 workspace temp 并消除 Git ACL 警告
+
+**完成事项**:
+- [x] 确认 `backend/.test-tmp` 根目录可访问，但 pytest 子目录会关闭 ACL 继承；沙箱与交互用户/提权 Git 进程身份不同，因此系统 Temp 或未忽略的子目录扫描可能报 `WinError 5`
+- [x] `backend/tests/conftest.py` 将 `tempfile.tempdir` 固定到仓库内 `.test-tmp`，保留 pytest numbered directory 的并发安全行为
+- [x] 根 `.gitignore` 新增 `backend/.test-tmp/`，Git 不再递归扫描测试临时产物
+- [x] 未删除、重置或提交现有临时文件；用户无需手工修改 ACL
+
+**验证**:
+- 不带 `--basetemp` 执行 tmp_path/API 定向 pytest：**2 PASS**
+- 普通 `git status --short` 无 `.test-tmp` 权限警告，目录也不再显示为 untracked
+
+**结论**:
+- 后续 pytest 使用常规命令即可；该权限差异不再作为每轮开发阻碍项
+
 ## 会话摘要（Iteration 4-C · Approval Handler 第一批）
 
 ### 2026-07-29 23:49 — 移除自动自审降级并建立决策重叠契约
