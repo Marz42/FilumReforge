@@ -16,6 +16,73 @@ paradigma:
 ---
 # Project Filum 进度记录
 
+## 会话摘要（Iteration 4 · 前端第一批用户验测修正）
+
+### 2026-07-29 23:20 — 去除卡片套卡片并完成真实账号 UAT
+
+**更正与完成事项**:
+- [x] 用户首轮验测指出跟踪/历史不应在主面板内再嵌套卡片；将两者改为带分隔线的轻量列表行，保留标题、执行人、阶段/完成时间与催办等核心字段
+- [x] 任务选择主按钮与催办按钮改为同级交互，消除嵌套 interactive control
+- [x] 任务资料附件取消 720px 左对齐限宽，改为在详情列内 `width: 100%` 左右撑满
+- [x] 使用用户提供的 `123@example.com` 与 `admin@example.com` / `TestFilum123!` 登录本地 demo；管理员跟踪、历史与历史详情附件区均完成应用内浏览器视觉复核
+- [x] 本地 Docker 前端热更新仍提供旧 DOM 时，仅重启 `frontend` 容器加载当前源码；后端和数据库未重启、未重置、未新增用户
+
+**验证**:
+- Frontend `vue-tsc --build`：PASS；Vitest 全量 **62 files / 174 tests PASS**；production build PASS
+- 列表行与相关测试 ESLint 定向检查 PASS；`git diff --check` PASS
+
+**结论**:
+- 本条更正下方“前端稳定化第一批”记录中的“紧凑卡片”实现形态；当前事实为“外层面板内的精简列表行”
+- 前端第一批可提交；随后返回 I4-B cancel/retry、完整 UoW 与剩余语义矩阵
+
+## 会话摘要（Iteration 4 · 前端稳定化第一批）
+
+### 2026-07-29 23:03 — 消息、任务列表与协同详情收口
+
+**完成事项**:
+- [x] 右上角消息抽屉增加“一键已读”，对当前用户全部未读消息写入 read receipt 后刷新计数与列表
+- [x] App Header 隐藏 AI 命令入口；保留命令组件和后端能力，不做破坏性删除
+- [x] 待处理、任务跟踪与历史列表增加“最新发布 / 最近完成”排序切换
+- [x] 协同详情顶部改为双栏六字段摘要；执行人、部门、协商、交付与返工摘要移到活动时间线上方
+- [x] 任务资料附件改为 720px 上限的紧凑区块；评论与留痕继续位于主摘要下方
+- [x] 任务跟踪卡片精简为标题、当前执行人、阶段、催办/必要时延期；历史卡片精简为标题、执行人、完成时间
+
+**分级与验证**:
+- 第一批均为 P2 交互 / P3 视觉稳定化，无新增 P0 数据/权限或 P1 错误推进问题，不阻塞 I4-B
+- Frontend `vue-tsc --build`：PASS；Vitest 全量 **62 files / 174 tests PASS**
+- 新增“一键已读”、排序切换、详情信息拆分、跟踪/历史紧凑卡片回归；受影响文件 ESLint 定向检查 PASS
+- 应用内浏览器已连通本地登录页；仓库文档中的两组 demo 密码均与当前数据库不一致，因此未擅自重置账号或数据，真实登录态视觉 UAT 保留为后续验证项
+
+**范围**:
+- 本批无 schema、公共 API 或管理员业务边界变更；管理员维护角色改造仍按 KI-011 deferred
+- I4-B cancel/retry、完整 UoW 与剩余语义矩阵继续作为后端主线
+
+## 会话摘要（Iteration 4-B · HumanTask 首个纵切）
+
+### 2026-07-29 21:58 — Coordinator 落库与 collection_finalize 语义接入
+
+**完成事项**:
+- [x] 创建并提交 Preflight 文档基线：`6f4e6de docs(workflow): align iteration 4 preflight decisions`
+- [x] 完成视频 `run_kind` / `video_*` 后端与前端兼容面盘点，形成领域中立迁移清单、通用能力候选、黄金回归与退出条件
+- [x] HumanTask Capability Result 改由 `HumanTaskCoordinator` 通过 Runtime owner port 应用，并在同一事务同步正式 Link lifecycle
+- [x] 新增显式 `finalize_collection` 命令与 `collection_finalize` 决策语义；普通完成与集合确认不再混用同一隐式解释
+- [x] RunEvent capability diagnostics 记录 decision semantic/subject、Deliverable contributor IDs 与 actor overlap
+- [x] 覆盖 A/B/C 均提交、A 同时作为贡献者和集合负责人正常推进的集成场景
+
+**验证**:
+- I4 Handler 专项：**6 PASS**
+- Iteration 2/3/3-F/4 + AST ownership：**32 PASS**
+- Backend 全量：**425 collected**，全部用例执行至 100% 且无断言失败；受限 Windows 环境下进程在 pytest 结束清理阶段超过 240 秒，故不记为完整退出 PASS
+- `compileall` PASS；`git diff --check` PASS；memory-bank 全部 5 项检查 PASS
+- `ruff` 未安装于当前后端虚拟环境，本轮仍无法执行该可选检查
+
+**范围与遗留**:
+- 本轮无数据库 schema 或公共 API 变更；管理员候选/override 未修改
+- Work Item 业务状态仍由 `TaskService` 拥有；图引擎直接完成命令只同步 Runtime/Link，避免绕过独立验收状态机
+- [ ] I4-B 下一纵切：cancel/retry 的 Runtime/Link/RunEvent 映射，以及完整 Work Item/Outbox 原子性测试
+- [ ] 补充“A 前序贡献但处理不同下游交付”的合法场景后，再进入 I4-C 严格验收矩阵
+- [ ] 前端修改要求已可接收；收到后按 P0–P3 分级
+
 ## 会话摘要（Iteration 4 · 决策语义与范围调整）
 
 ### 2026-07-29 21:42 — ADR-019 入库；管理员治理延后

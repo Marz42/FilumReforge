@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { createTaskComment, searchTasks, updateTask, type TaskSearchResult } from '@/api/tasks'
@@ -95,6 +96,8 @@ const taskSearchLoading = ref(false)
 const taskSearchResults = ref<TaskSearchResult[]>([])
 let taskSearchTimer: ReturnType<typeof setTimeout> | undefined
 const snapshot = ref<TaskCenterSnapshot | null>(null)
+type TaskListSortMode = 'published_desc' | 'completed_desc'
+const taskListSortMode = ref<TaskListSortMode>('published_desc')
 
 const activeFilter = computed<TaskCenterFilter>(() => normalizeFilter(route.query.filter ?? route.query.tab))
 const workspaceViewMode = computed<TaskCenterViewMode>(() => normalizeViewMode(route.query.view))
@@ -159,6 +162,39 @@ const { rows: workspaceRows, loading: workspaceLoading, refresh: refreshWorkspac
   currentUserId: computed(() => authStore.user?.id),
   enabled: computed(() => usesWorkspace.value && !isSearchMode.value),
 })
+
+const taskListSortLabel = computed(() =>
+  taskListSortMode.value === 'completed_desc' ? '最近完成' : '最新发布',
+)
+
+function parseSortTime(value: string | null | undefined): number {
+  if (!value) {
+    return Number.NEGATIVE_INFINITY
+  }
+  const timestamp = Date.parse(value)
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp
+}
+
+const sortedWorkspaceRows = computed(() => {
+  return [...workspaceRows.value].sort((left, right) => {
+    const leftPrimary = taskListSortMode.value === 'completed_desc'
+      ? parseSortTime(left.completedAt)
+      : parseSortTime(left.task.created_at)
+    const rightPrimary = taskListSortMode.value === 'completed_desc'
+      ? parseSortTime(right.completedAt)
+      : parseSortTime(right.task.created_at)
+    if (rightPrimary !== leftPrimary) {
+      return rightPrimary - leftPrimary
+    }
+    return parseSortTime(right.task.created_at) - parseSortTime(left.task.created_at)
+  })
+})
+
+function handleTaskListSort(command: string): void {
+  if (command === 'published_desc' || command === 'completed_desc') {
+    taskListSortMode.value = command
+  }
+}
 
 const listLoadMoreLoading = ref(false)
 const boardRunFilter = ref('__all__')
@@ -647,10 +683,28 @@ onMounted(() => {
         >
           <template #header>
             <div class="task-center-view__section-header">
-              <span v-if="activeFilter === 'inbox'">待处理</span>
-              <span v-else-if="activeFilter === 'tracking'">任务跟踪</span>
-              <span v-else>历史任务</span>
-              <small v-if="activeFilter === 'inbox'">集中查看需要你处理或确认的任务</small>
+              <div>
+                <span v-if="activeFilter === 'inbox'">待处理</span>
+                <span v-else-if="activeFilter === 'tracking'">任务跟踪</span>
+                <span v-else>历史任务</span>
+                <small v-if="activeFilter === 'inbox'">集中查看需要你处理或确认的任务</small>
+              </div>
+              <el-dropdown
+                v-if="!isSearchMode"
+                trigger="click"
+                @command="handleTaskListSort"
+              >
+                <el-button size="small" data-testid="task-center-sort-button">
+                  排序：{{ taskListSortLabel }}
+                  <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="published_desc">按任务发布时间</el-dropdown-item>
+                    <el-dropdown-item command="completed_desc">按最近完成时间</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </template>
 
@@ -662,7 +716,7 @@ onMounted(() => {
           <TaskCenterListView
             v-else-if="!isSearchMode"
             :filter="activeFilter"
-            :rows="workspaceRows"
+            :rows="sortedWorkspaceRows"
             :selected-task-id="effectiveSelectedTaskId"
             :loading="workspaceLoading"
             :can-manage-due-date="canManageDueDate"

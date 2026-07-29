@@ -21,6 +21,15 @@ class WorkflowCapabilityOutcome(StrEnum):
 
 class WorkflowCapabilityCommand(StrEnum):
   COMPLETE = "complete"
+  FINALIZE_COLLECTION = "finalize_collection"
+
+
+class WorkflowDecisionSemantic(StrEnum):
+  WORK_ITEM_COMPLETE = "work_item_complete"
+  COLLECTION_FINALIZE = "collection_finalize"
+  DELIVERABLE_ACCEPTANCE = "deliverable_acceptance"
+  BUSINESS_APPROVAL = "business_approval"
+  COSIGN = "cosign"
 
 
 class WorkflowNodeHandlerRegistrationError(RuntimeError):
@@ -131,6 +140,21 @@ class HumanTaskNodeHandler(_BaseWorkflowNodeHandler):
   compensation = "terminate_work_item"
   declared_side_effects = ("ensure_work_item",)
 
+  def validate_definition(self, config: Mapping[str, object]) -> tuple[str, ...]:
+    raw_semantic = config.get("decision_semantic")
+    if raw_semantic is None:
+      return ()
+    try:
+      semantic = WorkflowDecisionSemantic(str(raw_semantic))
+    except ValueError:
+      return (f"HumanTask 使用了未知 decision_semantic={raw_semantic}。",)
+    if semantic not in {
+      WorkflowDecisionSemantic.WORK_ITEM_COMPLETE,
+      WorkflowDecisionSemantic.COLLECTION_FINALIZE,
+    }:
+      return (f"HumanTask 不支持 decision_semantic={semantic.value}。",)
+    return ()
+
   def activate(self, context: WorkflowCapabilityContext) -> WorkflowCapabilityResult:
     del context
     return self._result(
@@ -146,16 +170,59 @@ class HumanTaskNodeHandler(_BaseWorkflowNodeHandler):
     command: WorkflowCapabilityCommand,
     payload: Mapping[str, object] | None = None,
   ) -> WorkflowCapabilityResult:
-    del context
-    if command != WorkflowCapabilityCommand.COMPLETE:
+    if command not in {
+      WorkflowCapabilityCommand.COMPLETE,
+      WorkflowCapabilityCommand.FINALIZE_COLLECTION,
+    }:
       raise WorkflowCapabilityOperationError(
         f"HumanTask Handler 不支持命令：{command.value}。"
       )
+    configured_semantic = str(
+      context.config.get("decision_semantic")
+      or WorkflowDecisionSemantic.WORK_ITEM_COMPLETE.value
+    )
+    expected_semantic = (
+      WorkflowDecisionSemantic.COLLECTION_FINALIZE.value
+      if command == WorkflowCapabilityCommand.FINALIZE_COLLECTION
+      else WorkflowDecisionSemantic.WORK_ITEM_COMPLETE.value
+    )
+    if configured_semantic != expected_semantic:
+      raise WorkflowCapabilityOperationError(
+        f"HumanTask 命令 {command.value} 与 decision_semantic={configured_semantic} 不匹配。"
+      )
+
+    command_payload = dict(payload or {})
+    raw_subject = command_payload.get("decision_subject")
+    decision_subject = dict(raw_subject) if isinstance(raw_subject, Mapping) else {}
+    if command == WorkflowCapabilityCommand.FINALIZE_COLLECTION:
+      source_node_keys = decision_subject.get("source_node_keys")
+      if not isinstance(source_node_keys, list) or not source_node_keys:
+        raise WorkflowCapabilityOperationError(
+          "collection_finalize 必须显式提供 decision_subject.source_node_keys。"
+        )
+    raw_contributors = command_payload.get("contributor_user_ids")
+    contributor_user_ids = (
+      [str(user_id) for user_id in raw_contributors]
+      if isinstance(raw_contributors, (list, tuple))
+      else []
+    )
+    actor_user_id = command_payload.get("actor_user_id")
     return self._result(
       outcome=WorkflowCapabilityOutcome.SUCCEEDED,
       engine_state=WorkflowNodeEngineState.COMPLETED,
       business_state=WorkflowNodeBusinessState.DONE,
-      result=payload,
+      result=command_payload,
+      diagnostics={
+        "decision_semantic": configured_semantic,
+        "decision_subject": decision_subject,
+        "contributor_user_ids": contributor_user_ids,
+        "contributor_resolution": command_payload.get("contributor_resolution"),
+        "actor_is_contributor": (
+          str(actor_user_id) in contributor_user_ids
+          if actor_user_id is not None
+          else False
+        ),
+      },
       side_effects=(),
     )
 

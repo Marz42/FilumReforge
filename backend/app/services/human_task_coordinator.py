@@ -27,6 +27,7 @@ from app.models import (
 )
 from app.services.work_item_write_service import WorkItemWriteService
 from app.services.workflow_operational_incident_service import WorkflowOperationalIncidentService
+from app.services.workflow_node_handlers import WorkflowCapabilityResult
 from app.services.workflow_runtime_write_service import WorkflowRuntimeWriteService
 
 
@@ -110,6 +111,67 @@ class HumanTaskCoordinator:
         self._runtime.patch_node_config(node_instance, node_config_patch)
     if graph_instance is not None and instance_changes:
       self._runtime.update_instance(graph_instance, **instance_changes)
+
+  async def apply_capability_result(
+    self,
+    *,
+    node_instance: WorkflowNodeInstance,
+    result: WorkflowCapabilityResult,
+    reference_time: datetime,
+  ) -> None:
+    """Apply a pure HumanTask result to Runtime and Link projections.
+
+    Work Item business commands remain owned by ``TaskService``. This method
+    only applies the runtime result and the formal link lifecycle in the
+    caller-owned transaction, so Handler code never writes ORM state.
+    """
+    node_changes: dict[str, object] = {
+      "engine_state": result.engine_state,
+      "business_state": result.business_state,
+      "node_instance_version": node_instance.node_instance_version + 1,
+    }
+    if result.engine_state == WorkflowNodeEngineState.ACTIVATED:
+      node_changes.update(
+        {
+          "activated_at": node_instance.activated_at or reference_time,
+          "completed_at": None,
+          "terminated_at": None,
+        }
+      )
+      link_lifecycle = "active"
+    elif result.engine_state == WorkflowNodeEngineState.COMPLETED:
+      node_changes.update({"completed_at": reference_time, "terminated_at": None})
+      link_lifecycle = "completed"
+    elif result.engine_state == WorkflowNodeEngineState.TERMINATED:
+      node_changes.update({"terminated_at": reference_time})
+      link_lifecycle = "cancelled"
+    elif result.engine_state in {
+      WorkflowNodeEngineState.FAILED,
+      WorkflowNodeEngineState.SUSPENDED,
+      WorkflowNodeEngineState.SKIPPED,
+    }:
+      link_lifecycle = "invalidated"
+    else:
+      link_lifecycle = None
+
+    self._runtime.update_node(node_instance, **node_changes)
+    if link_lifecycle is None:
+      return
+
+    links = list(
+      await self._session.scalars(
+        select(WorkflowHumanTaskLink).where(
+          WorkflowHumanTaskLink.node_instance_id == node_instance.id,
+          WorkflowHumanTaskLink.lifecycle != "superseded",
+        )
+      )
+    )
+    for link in links:
+      await self._set_link_lifecycle(
+        link,
+        lifecycle=link_lifecycle,
+        reference_time=reference_time,
+      )
 
   async def ensure_link(
     self,

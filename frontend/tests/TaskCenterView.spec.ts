@@ -262,8 +262,27 @@ describe('TaskCenter view', () => {
     expect(wrapper.find('[data-testid="task-center-filter-cards"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="task-filter-inbox"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="task-center-inbox-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="task-center-sort-button"]').text()).toContain('最新发布')
     expect(wrapper.text()).toContain('整理四月周报')
     expect(wrapper.find('[data-testid="tasks-detail-stub"]').exists()).toBe(true)
+  })
+
+  it('allows list sorting by publish or completion time', async () => {
+    const wrapper = mount(TaskCenterView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          TaskDetailShell: detailShellSimpleStub,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    wrapper.findComponent({ name: 'ElDropdown' }).vm.$emit('command', 'completed_desc')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="task-center-sort-button"]').text()).toContain('最近完成')
   })
 
   it('renders stable selectors for the task creation dialog', async () => {
@@ -352,8 +371,33 @@ describe('TaskCenter view', () => {
 
     expect(wrapper.find('[data-testid="task-center-tracking-panel"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('跟进视频发布')
+    expect(wrapper.text()).toContain('当前执行人 内容成员')
+    expect(wrapper.text()).toContain('催办')
     expect(wrapper.text()).toContain('进行中')
+    expect(wrapper.text()).not.toContain('返工次数')
+    expect(wrapper.text()).not.toContain('质量评分')
     expect(wrapper.text()).not.toContain('归档旧公告')
+  })
+
+  it('renders history as compact title, assignee, and completion list rows', async () => {
+    route.query = { filter: 'history' }
+
+    const wrapper = mount(TaskCenterView, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          TaskDetailShell: detailShellSimpleStub,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const row = wrapper.find('[data-testid="task-center-history-row"]')
+    expect(row.text()).toContain('归档旧公告')
+    expect(row.text()).toContain('执行人 内容成员')
+    expect(row.text()).toContain('完成于')
+    expect(row.text()).not.toContain('优先级')
   })
 
   it('shows overdue tag for tasks past due date in tracking filter', async () => {

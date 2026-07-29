@@ -21,7 +21,7 @@ paradigma:
 ---
 # 工作流图引擎 Iteration 4 · 业务能力 Handler 化实施计划
 
-> **状态**：2026-07-28 经用户明确授权启动开发，I4-A 已完成并通过全量回归。2026-07-29 用户批准先执行 [`Iteration 4 Preflight`](./2026-07-29-iteration4-preflight-alignment-plan.md)，I4-B 暂停。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
+> **状态**：I4-A 已完成。2026-07-29 Preflight P0/P1/P3 收口后，用户授权恢复 I4-B；首个纵切已将 HumanTask Capability Result 经 Coordinator 落到 Runtime/Link，并加入 `collection_finalize`。前端 P2 第一批 6 项已实现，后续反馈持续接收。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
 
 ## 1. 目标
 
@@ -39,7 +39,7 @@ paradigma:
 | GAP-I3F-03 | 31/31 最终准入报告未生成/批准 | 保持 release gate |
 | GAP-ALIGN-01 | README / roadmap / project brief / contracts 焦点与测试基线漂移 | Preflight P0 收口 |
 | GAP-DOMAIN-01 | Runtime、TaskService 与前端仍按 `run_kind` / video profile 分支 | 按 ADR-018 盘点并迁为通用能力 |
-| GAP-UI-01 | 前端细节反馈待用户逐项给出 | Preflight P2 接收并按 P0–P3 分级 |
+| GAP-UI-01 | 前端第一批 6 项已实现并完成真实账号首轮 UAT；后续反馈继续接收 | Preflight P2 按 P0–P3 持续分级 |
 | GAP-DECISION-01 | 旧 `self_review_fallback` 把集合推进与独立验收混为一谈 | 按 ADR-019 建立语义矩阵并迁移 |
 | GAP-ADMIN-01 | Admin 当前仍可进入业务候选/override，与维护角色定义不一致 | **deferred**；KI-011，明确不属于 I4 |
 
@@ -56,10 +56,10 @@ paradigma:
 
 - [x] HumanTask 激活返回等待 Work Item 的能力结果。
 - [ ] 完成/取消/重试统一映射到 Runtime 状态，不由 Handler 直接写 ORM。
-- [ ] 复用 `HumanTaskCoordinator` 与 owner-only write ports，不绕过 I3-F AST guard。
+- [x] 完成结果经 `HumanTaskCoordinator` 与 owner-only Runtime write port 应用，并同步 Link；cancel/retry 接线仍待后续纵切。
 - [ ] Work Item / Link / RunEvent / Outbox 保持同一 UoW。
-- [ ] 将普通完成与 `collection_finalize` 分开建模；集合负责人可同时是集合贡献者。
-- [ ] 为命令结果携带决策语义、决策对象和贡献者诊断，不由 Runtime 根据 assignee 相等关系猜测。
+- [x] 将普通完成与 `collection_finalize` 分开建模；集合负责人可同时是集合贡献者。
+- [x] 命令结果携带决策语义、决策对象、贡献者和 actor overlap 诊断，不由 Runtime 根据 assignee 相等关系猜测。
 - [ ] 覆盖 A/B/C 均提交、A 汇总推进，以及 A 前序贡献但处理不同下游交付的合法场景。
 
 ### I4-C · Approval

@@ -30,6 +30,7 @@ import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import { resolveActiveStepTaskId } from '@/domain/workflow-graph/activeStepTask'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
 import TaskDetailHeaderBar from '@/components/task-detail/TaskDetailHeaderBar.vue'
+import TaskDetailContextPanel from '@/components/task-detail/TaskDetailContextPanel.vue'
 import TaskDetailMetadataPanel from '@/components/task-detail/TaskDetailMetadataPanel.vue'
 import { resolveStatusLabel } from '@/components/task-detail/task-detail-labels'
 import {
@@ -1308,19 +1309,6 @@ watch(
               :profile="selectedTaskProfile"
               :user-facing-state-label="selectedTaskUserFacingStateLabel"
               :user-facing-tag-type="selectedTaskUserFacingTagType"
-              :handshake-state-label="handshakeStateLabel"
-              :is-graph-handshake-task="isGraphHandshakeTask"
-              :workflow-node-iteration="workflowNodeIteration"
-              :workflow-deep-rejection-reason="workflowDeepRejectionReason"
-              :latest-reject-reason="latestRejectReason"
-              :latest-delegate-reason="latestDelegateReason"
-              :latest-deliverable-summary="latestDeliverableSummary"
-              :latest-deliverable-submitted-at="latestDeliverableSubmittedAt"
-              :latest-review-quality-score="latestReviewQualityScore"
-              :rework-count="reworkCount"
-              :latest-rework-reason="latestReworkReason"
-              :graph-parent-instance-id="graphParentInstanceId"
-              :graph-run-kind="graphRunKind"
               :resolve-department-name="resolveDepartmentName"
               :resolve-user-label="resolveUserLabel"
               :resolve-run-label="resolveTaskListRunLabel"
@@ -1508,61 +1496,72 @@ watch(
             </div>
             </template>
 
-            <template v-if="!usesVideoWorkflowLayout">
-            <el-divider>任务资料附件</el-divider>
-
-            <div data-testid="tasks-attachment-upload">
-              <el-upload
-                ref="taskAttachmentUploadRef"
-                class="page__upload"
-                :auto-upload="false"
-                multiple
-                :limit="10"
-                :show-file-list="true"
-                :accept="ATTACHMENT_ACCEPT"
-                :before-upload="beforeUploadAttachmentFile"
-                :on-change="handleTaskFileChange"
-                :on-remove="handleTaskFileRemove"
-              >
-                <template #trigger>
-                  <el-button>选择附件</el-button>
-                </template>
-              </el-upload>
-            </div>
-
-            <el-button
-              type="primary"
-              class="page__upload-button"
-              :loading="taskAttachmentUploading"
-              @click="handleTaskAttachmentUpload"
+            <section
+              v-if="!usesVideoWorkflowLayout"
+              class="page__attachments-section"
+              data-testid="task-attachments-section"
             >
-              上传到任务
-            </el-button>
+              <div class="page__section-heading">
+                <strong>任务资料附件</strong>
+                <span>{{ taskAttachments.length }} 个文件</span>
+              </div>
 
-            <el-empty v-if="taskAttachments.length === 0" description="暂无任务资料附件" />
-
-            <el-space v-else direction="vertical" fill>
-              <el-card
-                v-for="attachment in taskAttachments"
-                :key="attachment.id"
-                shadow="never"
-                class="page__attachment-card"
-              >
-                <div class="page__attachment-row">
-                  <div>
-                    <strong>{{ attachment.original_filename }}</strong>
-                    <p>{{ attachment.mime_type }} · {{ attachment.size_bytes }} bytes</p>
-                  </div>
-                  <AttachmentActions
-                    :attachment="attachment"
-                    view-test-id="task-attachment-view"
-                    download-test-id="task-attachment-download"
-                  />
+              <div class="page__attachment-upload-row">
+                <div data-testid="tasks-attachment-upload">
+                  <el-upload
+                    ref="taskAttachmentUploadRef"
+                    class="page__upload"
+                    :auto-upload="false"
+                    multiple
+                    :limit="10"
+                    :show-file-list="true"
+                    :accept="ATTACHMENT_ACCEPT"
+                    :before-upload="beforeUploadAttachmentFile"
+                    :on-change="handleTaskFileChange"
+                    :on-remove="handleTaskFileRemove"
+                  >
+                    <template #trigger>
+                      <el-button>选择附件</el-button>
+                    </template>
+                  </el-upload>
                 </div>
-              </el-card>
-            </el-space>
 
-            </template>
+                <el-button
+                  type="primary"
+                  :loading="taskAttachmentUploading"
+                  @click="handleTaskAttachmentUpload"
+                >
+                  上传到任务
+                </el-button>
+              </div>
+
+              <el-empty
+                v-if="taskAttachments.length === 0"
+                :image-size="56"
+                description="暂无任务资料附件"
+              />
+
+              <div v-else class="page__attachments-list">
+                <el-card
+                  v-for="attachment in taskAttachments"
+                  :key="attachment.id"
+                  shadow="never"
+                  class="page__attachment-card"
+                >
+                  <div class="page__attachment-row">
+                    <div class="page__attachment-copy">
+                      <strong>{{ attachment.original_filename }}</strong>
+                      <p>{{ attachment.mime_type }} · {{ attachment.size_bytes }} bytes</p>
+                    </div>
+                    <AttachmentActions
+                      :attachment="attachment"
+                      view-test-id="task-attachment-view"
+                      download-test-id="task-attachment-download"
+                    />
+                  </div>
+                </el-card>
+              </div>
+            </section>
 
             <el-collapse v-if="selectedTaskProfile.collapseComments" class="page__comments-collapse">
               <el-collapse-item title="评论与留痕" name="comments">
@@ -1694,6 +1693,27 @@ watch(
                 </el-card>
               </el-space>
             </template>
+
+            <TaskDetailContextPanel
+              v-if="!usesVideoWorkflowLayout"
+              :task="selectedTask"
+              :profile="selectedTaskProfile"
+              :handshake-state-label="handshakeStateLabel"
+              :is-graph-handshake-task="isGraphHandshakeTask"
+              :workflow-node-iteration="workflowNodeIteration"
+              :workflow-deep-rejection-reason="workflowDeepRejectionReason"
+              :latest-reject-reason="latestRejectReason"
+              :latest-delegate-reason="latestDelegateReason"
+              :latest-deliverable-summary="latestDeliverableSummary"
+              :latest-deliverable-submitted-at="latestDeliverableSubmittedAt"
+              :latest-review-quality-score="latestReviewQualityScore"
+              :rework-count="reworkCount"
+              :latest-rework-reason="latestReworkReason"
+              :graph-parent-instance-id="graphParentInstanceId"
+              :graph-run-kind="graphRunKind"
+              :resolve-department-name="resolveDepartmentName"
+              :resolve-user-label="resolveUserLabel"
+            />
 
             <el-collapse
               v-if="!usesVideoWorkflowLayout"
@@ -1830,16 +1850,49 @@ watch(
   gap: 12px;
 }
 
-.page__upload {
+.page__attachments-section {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.page__section-heading,
+.page__attachment-upload-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page__section-heading {
   margin-bottom: 12px;
 }
 
-.page__upload-button {
-  margin-bottom: 16px;
+.page__section-heading span {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.page__attachment-upload-row {
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.page__upload {
+  min-width: 0;
+}
+
+.page__attachments-list {
+  display: grid;
+  gap: 8px;
 }
 
 .page__attachment-card {
-  margin-bottom: 8px;
+  min-width: 0;
 }
 
 .page__attachment-row {
@@ -1849,12 +1902,37 @@ watch(
   gap: 16px;
 }
 
+.page__attachment-copy {
+  min-width: 0;
+}
+
+.page__attachment-copy strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page__attachment-copy p {
+  margin: 4px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .page__comments-collapse {
   margin-top: 16px;
 }
 
 .page__activity-collapse {
   margin-top: 16px;
+}
+
+@media (max-width: 640px) {
+  .page__attachment-upload-row,
+  .page__attachment-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 .page__timeline-header {

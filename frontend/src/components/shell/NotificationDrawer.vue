@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import type { useMessagesInbox } from '@/composables/useMessagesInbox'
 import type { Message } from '@/types/api'
+import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 import { isMessageUnread, resolveMessageStateLabel } from '@/utils/messagePresentation'
 
@@ -24,9 +26,19 @@ if (!inbox) {
   throw new Error('NotificationDrawer requires messagesInbox provider')
 }
 
-const { loading, messages, selectedMessageId, loadInbox, markMessageRead, navigateToSource } = inbox
+const {
+  loading,
+  messages,
+  unreadCount,
+  selectedMessageId,
+  loadInbox,
+  markMessageRead,
+  markAllMessagesRead,
+  navigateToSource,
+} = inbox
 
 const detailMessageId = ref('')
+const markAllLoading = ref(false)
 
 const drawerVisible = computed({
   get: () => props.modelValue,
@@ -67,6 +79,20 @@ function handleViewAll(): void {
   drawerVisible.value = false
   void router.push({ name: 'messages' })
 }
+
+async function handleMarkAllRead(): Promise<void> {
+  markAllLoading.value = true
+  try {
+    const markedCount = await markAllMessagesRead()
+    if (markedCount > 0) {
+      ElMessage.success(`已将 ${markedCount} 条消息标为已读`)
+    }
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error))
+  } finally {
+    markAllLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -79,7 +105,20 @@ function handleViewAll(): void {
     data-testid="notification-drawer"
   >
     <div v-loading="loading" class="notification-drawer">
-      <p class="notification-drawer__hint">默认显示未读消息；点击可跳转到任务或汇报来源。</p>
+      <div class="notification-drawer__toolbar">
+        <p class="notification-drawer__hint">默认显示未读消息；点击可跳转到任务或汇报来源。</p>
+        <el-button
+          type="primary"
+          plain
+          size="small"
+          :disabled="unreadCount === 0"
+          :loading="markAllLoading"
+          data-testid="notification-mark-all-read"
+          @click="handleMarkAllRead"
+        >
+          一键已读
+        </el-button>
+      </div>
 
       <el-empty v-if="!loading && messages.length === 0" description="暂无未读消息" />
 
@@ -95,7 +134,9 @@ function handleViewAll(): void {
         >
           <div class="notification-drawer__item-head">
             <span class="notification-drawer__item-title">{{ message.title }}</span>
-            <el-tag v-if="isMessageUnread(message)" size="small" type="danger" effect="plain">未读</el-tag>
+            <el-tag v-if="isMessageUnread(message)" size="small" type="danger" effect="plain"
+              >未读</el-tag
+            >
           </div>
           <div class="notification-drawer__item-meta">
             <span>{{ message.source.module_label }}</span>
@@ -125,10 +166,18 @@ function handleViewAll(): void {
 }
 
 .notification-drawer__hint {
-  margin: 0 0 16px;
+  margin: 0;
   font-size: 13px;
   color: var(--filum-text-secondary);
   line-height: 1.6;
+}
+
+.notification-drawer__toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .notification-drawer__list {
@@ -146,7 +195,9 @@ function handleViewAll(): void {
   padding: 14px 16px;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .notification-drawer__item:hover,

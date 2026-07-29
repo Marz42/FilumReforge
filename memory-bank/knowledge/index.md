@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 447a12cce88bfc2d -->
+<!-- checksum: 29c0b2b375a76b46 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -75,6 +75,7 @@
 | [plans/2026-07-22-template-decouple-phase1-plan.md](plans/2026-07-22-template-decouple-phase1-plan.md) | `paradigma-plan` | Template Engine Decouple — Phase 1 Implementation Plan | 模板引擎解耦<br>Phase 1<br>tags ... | - | - |
 | [plans/2026-07-28-template-decouple-phase2-plan.md](plans/2026-07-28-template-decouple-phase2-plan.md) | `paradigma-plan` | Template Engine Decouple — Phase 2 Structured Authoring | 模板引擎解耦 Phase 2<br>结构化编辑<br>ui_profile ... | - | - |
 | [plans/2026-07-29-iteration4-preflight-alignment-plan.md](plans/2026-07-29-iteration4-preflight-alignment-plan.md) | `paradigma-plan` | Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化 | Iteration 4 前置<br>文档漂移<br>视频去特殊化 ... | - | - |
+| [plans/2026-07-29-video-domain-neutral-migration-inventory.md](plans/2026-07-29-video-domain-neutral-migration-inventory.md) | `paradigma-plan` | 视频模板领域中立迁移清单 | 视频模板去特殊化<br>run_kind 退出<br>通用工作流能力 ... | - | - |
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

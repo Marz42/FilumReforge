@@ -1,13 +1,14 @@
-# Active Task: Iteration 4 Preflight — 对齐与稳定化
+# Active Task: Iteration 4-B — HumanTask Handler 纵切
 
-**Status:** in-progress · I4-A complete · I4-B paused for preflight · production cutover gated
-**Plan:** memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md
-**Follow-up:** memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
+**Status:** in-progress · I4-A complete · I4-B resumed · production cutover gated
+**Plan:** memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
+**Preflight:** memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md
 
 ## Current gaps
-- [ ] 视频模板领域中立依赖盘点与兼容退出清单
-- [ ] 前端反馈待用户逐项提供并按 P0–P3 分级
-- [ ] ADR-019 已确认；旧 completion policy / `self_review_fallback` / 测试映射待盘点
+- [x] 视频模板领域中立依赖盘点与兼容退出清单
+- [x] 前端反馈第一批 6 项已实现并经用户首轮验测修正（消息一键已读、隐藏 AI 入口、任务排序、详情拆分、跟踪/历史精简列表行）
+- [x] 前端第一批真实登录态视觉 UAT 已用 `123@example.com` / `admin@example.com` 完成；类型检查、构建与 174 项单测通过
+- [x] ADR-019 已确认；旧 completion policy / `self_review_fallback` / Deliverable contributor / 测试入口已盘点
 - [ ] 系统管理员业务边界改造 deferred（KI-011），不属于 Iteration 4
 - [ ] 模板解耦 Phase 2 设计器交互与文案待用户 UAT
 - [ ] M-09 unarchive 待 sibling ACTIVE 冲突与审计策略决策
@@ -21,15 +22,15 @@
 - [x] I4-A：Node Handler Registry + unified Capability Result
 - [x] Preflight P0：memory-bank 事实对齐与 ADR-018 入库
 - [x] Preflight P3：ADR-019 决策对象与参与者重叠规则入库
-- [ ] Preflight P1：视频作为普通模板包；不新增 `VideoHandler`
-- [ ] Preflight P2：前端问题接收、分级与阻塞项确认
-- [ ] I4-B：Preflight 门禁通过后，HumanTask Handler 接入既有 Coordinator / Work Item 边界
+- [x] Preflight P1：视频作为普通模板包；迁移清单已形成，不新增 `VideoHandler`
+- [x] Preflight P2：第一批前端问题均属交互/视觉稳定化，无新增 P0 数据/权限或 P1 状态推进阻塞
+- [ ] I4-B：首个完成/集合确认纵切已接入 Coordinator；cancel/retry、完整 UoW 与剩余语义矩阵待完成
 - [ ] I4-C：Approval Handler 适配现有轻量审批引擎并消费 ADR-019 决策策略
 - [ ] I4-D：Deliverable / Notification Handler
 - [ ] I4-E：领域中立化；把视频专用分支迁为通用能力与兼容适配层
 
 ## Release boundary
-- I4-B 在 Preflight 门禁通过前暂停；I4-A 不回退。
+- Preflight P0/P1/P3 已通过，I4-B 已恢复；前端 P2 持续接收并独立分级。
 - 管理员业务权限解耦延后；I4 不改变现有 Admin 兼容行为。
 - Iteration 4 可进行向下兼容的代码开发和本地验证。
 - Iteration 3-F 硬门禁未完成前，不做生产切流、不删除兼容路径、不宣称 runtime readiness 已通过。

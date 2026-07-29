@@ -78,6 +78,17 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
     await loadInbox()
   }
 
+  async function markAllMessagesRead(): Promise<number> {
+    const unreadMessages = messages.value.filter((message) => !message.receipt_state.is_read)
+    if (unreadMessages.length === 0) {
+      return 0
+    }
+
+    await Promise.all(unreadMessages.map((message) => createMessageReceipt(message.id, 'read')))
+    await loadInbox()
+    return unreadMessages.length
+  }
+
   async function navigateToSource(message: Message): Promise<boolean> {
     if (!message.source.target.can_navigate || !message.source.target.route_name) {
       ElMessage.warning('当前消息暂不支持回到来源')
@@ -117,6 +128,7 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
     startPolling,
     stopPolling,
     markMessageRead,
+    markAllMessagesRead,
     navigateToSource,
   }
 }

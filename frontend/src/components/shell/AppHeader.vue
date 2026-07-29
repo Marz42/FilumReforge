@@ -3,7 +3,6 @@ import { computed, onMounted, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Bell, Operation } from '@element-plus/icons-vue'
 
-import CommandBar from '@/components/CommandBar.vue'
 import DeadlineCountdown from '@/components/overview/DeadlineCountdown.vue'
 import NotificationDrawer from '@/components/shell/NotificationDrawer.vue'
 import { useMessagesInbox } from '@/composables/useMessagesInbox'
@@ -87,9 +86,12 @@ onMounted(() => {
 
     <div class="app-header__actions">
       <DeadlineCountdown />
-      <CommandBar />
       <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
-        <el-button circle data-testid="header-notification-bell" @click="appStore.openNotificationDrawer()">
+        <el-button
+          circle
+          data-testid="header-notification-bell"
+          @click="appStore.openNotificationDrawer()"
+        >
           <el-icon><Bell /></el-icon>
         </el-button>
       </el-badge>
@@ -99,7 +101,9 @@ onMounted(() => {
       />
       <el-tag type="primary" effect="plain" round>{{ currentRoleLabel() }}</el-tag>
       <span class="app-header__email">{{ authStore.user?.email ?? '未登录' }}</span>
-      <el-button link type="primary" class="app-header__logout" @click="emit('logout')">退出登录</el-button>
+      <el-button link type="primary" class="app-header__logout" @click="emit('logout')"
+        >退出登录</el-button
+      >
     </div>
   </el-header>
 </template>

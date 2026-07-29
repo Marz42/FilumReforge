@@ -48,6 +48,7 @@ from app.services.workflow_node_handlers import (
   WorkflowCapabilityContext,
   WorkflowCapabilityOutcome,
   WorkflowCapabilityResult,
+  WorkflowDecisionSemantic,
   WorkflowNodeHandlerRegistry,
   build_default_workflow_node_handler_registry,
 )
@@ -58,6 +59,7 @@ from app.models import (
   WorkflowGraphTemplate,
   WorkflowGraphTemplateEdge,
   WorkflowGraphTemplateNode,
+  WorkflowDeliverable,
   WorkflowNodeInstance,
   WorkflowNodeActivationDependency,
   WorkflowRunEvent,
@@ -160,6 +162,15 @@ class WorkflowGraphService:
         business_state=WorkflowNodeBusinessState.DONE,
         result=dict(payload or {}),
       )
+    decision_semantic = str(
+      (node_instance.config or {}).get("decision_semantic")
+      or WorkflowDecisionSemantic.WORK_ITEM_COMPLETE.value
+    )
+    command = (
+      WorkflowCapabilityCommand.FINALIZE_COLLECTION
+      if decision_semantic == WorkflowDecisionSemantic.COLLECTION_FINALIZE.value
+      else WorkflowCapabilityCommand.COMPLETE
+    )
     return handler.command(
       self._capability_context(
         node_type=node_instance.node_type,
@@ -168,9 +179,67 @@ class WorkflowGraphService:
         business_state=node_instance.business_state,
         config=dict(node_instance.config or {}),
       ),
-      command=WorkflowCapabilityCommand.COMPLETE,
+      command=command,
       payload=payload,
     )
+
+  async def _human_task_command_payload(
+    self,
+    *,
+    node_instance: WorkflowNodeInstance,
+    actor_id: UUID,
+    context_updates: dict[str, Any] | None,
+  ) -> dict[str, object]:
+    config = dict(node_instance.config or {})
+    semantic = str(
+      config.get("decision_semantic")
+      or WorkflowDecisionSemantic.WORK_ITEM_COMPLETE.value
+    )
+    raw_subject = config.get("decision_subject")
+    subject = dict(raw_subject) if isinstance(raw_subject, dict) else {}
+    if not subject:
+      subject = {
+        "kind": "collection" if semantic == "collection_finalize" else "work_item",
+        "node_instance_id": str(node_instance.id),
+      }
+
+    contributor_user_ids: list[str] = []
+    contributor_resolution: str | None = None
+    if semantic == WorkflowDecisionSemantic.COLLECTION_FINALIZE.value:
+      raw_source_node_keys = subject.get("source_node_keys")
+      source_node_keys = (
+        [str(node_key) for node_key in raw_source_node_keys if str(node_key).strip()]
+        if isinstance(raw_source_node_keys, list)
+        else []
+      )
+      if source_node_keys:
+        statement = (
+          select(WorkflowDeliverable.submitted_by_user_id)
+          .join(
+            WorkflowNodeInstance,
+            WorkflowDeliverable.node_instance_id == WorkflowNodeInstance.id,
+          )
+          .where(
+            WorkflowNodeInstance.instance_id == node_instance.instance_id,
+            WorkflowNodeInstance.node_key.in_(source_node_keys),
+            WorkflowDeliverable.submitted_by_user_id.is_not(None),
+          )
+          .order_by(WorkflowNodeInstance.created_at.asc())
+        )
+        contributor_user_ids = list(
+          dict.fromkeys(str(user_id) for user_id in await self._session.scalars(statement))
+        )
+        contributor_resolution = "deliverable_current_submitter"
+      else:
+        contributor_resolution = "missing_explicit_source_node_keys"
+
+    return {
+      "context_updates": dict(context_updates or {}),
+      "actor_user_id": str(actor_id),
+      "decision_subject": subject,
+      "contributor_user_ids": contributor_user_ids,
+      "contributor_resolution": contributor_resolution,
+    }
 
   def _map_capability_result(
     self,
@@ -189,13 +258,21 @@ class WorkflowGraphService:
       "side_effects": list(result.side_effects),
     }
 
-  @staticmethod
-  def _apply_capability_result(
+  async def _apply_capability_result(
+    self,
     *,
     node_instance: WorkflowNodeInstance,
     result: WorkflowCapabilityResult,
     now: datetime,
   ) -> None:
+    if node_instance.node_type == WorkflowGraphNodeType.TASK:
+      await HumanTaskCoordinator(self._session).apply_capability_result(
+        node_instance=node_instance,
+        result=result,
+        reference_time=now,
+      )
+      return
+
     node_instance.engine_state = result.engine_state
     node_instance.business_state = result.business_state
     if result.engine_state == WorkflowNodeEngineState.ACTIVATED:
@@ -1050,9 +1127,13 @@ class WorkflowGraphService:
     now = datetime.now(UTC)
     capability_result = self._completion_result(
       node_instance=node_instance,
-      payload={"context_updates": dict(context_updates or {})},
+      payload=await self._human_task_command_payload(
+        node_instance=node_instance,
+        actor_id=actor_id,
+        context_updates=context_updates,
+      ),
     )
-    self._apply_capability_result(
+    await self._apply_capability_result(
       node_instance=node_instance,
       result=capability_result,
       now=now,
@@ -1359,7 +1440,7 @@ class WorkflowGraphService:
       join_mode = (downstream_template_node.join_mode or "all").strip().lower()
 
       # 激活下游节点；业务状态映射由 Handler 返回，Runtime 只应用结果。
-      self._apply_capability_result(
+      await self._apply_capability_result(
         node_instance=downstream_ni,
         result=self._activation_result(
           node_type=downstream_ni.node_type,
@@ -1845,7 +1926,7 @@ class WorkflowGraphService:
     template = runtime_template(graph_instance.definition_snapshot)
     initiator = await self._session.get(User, graph_instance.initiator_user_id)
     for target_instance in target_instances:
-      self._apply_capability_result(
+      await self._apply_capability_result(
         node_instance=target_instance,
         result=self._activation_result(
           node_type=target_instance.node_type,
@@ -2205,7 +2286,7 @@ class WorkflowGraphService:
         node_instance=notice_node,
         payload={"completion_mode": "automatic"},
       )
-      self._apply_capability_result(
+      await self._apply_capability_result(
         node_instance=notice_node,
         result=capability_result,
         now=now,
