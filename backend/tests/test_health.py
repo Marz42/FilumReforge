@@ -14,7 +14,7 @@ def test_health_endpoint_returns_phase_a_metadata() -> None:
     "service": "Project Filum API",
     "phase": "Phase A",
     "environment": "development",
-    "version": "0.1.0",
+    "version": "0.93.0-rc.1",
   }
 
 

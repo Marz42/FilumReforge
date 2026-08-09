@@ -274,6 +274,7 @@ STORAGE_PROVIDER=local
 STORAGE_BUCKET=filum-prod
 STORAGE_BASE_PATH=${FILUM_ROOT}/data/storage
 WORKERS=2
+FORWARDED_ALLOW_IPS=127.0.0.1
 WORKFLOW_GRAPH_ENGINE_ENABLED=true
 WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true
 TASK_CENTER_V2_ENABLED=true
@@ -515,7 +516,7 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
         client_max_body_size 64m;
         proxy_read_timeout 120s;
@@ -543,6 +544,8 @@ server {
 }
 EOF
 ```
+
+`FORWARDED_ALLOW_IPS=127.0.0.1` 与上面的本机 Nginx 拓扑配套：后端只信任 loopback 代理，Nginx 覆盖客户端传入的 forwarding chain。若前面还有 Cloudflare/负载均衡器，应在 Nginx `real_ip` 模块中配置该供应商的**明确 CIDR 白名单**，让 `$remote_addr` 先被可信入口解析；不要把后端改为信任 `*`。
 
 启用站点：
 

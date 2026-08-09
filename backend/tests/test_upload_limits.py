@@ -8,17 +8,22 @@ stricter (text 10MB / binary 25MB / audio 50MB); the gateway ceiling is 64MB.
 
 from __future__ import annotations
 
+import io
 import re
+import zipfile
 from pathlib import Path
 
 import pytest
 
 from app.core.exceptions import AppValidationError
+from app.services import attachment_service
 from app.services.attachment_service import (
   AUDIO_MAX_BYTES,
   OTHER_BINARY_MAX_BYTES,
   TEXT_CLASS_MAX_BYTES,
   AttachmentService,
+  DOCX_MIME,
+  XLSX_MIME,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -123,3 +128,77 @@ def test_gateway_ceiling_exceeds_application_limits() -> None:
   assert gateway_bytes > AUDIO_MAX_BYTES
   assert gateway_bytes > OTHER_BINARY_MAX_BYTES
   assert gateway_bytes > TEXT_CLASS_MAX_BYTES
+
+
+def _build_ooxml(*, required_name: str, extra_files: dict[str, bytes] | None = None) -> bytes:
+  buffer = io.BytesIO()
+  with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr(required_name, b"<root />")
+    for name, content in (extra_files or {}).items():
+      archive.writestr(name, content)
+  return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+  ("mime", "filename", "required_name"),
+  [
+    (DOCX_MIME, "brief.docx", "word/document.xml"),
+    (XLSX_MIME, "plan.xlsx", "xl/workbook.xml"),
+  ],
+)
+def test_valid_ooxml_containers_are_accepted(
+  mime: str,
+  filename: str,
+  required_name: str,
+) -> None:
+  content = _build_ooxml(required_name=required_name)
+  assert AttachmentService._validate_attachment_content(
+    filename=filename,
+    content_type=mime,
+    content=content,
+  ) == mime
+
+
+def test_ooxml_rejects_excessive_expanded_size(monkeypatch: pytest.MonkeyPatch) -> None:
+  monkeypatch.setattr(attachment_service, "OOXML_MAX_EXPANDED_BYTES", 1_024)
+  monkeypatch.setattr(attachment_service, "OOXML_MAX_COMPRESSION_RATIO", 10_000)
+  content = _build_ooxml(
+    required_name="word/document.xml",
+    extra_files={"word/large.xml": b"a" * 2_048},
+  )
+
+  with pytest.raises(AppValidationError, match="展开后过大"):
+    AttachmentService._validate_attachment_content(
+      filename="large.docx",
+      content_type=DOCX_MIME,
+      content=content,
+    )
+
+
+def test_ooxml_rejects_excessive_entry_count(monkeypatch: pytest.MonkeyPatch) -> None:
+  monkeypatch.setattr(attachment_service, "OOXML_MAX_ARCHIVE_ENTRIES", 1)
+  content = _build_ooxml(
+    required_name="xl/workbook.xml",
+    extra_files={"xl/worksheets/sheet1.xml": b"<sheet />"},
+  )
+
+  with pytest.raises(AppValidationError, match="过多压缩条目"):
+    AttachmentService._validate_attachment_content(
+      filename="many.xlsx",
+      content_type=XLSX_MIME,
+      content=content,
+    )
+
+
+def test_ooxml_rejects_traversal_paths() -> None:
+  content = _build_ooxml(
+    required_name="word/document.xml",
+    extra_files={"../payload.xml": b"unsafe"},
+  )
+
+  with pytest.raises(AppValidationError, match="不安全的压缩路径"):
+    AttachmentService._validate_attachment_content(
+      filename="unsafe.docx",
+      content_type=DOCX_MIME,
+      content=content,
+    )

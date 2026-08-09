@@ -102,24 +102,38 @@ const trackingRows = computed((): TrackingRow[] => {
         pending: false,
         dispatched: topicId ? forkedTopicIds.value.has(topicId) : false,
       })
-      if (topicId && !writerByTopicId.value[topicId] && submission.assignee_user_id) {
-        writerByTopicId.value[topicId] = submission.assignee_user_id
-      }
     }
   }
   return rows
 })
 
+function syncWriterDefaults(items: InstanceSubmissionsResponse['submissions']): void {
+  const nextWriters = { ...writerByTopicId.value }
+  for (const submission of items) {
+    if (!submission.assignee_user_id) {
+      continue
+    }
+    for (const topic of submission.topics) {
+      if (topic.topic_id && !nextWriters[topic.topic_id]) {
+        nextWriters[topic.topic_id] = submission.assignee_user_id
+      }
+    }
+  }
+  writerByTopicId.value = nextWriters
+}
+
 async function loadSubmissions(): Promise<void> {
   const instanceId = props.graphInstance?.id
   if (!instanceId) {
     submissions.value = []
+    writerByTopicId.value = {}
     return
   }
   loading.value = true
   try {
     const response = await listInstanceSubmissions(instanceId, props.sourceNodeKey)
     submissions.value = response.submissions
+    syncWriterDefaults(response.submissions)
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
     submissions.value = []

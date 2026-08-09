@@ -34,8 +34,8 @@ paradigma:
 | **项目名称** | Project Filum（FilumReforge） |
 | **一句话描述** | 面向 50–100 人企业的模块化单体内部管理平台，统一承载人事、任务协同、流程/汇报、消息、知识库与 AI 指令入口 |
 | **项目类型** | Web 应用（B 端后台 + PWA 基线） |
-| **当前版本** | `0.92.1`（根目录 `VERSION`，SemVer） |
-| **当前阶段** | **Iteration 4 工程完成** — I4-A–E 已完成；进入先行发布验证与 I3-F 生产门禁收口 |
+| **当前版本** | `0.93.0-rc.1`（根目录 `VERSION`，SemVer 预发布） |
+| **当前阶段** | **Iteration 4 员工试用 RC** — 固定候选与后续开发分流；正式 UAT 与 I3-F 生产门禁仍待收口 |
 
 ---
 
@@ -107,6 +107,7 @@ Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、�
 | 模板引擎解耦 Phase 2 首批 | **implemented · pending UAT** — structured authoring |
 | 图引擎 Iteration 1–3-F | **工程实现完成 · 生产准入 gated** — 目标环境/7 天/31 项证据待补 |
 | 图引擎 Iteration 4-A–E | **done** — Handler、版本交付、通知策略、领域中立 capability snapshot / task capability |
+| 2026-08 安全上线加固 | **engineering done · production verification pending** — 六项扫描发现已修复并回归；目标环境准入见上线 checklist |
 | 图引擎 Iteration 4 Preflight | **done** — ADR-018 / 文档对齐 / 前端第一批稳定化 |
 | 决策对象与参与者重叠 | **ADR-019 implemented** — 集合负责人可贡献并推进；同版本独立验收仍职责分离 |
 | 系统管理员仅维护、不参与业务 | **产品边界 confirmed · implementation deferred** — KI-011，不属于 I4 |

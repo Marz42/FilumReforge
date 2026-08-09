@@ -13,7 +13,6 @@ import TaskCenterListView from '@/components/task-center/TaskCenterListView.vue'
 import TaskCenterStatsView from '@/components/task-center/TaskCenterStatsView.vue'
 import PublishTaskDialog from '@/components/task-center/PublishTaskDialog.vue'
 import { useTaskCenterWorkspace } from '@/composables/useTaskCenterWorkspace'
-import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import {
   type TaskCenterFilter,
   type TaskCenterViewMode,
@@ -32,8 +31,6 @@ import type {
   TaskStatus,
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
-import { formatDateTime } from '@/utils/formatters'
-import { resolveTaskRunLabel } from '@/domain/task-detail/run-label'
 import {
   TASK_USER_FACING_STATE_LABELS,
   userFacingStateTagType,
@@ -76,13 +73,6 @@ const PRIORITY_TAG_TYPES: Record<TaskPriority, '' | 'info' | 'warning' | 'danger
   medium: '',
   high: 'warning',
   urgent: 'danger',
-}
-
-const SOURCE_TYPE_LABELS: Record<TaskSourceType, string> = {
-  manual: '手动发布',
-  template: '模板任务',
-  event: '事件触发',
-  ai: 'AI 工具',
 }
 
 const route = useRoute()
@@ -230,8 +220,6 @@ const filteredBoardRows = computed(() => {
   return workspaceRows.value.filter((row) => row.runLabel === boardRunFilter.value)
 })
 
-const masterListTaskIds = computed(() => new Set(displayListItems.value.map((item) => item.task_id)))
-
 const effectiveSelectedTaskId = computed(() => {
   const id = selectedTaskId.value.trim()
   if (!id) {
@@ -314,25 +302,8 @@ function buildRouteQuery(options: {
   return Object.keys(query).length > 0 ? query : undefined
 }
 
-function resolveStatusLabel(status: TaskStatus): string {
-  return STATUS_LABELS[status]
-}
-
 function resolvePriorityLabel(priority: TaskPriority): string {
   return PRIORITY_LABELS[priority]
-}
-
-function resolveSourceTypeLabel(sourceType: TaskSourceType): string {
-  return SOURCE_TYPE_LABELS[sourceType]
-}
-
-function resolveMasterRunLabel(
-  row: { title: string; run_label?: string | null },
-): string {
-  if (row.run_label?.trim()) {
-    return row.run_label.trim()
-  }
-  return resolveTaskRunLabel(row.title)
 }
 
 function resolveSearchUserStateLabel(row: TaskSearchResult): string {
@@ -360,6 +331,7 @@ function openTaskDialog(): void {
 
 async function handleTaskCreated(): Promise<void> {
   await loadSnapshot()
+  await refreshWorkspace()
   handleFilterChange('inbox')
 }
 
@@ -479,14 +451,6 @@ function masterRowClassName({
   return row.task_id === selectedTaskId.value ? 'task-center-view__row--selected' : ''
 }
 
-function renderRelationTypes(item: TaskCenterTrackingItem | TaskCenterHistoryItem): string {
-  return item.relation_types.join(' / ') || '—'
-}
-
-function isOverdue(item: TaskCenterTrackingItem): boolean {
-  return !!(item.due_date && new Date(item.due_date) < new Date() && item.status !== 'done')
-}
-
 const nudgingTaskIds = ref<Set<string>>(new Set())
 const extendDueDateDialogVisible = ref(false)
 const extendDueDateTaskId = ref<string | null>(null)
@@ -530,20 +494,6 @@ async function handleNudge(taskId: string): Promise<void> {
   } finally {
     nudgingTaskIds.value = new Set([...nudgingTaskIds.value].filter((id) => id !== taskId))
   }
-}
-
-function renderTrackingSignals(item: TaskCenterTrackingItem): string {
-  const signals: string[] = []
-  if (item.is_pending_review) {
-    signals.push('待验收')
-  }
-  if ((item.rework_count ?? 0) > 0) {
-    signals.push(`返工 ${item.rework_count} 次`)
-  }
-  if (typeof item.review_quality_score === 'number') {
-    signals.push(`质量 ${item.review_quality_score}/5`)
-  }
-  return signals.join(' / ') || '—'
 }
 
 function rowKey(item: TaskCenterInboxItem | TaskCenterTrackingItem | TaskCenterHistoryItem): string {

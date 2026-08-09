@@ -144,11 +144,6 @@ function resolvePriorityLabel(priority: TaskPriority): string {
   return PRIORITY_LABELS[priority]
 }
 
-function resolveTaskListRunLabel(task: Task): string {
-  const metadata = (task.extra_metadata as Record<string, unknown> | undefined) ?? {}
-  return resolveTaskRunLabel(task.title, metadata)
-}
-
 function formatRate(value: number): string {
   return `${Math.round(value * 100)}%`
 }

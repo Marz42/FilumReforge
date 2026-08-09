@@ -320,7 +320,7 @@ paradigma:
 
 ## 9. Phase 6 / 部署演练与全量回归 — **done**（2026-05-21）
 
-验收结论见 `memory-bank/progress.md`「测试基线」「在线主机演练记录」。**Ubuntu 最小回滚路径**未演练，已移至 §11 积压。
+验收结论见迁移后的 `memory-bank/logs/progress/progress.md`「测试基线」「在线主机演练记录」。**Ubuntu 最小回滚路径**未演练，已移至 §11 积压。
 
 ### 9.1 目标
 
@@ -358,7 +358,7 @@ paradigma:
 
 - schema 变化 → 更新 `memory-bank/data-contracts.md`
 - 模块/流程 → 更新 `memory-bank/architecture.md`
-- 更新 `memory-bank/progress.md`，记录阶段状态、验证命令与验收结论
+- 更新独立 session log；升级前历史记录位于 `memory-bank/logs/progress/progress.md`
 
 ## 11. Stage 2 之后的独立产品积压（迭代拆分建议）
 
@@ -373,4 +373,4 @@ paradigma:
 | 公开或审批式注册 | 邀请制已落地；访客自助或审批流开户仍缺 | 安全与 IAM 策略单独评审 |
 | 通知适配器深化 | Email / WebSocket 真实外发、重试与投递观测 | 与 `NotificationService`、adapter factory |
 
-跟踪入口：根 `README.md`「下一步」与 `memory-bank/progress.md`「当前规划焦点」表。
+跟踪入口：根 `README.md`、`memory-bank/runtime/active-task.md` 与 `memory-bank/logs/progress/` 独立日志。

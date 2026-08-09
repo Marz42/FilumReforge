@@ -42,7 +42,37 @@ const emit = defineEmits<{
   submit: []
   delete: []
   'cancel-create': []
+  'update:form': [value: DepartmentFormState]
 }>()
+
+function updateForm(patch: Partial<DepartmentFormState>): void {
+  emit('update:form', { ...props.form, ...patch })
+}
+
+const formName = computed({
+  get: () => props.form.name,
+  set: (value: string) => updateForm({ name: value }),
+})
+const formCode = computed({
+  get: () => props.form.code,
+  set: (value: string) => updateForm({ code: value }),
+})
+const formParentId = computed({
+  get: () => props.form.parent_id,
+  set: (value: string) => updateForm({ parent_id: value }),
+})
+const formManagerId = computed({
+  get: () => props.form.manager_id,
+  set: (value: string) => updateForm({ manager_id: value }),
+})
+const formSortOrder = computed({
+  get: () => props.form.sort_order,
+  set: (value: number) => updateForm({ sort_order: value }),
+})
+const formIsActive = computed({
+  get: () => props.form.is_active,
+  set: (value: boolean) => updateForm({ is_active: value }),
+})
 
 const showForm = computed(() => props.isCreating || props.department !== null)
 
@@ -99,18 +129,18 @@ function resolveDepartmentName(departmentId: string | null): string {
       <el-form label-position="top" data-testid="departments-form">
         <div class="department-detail-panel__form-grid">
           <el-form-item label="部门名称">
-            <el-input v-model="form.name" data-testid="departments-form-name" />
+            <el-input v-model="formName" data-testid="departments-form-name" />
           </el-form-item>
           <el-form-item label="编码">
             <el-input
-              v-model="form.code"
+              v-model="formCode"
               :disabled="!isCreating && isEditingRootDepartment"
               data-testid="departments-form-code"
             />
           </el-form-item>
           <el-form-item label="上级部门">
             <el-select
-              v-model="form.parent_id"
+              v-model="formParentId"
               clearable
               placeholder="可选"
               :disabled="!isCreating && isEditingRootDepartment"
@@ -125,7 +155,7 @@ function resolveDepartmentName(departmentId: string | null): string {
             </el-select>
           </el-form-item>
           <el-form-item label="负责人">
-            <el-select v-model="form.manager_id" clearable placeholder="可选" data-testid="departments-form-manager">
+            <el-select v-model="formManagerId" clearable placeholder="可选" data-testid="departments-form-manager">
               <el-option
                 v-for="option in managerOptions"
                 :key="option.value"
@@ -135,10 +165,10 @@ function resolveDepartmentName(departmentId: string | null): string {
             </el-select>
           </el-form-item>
           <el-form-item label="排序">
-            <el-input-number v-model="form.sort_order" :min="0" />
+            <el-input-number v-model="formSortOrder" :min="0" />
           </el-form-item>
           <el-form-item v-if="!isCreating" label="状态">
-            <el-switch v-model="form.is_active" :disabled="isEditingRootDepartment" />
+            <el-switch v-model="formIsActive" :disabled="isEditingRootDepartment" />
           </el-form-item>
         </div>
         <div class="department-detail-panel__actions">

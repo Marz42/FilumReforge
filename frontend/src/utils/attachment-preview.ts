@@ -1,10 +1,8 @@
-import mammoth from 'mammoth'
-import readXlsxFile, { type CellValue } from 'read-excel-file/browser'
+import type { CellValue } from 'read-excel-file/browser'
 
 import { fetchAttachmentContent } from '@/api/attachments'
 import { resolveAttachmentPreviewKind } from '@/constants/attachments'
 import type { Attachment } from '@/types/api'
-import { renderSafeMarkdown, sanitizeHtml } from '@/utils/safe-markdown'
 
 export type AttachmentPreviewSheet = {
   name: string
@@ -81,6 +79,7 @@ export async function buildAttachmentPreviewContent(
       }
     case 'markdown': {
       const text = await blob.text()
+      const { renderSafeMarkdown } = await import('@/utils/safe-markdown')
       return {
         content: { kind: 'markdown', html: renderSafeMarkdown(text) },
         objectUrls,
@@ -88,6 +87,10 @@ export async function buildAttachmentPreviewContent(
     }
     case 'docx': {
       const arrayBuffer = await blobToArrayBuffer(blob)
+      const [{ default: mammoth }, { sanitizeHtml }] = await Promise.all([
+        import('mammoth'),
+        import('@/utils/safe-markdown'),
+      ])
       const result = await mammoth.convertToHtml({ arrayBuffer })
       return {
         content: { kind: 'docx', html: sanitizeHtml(result.value) },
@@ -95,6 +98,7 @@ export async function buildAttachmentPreviewContent(
       }
     }
     case 'xlsx': {
+      const { default: readXlsxFile } = await import('read-excel-file/browser')
       const workbook = await readXlsxFile(blob)
       const sheets = workbook.map(({ sheet, data }) => ({
         name: sheet,

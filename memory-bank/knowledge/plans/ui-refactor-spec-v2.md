@@ -602,7 +602,7 @@ Shell 级：`header-*`、`notification-*`、`global-memo-*`。
 
 每阶段 **Done** 后：
 
-1. 更新 [`progress.md`](../progress.md) IA-1…IA-n 行状态。
+1. 更新独立 session log；升级前历史状态见 [`logs/progress/progress.md`](../../logs/progress/progress.md) IA-1…IA-n。
 2. 更新 [`knowledge/manuals/user-manual.md`](../manuals/user-manual.md) 对应章节路径与截图说明（Step 4）。
 3. 必要时更新 [`architecture.md`](../architecture.md) 前端模块小节（仅结构变化时）。
 

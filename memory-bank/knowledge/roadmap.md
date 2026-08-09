@@ -31,10 +31,10 @@ paradigma:
 
 | 字段 | 内容 |
 |------|------|
-| **当前版本** | `0.92.1`（根目录 `VERSION`）+ Unreleased |
+| **当前版本** | `0.93.0-rc.1`（根目录 `VERSION`） |
 | **版本主题** | 工作流图引擎 Iteration 4 · 模板领域中立与稳定化 |
-| **阶段** | **Iteration 4 工程完成** — I4-A–E 已完成；先行发布候选待预发 smoke，I3-F 生产切流仍 gated |
-| **最后整理** | 2026-07-30 — I4-E 领域中立迁移与先行发布评估完成 |
+| **阶段** | **Iteration 4 RC 固定中** — I4-A–E、安全加固与前端稳定化进入员工试用候选；I3-F 生产切流仍 gated |
+| **最后整理** | 2026-08-09 — `v0.93.0-rc.1` 员工试用与持续开发分流方案确认 |
 
 ---
 
@@ -155,13 +155,14 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-1. **先行发布验证**：以 `8244af0` 为候选，在预发复测参与者重叠语义与前端第一批修复；不拆挑依赖提交。
-2. **Iteration 4-E UAT**：验证非视频模板能力声明、旧视频模板兼容 Profile 与历史 Run dual-read。
-3. **I3-F 生产门禁**：目标环境 Expand/Contract、Link 回填、恢复/回滚演练、连续 7 天观测与 31/31 报告。
-4. **前端后续反馈**：继续按 P0–P3 分级，P2/P3 可独立成批。
-5. **明确延期**：系统管理员业务边界治理按 KI-011 在 I4 后单独规划。
+1. **固定并部署员工 RC**：创建不可变 `v0.93.0-rc.1`，在隔离环境从标签部署并核对 health version；主开发线可继续前进。
+2. **Iteration 4 / 设计器 Phase 2 / S-01 UAT**：由员工按 checklist 验证非视频模板、参与者重叠语义、结构化 authoring、视频兼容黄金路径与周期统计。
+3. **模板 scope 数据修复**：盘点曾误存为 global 的 ACTIVE 模板，通过新版本修正并核对父子 `child_template_code`。
+4. **I3-F 生产门禁**：目标环境 Expand/Contract、Link 回填、恢复/回滚演练、连续 7 天观测与 31/31 报告。
+5. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
+6. **后续专项**：系统管理员业务边界治理按 KI-011 单独规划；M-09 与 `run_kind` dual-read 收窄继续等待策略和生产证据。
 
-**下一 actionable**：核对目标服务器当前 commit，以 `8244af0` 做先行发布预发 smoke；I4-E 单独进入 UAT。内测发布仍按 [`deployment-runbook §21`](./manuals/deployment-runbook-ubuntu-2404.md) 执行。
+**下一 actionable**：按 [`RC 员工试用方案`](./plans/2026-08-09-rc-employee-trial-plan.md) 从固定标签部署；员工反馈与主线开发分流，P0/P1 才从 RC 热修。生产仍按 [`production release checklist`](./manuals/2026-08-09-production-release-checklist.md) 独立批准。
 
 ---
 

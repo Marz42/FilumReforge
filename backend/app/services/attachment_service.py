@@ -4,7 +4,7 @@ import io
 import zipfile
 from datetime import UTC, datetime
 from hashlib import sha256
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from uuid import UUID, uuid4
 
 import filetype
@@ -68,6 +68,13 @@ TEXT_CLASS_MAX_BYTES = 10 * 1024 * 1024
 AUDIO_MAX_BYTES = 50 * 1024 * 1024
 OTHER_BINARY_MAX_BYTES = 25 * 1024 * 1024
 
+# OOXML files are ZIP containers. Bound their expanded shape before accepting
+# them so a small upload cannot turn into an unbounded DOCX/XLSX preview parse.
+OOXML_MAX_ARCHIVE_ENTRIES = 2_000
+OOXML_MAX_EXPANDED_BYTES = 64 * 1024 * 1024
+OOXML_MAX_SINGLE_ENTRY_BYTES = 32 * 1024 * 1024
+OOXML_MAX_COMPRESSION_RATIO = 200
+
 
 def _max_bytes_for_mime(mime: str) -> int:
   if mime in TEXT_PLAIN_MARKDOWN_MIMES or mime == DOCX_MIME:
@@ -82,17 +89,44 @@ def _normalize_declared_mime(content_type: str) -> str:
   return MIME_ALIAS.get(raw, raw)
 
 
-def _is_valid_ooxml_zip(content: bytes, *, require_word: bool) -> bool:
+def _validate_ooxml_zip(content: bytes, *, require_word: bool) -> None:
   if not content or len(content) < 4 or content[:2] != b"PK":
-    return False
+    raise AppValidationError("附件内容不是有效的 OOXML 压缩包。")
   try:
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
-      names = set(zf.namelist())
+      entries = zf.infolist()
   except zipfile.BadZipFile:
-    return False
-  if require_word:
-    return "word/document.xml" in names
-  return "xl/workbook.xml" in names
+    raise AppValidationError("附件内容不是有效的 OOXML 压缩包。") from None
+
+  if len(entries) > OOXML_MAX_ARCHIVE_ENTRIES:
+    raise AppValidationError("OOXML 附件包含过多压缩条目，超出安全预算。")
+
+  names: set[str] = set()
+  expanded_bytes = 0
+  for entry in entries:
+    normalized_name = entry.filename.replace("\\", "/")
+    path = PurePosixPath(normalized_name)
+    if path.is_absolute() or ".." in path.parts:
+      raise AppValidationError("OOXML 附件包含不安全的压缩路径。")
+    if entry.flag_bits & 0x1:
+      raise AppValidationError("不支持加密的 OOXML 附件。")
+    if entry.is_dir():
+      continue
+
+    names.add(normalized_name)
+    if entry.file_size > OOXML_MAX_SINGLE_ENTRY_BYTES:
+      raise AppValidationError("OOXML 附件单个条目展开后过大，超出安全预算。")
+    expanded_bytes += entry.file_size
+    if expanded_bytes > OOXML_MAX_EXPANDED_BYTES:
+      raise AppValidationError("OOXML 附件展开后过大，超出安全预算。")
+    if entry.file_size > 0:
+      compressed_size = max(entry.compress_size, 1)
+      if entry.file_size / compressed_size > OOXML_MAX_COMPRESSION_RATIO:
+        raise AppValidationError("OOXML 附件压缩率异常，超出安全预算。")
+
+  required_name = "word/document.xml" if require_word else "xl/workbook.xml"
+  if required_name not in names:
+    raise AppValidationError("附件内容与声明的 OOXML 类型不匹配。")
 
 
 def _is_valid_wav(content: bytes) -> bool:
@@ -204,13 +238,11 @@ class AttachmentService:
       return normalized_content_type
 
     if normalized_content_type == DOCX_MIME:
-      if not _is_valid_ooxml_zip(content, require_word=True):
-        raise AppValidationError("Word 附件内容与类型不匹配（需为有效的 .docx / OOXML）。")
+      _validate_ooxml_zip(content, require_word=True)
       return normalized_content_type
 
     if normalized_content_type == XLSX_MIME:
-      if not _is_valid_ooxml_zip(content, require_word=False):
-        raise AppValidationError("Excel 附件内容与类型不匹配（需为有效的 .xlsx / OOXML）。")
+      _validate_ooxml_zip(content, require_word=False)
       return normalized_content_type
 
     if normalized_content_type == "audio/wav":

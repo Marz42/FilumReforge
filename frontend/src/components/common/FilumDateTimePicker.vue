@@ -10,7 +10,7 @@ import {
 
 const model = defineModel<Date | null>({ default: null })
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     placeholder?: string
     disabled?: boolean

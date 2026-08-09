@@ -32,8 +32,8 @@ paradigma:
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
-**版本**: v3.20.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-07-30 · 已发布模板可用部门治理 · 产品基线 `0.92.1` + Unreleased
+**版本**: v3.21.0（与 [`architecture.md`](../architecture.md) 同步）
+**最后同步**: 2026-08-09 · 安全对象授权、可信代理与 OOXML 预算 · 产品基线 `0.93.0-rc.1`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -53,6 +53,7 @@ paradigma:
   - **图模板设计器（F-18–F-20 @ 2026-06-21）**：`GET .../templates?scope=manage`；`POST .../templates`（clone）；`GET/PUT .../templates/{id}/designer|draft`；`POST .../templates/{id}/versions`；`PATCH .../templates/{id}/status`；`GET .../templates/{id}/validate`；`GET/POST .../templates/{id}/export|import`；`POST .../templates/import`；`POST .../templates/{id}/dry-run`；`GET .../templates/{id}/stats`
   - **ADR-017 Phase 1/2（2026-07-28）**：summary/detail/designer 返回 `tags` + `capabilities`；manage list 支持 `status` + `q`；`PATCH .../templates/{id}/tags`；designer/detail 返回既有 `context_schema`，draft save 可选写入且省略时保留原值；常用 `ui_profile` / launch / routing 结构化 authoring 不改变运行时契约
   - **ADR-020 已发布模板可用部门治理（2026-07-30）**：`PATCH .../templates/{id}/availability-scope` 仅允许 ACTIVE 模板增加部门或扩大为 global，请求必须提供 `reason`；部门经理新增目标限其有效管理范围，扩大为 global 仅允许全局管理角色；`GET .../templates/{id}/availability-scope/events` 返回 actor、前后范围、新增部门、原因与时间。草稿继续由 designer 修改，归档模板和 ACTIVE 范围缩减均拒绝。
+  - **安全读取/管理策略（2026-08-09）**：ACTIVE global 对所有活跃用户可读；ACTIVE departments 仅对所属部门或有效管理部门可读；DRAFT/ARCHIVED 只对可管理者可读。部门模板管理员只能读取、派生、编辑、导入/导出、发布、归档或删除其完整 scope 位于有效管理范围内的模板；越权对象统一 404。`department-pool-member-options` 同时校验 template 与可选 instance 的对象读权限。
   - 视频 v1 表单/批次：`POST .../templates/{id}/runs`、`.../node-instances/{id}/submit-capture`、`.../finalize-topics`、`.../instances/{id}/dispatch-topic`（TC-P1 增量派发）、`.../instances/{id}/reject-captures`、`POST .../tasks/{task_id}/reject-production`（TC-P1-7 制作审核退回）、`.../fork-production-runs` 等
 - **视频 v1 Pydantic**: `backend/app/schemas/workflow_video.py`（`launch_schema` / `capture_schema` / `aggregate_schema` 等）
   - **实例化 participant snapshot**（TC-P1-8）：`ParticipantsSnapshotEntry.include_initiator: bool = False` — 默认从 N1 fan-out 排除发起人；服务端校验 `user_ids ⊆ policy` 允许集合，过滤后为空则 409
@@ -67,6 +68,7 @@ paradigma:
 - **TCE + 设计器已落地契约**（@ 2026-06-21，见 [`domains/task-center.md`](../domains/task-center.md)）：`GET /api/v1/tasks?ids=`；snapshot `run_label` / `user_facing_state` / 分页；`GET /workflow-graph/runs?department_id=`；`POST .../close-capture`；实例 `aggregate_mode` / `capture_closed` in context；设计器 designer/draft/publish/validate/export/import/dry-run/stats API
 - **S-01 周期统计契约**（2026-07-11 批准）：`GET /api/v1/tasks/stats/scopes|summary|workload|details`；统一 `start_date` / `end_date`（Asia/Shanghai、含首尾日期、最长 366 天）、`department_id?`、`include_subtree`；Employee 仅本人，经理/数据代理限有效管理范围，Admin/HR 全局；排除 `metadata.admin_archived=true` 与 `metadata.workflow_graph_root_task=true`。指标为新增、完成、到期、逾期、已成熟截止任务的按期完成率、当前未完成；details 以 `metric` + UUID cursor 分页。
 - **图模板部门作用范围**：显式 `scope_mode=global|departments`；`global` 不允许部门列表，`departments` 至少一个部门；Run 创建先解析最终部门再校验 scope（迁移 `20260713_01`）。ACTIVE 模板可通过 ADR-020 治理接口单调扩大范围且不增加定义版本，审计写入 `workflow_graph_template_scope_events`（迁移 `20260730_01`）；缩小范围仍须发布新版本。
+- **附件 OOXML 安全预算**：DOCX/XLSX 入库前最多 2,000 个 ZIP 条目、64 MiB 总展开大小、32 MiB 单条目、200:1 单条目压缩比；拒绝加密条目与绝对/上级路径。预算校验发生在对象存储与浏览器预览之前。
 - **graph-v3 路径契约**（@ 2026-07-15）：节点 `routing_mode`；Run `result`/`diagnostics`；`workflow_edge_traversals` 与 `workflow_node_activation_dependencies` 保存实际路径和激活原因；complete Context patch 可携带 `expected_context_version`，graph-v3 有 patch 时必填。
 - **F-29 管理员归档**（@ 2026-06-23）：`POST /api/v1/tasks/{task_id}/archive`（admin，`TaskArchiveRequest.reason` → `TaskArchiveResponse`）；任务 `extra_metadata.admin_archived` / `admin_archived_at` / `admin_archive_reason` / `admin_archive_source_task_id`；图实例 context `admin_archived*` + 节点 TERMINATED + instance CANCELLED
 - **任务 PATCH 逾期延期**（@ 2026-06-23）：已逾期任务 `due_date` 变更须晚于原截止时间（ConflictError）
@@ -195,11 +197,11 @@ paradigma:
 
 ## 12. 当前验证基线
 
-最新权威结果见 [`progress summary`](../../logs/progress/summary.md) 与最近独立 session log（2026-07-30 @ 模板可用部门治理）：
+最新权威结果见 [`progress summary`](../../logs/progress/summary.md) 与最近独立 session log（2026-08-09 @ 安全与上线准备）：
 
-- backend：**449 collected / 10 skipped / 0 failed**；登记的 PostgreSQL 环境用例按既有规则 skip；`compileall` PASS；Alembic 单 head `20260730_01`
+- backend：**460 collected / 428 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；`compileall` PASS；Alembic 单 head `20260730_01`
 - Iteration 4-E / Handler / 视频黄金流程定向：**66 PASS**
-- frontend：Vitest **63 文件 / 177 用例 PASS**；`vue-tsc --build`、production build、变更文件 Oxlint/ESLint PASS
+- frontend：Vitest **64 文件 / 180 用例 PASS**；`vue-tsc --build`、production build PASS；ESLint 全量仍有 **21 个既有 error**，按 release script 为 warning，须在后续质量批次清理
 - 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**
 - 未纳入每次刷新：live/docker-gui、目标环境 I3-F 7 天 readiness、Ubuntu 回滚演练
 

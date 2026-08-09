@@ -801,11 +801,9 @@ async def test_auth_logout_clears_cookie_even_when_refresh_token_is_invalid(api_
   client, _ = api_client
 
   await bootstrap_and_login(client)
+  client.cookies.set(TEST_REFRESH_COOKIE_NAME, "invalid-token")
 
-  logout_response = await client.post(
-    "/api/v1/auth/logout",
-    cookies={TEST_REFRESH_COOKIE_NAME: "invalid-token"},
-  )
+  logout_response = await client.post("/api/v1/auth/logout")
 
   assert logout_response.status_code == 204
   cleared_cookie_header = logout_response.headers.get("set-cookie", "")

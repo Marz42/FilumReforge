@@ -222,6 +222,7 @@ WEB_PUSH_SUBJECT=mailto:ops@example.com
 STORAGE_PROVIDER=local
 STORAGE_BUCKET=filum-prod
 STORAGE_BASE_PATH=/srv/filum/data/storage
+FORWARDED_ALLOW_IPS=127.0.0.1
 
 # 可选：refresh cookie 调优
 # AUTH_REFRESH_COOKIE_NAME=filum_refresh_token
@@ -237,6 +238,7 @@ STORAGE_BASE_PATH=/srv/filum/data/storage
 - `STORAGE_BASE_PATH` 必须对 `backend` 和 `worker` 都可读写
 - 当前会话模型为“前端内存态 access token + HttpOnly refresh cookie”；如前后端跨站点部署，需要同时核对 `CORS_ALLOWED_ORIGINS` 与 `AUTH_REFRESH_COOKIE_*` 相关配置
 - 当前如果继续使用本地对象存储，需要把 `/srv/filum/data/storage` 纳入云盘快照或备份策略
+- 本机 Nginx 反代时保持 `FORWARDED_ALLOW_IPS=127.0.0.1`，且由 Nginx 用 `$remote_addr` 覆盖 `X-Forwarded-For`；不要让可公网访问的后端信任 `*`
 
 ### 4. 初始化数据库与管理员
 
@@ -314,7 +316,7 @@ server {
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 

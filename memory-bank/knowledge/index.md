@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: c28bae9b027ca414 -->
+<!-- checksum: 135d0633e8f95a28 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -54,7 +54,7 @@
 | [known-issues/ki-001-environment-toolchain.md](known-issues/ki-001-environment-toolchain.md) | `paradigma-known-issue` | KI-001: 环境与工具链问题 | 环境问题<br>工具链<br>Windows ... | - | - |
 | [known-issues/ki-002-architecture-boundaries.md](known-issues/ki-002-architecture-boundaries.md) | `paradigma-known-issue` | KI-002: 架构边界（易误判非 Bug） | 架构边界<br>Legacy E<br>图引擎 ... | - | - |
 | [known-issues/ki-003-test-baseline-drift.md](known-issues/ki-003-test-baseline-drift.md) | `paradigma-known-issue` | KI-003: 测试基线漂移 | 测试基线<br>pytest<br>Playwright ... | - | - |
-| [known-issues/ki-004-production-deployment.md](known-issues/ki-004-production-deployment.md) | `paradigma-known-issue` | KI-004: 生产与部署注意事项 | 生产部署<br>环境变量<br>回滚 | - | - |
+| [known-issues/ki-004-production-deployment.md](known-issues/ki-004-production-deployment.md) | `paradigma-known-issue` | KI-004: 生产与部署注意事项 | 生产部署<br>环境变量<br>回滚 ... | - | - |
 | [known-issues/ki-005-graph-engine-issues.md](known-issues/ki-005-graph-engine-issues.md) | `paradigma-known-issue` | KI-005: 图引擎已知问题 | 图引擎<br>ORM 懒加载<br>max_iterations | - | - |
 | [known-issues/ki-006-report-center-history.md](known-issues/ki-006-report-center-history.md) | `paradigma-known-issue` | KI-006: 汇报中心历史问题 | 汇报中心<br>PostgreSQL enum<br>ORM | - | - |
 | [known-issues/ki-007-windows-playwright-excluded-port.md](known-issues/ki-007-windows-playwright-excluded-port.md) | `paradigma-known-issue` | KI-007: Windows 保留端口导致 Playwright webServer EACCES | Playwright EACCES<br>4173 端口<br>Windows 保留端口 ... | - | - |
@@ -62,8 +62,10 @@
 | [known-issues/ki-009-standalone-action-dual-track.md](known-issues/ki-009-standalone-action-dual-track.md) | `paradigma-known-issue` | KI-009: Standalone Work Item 详情动作仍走旧契约 | standalone<br>开始处理<br>创建人 ... | - | - |
 | [known-issues/ki-010-activity-timeline-redesign.md](known-issues/ki-010-activity-timeline-redesign.md) | `paradigma-known-issue` | KI-010: 活动时间线需重做为更有指向性的留痕 | 活动时间线<br>折叠<br>留痕 ... | - | - |
 | [known-issues/ki-011-system-admin-business-boundary.md](known-issues/ki-011-system-admin-business-boundary.md) | `paradigma-known-issue` | KI-011: 系统管理员与业务参与权限尚未解耦 | 管理员业务边界<br>系统管理员<br>管理员不参与业务 ... | - | - |
+| [known-issues/ki-012-security-scan-release-blockers.md](known-issues/ki-012-security-scan-release-blockers.md) | `paradigma-known-issue` | KI-012: 2026-08-09 安全扫描发现与上线阻断项 | 安全扫描<br>上线阻断<br>IDOR ... | - | - |
 | [known-issues/known-issues.md](known-issues/known-issues.md) | `paradigma-known-issue` | 已知问题合辑 (已拆分) | 已知问题<br>合辑<br>known issue | - | - |
 | [manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md](manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) | `paradigma-manual` | Iteration 4 · 领域中立 / 运行时 / 设计器 Phase 2 验收 Checklist | Iteration 4 验收<br>领域中立 UAT<br>设计器 Phase 2 ... | - | depends_on:../decisions/adr-018-domain-neutral-workflow-templates.md<br>depends_on:../decisions/adr-019-decision-subject-actor-overlap.md<br>depends_on:../plans/workflow-graph-engine-iteration4-handler-plan.md<br>depends_on:../plans/2026-07-28-template-decouple-phase2-plan.md |
+| [manuals/2026-08-09-production-release-checklist.md](manuals/2026-08-09-production-release-checklist.md) | `paradigma-manual` | 2026-08-09 生产上线准入 Checklist | 生产上线<br>发布准入<br>安全检查 ... | - | depends_on:../plans/2026-08-09-rc-employee-trial-plan.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>depends_on:../plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md<br>depends_on:2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md ... |
 | [manuals/deployment-runbook-ubuntu-2404.md](manuals/deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | - |
 | [manuals/e2e-gui-verification-automation-runbook.md](manuals/e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | - |
 | [manuals/manual-database-operations.md](manuals/manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | - |
@@ -79,6 +81,8 @@
 | [plans/2026-07-29-iteration4-preflight-alignment-plan.md](plans/2026-07-29-iteration4-preflight-alignment-plan.md) | `paradigma-plan` | Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化 | Iteration 4 前置<br>文档漂移<br>视频去特殊化 ... | - | - |
 | [plans/2026-07-29-video-domain-neutral-migration-inventory.md](plans/2026-07-29-video-domain-neutral-migration-inventory.md) | `paradigma-plan` | 视频模板领域中立迁移清单 | 视频模板去特殊化<br>run_kind 退出<br>通用工作流能力 ... | - | - |
 | [plans/2026-07-30-template-availability-paradigma-upgrade-plan.md](plans/2026-07-30-template-availability-paradigma-upgrade-plan.md) | `paradigma-plan` | 已发布模板可用部门治理与 Paradigma 0.5.0 协议升级 | 模板可用部门<br>已发布模板授权<br>范围审计 ... | - | - |
+| [plans/2026-08-09-rc-employee-trial-plan.md](plans/2026-08-09-rc-employee-trial-plan.md) | `paradigma-plan` | v0.93.0-rc.1 员工试用与持续开发分流方案 | RC 试用<br>员工内测<br>发布标签 ... | - | depends_on:../manuals/2026-08-09-production-release-checklist.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>related_to:../roadmap.md |
+| [plans/2026-08-09-security-release-readiness-plan.md](plans/2026-08-09-security-release-readiness-plan.md) | `paradigma-plan` | 安全问题处置与上线准备计划 | 安全问题<br>上线准备<br>发布门禁 ... | - | - |
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

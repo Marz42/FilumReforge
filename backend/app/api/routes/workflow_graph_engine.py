@@ -24,7 +24,7 @@ from app.core.config import Settings
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.enums import UserRole, WorkflowGraphTemplateStatus, WorkflowNodeEngineState
 from app.models import User, WorkflowGraphInstance, WorkflowGraphTemplateEdge, WorkflowGraphTemplateNode, WorkflowNodeInstance
-from app.services.access_control import ensure_department_stats_access, can_manage_task_templates, get_effective_managed_department_ids
+from app.services.access_control import ensure_department_stats_access, can_manage_task_templates
 from app.services.workflow_access_policy import WorkflowAccessPolicy
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -241,14 +241,15 @@ async def list_department_pool_member_options(
   template_id: UUID,
   pool_key: Annotated[str, Query(min_length=1, max_length=64)],
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   participant_service: Annotated[ParticipantResolutionService, Depends(get_participant_resolution_service)],
-  workflow_graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
   instance_id: Annotated[UUID | None, Query()] = None,
 ) -> list[ParticipantUserPreview]:
-  template = await participant_service.get_template_or_raise(template_id)
+  policy = WorkflowAccessPolicy(session)
+  template = await policy.ensure_can_read_template(actor=actor, template_id=template_id)
   instance: WorkflowGraphInstance | None = None
   if instance_id is not None:
-    instance = await workflow_graph_service.get_instance(instance_id=instance_id)
+    instance = await policy.ensure_can_read_instance(actor=actor, instance_id=instance_id)
   users = await participant_service.list_department_pool_member_options(
     actor=actor,
     template=template,
@@ -280,23 +281,14 @@ async def list_graph_templates(
   status: Annotated[list[WorkflowGraphTemplateStatus] | None, Query()] = None,
   q: Annotated[str | None, Query(max_length=120)] = None,
 ) -> list[WorkflowGraphTemplateSummaryRead]:
+  access_policy = WorkflowAccessPolicy(session)
   if scope == "manage" and await can_manage_task_templates(session, actor):
     templates = await admin_service.list_manageable_templates(status_filter=status, q=q)
+    templates = await access_policy.filter_manageable_templates(actor=actor, templates=templates)
     stats_map = await admin_service.load_template_stats_map(template_ids=[template.id for template in templates])
   else:
     templates = await workflow_graph_service.list_active_templates()
-    managed_department_ids = await get_effective_managed_department_ids(session, actor.id)
-    if managed_department_ids:
-      managed_set = {str(did) for did in managed_department_ids}
-      templates = [
-        template
-        for template in templates
-        if template.scope_mode != "departments"
-        or any(
-          str(did) in managed_set
-          for did in (template.scope_department_ids or [])
-        )
-      ]
+    templates = await access_policy.filter_readable_templates(actor=actor, templates=templates)
     stats_map = {}
 
   if schedulable:
@@ -440,9 +432,13 @@ async def update_graph_template_status(
 async def validate_graph_template(
   template_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
 ) -> WorkflowGraphTemplateValidateResponse:
-  _ = actor
+  await WorkflowAccessPolicy(session).ensure_can_manage_templates(
+    actor=actor,
+    template_id=template_id,
+  )
   return await admin_service.validate_template(template_id=template_id)
 
 
@@ -527,9 +523,13 @@ async def get_graph_template_stats(
 async def get_graph_template(
   template_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   admin_service: Annotated[WorkflowGraphTemplateAdminService, Depends(get_workflow_graph_template_admin_service)],
 ) -> WorkflowGraphTemplateDetailRead:
-  _ = actor
+  await WorkflowAccessPolicy(session).ensure_can_read_template(
+    actor=actor,
+    template_id=template_id,
+  )
   return await admin_service.get_template_detail(template_id=template_id)
 
 
@@ -668,11 +668,15 @@ async def create_graph_template_run(
 async def preview_template_participants(
   template_id: UUID,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   participant_service: Annotated[ParticipantResolutionService, Depends(get_participant_resolution_service)],
   policy: Annotated[str, Query(min_length=1, max_length=64)],
   payload: PreviewParticipantsRequest | None = None,
 ) -> PreviewParticipantsResponse:
-  template = await participant_service.get_template_or_raise(template_id)
+  template = await WorkflowAccessPolicy(session).ensure_can_read_template(
+    actor=actor,
+    template_id=template_id,
+  )
 
   body = payload or PreviewParticipantsRequest()
   snapshot, users = await participant_service.preview_for_template(
@@ -1105,11 +1109,17 @@ async def takeover_node_instance(
 async def compute_smart_notice_candidates(
   payload: WorkflowSmartNoticeCandidatesRequest,
   actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
   organization_relation_service: Annotated[
     OrganizationRelationService,
     Depends(get_organization_relation_service),
   ],
 ) -> WorkflowSmartNoticeCandidatesResponse:
+  await WorkflowAccessPolicy(session).ensure_can_compute_notice_candidates(
+    actor=actor,
+    initiator_user_id=payload.initiator_user_id,
+    target_user_id=payload.target_user_id,
+  )
   candidate_user_ids, reached_initiator = await organization_relation_service.suggest_notice_recipients(
     initiator_user_id=payload.initiator_user_id,
     target_user_id=payload.target_user_id,

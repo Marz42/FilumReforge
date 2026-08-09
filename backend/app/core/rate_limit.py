@@ -36,9 +36,9 @@ class InMemoryRateLimiter:
 
 
 def _resolve_client_identity(request: Request) -> str:
-  forwarded_for = request.headers.get("x-forwarded-for")
-  if forwarded_for:
-    return forwarded_for.split(",", 1)[0].strip() or "unknown"
+  # Uvicorn rewrites request.client only when the direct peer is listed in
+  # --forwarded-allow-ips. Never consume attacker-controlled forwarding
+  # headers a second time at the application layer.
   if request.client is not None and request.client.host:
     return request.client.host
   return "unknown"

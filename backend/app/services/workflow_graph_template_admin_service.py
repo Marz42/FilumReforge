@@ -13,7 +13,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import WorkflowGraphInstanceStatus, WorkflowGraphTemplateStatus
-from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models import (
   Department,
   Profile,
@@ -61,17 +61,12 @@ from app.services.workflow_definition_snapshot import (
   definition_snapshot_hash,
   normalize_scope,
 )
-from app.services.access_control import (
-  can_manage_task_templates,
-  ensure_active_user,
-  get_effective_managed_department_ids,
-  is_management_role,
-)
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_template_capabilities import (
   compute_template_capabilities,
   normalize_template_tags,
 )
+from app.services.workflow_access_policy import WorkflowAccessPolicy
 from app.services.workflow_graph_template_topology import (
   GraphTemplateEdgeSpec,
   GraphTemplateNodeSpec,
@@ -158,8 +153,8 @@ class WorkflowGraphTemplateAdminService:
     actor: User,
     payload: WorkflowGraphTemplateCreateRequest,
   ) -> WorkflowGraphTemplateDesignerRead:
-    await self._ensure_manage(actor)
     if payload.clone_from_id is not None:
+      await self._ensure_manage(actor, template_id=payload.clone_from_id)
       source = await self._get_template_or_raise(template_id=payload.clone_from_id)
       result = await self._fork_template(
         actor=actor,
@@ -167,6 +162,7 @@ class WorkflowGraphTemplateAdminService:
         name=payload.name.strip() if payload.name else f"{source.name}（副本）",
       )
     else:
+      await self._ensure_manage(actor)
       result = await self._create_blank_template(
         actor=actor,
         name=payload.name.strip() if payload.name else "未命名模板",
@@ -180,7 +176,7 @@ class WorkflowGraphTemplateAdminService:
     actor: User,
     template_id: UUID,
   ) -> WorkflowGraphTemplateDesignerRead:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     source = await self._get_template_or_raise(template_id=template_id)
     result = await self._fork_template(actor=actor, source=source, name=source.name)
     await self._commit()
@@ -193,7 +189,7 @@ class WorkflowGraphTemplateAdminService:
     template_id: UUID,
     payload: WorkflowGraphTemplateDraftSaveRequest,
   ) -> WorkflowGraphTemplateDesignerRead:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     template = await self._get_template_or_raise(template_id=template_id)
     if template.status != WorkflowGraphTemplateStatus.DRAFT:
       raise ConflictError("仅 draft 模板可整包保存。")
@@ -222,6 +218,11 @@ class WorkflowGraphTemplateAdminService:
           else template.scope_department_ids
         ),
       )
+      await WorkflowAccessPolicy(self._session).ensure_can_assign_template_scope(
+        actor=actor,
+        scope_mode=scope_mode,
+        scope_department_ids=scope_ids,
+      )
       template.scope_mode = scope_mode
       template.scope_department_ids = scope_ids
 
@@ -248,7 +249,7 @@ class WorkflowGraphTemplateAdminService:
     template_id: UUID,
     payload: WorkflowGraphTemplateUpdateRequest,
   ) -> WorkflowGraphTemplateDetailRead:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     template = await self._get_template_or_raise(template_id=template_id)
     if template.status != WorkflowGraphTemplateStatus.DRAFT:
       raise ConflictError("已发布或已归档模板不可原地修改，请派生新 draft 版本。")
@@ -275,6 +276,11 @@ class WorkflowGraphTemplateAdminService:
           else template.scope_department_ids
         ),
       )
+      await WorkflowAccessPolicy(self._session).ensure_can_assign_template_scope(
+        actor=actor,
+        scope_mode=scope_mode,
+        scope_department_ids=scope_ids,
+      )
       template.scope_mode = scope_mode
       template.scope_department_ids = scope_ids
 
@@ -290,7 +296,7 @@ class WorkflowGraphTemplateAdminService:
     template_id: UUID,
     tags: list[str],
   ) -> WorkflowGraphTemplateDetailRead:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     template = await self._get_template_or_raise(template_id=template_id)
     if template.status == WorkflowGraphTemplateStatus.ARCHIVED:
       raise ConflictError("已归档模板不可修改标签。")
@@ -308,7 +314,7 @@ class WorkflowGraphTemplateAdminService:
     payload: WorkflowGraphTemplateAvailabilityScopeUpdateRequest,
   ) -> WorkflowGraphTemplateAvailabilityScopeRead:
     """Expand an ACTIVE template's launch scope without versioning its definition."""
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     template = await self._get_template_or_raise(template_id=template_id)
     if template.status != WorkflowGraphTemplateStatus.ACTIVE:
       raise ConflictError("仅已发布模板可通过可用部门管理扩大范围；草稿请在设计器中修改。")
@@ -350,17 +356,11 @@ class WorkflowGraphTemplateAdminService:
         raise ConflictError(f"可用部门包含不存在或已停用的部门：{', '.join(sorted(missing_ids))}")
 
     added_ids = sorted(after_set - before_set) if after_mode == "departments" else []
-    actor_has_global_management = is_management_role(actor)
-    if after_mode == "global" and not actor_has_global_management:
-      raise AuthorizationError("只有全局管理角色可以将模板扩大为全公司可用。")
-    if not actor_has_global_management and added_ids:
-      managed_ids = {
-        str(value)
-        for value in await get_effective_managed_department_ids(self._session, actor.id)
-      }
-      unauthorized = set(added_ids) - managed_ids
-      if unauthorized:
-        raise AuthorizationError("只能将模板授权给当前账号可管理的部门。")
+    await WorkflowAccessPolicy(self._session).ensure_can_assign_template_scope(
+      actor=actor,
+      scope_mode=after_mode,
+      scope_department_ids=after_ids,
+    )
 
     event = WorkflowGraphTemplateScopeEvent(
       template_id=template.id,
@@ -401,7 +401,7 @@ class WorkflowGraphTemplateAdminService:
     template_id: UUID,
     limit: int = 50,
   ) -> list[WorkflowGraphTemplateScopeEventRead]:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     await self._get_template_or_raise(template_id=template_id)
     rows = list(
       (
@@ -428,7 +428,7 @@ class WorkflowGraphTemplateAdminService:
     actor: User,
     template_id: UUID,
   ) -> bool:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     template = await self._get_template_or_raise(template_id=template_id)
     if template.status != WorkflowGraphTemplateStatus.DRAFT:
       raise ConflictError("仅 draft 模板可删除；已发布版本只能归档。")
@@ -446,7 +446,7 @@ class WorkflowGraphTemplateAdminService:
     template_id: UUID,
     payload: WorkflowGraphTemplateStatusUpdateRequest,
   ) -> WorkflowGraphTemplateDesignerRead:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     template = await self._get_template_or_raise(template_id=template_id)
     target_status = payload.status
 
@@ -517,7 +517,7 @@ class WorkflowGraphTemplateAdminService:
     return WorkflowGraphTemplateValidateResponse(valid=not errors, errors=errors)
 
   async def export_template(self, *, actor: User, template_id: UUID) -> WorkflowGraphTemplateExportBundle:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     designer = await self.get_designer_detail(template_id=template_id)
     return WorkflowGraphTemplateExportBundle(
       format_version=_EXPORT_FORMAT_VERSION,
@@ -561,7 +561,7 @@ class WorkflowGraphTemplateAdminService:
     template_id: UUID,
     payload: WorkflowGraphTemplateImportRequest,
   ) -> WorkflowGraphTemplateDesignerRead:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     template = await self._get_template_or_raise(template_id=template_id)
     if template.status != WorkflowGraphTemplateStatus.DRAFT:
       raise ConflictError("仅 draft 模板可导入 JSON。")
@@ -586,6 +586,11 @@ class WorkflowGraphTemplateAdminService:
     scope_mode, scope_ids = normalize_scope(
       scope_mode=body.scope_mode,
       scope_department_ids=body.scope_department_ids,
+    )
+    await WorkflowAccessPolicy(self._session).ensure_can_assign_template_scope(
+      actor=actor,
+      scope_mode=scope_mode,
+      scope_department_ids=scope_ids,
     )
     template = WorkflowGraphTemplate(
       code=code,
@@ -620,7 +625,7 @@ class WorkflowGraphTemplateAdminService:
     template_id: UUID,
     payload: WorkflowGraphTemplateDryRunRequest,
   ) -> WorkflowGraphTemplateDryRunResponse:
-    await self._ensure_manage(actor)
+    await self._ensure_manage(actor, template_id=template_id)
     template = await self._get_template_or_raise(template_id=template_id)
     state = await self._resolve_designer_state(template=template, draft=payload.draft)
     errors = self._collect_validation_errors(
@@ -776,6 +781,9 @@ class WorkflowGraphTemplateAdminService:
     if await self._session.scalar(select(WorkflowGraphTemplate.id).where(WorkflowGraphTemplate.code == code)):
       raise ConflictError("模板编码冲突，请稍后重试。")
 
+    scope_mode, scope_ids = await WorkflowAccessPolicy(self._session).default_template_scope(
+      actor=actor
+    )
     template = WorkflowGraphTemplate(
       code=code,
       base_code=base_code,
@@ -785,8 +793,8 @@ class WorkflowGraphTemplateAdminService:
       status=WorkflowGraphTemplateStatus.DRAFT,
       context_schema={},
       config={"aggregate_mode": "streaming"},
-      scope_mode="global",
-      scope_department_ids=[],
+      scope_mode=scope_mode,
+      scope_department_ids=scope_ids,
       created_by=actor.id,
       source_template_id=None,
     )
@@ -957,10 +965,11 @@ class WorkflowGraphTemplateAdminService:
       raise NotFoundError("工作流图模板不存在。")
     return template
 
-  async def _ensure_manage(self, actor: User) -> None:
-    ensure_active_user(actor)
-    if not await can_manage_task_templates(self._session, actor):
-      raise AuthorizationError("当前账号无权维护图模板。")
+  async def _ensure_manage(self, actor: User, *, template_id: UUID | None = None) -> None:
+    await WorkflowAccessPolicy(self._session).ensure_can_manage_templates(
+      actor=actor,
+      template_id=template_id,
+    )
 
   async def _load_node_summaries(self, *, template_id: UUID) -> list[WorkflowGraphTemplateNodeSummaryRead]:
     nodes = list(
@@ -1195,7 +1204,6 @@ class WorkflowGraphTemplateAdminService:
     template: WorkflowGraphTemplate,
     bundle: WorkflowGraphTemplateExportBundle,
   ) -> WorkflowGraphTemplateDesignerRead:
-    _ = actor
     if bundle.format_version != _EXPORT_FORMAT_VERSION:
       raise ConflictError("不支持的导出格式版本。")
     body = bundle.template
@@ -1208,6 +1216,11 @@ class WorkflowGraphTemplateAdminService:
     scope_mode, scope_ids = normalize_scope(
       scope_mode=body.scope_mode,
       scope_department_ids=body.scope_department_ids,
+    )
+    await WorkflowAccessPolicy(self._session).ensure_can_assign_template_scope(
+      actor=actor,
+      scope_mode=scope_mode,
+      scope_department_ids=scope_ids,
     )
     template.scope_mode = scope_mode
     template.scope_department_ids = scope_ids

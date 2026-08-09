@@ -36,7 +36,6 @@ import { resolveStatusLabel } from '@/components/task-detail/task-detail-labels'
 import {
   canDelegateStandaloneTask,
   isStandaloneTask as isStandaloneTaskFn,
-  taskHasAction,
 } from '@/domain/task-detail/actions'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
@@ -202,9 +201,6 @@ const handshakeStateLabel = computed(() => {
   }
   return '—'
 })
-function hasAction(action: string): boolean {
-  return taskHasAction(selectedTask.value, action)
-}
 const isStandaloneTask = computed(() => isStandaloneTaskFn(selectedTask.value))
 
 const delegateCandidateOptions = computed(() => {

@@ -34,7 +34,10 @@ test.describe('task center graph handshake', () => {
     await mockApi()
     await page.goto(`/task-center?filter=inbox&selected=${TASK_HANDSHAKE_DELEGATE}`)
 
-    await page.getByRole('button', { name: '转办' }).click()
+    await page
+      .getByTestId('tasks-detail-panel')
+      .getByRole('button', { name: '转办', exact: true })
+      .click()
     const dialog = page.locator('.el-dialog').filter({ hasText: '转办任务' })
     await dialog.locator('.el-select').click()
     await page

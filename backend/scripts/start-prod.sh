@@ -8,12 +8,15 @@
 #                where Nginx reaches the backend over the Docker network.
 #   BIND_PORT  – listen port   (default: 8000)
 #   WORKERS    – uvicorn worker count (default: 1; increase for multi-core)
+#   FORWARDED_ALLOW_IPS – trusted reverse-proxy peers (default: 127.0.0.1).
+#                Docker Compose sets this to its gateway's fixed private IP.
 
 set -eu
 
 BIND_HOST="${BIND_HOST:-127.0.0.1}"
 BIND_PORT="${BIND_PORT:-8000}"
 WORKERS="${WORKERS:-1}"
+FORWARDED_ALLOW_IPS="${FORWARDED_ALLOW_IPS:-127.0.0.1}"
 
 alembic upgrade head
 
@@ -22,4 +25,4 @@ exec uvicorn app.main:app \
   --port "$BIND_PORT" \
   --workers "$WORKERS" \
   --proxy-headers \
-  --forwarded-allow-ips "*"
+  --forwarded-allow-ips "$FORWARDED_ALLOW_IPS"

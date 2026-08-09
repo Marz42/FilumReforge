@@ -250,6 +250,7 @@ onMounted(() => {
           :form="form"
           :submitting="submitting"
           :is-editing-root-department="isEditingRootDepartment"
+          @update:form="Object.assign(form, $event)"
           @submit="handleSubmit"
           @delete="handleDelete"
           @cancel-create="cancelCreateDepartment"

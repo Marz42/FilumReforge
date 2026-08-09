@@ -30,10 +30,6 @@ const emit = defineEmits<{
 const scrollContainer = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
 
-function closeDrawer(): void {
-  emit('update:modelValue', false)
-}
-
 function scrollToAnchor(anchor: PeopleAnchorId): void {
   const container = scrollContainer.value
   if (!container) {

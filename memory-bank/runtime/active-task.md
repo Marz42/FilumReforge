@@ -1,9 +1,9 @@
 ---
 type: paradigma-runtime-state
 title: Active Task
-description: 修复图模板设计器作用范围 tree-select 绑定与列表 scope_mode 过滤。
-tags: [runtime, active-task, workflow-template, scope]
-timestamp: 2026-08-09T22:09:00+08:00
+description: 固定 v0.93.0-rc.1 员工试用候选并保留生产门禁。
+tags: [runtime, active-task, release-candidate, employee-trial]
+timestamp: 2026-08-09T23:40:00+08:00
 paradigma:
   layer: runtime
   temperature: hot
@@ -17,37 +17,46 @@ paradigma:
 
 ## Task ID
 
-fix-template-scope-tree-select-2026-08-04
+rc-0.93.0-employee-trial-2026-08-09
 
 ## User Request
 
-P0/P1：修复「可用部门」始终显示全公司可用；根因为设计器作用范围 tree-select 未按 `id` 绑定。
+将已完成的 Iteration 4、安全加固、前端修复和低风险质量清理固定为 `v0.93.0-rc.1`，供隔离环境员工试用；后续开发继续推进，生产门禁保持独立。
 
 ## Current Status
 
-completed — 设计器绑定与列表过滤已修复；已补充 Iteration 4 / 领域中立 / 设计器 Phase 2 UAT checklist。
+rc-fixed / trial-deployment-pending — 本地完整门禁通过，版本与发布材料已固定为 `v0.93.0-rc.1`；等待隔离员工试用环境部署。
 
 ## Checklist
 
-- [x] 定位 tree-select props / 递归部门树问题
-- [x] 修复设计器 scope 保存与 tree-select 绑定
-- [x] 列表过滤改为尊重 `scope_mode`
-- [x] 补充前端 util/设计器与后端列表回归测试
-- [x] 更新 active-task 与 session log
-- [x] 编写 UAT checklist 手册并提交工作区更改
+- [x] 校准 implementation-plan、roadmap、测试基线和当前文档中的旧 progress 协议引用
+- [x] 将 6 项扫描发现归档为可追踪的安全上线清单
+- [x] 修复可信代理/认证限流身份问题
+- [x] 修复工作流实例、模板读写与组织关系对象授权
+- [x] 限制 OOXML 预览解析资源预算
+- [x] 执行本地全量回归、静态配置检查、Alembic head 与等价 release gate
+- [x] 更新上线状态、残余风险与目标环境操作清单
+- [x] 记录 RC 不可变标签、隔离环境、持续开发与热修回流规则
+- [x] 固定版本、完成最终回归并创建 `v0.93.0-rc.1`
+- [ ] 在隔离员工试用环境从该标签部署并核对 health version
+- [ ] 在预发/生产目标环境完成 TLS、secret、备份恢复、Linux release script、I4 UAT 与 I3-F 最终证据
 
 ## Relevant Knowledge
 
+- `memory-bank/knowledge/plans/2026-08-09-security-release-readiness-plan.md`
+- `memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md`
+- `memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md`
+- `memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md`
+- `memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md`
 - `memory-bank/knowledge/decisions/adr-020-published-template-availability-scope.md`
-- `memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md`
-- `frontend/src/utils/departmentTreeSelect.ts`
-- `frontend/src/views/GraphTemplateDesignerView.vue`
-- `backend/app/api/routes/workflow_graph_engine.py`
+- `memory-bank/knowledge/known-issues/ki-011-system-admin-business-boundary.md`
 
 ## Blockers
 
-- 无。
+- 无继续开发的代码阻碍。目标环境 I3-F 回填、连续 7 天观测、真实 TLS/secret/backup/restore 与人工 UAT 无法由本地代码验证替代，必须保持为生产上线外部门禁。
 
 ## Notes
 
-- 已被误存为 `global` 的 ACTIVE 模板需另存新版本后在草稿中重新选部门再发布（ADR-020 禁止从 global 原地缩回）。
+- 安全扫描针对 `d4a1d9d`；2026-08-09 当前工作树已闭合 6 项发现。
+- `Security Issue(temp)` 是用户提供的临时扫描材料，原始文件不作为运行时产物提交；权威处置结论写入 Memory-Bank。
+- RC 环境不得与继续开发环境共用数据库、Redis 或附件存储；已固定标签不得移动。

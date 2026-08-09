@@ -270,6 +270,16 @@ export function buildGraphInstances(adminUser: AdminUser): Record<string, GraphI
       status: 'in_progress',
       initiator_user_id: adminUser.id,
       context: {
+        capability_snapshot: {
+          schema_version: 1,
+          capabilities: [
+            'structured_form_submission',
+            'collection_finalize',
+            'aggregate_confirmation',
+            'child_run_dispatch',
+          ],
+          source: 'explicit',
+        },
         aggregate_mode: 'batch',
         capture_closed: false,
         manager_user_id: adminUser.id,

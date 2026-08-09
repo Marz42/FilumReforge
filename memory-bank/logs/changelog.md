@@ -20,6 +20,10 @@ paradigma:
 
 ## [Unreleased]
 
+暂无。
+
+## [0.93.0-rc.1] — 2026-08-09
+
 ### Added
 
 - 工作流图引擎 Iteration 4-A：Node Handler Registry、统一 Capability Result，以及 HumanTask/Notice 的 activate/complete/cancel/retry 契约与 RunEvent 结果审计
@@ -43,6 +47,9 @@ paradigma:
 
 ### Changed
 
+- 前端页面路由和附件 DOCX/XLSX/Markdown 解析器改为按需加载，最大入口 JS 从约 1.98 MB 降至约 809 KB
+- 生产可信代理链改为显式信任：应用限流只读取 Uvicorn 校验后的客户端地址，Nginx 覆盖外部 forwarded chain，Compose 使用固定网关私网 IP
+- 图模板读取/管理统一为对象级部门范围策略；ACTIVE departments 仅对所属/有效管理部门可读，部门模板管理员只能维护完整 scope 位于其管理范围的模板
 - Iteration 4 执行顺序增加 Preflight 门禁：先完成 memory-bank 事实对齐、视频模板领域中立设计与前端问题分级；I4-A 保留，I4-B 暂停
 - ADR-018 固定视频流程为普通图模板包，后续不新增 `VideoHandler`，现有视频专用 API/service/Profile 作为兼容层分批迁移
 - ADR-019 将集合确认、独立交付验收、正式业务审批和多人会签分开建模；旧 `self_review_fallback` 不再作为目标策略
@@ -59,6 +66,11 @@ paradigma:
 
 ### Fixed
 
+- 修复新建任务成功后任务中心工作区未同步刷新；E2E mock 对齐显式 capability snapshot 与重复 `ids` 查询契约
+- 清理前端 21 项 ESLint 错误：移除无效遗留代码、停止在 computed 中写状态，并将部门表单改为显式双向更新契约
+- 更新 logout cookie 回归写法，消除 httpx per-request cookies 弃用告警
+- 修复伪造 `X-Forwarded-For` 绕过认证限流、部门池成员选项越权读取实例、模板详情/写操作越权、smart-notice 任意 UUID 汇报链探测等安全问题
+- DOCX/XLSX 入库前增加 OOXML 条目数、展开大小、单条目、压缩比、路径与加密预算，阻止压缩炸弹进入前端预览器
 - 条件分支未选节点不再永久 pending；Join 不再等待未产生分支；no-route 进入 failed 并写结构化诊断
 - 统一 Run→Node 行锁顺序，消除 PostgreSQL Wait-Any 并发完成死锁
 - Excel 附件预览改为 Vue 文本插值渲染，并限制为前 500 行/100 列，避免不可信单元格 HTML 注入与超大表格渲染阻塞
@@ -207,4 +219,4 @@ paradigma:
 ### Notes
 
 - 此版本号为 **文档体系与协作协议** 基线，不代表产品功能大版本发布
-- 产品功能交付历史见 `progress.md` 与 `roadmap.md`
+- 产品功能交付历史见 [`progress/progress.md`](./progress/progress.md) 与 [`roadmap.md`](../knowledge/roadmap.md)

@@ -18,7 +18,7 @@ from app.core.enums import (
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
 )
-from app.core.exceptions import AuthorizationError, ConflictError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.models import (
   Attachment,
   AttachmentLink,
@@ -194,7 +194,7 @@ async def test_graph_template_delete_guards_permissions_and_existing_runs(db_ses
   )
   await db_session.commit()
 
-  with pytest.raises(AuthorizationError):
+  with pytest.raises(NotFoundError):
     await service.delete_template(actor=employee, template_id=deletable.id)
   with pytest.raises(ConflictError, match="已发布版本只能归档"):
     await service.delete_template(actor=admin, template_id=protected.id)

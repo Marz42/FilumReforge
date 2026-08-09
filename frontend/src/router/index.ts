@@ -1,22 +1,23 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import AppShell from '@/components/AppShell.vue'
-import SettingsLayout from '@/components/settings/SettingsLayout.vue'
-import ProfileSection from '@/components/settings/ProfileSection.vue'
-import SecuritySection from '@/components/settings/SecuritySection.vue'
-import NotificationsSection from '@/components/settings/NotificationsSection.vue'
 import { useAuthStore } from '@/stores/auth'
-import HomeView from '@/views/HomeView.vue'
-import KnowledgeBaseView from '@/views/KnowledgeBaseView.vue'
 import LoginView from '@/views/LoginView.vue'
 import type { UserRole } from '@/types/api'
-import DepartmentsView from '@/views/DepartmentsView.vue'
-import MessagesView from '@/views/MessagesView.vue'
-import PeopleManagementView from '@/views/PeopleManagementView.vue'
-import ReportsView from '@/views/ReportsView.vue'
-import TaskCenterView from '@/views/TaskCenterView.vue'
-import TaskTemplatesView from '@/views/TaskTemplatesView.vue'
-import GraphTemplateDesignerView from '@/views/GraphTemplateDesignerView.vue'
+
+const SettingsLayout = () => import('@/components/settings/SettingsLayout.vue')
+const ProfileSection = () => import('@/components/settings/ProfileSection.vue')
+const SecuritySection = () => import('@/components/settings/SecuritySection.vue')
+const NotificationsSection = () => import('@/components/settings/NotificationsSection.vue')
+const HomeView = () => import('@/views/HomeView.vue')
+const KnowledgeBaseView = () => import('@/views/KnowledgeBaseView.vue')
+const DepartmentsView = () => import('@/views/DepartmentsView.vue')
+const MessagesView = () => import('@/views/MessagesView.vue')
+const PeopleManagementView = () => import('@/views/PeopleManagementView.vue')
+const ReportsView = () => import('@/views/ReportsView.vue')
+const TaskCenterView = () => import('@/views/TaskCenterView.vue')
+const TaskTemplatesView = () => import('@/views/TaskTemplatesView.vue')
+const GraphTemplateDesignerView = () => import('@/views/GraphTemplateDesignerView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

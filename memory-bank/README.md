@@ -2,7 +2,7 @@
 
 本目录是 Project Filum 的**外部记忆系统**，已对齐 Paradigma Harness `0.5.0`（三态结构、阶段 checkpoint、独立 session log、Harness 诊断和可选 DESIGN 域）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)。
 
-> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → 已发布模板可用部门治理 + Paradigma `0.5.0` 协议升级 · 计划 [`2026-07-30-template-availability-paradigma-upgrade-plan.md`](./knowledge/plans/2026-07-30-template-availability-paradigma-upgrade-plan.md)
+> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → 本地安全修复已完成，等待固定 release commit 与目标环境准入 · 上线清单 [`2026-08-09-production-release-checklist.md`](./knowledge/manuals/2026-08-09-production-release-checklist.md)
 
 > **`knowledge/manuals/` ≈ Paradigma `manuals/`**：路径名保留 `knowledge/manuals/`，语义为部署运维与测试操作手册。
 

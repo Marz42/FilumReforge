@@ -21,6 +21,7 @@ backend/.storage/
 frontend/node_modules/
 frontend/dist/
 frontend/.eslintcache
+/.eslintcache
 frontend/coverage/
 frontend/.env
 
@@ -33,3 +34,6 @@ chrome-win64.zip
 # Local reference clone (Paradigma memory-bank template); not part of Filum repo
 /paradigma/
 /paradigma-upstream/
+
+# Local security-scan exports; tracked conclusions live in memory-bank.
+/Security Issue(temp)/

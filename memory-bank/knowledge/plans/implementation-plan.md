@@ -33,7 +33,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **工作流图引擎 Iteration 1（I1-A–E）已实施，等待用户验收**（2026-07-13），见 [`workflow-graph-engine-iteration1-implementation-plan.md`](./workflow-graph-engine-iteration1-implementation-plan.md)。Iteration 0 已验收，ADR-012–016 已采纳；未获批准前不进入 Iteration 2 路径语义修复。**S-01 最小周期统计已实施，仍待用户验收**；F-05 `TaskDetailShell` 拆分与完整 E2E 基线刷新保持为并行技术债。
+**当前执行位置**: **工作流图引擎 Iteration 4 A–E 与 2026-08 安全修复均已完成本地工程实现**；当前固定 `v0.93.0-rc.1` 员工试用候选，并以隔离环境/不可变标签/RC 热修回流规则与后续开发分流。Iteration 3-F 的本地工程门禁已实现，但目标环境 Expand/Contract、Link 回填、连续 7 天观测和最终 31/31 报告仍未完成。**S-01 最小周期统计已实施，仍待用户验收**；F-05 `TaskDetailShell` 拆分和生产环境证据继续作为后续技术债/外部门禁，ESLint 既有错误与 httpx 弃用告警已在 RC 清理。
 
 ## 2. 已确认约束
 
@@ -58,7 +58,7 @@ paradigma:
 - 任务协同：任务、依赖、严格状态机、评论、日志、附件、统计
 - 通知骨架：消息落库、delivery 记录、ARQ 入队、adapter 分发、逾期提醒扫描
 - Workflow & Messaging：模板、审批流、周期调度、消息中心、回执、watcher、多视图
-- 工作流重构图引擎：手动任务 graph dual-write、多节点推进、Context 写回、条件边（含 else）、Notice Node、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first**（`TASK_CENTER_V2_ENABLED` 默认 `true`，`backend/app/core/config.py`）、迁移 CLI（Phase 11-A–11-F）；详见 `memory-bank/logs/progress/progress.md` 与 `memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md`
+- 工作流重构图引擎：手动任务 graph dual-write、多节点推进、Context 写回、条件边（含 else）、Notice Node、智能抄送候选、Wait-Any、深度打回、outbox、**任务中心列表 graph-first**（`TASK_CENTER_V2_ENABLED` 默认 `true`，`backend/app/core/config.py`）、迁移 CLI（Phase 11-A–11-F）；详见 `memory-bank/logs/progress/summary.md`、最近独立 session log 与 `memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md`
 - Knowledge / AI：文档库、embedding、RAG、`@系统` / `/` 路由、Tool Calling
 - Push / PWA：浏览器订阅管理、Web Push adapter、manifest、service worker
 - 前端：登录、分组导航壳层、总览模块（看板 / 公告 / 待办 / 跟踪）、任务中心聚合入口、汇报中心入口、消息中心、设置模块、知识库、统一人员工作台、部门管理；Playwright mock / live E2E 基线（Phase 11-G）
@@ -71,7 +71,7 @@ paradigma:
 - 生命周期事件的**规则化默认映射**与**前端结构化配置入口**（显式绑定 + worker 触发已落地）
 - 真实 Email / WebSocket 对外发送接入深化（当前仍为最小 / 占位适配器为主）
 - **Legacy E 历史表族清理**：B-12 已移除 `task_templates` 对外 API、实例化入口与旧调度路径；表/ORM/未挂载服务暂保留用于历史数据兼容，后续需明确迁移和删除策略
-- 更系统的重构、集成测试、E2E 扩面；**Ubuntu 最小回滚演练**；docker-gui / Playwright 基线定期刷新（Stage 2 Phase 6 主机演练与 2026-05-21 测试基线已记入 `progress.md`）
+- 更系统的重构、集成测试、E2E 扩面；**Ubuntu 最小回滚演练**；docker-gui / Playwright 基线定期刷新（历史基线见旧 `logs/progress/progress.md`，新结果写入独立 session log）
 
 独立迭代（不并入 Stage 2 串行表内阶段）的积压主题已汇总至 `memory-bank/knowledge/plans/improvements-stage2-implementation-plan.md` **§11**。
 
@@ -90,7 +90,7 @@ paradigma:
 ### 4.2 文档同步原则
 
 - 开始一个新阶段前，先更新 `memory-bank/knowledge/contracts/data-contracts.md`（schema 预案）与 `memory-bank/knowledge/architecture.md`（模块/流程事实）
-- 从 Stage 2 开始，每个阶段完成后都必须先更新 `data-contracts.md`（若有 schema 变化）与 `architecture.md`，再更新 `memory-bank/logs/progress/progress.md`
+- 每个阶段完成后先更新 `data-contracts.md`（若有 schema 变化）与 `architecture.md`，再创建 `memory-bank/logs/progress/YYYY-MM-DD-<task>.md` 独立 session log
 - 若阶段边界发生变化，先更新本文件，再开始编码
 
 ### 4.3 验收闸门
@@ -229,7 +229,7 @@ paradigma:
 	  - `infra/nginx/nginx.compose.prod.conf`：Compose 内部 gateway Nginx 配置
 	  - `scripts/check-release.sh`：发布前全量验证脚本（pytest、compileall、type-check、build、lint、alembic check）
 	- 近期已完成核心回归：backend `pytest -q`、`python -m compileall app tests`，frontend `npm run test:unit -- --run`、`npm run type-check`
-	- Stage 2 Phase 6 已完成；发布前在 **Linux 原生路径** 执行 `bash scripts/check-release.sh`（见 `progress.md` 测试基线）
+	- Stage 2 Phase 6 已完成；发布前在 **Linux 原生路径** 执行 `bash scripts/check-release.sh`（结果写入当次 session log）
 2. 模板管理深化
 	- 继续补模板 / 调度更完整的管理动作与更强设计器校验，而不是停留在“可创建 / 可实例化”的首版能力
 3. 业务联动
@@ -270,7 +270,7 @@ paradigma:
 ## 7. 跨阶段通用规则
 
 - `architecture.md` 必须持续维护完整 schema 与模块边界
-- `progress.md` 在阶段验测通过或关键 follow-up 收口后更新
+- 阶段验测通过或关键 follow-up 收口后创建独立 session log；旧 `logs/progress/progress.md` 不再追加
 - 新功能优先复用现有附件、通知、权限抽象
 - 所有敏感流程必须由服务层兜底，前端只做辅助限制
 - 若后续需求再次改变阶段边界，先修改本文件，再开始编码

@@ -49,9 +49,15 @@ export async function fulfillTasksListGet(
     return false
   }
 
-  const idsParam = parseQueryParam(apiPath, 'ids')
-  if (idsParam) {
-    const ids = idsParam.split(',').map((value) => value.trim()).filter(Boolean)
+  const queryIndex = apiPath.indexOf('?')
+  const ids = queryIndex < 0
+    ? []
+    : new URLSearchParams(apiPath.slice(queryIndex + 1))
+      .getAll('ids')
+      .flatMap((value) => value.split(','))
+      .map((value) => value.trim())
+      .filter(Boolean)
+  if (ids.length > 0) {
     const taskById = new Map(allTasks.map((task) => [task.id, task]))
     const tasks = ids.map((id) => taskById.get(id)).filter((task): task is TaskLike => task !== undefined)
     await fulfillJson(route, tasks)
