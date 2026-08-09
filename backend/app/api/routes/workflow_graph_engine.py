@@ -80,6 +80,7 @@ from app.schemas.workflow_graph import (
   WorkflowSmartNoticeCandidatesRequest,
   WorkflowSmartNoticeCandidatesResponse,
   WorkflowIteration4ReadinessResponse,
+  WorkflowIteration4UatPreflightRead,
 )
 from app.schemas.workflow_graph_schedule import (
   GraphTemplateScheduleCreateRequest,
@@ -105,6 +106,9 @@ from app.services.workflow_graph_template_schedule_service import (
 from app.services.workflow_run_event_service import WorkflowRunEventService
 from app.services.workflow_command_executor import WorkflowCommandExecutor
 from app.services.workflow_iteration4_readiness_service import WorkflowIteration4ReadinessService
+from app.services.workflow_iteration4_uat_preflight_service import (
+  WorkflowIteration4UatPreflightService,
+)
 from app.services.workflow_video_fork_service import WorkflowVideoForkService
 from app.services.workflow_video_form_service import WorkflowVideoFormService
 
@@ -531,6 +535,18 @@ async def audit_graph_template_governance(
   return await WorkflowGraphTemplateGovernanceService(session).audit_manageable_templates(
     actor=actor,
   )
+
+
+@router.get(
+  "/templates/uat-preflight",
+  response_model=WorkflowIteration4UatPreflightRead,
+  tags=["workflow-graph"],
+)
+async def get_iteration4_uat_preflight(
+  actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> WorkflowIteration4UatPreflightRead:
+  return await WorkflowIteration4UatPreflightService(session).build_report(actor=actor)
 
 
 @router.get(

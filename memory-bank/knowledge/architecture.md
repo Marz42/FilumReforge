@@ -25,7 +25,7 @@ paradigma:
 # Project Filum 架构基线
 
 **文档版本**: v3.22.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
-**最后同步**: 2026-08-09 · 安全扫描处置与上线准备；Iteration 4-A–E 工程完成
+**最后同步**: 2026-08-10 · Iteration 4 UAT 验收准备；Iteration 4-A–E 工程完成
 
 ## 1. 文档定位
 
@@ -82,6 +82,7 @@ paradigma:
 - Iteration 4-B（@ 2026-07-29）：HumanTask 完成、取消、重试结果由 `HumanTaskCoordinator` 通过 Runtime owner port 应用并同步 Link/Outbox；显式区分普通 `complete` 与 `collection_finalize`，A/B/C 均提交且 A 同时负责集合确认属于合法推进。
 - Iteration 4-C/D（@ 2026-07-30）：Approval 通过适配器复用旧审批引擎并在动作前执行 ADR-019；Deliverable JSON v2 保存 submission/review 版本和 accepted snapshot；Notification 以 queued/sent/all-channels-success 明确完成语义，失败/重试/取消统一为 Capability Result。
 - Iteration 4-E（@ 2026-07-30）：模板 Run 固化领域中立 `capability_snapshot`，节点/ROOT Task 投影 `task_capability`；Runtime 通知/终态归档、TaskService 根壳层可见性、集合关闭、子 Run 派发与前端布局均消费通用策略。`run_kind`、节点 key 与 `video_*` Profile 推断集中到兼容适配器，视频 seed v5 仅声明能力；非视频合同材料模板对照通过。
+- Iteration 4 UAT Preflight（@ 2026-08-10）：`WorkflowIteration4UatPreflightService` 以现有模板管理权限只读聚合治理审计、候选部门/模板与 S-01 当月样本，前端由“任务模板 → 验收准备”展示 P-01～P-07。`preflight_ready` 只表示环境可测，`manual_uat_required` 始终为真。视频 `base_code` 识别被限制在验收辅助层，不进入 Runtime 行为。
 - ADR-019（@ 2026-07-29）：参与者重叠按决策对象与动作语义处理。集合确认允许负责人同时贡献；同版本独立验收和正式业务审批默认职责分离；多人会签可显式允许重叠但贡献者不得成为唯一决定者。系统管理员业务边界改造按 KI-011 延后，不属于 I4
 - 工作流重构 Phase 3：后端已新增 `WORKFLOW_GRAPH_ENGINE_ENABLED` 等 feature flag、`WorkflowGraphService` 单节点实例创建服务，并让 `TaskService.create_task_record()` 在手动创建任务且开关开启时走“graph instance + node instance + 兼容 Task 投影”双写路径；兼容 `Task` 行仍是列表与详情载体，`TaskCenterService` 仍委托 `TaskService.list_task_inbox()` 等三接口，但在 `TASK_CENTER_V2_ENABLED=true`（`backend/app/core/config.py` 默认）时上述列表优先使用 `_graph_task_projection_map` 解析 `WorkflowGraphInstance` / `WorkflowNodeInstance` / `WorkflowDeliverable`，未命中图投影时回落既有 legacy 规则
 - 工作流重构单节点交付闭环首轮：基于上述 Phase 3 双写链路，`TaskService` / `tasks` API 已新增“提交交付物”“通过验收”“打回返工”动作，交付快照写入 `workflow_deliverables`，兼容 `Task` 投影通过 `extra_metadata` 暴露最近交付说明、最近提交时间、返工原因、返工次数与最近质量评分；`TaskCenterService` / `task-center` API / `TaskCenterView` 已同步投影待验收、最近提交时间、返工次数、质量评分等跟踪信号；同时禁止 graph 手动任务通过通用状态流转接口直接跳过交付 / 验收动作

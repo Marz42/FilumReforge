@@ -46,7 +46,7 @@ paradigma:
 | B-02 | 生产形态 PostgreSQL/Redis 用例在严格模式运行，不允许登记用例静默 skip | [ ] |
 | B-03 | `alembic current/heads/check` 一致，升级前后抽样核对关键表与 Run | [ ] |
 | B-04 | 真实反向代理只信任明确 peer；外部伪造 XFF 不改变认证限流 identity | [ ] |
-| B-05 | I4 / 设计器 Phase 2 UAT checklist 全部必过项完成 | [ ] |
+| B-05 | 在“任务模板 → 验收准备”确认 P-01～P-04 无阻断，并由员工完成 I4 / 设计器 Phase 2 / S-01 UAT checklist 全部必过项；自动检查结果不得代替人工记录与签字 | [ ] |
 | B-06 | 在“任务模板 → 数据检查”执行 scope/依赖盘点：intentional global 已由业务负责人确认，空 departments、缺失/停用部门、旧 `child_template_code`、父子范围不兼容均通过草稿或新版本处理；复查 `error=0` | [ ] |
 
 ## C. I3-F 硬门禁

@@ -95,6 +95,46 @@ async def test_i3f_iteration4_readiness_is_admin_only_and_queryable(api_client) 
   assert denied.status_code == 404
 
 
+@pytest.mark.asyncio
+@pytest.mark.workflow_i4_gate
+async def test_iteration4_uat_preflight_is_queryable_and_does_not_claim_uat_passed(api_client) -> None:
+  client, _queue_publisher = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+
+  response = await client.get(
+    "/api/v1/workflow-graph/templates/uat-preflight",
+    headers=admin_headers,
+  )
+
+  assert response.status_code == 200, response.text
+  body = response.json()
+  assert body["manual_uat_required"] is True
+  assert body["preflight_ready"] is False
+  assert any(check["check_id"] == "P-07" and check["status"] == "manual" for check in body["checks"])
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=admin_headers,
+    json={
+      "email": "uat-preflight-employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_headers = await login(
+    client,
+    email="uat-preflight-employee@example.com",
+    password="StrongPassword123!",
+  )
+  denied = await client.get(
+    "/api/v1/workflow-graph/templates/uat-preflight",
+    headers=employee_headers,
+  )
+  assert denied.status_code == 404
+
+
 class FakeRouterOpenAIClient:
   def __init__(self) -> None:
     self.chat_calls = 0

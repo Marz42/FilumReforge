@@ -105,6 +105,53 @@ class WorkflowGraphTemplateGovernanceAuditRead(BaseModel):
   issues: list[WorkflowGraphTemplateGovernanceIssueRead] = Field(default_factory=list)
 
 
+class WorkflowIteration4UatCheckRead(BaseModel):
+  check_id: str
+  area: Literal["templates", "accounts", "statistics", "manual"]
+  status: Literal["pass", "warning", "blocked", "manual"]
+  title: str
+  detail: str
+  action: str | None = None
+
+
+class WorkflowIteration4UatTemplateCandidateRead(BaseModel):
+  kind: Literal["domain_neutral", "video_batch", "video_child", "designer_draft"]
+  template_id: UUID
+  code: str
+  name: str
+  status: WorkflowGraphTemplateStatus
+  scope_mode: Literal["global", "departments"]
+  scope_department_ids: list[str] = Field(default_factory=list)
+
+
+class WorkflowIteration4UatDepartmentCandidateRead(BaseModel):
+  department_id: UUID
+  department_name: str
+  active_member_count: int
+  manager_user_id: UUID
+
+
+class WorkflowIteration4UatStatsSampleRead(BaseModel):
+  start_date: str
+  end_date: str
+  created_count: int = 0
+  completed_count: int = 0
+  due_count: int = 0
+  current_open_count: int = 0
+
+
+class WorkflowIteration4UatPreflightRead(BaseModel):
+  generated_at: datetime
+  preflight_ready: bool
+  manual_uat_required: bool = True
+  blocking_count: int = 0
+  warning_count: int = 0
+  checks: list[WorkflowIteration4UatCheckRead] = Field(default_factory=list)
+  template_candidates: list[WorkflowIteration4UatTemplateCandidateRead] = Field(default_factory=list)
+  department_candidates: list[WorkflowIteration4UatDepartmentCandidateRead] = Field(default_factory=list)
+  stats_sample: WorkflowIteration4UatStatsSampleRead
+
+
 class WorkflowGraphTemplateSummaryRead(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 

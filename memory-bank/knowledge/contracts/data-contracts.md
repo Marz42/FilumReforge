@@ -32,8 +32,8 @@ paradigma:
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
-**版本**: v3.21.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-08-09 · 安全对象授权、可信代理与 OOXML 预算 · 产品基线 `0.93.0-rc.1`
+**版本**: v3.22.0（与 [`architecture.md`](../architecture.md) 同步）
+**最后同步**: 2026-08-10 · Iteration 4 UAT 验收准备接口 · 产品基线 `0.93.0-rc.1`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -52,6 +52,7 @@ paradigma:
   - 图模板管理：`GET/PATCH .../templates/{id}`、`GET .../feature-flags`
   - **图模板设计器（F-18–F-20 @ 2026-06-21）**：`GET .../templates?scope=manage`；`POST .../templates`（clone）；`GET/PUT .../templates/{id}/designer|draft`；`POST .../templates/{id}/versions`；`PATCH .../templates/{id}/status`；`GET .../templates/{id}/validate`；`GET/POST .../templates/{id}/export|import`；`POST .../templates/import`；`POST .../templates/{id}/dry-run`；`GET .../templates/{id}/stats`
   - **模板数据治理（2026-08-10）**：`GET .../templates/governance-audit` 对调用者可管理的 ACTIVE/DRAFT 模板执行只读检查，返回 `error|warning|review` 分级、模板/问题/建议、`edit_draft|create_new_version|review_configuration` 修正动作，以及可选引用编码、建议编码和受影响部门。检查覆盖 global 人工确认、global 残留部门编号、空 departments、缺失/停用部门、顶层/节点 `child_template_code`、`on_complete.next_template_code`、旧版本引用与父子 scope 不兼容；接口不自动修改数据。
+  - **Iteration 4 UAT 验收准备（2026-08-10）**：`GET .../templates/uat-preflight` 对具备模板管理权限的调用者返回 `preflight_ready`、固定为真的 `manual_uat_required`、`checks[]`、模板/部门候选与当前月 S-01 样本计数。P-01～P-06 检查治理错误、负责人 + 至少 3 名活跃成员、非视频通用 ACTIVE 模板、视频参考模板包、设计器草稿和统计样本；P-07 始终要求人工验收。接口只读，普通员工或越权对象统一 404；`preflight_ready` 不表示 UAT 已通过。
   - **ADR-017 Phase 1/2（2026-07-28）**：summary/detail/designer 返回 `tags` + `capabilities`；manage list 支持 `status` + `q`；`PATCH .../templates/{id}/tags`；designer/detail 返回既有 `context_schema`，draft save 可选写入且省略时保留原值；常用 `ui_profile` / launch / routing 结构化 authoring 不改变运行时契约
   - **ADR-020 已发布模板可用部门治理（2026-07-30）**：`PATCH .../templates/{id}/availability-scope` 仅允许 ACTIVE 模板增加部门或扩大为 global，请求必须提供 `reason`；部门经理新增目标限其有效管理范围，扩大为 global 仅允许全局管理角色；`GET .../templates/{id}/availability-scope/events` 返回 actor、前后范围、新增部门、原因与时间。草稿继续由 designer 修改，归档模板和 ACTIVE 范围缩减均拒绝。
   - **安全读取/管理策略（2026-08-09）**：ACTIVE global 对所有活跃用户可读；ACTIVE departments 仅对所属部门或有效管理部门可读；DRAFT/ARCHIVED 只对可管理者可读。部门模板管理员只能读取、派生、编辑、导入/导出、发布、归档或删除其完整 scope 位于有效管理范围内的模板；越权对象统一 404。`department-pool-member-options` 同时校验 template 与可选 instance 的对象读权限。

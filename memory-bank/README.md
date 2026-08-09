@@ -2,7 +2,7 @@
 
 本目录是 Project Filum 的**外部记忆系统**，已对齐 Paradigma Harness `0.5.0`（三态结构、阶段 checkpoint、独立 session log、Harness 诊断和可选 DESIGN 域）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)。
 
-> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → 主开发线已恢复，当前完成模板范围/父子依赖数据检查；`v0.93.0-rc.1` 员工试用与生产准入继续独立推进 · 上线清单 [`2026-08-09-production-release-checklist.md`](./knowledge/manuals/2026-08-09-production-release-checklist.md)
+> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → 主开发线已补齐 Iteration 4 / 设计器 Phase 2 / S-01 的“验收准备”检查，下一步是目标环境人工 UAT；`v0.93.0-rc.1` 员工试用与生产准入继续独立推进 · [UAT 清单](./knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) · [上线清单](./knowledge/manuals/2026-08-09-production-release-checklist.md)
 
 > **`knowledge/manuals/` ≈ Paradigma `manuals/`**：路径名保留 `knowledge/manuals/`，语义为部署运维与测试操作手册。
 
@@ -70,6 +70,8 @@
 | [workflow-video-v1-docker-runbook.md](./manuals/workflow-video-v1-docker-runbook.md) | 视频工作流 v1 Docker 冒烟 |
 | [workflow-video-v1-collaborative-uat-guide.md](./manuals/workflow-video-v1-collaborative-uat-guide.md) | W0–W10 协同 UAT |
 | [workflow-video-v1-multi-account-e2e-guide.md](./manuals/workflow-video-v1-multi-account-e2e-guide.md) | 多账号 Live/Mock E2E |
+| [2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md](./knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) | Iteration 4 / 设计器 Phase 2 / S-01 人工验收 |
+| [2026-08-09-production-release-checklist.md](./knowledge/manuals/2026-08-09-production-release-checklist.md) | 预发、I3-F 与生产上线准入 |
 
 ### [history/](./history/) — 存档
 

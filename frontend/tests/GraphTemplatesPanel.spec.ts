@@ -23,6 +23,7 @@ vi.mock('@/api/workflow-graph', () => ({
   deleteGraphTemplate: vi.fn(),
   forkGraphTemplateVersion: vi.fn(),
   auditGraphTemplateGovernance: vi.fn(),
+  getIteration4UatPreflight: vi.fn(),
 }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: null }) }))
@@ -55,7 +56,7 @@ describe('GraphTemplatesPanel', () => {
   it('loads with working status filter by default', async () => {
     mount(GraphTemplatesPanel, {
       props: { canPublish: true, canManage: true },
-      global: { plugins: [ElementPlus], stubs: { TemplateInstantiateDialog: true, GraphTemplateEditDialog: true, GraphTemplateAvailabilityDialog: true, GraphTemplateGovernanceDialog: true } },
+      global: { plugins: [ElementPlus], stubs: { TemplateInstantiateDialog: true, GraphTemplateEditDialog: true, GraphTemplateAvailabilityDialog: true, GraphTemplateGovernanceDialog: true, Iteration4UatPreflightDialog: true } },
     })
     await flushPromises()
     expect(listGraphTemplates).toHaveBeenCalledWith({
@@ -68,18 +69,19 @@ describe('GraphTemplatesPanel', () => {
   it('renders archive button for active templates', async () => {
     const wrapper = mount(GraphTemplatesPanel, {
       props: { canPublish: true, canManage: true },
-      global: { plugins: [ElementPlus], stubs: { TemplateInstantiateDialog: true, GraphTemplateEditDialog: true, GraphTemplateAvailabilityDialog: true, GraphTemplateGovernanceDialog: true } },
+      global: { plugins: [ElementPlus], stubs: { TemplateInstantiateDialog: true, GraphTemplateEditDialog: true, GraphTemplateAvailabilityDialog: true, GraphTemplateGovernanceDialog: true, Iteration4UatPreflightDialog: true } },
     })
     await flushPromises()
     expect(wrapper.find('[data-testid="graph-template-archive"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="graph-template-availability"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="graph-template-governance"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="graph-template-uat-preflight"]').exists()).toBe(true)
   })
 
   it('calls archiveGraphTemplate when archive is confirmed', async () => {
     const wrapper = mount(GraphTemplatesPanel, {
       props: { canPublish: true, canManage: true },
-      global: { plugins: [ElementPlus], stubs: { TemplateInstantiateDialog: true, GraphTemplateEditDialog: true, GraphTemplateAvailabilityDialog: true, GraphTemplateGovernanceDialog: true } },
+      global: { plugins: [ElementPlus], stubs: { TemplateInstantiateDialog: true, GraphTemplateEditDialog: true, GraphTemplateAvailabilityDialog: true, GraphTemplateGovernanceDialog: true, Iteration4UatPreflightDialog: true } },
     })
     await flushPromises()
     await wrapper.find('[data-testid="graph-template-archive"]').trigger('click')

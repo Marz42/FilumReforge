@@ -241,6 +241,53 @@ export interface GraphTemplateGovernanceAudit {
   issues: GraphTemplateGovernanceIssue[]
 }
 
+export interface Iteration4UatCheck {
+  check_id: string
+  area: 'templates' | 'accounts' | 'statistics' | 'manual'
+  status: 'pass' | 'warning' | 'blocked' | 'manual'
+  title: string
+  detail: string
+  action?: string | null
+}
+
+export interface Iteration4UatTemplateCandidate {
+  kind: 'domain_neutral' | 'video_batch' | 'video_child' | 'designer_draft'
+  template_id: string
+  code: string
+  name: string
+  status: string
+  scope_mode: 'global' | 'departments'
+  scope_department_ids: string[]
+}
+
+export interface Iteration4UatDepartmentCandidate {
+  department_id: string
+  department_name: string
+  active_member_count: number
+  manager_user_id: string
+}
+
+export interface Iteration4UatStatsSample {
+  start_date: string
+  end_date: string
+  created_count: number
+  completed_count: number
+  due_count: number
+  current_open_count: number
+}
+
+export interface Iteration4UatPreflight {
+  generated_at: string
+  preflight_ready: boolean
+  manual_uat_required: boolean
+  blocking_count: number
+  warning_count: number
+  checks: Iteration4UatCheck[]
+  template_candidates: Iteration4UatTemplateCandidate[]
+  department_candidates: Iteration4UatDepartmentCandidate[]
+  stats_sample: Iteration4UatStatsSample
+}
+
 export interface GraphTemplateNodeDetail {
   id: string
   node_key: string

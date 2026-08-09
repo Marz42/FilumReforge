@@ -16,6 +16,7 @@ import {
 import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
 import GraphTemplateAvailabilityDialog from '@/components/workflow/GraphTemplateAvailabilityDialog.vue'
 import GraphTemplateGovernanceDialog from '@/components/workflow/GraphTemplateGovernanceDialog.vue'
+import Iteration4UatPreflightDialog from '@/components/workflow/Iteration4UatPreflightDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { GraphTemplateGovernanceIssue, GraphTemplateSummary } from '@/types/workflowVideo'
@@ -41,6 +42,7 @@ const editDialogVisible = ref(false)
 const availabilityDialogVisible = ref(false)
 const availabilityTemplate = ref<GraphTemplateSummary | null>(null)
 const governanceDialogVisible = ref(false)
+const uatPreflightDialogVisible = ref(false)
 const departmentOptions = ref<Array<{ id: string; label: string }>>([])
 const defaultDepartmentId = ref('')
 
@@ -267,6 +269,10 @@ function handleCreated(payload: { instanceId: string; rootTaskId: string }): voi
   emit('instantiated', payload)
 }
 
+function openUatTemplate(templateId: string): void {
+  void router.push({ name: 'task-template-designer', params: { id: templateId } })
+}
+
 onMounted(() => {
   void loadTemplates()
   void loadInstantiateDepartmentContext()
@@ -312,6 +318,13 @@ onMounted(() => {
             @click="governanceDialogVisible = true"
           >
             数据检查
+          </el-button>
+          <el-button
+            v-if="canManage"
+            data-testid="graph-template-uat-preflight"
+            @click="uatPreflightDialogVisible = true"
+          >
+            验收准备
           </el-button>
           <el-button @click="loadTemplates">刷新</el-button>
         </div>
@@ -475,6 +488,11 @@ onMounted(() => {
     <GraphTemplateGovernanceDialog
       v-model="governanceDialogVisible"
       @repair="handleGovernanceRepair"
+    />
+
+    <Iteration4UatPreflightDialog
+      v-model="uatPreflightDialogVisible"
+      @open-template="openUatTemplate"
     />
   </div>
 </template>

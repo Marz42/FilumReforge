@@ -7,6 +7,7 @@ import type {
   GraphTemplateDryRunResult,
   GraphTemplateExportBundle,
   GraphTemplateGovernanceAudit,
+  Iteration4UatPreflight,
   GraphTemplateSummary,
   GraphTemplateAvailabilityScopeResult,
   GraphTemplateScopeEvent,
@@ -164,6 +165,13 @@ export async function listGraphTemplateAvailabilityScopeEvents(
 export async function auditGraphTemplateGovernance(): Promise<GraphTemplateGovernanceAudit> {
   const { data } = await http.get<GraphTemplateGovernanceAudit>(
     '/workflow-graph/templates/governance-audit',
+  )
+  return data
+}
+
+export async function getIteration4UatPreflight(): Promise<Iteration4UatPreflight> {
+  const { data } = await http.get<Iteration4UatPreflight>(
+    '/workflow-graph/templates/uat-preflight',
   )
   return data
 }
