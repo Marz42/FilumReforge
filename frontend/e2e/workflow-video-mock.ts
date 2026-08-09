@@ -1,4 +1,4 @@
-import { expect, type Page, type Route } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 import {
   defaultTaskCenterPagination,
@@ -1291,7 +1291,7 @@ export async function installWorkflowVideoMockApi(page: Page): Promise<void> {
       videoMockState.childInstanceIds = []
       videoMockState.childRootTaskIds = []
       videoMockState.productionTasks = []
-      for (const [index, topic] of body.approved_topics.entries()) {
+      for (const [index] of body.approved_topics.entries()) {
         const childId = `child-inst-${index + 1}`
         const childTaskId = `task-child-${index + 1}`
         const authorId = editorUsers[index]?.id ?? editorUsers[0].id

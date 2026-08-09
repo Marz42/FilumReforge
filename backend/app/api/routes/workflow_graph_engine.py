@@ -67,6 +67,7 @@ from app.schemas.workflow_graph import (
   WorkflowGraphTemplateDryRunRequest,
   WorkflowGraphTemplateDryRunResponse,
   WorkflowGraphTemplateExportBundle,
+  WorkflowGraphTemplateGovernanceAuditRead,
   WorkflowGraphTemplateImportRequest,
   WorkflowGraphTemplateStatusUpdateRequest,
   WorkflowGraphTemplateStatsRead,
@@ -93,6 +94,9 @@ from app.services.workflow_graph_template_admin_service import WorkflowGraphTemp
 from app.services.workflow_graph_template_capabilities import (
   build_fork_target_code_index,
   compute_template_capabilities,
+)
+from app.services.workflow_graph_template_governance_service import (
+  WorkflowGraphTemplateGovernanceService,
 )
 from app.services.workflow_graph_template_schedule_service import (
   WorkflowGraphTemplateScheduleService,
@@ -513,6 +517,20 @@ async def get_graph_template_stats(
     template_id=template_id,
   )
   return await admin_service.get_template_stats(template_id=template_id)
+
+
+@router.get(
+  "/templates/governance-audit",
+  response_model=WorkflowGraphTemplateGovernanceAuditRead,
+  tags=["workflow-graph"],
+)
+async def audit_graph_template_governance(
+  actor: Annotated[User, Depends(get_current_user)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> WorkflowGraphTemplateGovernanceAuditRead:
+  return await WorkflowGraphTemplateGovernanceService(session).audit_manageable_templates(
+    actor=actor,
+  )
 
 
 @router.get(

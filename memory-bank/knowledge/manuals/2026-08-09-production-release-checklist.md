@@ -47,7 +47,7 @@ paradigma:
 | B-03 | `alembic current/heads/check` 一致，升级前后抽样核对关键表与 Run | [ ] |
 | B-04 | 真实反向代理只信任明确 peer；外部伪造 XFF 不改变认证限流 identity | [ ] |
 | B-05 | I4 / 设计器 Phase 2 UAT checklist 全部必过项完成 | [ ] |
-| B-06 | 模板 scope 数据盘点：误存 global、空 departments、父子模板引用均处理 | [ ] |
+| B-06 | 在“任务模板 → 数据检查”执行 scope/依赖盘点：intentional global 已由业务负责人确认，空 departments、缺失/停用部门、旧 `child_template_code`、父子范围不兼容均通过草稿或新版本处理；复查 `error=0` | [ ] |
 
 ## C. I3-F 硬门禁
 

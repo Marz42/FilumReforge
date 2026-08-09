@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 135d0633e8f95a28 -->
+<!-- checksum: 725eb78834b5c51d -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -83,6 +83,7 @@
 | [plans/2026-07-30-template-availability-paradigma-upgrade-plan.md](plans/2026-07-30-template-availability-paradigma-upgrade-plan.md) | `paradigma-plan` | 已发布模板可用部门治理与 Paradigma 0.5.0 协议升级 | 模板可用部门<br>已发布模板授权<br>范围审计 ... | - | - |
 | [plans/2026-08-09-rc-employee-trial-plan.md](plans/2026-08-09-rc-employee-trial-plan.md) | `paradigma-plan` | v0.93.0-rc.1 员工试用与持续开发分流方案 | RC 试用<br>员工内测<br>发布标签 ... | - | depends_on:../manuals/2026-08-09-production-release-checklist.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>related_to:../roadmap.md |
 | [plans/2026-08-09-security-release-readiness-plan.md](plans/2026-08-09-security-release-readiness-plan.md) | `paradigma-plan` | 安全问题处置与上线准备计划 | 安全问题<br>上线准备<br>发布门禁 ... | - | - |
+| [plans/2026-08-10-template-governance-audit-plan.md](plans/2026-08-10-template-governance-audit-plan.md) | `paradigma-plan` | 模板范围与父子依赖数据治理计划 | 模板数据检查<br>可用部门<br>父子模板 ... | - | depends_on:../decisions/adr-020-published-template-availability-scope.md<br>depends_on:./2026-08-09-rc-employee-trial-plan.md<br>validates:../manuals/2026-08-09-production-release-checklist.md |
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

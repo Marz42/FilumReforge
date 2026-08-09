@@ -7,7 +7,6 @@ import {
   listInstanceChildren,
   submitTaskTopicCapture,
 } from '@/api/workflow-graph'
-import { http } from '@/api/http'
 
 vi.mock('@/api/http', () => ({
   http: {

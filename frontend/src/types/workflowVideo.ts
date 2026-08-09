@@ -216,6 +216,31 @@ export interface GraphTemplateAvailabilityScopeResult {
   change: GraphTemplateScopeEvent
 }
 
+export interface GraphTemplateGovernanceIssue {
+  issue_code: string
+  severity: 'error' | 'warning' | 'review'
+  category: 'availability_scope' | 'template_dependency'
+  template_id: string
+  template_code: string
+  template_name: string
+  template_status: string
+  message: string
+  recommendation: string
+  repair_action: 'edit_draft' | 'create_new_version' | 'review_configuration'
+  referenced_template_code?: string | null
+  suggested_template_code?: string | null
+  affected_department_ids: string[]
+}
+
+export interface GraphTemplateGovernanceAudit {
+  generated_at: string
+  template_count: number
+  error_count: number
+  warning_count: number
+  review_count: number
+  issues: GraphTemplateGovernanceIssue[]
+}
+
 export interface GraphTemplateNodeDetail {
   id: string
   node_key: string

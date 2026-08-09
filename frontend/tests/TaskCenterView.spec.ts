@@ -42,7 +42,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
-import { createTask, createTaskComment, getTask, listTasksByIds } from '@/api/tasks'
+import { createTaskComment, getTask, listTasksByIds } from '@/api/tasks'
 import { useAuthStore } from '@/stores/auth'
 import TaskCenterView from '@/views/TaskCenterView.vue'
 

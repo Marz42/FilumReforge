@@ -44,10 +44,11 @@ describe('buildAttachmentPreviewContent', () => {
     const blob = new Blob(['# Title\n\nBody'], { type: 'text/markdown' })
     const result = await buildAttachmentPreviewContent(blob, 'text/markdown')
     expect(result.content.kind).toBe('markdown')
-    if (result.content.kind === 'markdown') {
-      expect(result.content.html).toContain('<h1')
-      expect(result.content.html).toContain('Body')
+    if (result.content.kind !== 'markdown') {
+      throw new Error('expected markdown preview')
     }
+    expect(result.content.html).toContain('<h1')
+    expect(result.content.html).toContain('Body')
   })
 
   it('sanitizes xss payloads in markdown previews', async () => {
@@ -57,12 +58,13 @@ describe('buildAttachmentPreviewContent', () => {
     )
     const result = await buildAttachmentPreviewContent(blob, 'text/markdown')
     expect(result.content.kind).toBe('markdown')
-    if (result.content.kind === 'markdown') {
-      expect(result.content.html).toContain('Safe')
-      expect(result.content.html).not.toMatch(/<script/i)
-      expect(result.content.html).not.toMatch(/onerror/i)
-      expect(result.content.html).not.toMatch(/javascript:/i)
+    if (result.content.kind !== 'markdown') {
+      throw new Error('expected markdown preview')
     }
+    expect(result.content.html).toContain('Safe')
+    expect(result.content.html).not.toMatch(/<script/i)
+    expect(result.content.html).not.toMatch(/onerror/i)
+    expect(result.content.html).not.toMatch(/javascript:/i)
   })
 
   it('creates audio preview url', async () => {
@@ -70,10 +72,11 @@ describe('buildAttachmentPreviewContent', () => {
     const result = await buildAttachmentPreviewContent(blob, 'audio/wav')
     expect(result.content.kind).toBe('audio')
     expect(result.objectUrls).toHaveLength(1)
-    if (result.content.kind === 'audio') {
-      expect(result.content.mime).toBe('audio/wav')
-      URL.revokeObjectURL(result.content.url)
+    if (result.content.kind !== 'audio') {
+      throw new Error('expected audio preview')
     }
+    expect(result.content.mime).toBe('audio/wav')
+    URL.revokeObjectURL(result.content.url)
   })
 
   it('parses xlsx cells as escaped template data and caps oversized previews', async () => {
@@ -98,11 +101,12 @@ describe('buildAttachmentPreviewContent', () => {
     const result = await buildAttachmentPreviewContent(blob, blob.type)
 
     expect(result.content.kind).toBe('xlsx')
-    if (result.content.kind === 'xlsx') {
-      expect(result.content.sheets[0]?.rows[1]).toEqual(['<img src=x onerror=alert(1)>', '42'])
-      expect(result.content.sheets[0]?.truncated).toBe(false)
-      expect(result.content.sheets[1]?.rows[0]).toHaveLength(100)
-      expect(result.content.sheets[1]?.truncated).toBe(true)
+    if (result.content.kind !== 'xlsx') {
+      throw new Error('expected xlsx preview')
     }
+    expect(result.content.sheets[0]?.rows[1]).toEqual(['<img src=x onerror=alert(1)>', '42'])
+    expect(result.content.sheets[0]?.truncated).toBe(false)
+    expect(result.content.sheets[1]?.rows[0]).toHaveLength(100)
+    expect(result.content.sheets[1]?.truncated).toBe(true)
   })
 })

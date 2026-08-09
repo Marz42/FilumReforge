@@ -6,6 +6,7 @@ import type {
   GraphTemplateDesignerDetail,
   GraphTemplateDryRunResult,
   GraphTemplateExportBundle,
+  GraphTemplateGovernanceAudit,
   GraphTemplateSummary,
   GraphTemplateAvailabilityScopeResult,
   GraphTemplateScopeEvent,
@@ -156,6 +157,13 @@ export async function listGraphTemplateAvailabilityScopeEvents(
 ): Promise<GraphTemplateScopeEvent[]> {
   const { data } = await http.get<GraphTemplateScopeEvent[]>(
     `/workflow-graph/templates/${templateId}/availability-scope/events`,
+  )
+  return data
+}
+
+export async function auditGraphTemplateGovernance(): Promise<GraphTemplateGovernanceAudit> {
+  const { data } = await http.get<GraphTemplateGovernanceAudit>(
+    '/workflow-graph/templates/governance-audit',
   )
   return data
 }

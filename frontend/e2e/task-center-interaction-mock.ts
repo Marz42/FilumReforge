@@ -161,7 +161,7 @@ export function buildInteractionTasks(adminUser: AdminUser): MockTask[] {
   ]
 }
 
-export function buildInteractionInboxItems(adminUser: AdminUser) {
+export function buildInteractionInboxItems(_adminUser: AdminUser) {
   return [
     {
       task_id: TASK_HANDSHAKE_ACCEPT,
@@ -338,7 +338,7 @@ function resolveTask(task: MockTask, state: TaskCenterInteractionMockState): Moc
     ...patch,
     extra_metadata: {
       ...task.extra_metadata,
-      ...(patch.extra_metadata ?? {}),
+      ...patch.extra_metadata,
     },
   }
 }
@@ -354,7 +354,7 @@ function resolveGraphInstance(
   return {
     ...instance,
     context: {
-      ...(instance.context ?? {}),
+      ...instance.context,
       ...contextPatch,
     },
   }
@@ -567,7 +567,7 @@ export async function handleTaskCenterInteractionRoute(
       updated.completed_at = new Date().toISOString()
     }
     state.taskPatches.set(taskId, {
-      ...(state.taskPatches.get(taskId) ?? {}),
+      ...state.taskPatches.get(taskId),
       ...updated,
     })
 
@@ -585,7 +585,7 @@ export async function handleTaskCenterInteractionRoute(
     }
     const body = request.postDataJSON() as { status?: string }
     state.taskPatches.set(taskId, {
-      ...(state.taskPatches.get(taskId) ?? {}),
+      ...state.taskPatches.get(taskId),
       status: body.status ?? task.status,
     })
     await fulfillJson(route, resolveTask(task, state))

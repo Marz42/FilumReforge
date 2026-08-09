@@ -192,58 +192,6 @@ function listPanelTestId(filter: 'inbox' | 'tracking' | 'history'): string {
 
 type TaskCenterEntry = { task_id: string; title: string }
 
-async function resolveCaptureTaskId(
-  page: Page,
-  accessToken: string,
-  hint: string,
-): Promise<string> {
-  const headers = { Authorization: `Bearer ${accessToken}` }
-  let lastInbox = 0
-  let lastTracking = 0
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const response = await page.request.get('/api/v1/task-center', { headers })
-    expect(response.ok(), `task-center failed: ${response.status()}`).toBeTruthy()
-    const snapshot = (await response.json()) as {
-      task_inbox: TaskCenterEntry[]
-      task_tracking: TaskCenterEntry[]
-    }
-    lastInbox = snapshot.task_inbox.length
-    lastTracking = snapshot.task_tracking.length
-    const match = (entry: TaskCenterEntry) => entry.title.includes(hint)
-    const hit = snapshot.task_inbox.find(match) ?? snapshot.task_tracking.find(match)
-    if (hit) {
-      return hit.task_id
-    }
-    await page.waitForTimeout(2_000)
-  }
-  if (sharedBatchInstanceId) {
-    const submissionsResp = await page.request.get(
-      `/api/v1/workflow-graph/instances/${sharedBatchInstanceId}/submissions?node_key=N1_PROPOSE`,
-      { headers },
-    )
-    if (submissionsResp.ok()) {
-      const submissions = (await submissionsResp.json()) as {
-        submissions: Array<{ assignee_email?: string; topics: Array<{ topic_id: string }> }>
-      }
-      const mine = submissions.submissions.find((item) => item.assignee_email === ACCOUNTS.copyA)
-      const captureTasks = await page.request.get('/api/v1/task-center', { headers })
-      const center = (await captureTasks.json()) as {
-        task_inbox: TaskCenterEntry[]
-        task_tracking: TaskCenterEntry[]
-      }
-      const any = [...center.task_inbox, ...center.task_tracking].find((entry) =>
-        entry.title.includes(hint),
-      )
-      if (any) {
-        return any.task_id
-      }
-    }
-  }
-  throw new Error(
-    `capture task "${hint}" not in API snapshot (inbox=${lastInbox}, tracking=${lastTracking})`,
-  )
-}
-
 async function openCaptureTask(page: Page, accessToken: string, email: string): Promise<void> {
   const taskId = await resolveCaptureTaskIdForEditor(page, accessToken, email)
   await page.goto(`/task-center?filter=inbox&selected=${taskId}`)
@@ -341,37 +289,6 @@ async function submitScriptDeliverable(page: Page, accessToken: string, summary:
     fallback.ok(),
     `script deliverable failed: upload=${upload.status()} deliver=${deliver.status()} fallback=${fallback.status()} ${await fallback.text()}`,
   ).toBeTruthy()
-}
-
-async function openTaskByTitleHint(page: Page, accessToken: string, hint: string): Promise<void> {
-  const headers = { Authorization: `Bearer ${accessToken}` }
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const response = await page.request.get('/api/v1/task-center', { headers })
-    expect(response.ok(), `task-center failed: ${response.status()}`).toBeTruthy()
-    const snapshot = (await response.json()) as {
-      task_inbox: TaskCenterEntry[]
-      task_tracking: TaskCenterEntry[]
-      task_history?: TaskCenterEntry[]
-    }
-    const pools = [
-      { filter: 'inbox' as const, entries: snapshot.task_inbox },
-      { filter: 'tracking' as const, entries: snapshot.task_tracking },
-      { filter: 'history' as const, entries: snapshot.task_history ?? [] },
-    ]
-    for (const pool of pools) {
-      const hit = pool.entries.find((entry) => entry.title.includes(hint))
-      if (!hit) {
-        continue
-      }
-      await openTaskCenter(page, pool.filter)
-      const row = page.getByTestId(listPanelTestId(pool.filter)).getByText(hint).first()
-      await expect(row).toBeVisible({ timeout: 30_000 })
-      await row.click()
-      return
-    }
-    await page.waitForTimeout(2_000)
-  }
-  throw new Error(`task "${hint}" not found in task-center API after polling`)
 }
 
 async function ensureTaskAccepted(page: Page): Promise<void> {

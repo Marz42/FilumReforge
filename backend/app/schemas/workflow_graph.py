@@ -80,6 +80,31 @@ class WorkflowGraphTemplateAvailabilityScopeRead(BaseModel):
   change: WorkflowGraphTemplateScopeEventRead
 
 
+class WorkflowGraphTemplateGovernanceIssueRead(BaseModel):
+  issue_code: str
+  severity: Literal["error", "warning", "review"]
+  category: Literal["availability_scope", "template_dependency"]
+  template_id: UUID
+  template_code: str
+  template_name: str
+  template_status: WorkflowGraphTemplateStatus
+  message: str
+  recommendation: str
+  repair_action: Literal["edit_draft", "create_new_version", "review_configuration"]
+  referenced_template_code: str | None = None
+  suggested_template_code: str | None = None
+  affected_department_ids: list[str] = Field(default_factory=list)
+
+
+class WorkflowGraphTemplateGovernanceAuditRead(BaseModel):
+  generated_at: datetime
+  template_count: int = 0
+  error_count: int = 0
+  warning_count: int = 0
+  review_count: int = 0
+  issues: list[WorkflowGraphTemplateGovernanceIssueRead] = Field(default_factory=list)
+
+
 class WorkflowGraphTemplateSummaryRead(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 

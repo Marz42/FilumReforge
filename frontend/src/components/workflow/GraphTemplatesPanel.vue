@@ -10,13 +10,15 @@ import {
   cloneGraphTemplate,
   createBlankGraphTemplate,
   deleteGraphTemplate,
+  forkGraphTemplateVersion,
   listGraphTemplates,
 } from '@/api/workflow-graph'
 import GraphTemplateEditDialog from '@/components/workflow/GraphTemplateEditDialog.vue'
 import GraphTemplateAvailabilityDialog from '@/components/workflow/GraphTemplateAvailabilityDialog.vue'
+import GraphTemplateGovernanceDialog from '@/components/workflow/GraphTemplateGovernanceDialog.vue'
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import { useAuthStore } from '@/stores/auth'
-import type { GraphTemplateSummary } from '@/types/workflowVideo'
+import type { GraphTemplateGovernanceIssue, GraphTemplateSummary } from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
 import { templateSupportsDirectInstantiation } from '@/utils/workflowVideoSchema'
 
@@ -38,6 +40,7 @@ const dialogVisible = ref(false)
 const editDialogVisible = ref(false)
 const availabilityDialogVisible = ref(false)
 const availabilityTemplate = ref<GraphTemplateSummary | null>(null)
+const governanceDialogVisible = ref(false)
 const departmentOptions = ref<Array<{ id: string; label: string }>>([])
 const defaultDepartmentId = ref('')
 
@@ -235,6 +238,31 @@ async function handleDelete(template: GraphTemplateSummary): Promise<void> {
   }
 }
 
+async function handleGovernanceRepair(issue: GraphTemplateGovernanceIssue): Promise<void> {
+  governanceDialogVisible.value = false
+  if (issue.repair_action === 'edit_draft') {
+    void router.push({ name: 'task-template-designer', params: { id: issue.template_id } })
+    return
+  }
+  if (issue.repair_action !== 'create_new_version') {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将从「${issue.template_name}」新建草稿版本，原已发布版本不会被修改。是否继续？`,
+      '新建修正版',
+      { type: 'warning', confirmButtonText: '新建版本', cancelButtonText: '取消' },
+    )
+    const draft = await forkGraphTemplateVersion(issue.template_id)
+    ElMessage.success('已新建草稿版本，请按检查建议修正后再发布')
+    void router.push({ name: 'task-template-designer', params: { id: draft.id } })
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(getErrorMessage(error))
+    }
+  }
+}
+
 function handleCreated(payload: { instanceId: string; rootTaskId: string }): void {
   emit('instantiated', payload)
 }
@@ -277,6 +305,13 @@ onMounted(() => {
           />
           <el-button v-if="canManage" type="primary" data-testid="graph-template-create" @click="handleCreateBlank">
             新建模板
+          </el-button>
+          <el-button
+            v-if="canManage"
+            data-testid="graph-template-governance"
+            @click="governanceDialogVisible = true"
+          >
+            数据检查
           </el-button>
           <el-button @click="loadTemplates">刷新</el-button>
         </div>
@@ -435,6 +470,11 @@ onMounted(() => {
       v-model="availabilityDialogVisible"
       :template="availabilityTemplate"
       @updated="loadTemplates"
+    />
+
+    <GraphTemplateGovernanceDialog
+      v-model="governanceDialogVisible"
+      @repair="handleGovernanceRepair"
     />
   </div>
 </template>

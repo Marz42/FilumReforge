@@ -7,7 +7,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { installWorkflowVideoMockApi, loginAsAdmin, videoMockState } from '../workflow-video-mock'
-import { getUatShotDir, uatRow, uatShot, writeUatReport } from './uat-report'
+import { uatRow, uatShot, writeUatReport } from './uat-report'
 
 test.describe.configure({ mode: 'serial' })
 
