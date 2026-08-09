@@ -2,17 +2,14 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, type UploadFile, type UploadInstance } from 'element-plus'
 
-import { listAttachments, uploadAttachment } from '@/api/attachments'
+import { uploadAttachment } from '@/api/attachments'
 import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import { acceptTaskAssignment,
   addTaskWatchers,
   createTaskComment,
   delegateTaskAssignment,
-  listTaskActivity,
   listTaskDelegateCandidates,
-  getTask,
-  listTaskWatchers,
   rejectTaskAssignment,
   reviewTaskDeliverable,
   submitTaskDeliverable,
@@ -20,7 +17,7 @@ import { acceptTaskAssignment,
   updateTaskStatus,
 } from '@/api/tasks'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
-import { closeInstanceCapture, getWorkflowGraphInstance, listInstanceEvents } from '@/api/workflow-graph'
+import { closeInstanceCapture } from '@/api/workflow-graph'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import CapturePanel from '@/components/workflow/CapturePanel.vue'
 import WorkflowCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
@@ -49,24 +46,18 @@ import {
   TASK_USER_FACING_STATE_LABELS,
   userFacingStateTagType,
 } from '@/domain/task-detail/user-state'
-import { listUsers } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
-import type { WorkflowRunEventItem } from '@/types/workflowVideo'
 import type {
-  Attachment,
-  Department,
   Task,
   TaskActivityEntry,
   TaskCenterUserOption,
   TaskStatus,
-  TaskWatcher,
-  User,
-  WorkflowGraphInstanceDetail,
   WorkflowNodeInstanceSummary,
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 import { isCaptureClosed, resolveAggregateMode } from '@/utils/workflowVideoSchema'
+import { useTaskDetailData } from '@/composables/useTaskDetailData'
 
 interface Props {
   initialSelectedTaskId?: string
@@ -108,8 +99,6 @@ const emit = defineEmits<{
   actionDone: []
   selectTask: [taskId: string]
 }>()
-const loading = ref(false)
-const task = ref<Task | null>(null)
 const taskAttachmentUploading = ref(false)
 const commentSubmitting = ref(false)
 const deliverableSubmitting = ref(false)
@@ -123,19 +112,32 @@ const reworkCommentText = ref('')
 const handshakeRejectDialogVisible = ref(false)
 const handshakeRejectReason = ref('')
 const delegateDialogVisible = ref(false)
-const taskAttachments = ref<Attachment[]>([])
-const taskActivity = ref<TaskActivityEntry[]>([])
-const taskWatchers = ref<TaskWatcher[]>([])
-const graphInstance = ref<WorkflowGraphInstanceDetail | null>(null)
-const workflowRunEvents = ref<WorkflowRunEventItem[]>([])
-const departments = ref<Department[]>([])
-const users = ref<User[]>([])
 const watcherSubmitting = ref(false)
 const watcherUserId = ref('')
 const selectedTaskFiles = ref<File[]>([])
 const taskAttachmentUploadRef = ref<UploadInstance>()
 const activityTimelineExpanded = ref<string[]>([])
 const commentFiles = ref<File[]>([])
+
+const {
+  loading,
+  task,
+  taskAttachments,
+  taskActivity,
+  taskWatchers,
+  graphInstance,
+  workflowRunEvents,
+  departments,
+  users,
+  clearTaskDetails,
+  loadReferenceData,
+  loadSelectedTaskDetails,
+} = useTaskDetailData({
+  isManagementRole: () => authStore.isManagementRole,
+  currentUser: () => authStore.user,
+  onActivityLoadFailure: () => ElMessage.warning('活动时间线暂时无法加载'),
+  onLoadFailure: (error) => ElMessage.error(getErrorMessage(error)),
+})
 
 const delegateForm = reactive({
   assignee_id: '',
@@ -722,97 +724,6 @@ function resetDeliverableForm(): void {
   deliverableForm.attachment_ids = []
 }
 
-async function refreshTaskRecord(taskId: string): Promise<void> {
-  try {
-    task.value = await getTask(taskId)
-  } catch {
-    // ignore — detail loaders will surface errors
-  }
-}
-
-async function loadSelectedTaskDetails(taskId: string): Promise<void> {
-  await refreshTaskRecord(taskId)
-  const [attachments, activity, watchers] = await Promise.all([
-    listAttachments({
-      target_type: 'task',
-      target_id: taskId,
-    }).catch(() => [] as Attachment[]),
-    listTaskActivity(taskId).catch(() => {
-      ElMessage.warning('活动时间线暂时无法加载')
-      return [] as TaskActivityEntry[]
-    }),
-    listTaskWatchers(taskId).catch(() => [] as TaskWatcher[]),
-  ])
-
-  taskAttachments.value = attachments
-  taskActivity.value = activity
-  taskWatchers.value = watchers
-
-  // 若为图引擎任务，并行加载节点实例
-  const metadata = (task.value?.extra_metadata ?? {}) as Record<string, unknown>
-  const instanceId = typeof metadata.workflow_graph_instance_id === 'string'
-    ? metadata.workflow_graph_instance_id
-    : null
-  if (instanceId) {
-    try {
-      const [instance, eventsPage] = await Promise.all([
-        getWorkflowGraphInstance(instanceId),
-        listInstanceEvents(instanceId, { limit: 50 }),
-      ])
-      graphInstance.value = instance
-      workflowRunEvents.value = eventsPage.items
-    } catch {
-      graphInstance.value = null
-      workflowRunEvents.value = []
-    }
-  } else {
-    graphInstance.value = null
-    workflowRunEvents.value = []
-  }
-}
-
-async function loadUsers(): Promise<void> {
-  if (authStore.isManagementRole) {
-    users.value = await listUsers()
-  } else if (authStore.user) {
-    users.value = [authStore.user]
-  }
-}
-
-async function loadDepartmentsIfNeeded(): Promise<void> {
-  if (departments.value.length > 0) {
-    return
-  }
-  try {
-    const { listDepartments } = await import('@/api/departments')
-    departments.value = await listDepartments()
-  } catch {
-    departments.value = []
-  }
-}
-
-async function initialize(): Promise<void> {
-  loading.value = true
-  try {
-    await Promise.all([loadUsers(), loadDepartmentsIfNeeded()])
-    const preferredTaskId = props.initialSelectedTaskId?.trim()
-    if (preferredTaskId) {
-      await loadSelectedTaskDetails(preferredTaskId)
-    } else {
-      task.value = null
-      taskAttachments.value = []
-      taskActivity.value = []
-      taskWatchers.value = []
-      graphInstance.value = null
-      workflowRunEvents.value = []
-    }
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    loading.value = false
-  }
-}
-
 async function reloadAfterAction(): Promise<void> {
   if (!selectedTask.value) {
     emit('actionDone')
@@ -1200,19 +1111,14 @@ async function handleDelegateAssignment(): Promise<void> {
 }
 
 onMounted(() => {
-  void initialize()
+  void loadReferenceData()
 })
 
 watch(
   () => props.initialSelectedTaskId,
   async (nextTaskId) => {
     if (!nextTaskId) {
-      task.value = null
-      taskAttachments.value = []
-      taskActivity.value = []
-      taskWatchers.value = []
-      graphInstance.value = null
-      workflowRunEvents.value = []
+      clearTaskDetails()
       return
     }
     await loadSelectedTaskDetails(nextTaskId)

@@ -98,6 +98,7 @@ paradigma:
 - 汇报中心：向上汇报、向下传达（**统一「发起汇报」弹窗入口**）、逐级流转、历史归档与可选审批挂接
 - 任务中心列表 / 看板 / 甘特图多视图与活动时间线 / 负载概览
 - S-01 周期统计：Employee 本人、经理/数据代理部门子树、Admin/HR 全局；Asia/Shanghai 周期；SQL 聚合摘要/人员负载/分页明细，排除归档与 graph ROOT
+- F-05 首批（@ 2026-08-10）：`useTaskDetailData` 从 `TaskDetailShell` 提取主任务、附件/活动/关注人、图实例/事件和用户/部门参考数据加载；请求版本保证快速切换 last-selection-wins，主记录先显示且旧附属数据先清空，可选数据独立降级。页面布局、动作权限与 graph-first 语义不变；动作提交和资料/评论板块仍待后续拆分。
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
 - 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；总览页已落地看板、公告、待办事项、任务跟踪与任务中心快捷入口
