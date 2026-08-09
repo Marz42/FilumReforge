@@ -1,11 +1,12 @@
 # Manuals Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 47719c36a4bce853 -->
+<!-- checksum: c8c881260270b270 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
 |------|------|-------|-------|---------|-----------|
+| [2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md](2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) | `paradigma-manual` | Iteration 4 · 领域中立 / 运行时 / 设计器 Phase 2 验收 Checklist | Iteration 4 验收<br>领域中立 UAT<br>设计器 Phase 2 ... | - | depends_on:../decisions/adr-018-domain-neutral-workflow-templates.md<br>depends_on:../decisions/adr-019-decision-subject-actor-overlap.md<br>depends_on:../plans/workflow-graph-engine-iteration4-handler-plan.md<br>depends_on:../plans/2026-07-28-template-decouple-phase2-plan.md |
 | [deployment-runbook-ubuntu-2404.md](deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | - |
 | [e2e-gui-verification-automation-runbook.md](e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | - |
 | [manual-database-operations.md](manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | - |

@@ -36,6 +36,13 @@ import {
   type LaunchFieldRow,
   type RoutingRuleRow,
 } from '@/utils/graphTemplateAuthoring'
+import {
+  DEPARTMENT_TREE_SELECT_PROPS,
+  mapDepartmentTreeSelectNodes,
+  normalizeScopeDepartmentIds,
+  resolveTemplateScopeMode,
+  type DepartmentTreeSelectNode,
+} from '@/utils/departmentTreeSelect'
 import { analyzeEdgeTopology } from '@/utils/graphTemplateTopology'
 import { getErrorMessage } from '@/utils/errors'
 
@@ -98,13 +105,7 @@ type ParticipantPolicyRow = {
   department_id: string
 }
 
-const departmentTree = ref<
-  Array<{
-    id: string
-    label: string
-    children?: Array<{ id: string; label: string; children?: unknown[] }>
-  }>
->([])
+const departmentTree = ref<DepartmentTreeSelectNode[]>([])
 const departmentOptions = ref<Array<{ value: string; label: string }>>([])
 const departmentPoolRows = ref<DepartmentPoolRow[]>([])
 const participantPolicyRows = ref<ParticipantPolicyRow[]>([])
@@ -193,7 +194,7 @@ function applyDetail(next: GraphTemplateDesignerDetail): void {
   form.onCompleteNextTemplateCode = onComplete?.next_template_code ?? ''
   form.onCompleteCarryInputs = onComplete?.carry_inputs !== false
   form.schedulable = next.config?.schedulable === true
-  form.scopeDepartmentIds = next.scope_department_ids ?? []
+  form.scopeDepartmentIds = normalizeScopeDepartmentIds(next.scope_department_ids ?? [])
   const pools = next.config?.department_pools
   departmentPoolRows.value =
     pools && typeof pools === 'object' && !Array.isArray(pools)
@@ -406,18 +407,7 @@ async function loadDepartments(): Promise<void> {
 
 async function loadDepartmentTree(): Promise<void> {
   try {
-    const tree = await listDepartmentTree()
-    departmentTree.value = tree.map((node) => ({
-      id: node.id,
-      label: node.name,
-      children: (node.children ?? []).map(
-        (child: { id: string; name: string; children?: unknown[] }) => ({
-          id: child.id,
-          label: child.name,
-          children: child.children ?? [],
-        }),
-      ),
-    }))
+    departmentTree.value = mapDepartmentTreeSelectNodes(await listDepartmentTree())
   } catch {
     departmentTree.value = []
   }
@@ -558,15 +548,14 @@ function buildDraftPayload() {
       priority: edge.priority ?? 0,
     }
   })
-  const scopeMode: 'global' | 'departments' =
-    form.scopeDepartmentIds.length > 0 ? 'departments' : 'global'
+  const scopeDepartmentIds = normalizeScopeDepartmentIds(form.scopeDepartmentIds)
   return {
     name: form.name.trim(),
     description: form.description.trim() || null,
     config,
     context_schema: contextSchema,
-    scope_mode: scopeMode,
-    scope_department_ids: form.scopeDepartmentIds,
+    scope_mode: resolveTemplateScopeMode(scopeDepartmentIds),
+    scope_department_ids: scopeDepartmentIds,
     nodes,
     edges,
   }
@@ -1174,8 +1163,11 @@ onMounted(async () => {
             <el-tree-select
               v-model="form.scopeDepartmentIds"
               :data="departmentTree"
+              :props="DEPARTMENT_TREE_SELECT_PROPS"
+              node-key="id"
               :disabled="definitionLocked"
               multiple
+              filterable
               show-checkbox
               check-strictly
               clearable

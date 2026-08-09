@@ -20,9 +20,55 @@ vi.mock('@/composables/useTaskCenterPermissions', () => ({
 }))
 
 vi.mock('@/api/departments', () => ({
-  listDepartments: vi.fn().mockResolvedValue([]),
-  listDepartmentTree: vi.fn().mockResolvedValue([]),
+  listDepartments: vi.fn().mockResolvedValue([
+    {
+      id: 'dept-a',
+      name: '业务一部',
+      code: 'a',
+      parent_id: null,
+      manager_id: null,
+      sort_order: 1,
+      is_active: true,
+      created_at: '',
+      updated_at: '',
+    },
+    {
+      id: 'dept-b',
+      name: '业务二部',
+      code: 'b',
+      parent_id: 'dept-a',
+      manager_id: null,
+      sort_order: 2,
+      is_active: true,
+      created_at: '',
+      updated_at: '',
+    },
+  ]),
+  listDepartmentTree: vi.fn().mockResolvedValue([
+    {
+      id: 'dept-a',
+      name: '业务一部',
+      code: 'a',
+      parent_id: null,
+      manager_id: null,
+      sort_order: 1,
+      is_active: true,
+      children: [
+        {
+          id: 'dept-b',
+          name: '业务二部',
+          code: 'b',
+          parent_id: 'dept-a',
+          manager_id: null,
+          sort_order: 2,
+          is_active: true,
+          children: [],
+        },
+      ],
+    },
+  ]),
 }))
+
 
 vi.mock('@/api/workflow-graph', () => ({
   getGraphTemplateDesigner: vi.fn().mockResolvedValue({
@@ -139,6 +185,43 @@ describe('GraphTemplateDesignerView', () => {
       ui_profile: 'video_n1_capture',
       routing_rules: [{ else: true, target_node_key: 'N2_AGGREGATE' }],
     })
+  })
+
+  it('binds department tree values by id and saves departments scope', async () => {
+    const { getGraphTemplateDesigner, saveGraphTemplateDraft } =
+      await import('@/api/workflow-graph')
+    const base = await getGraphTemplateDesigner('fixture')
+    const scoped = {
+      ...base,
+      scope_mode: 'departments' as const,
+      scope_department_ids: ['dept-a', 'dept-b'],
+    }
+    vi.mocked(getGraphTemplateDesigner).mockResolvedValueOnce(scoped)
+    vi.mocked(saveGraphTemplateDraft).mockResolvedValueOnce(scoped)
+
+    const wrapper = mount(GraphTemplateDesignerView, {
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    const treeSelect = wrapper.findComponent({ name: 'ElTreeSelect' })
+    expect(treeSelect.exists()).toBe(true)
+    expect(treeSelect.props('props')).toMatchObject({ value: 'id', label: 'label' })
+    expect(treeSelect.props('modelValue')).toEqual(['dept-a', 'dept-b'])
+    expect(treeSelect.props('data')).toEqual([
+      {
+        id: 'dept-a',
+        label: '业务一部',
+        children: [{ id: 'dept-b', label: '业务二部' }],
+      },
+    ])
+
+    await wrapper.find('[data-testid="designer-save"]').trigger('click')
+    await flushPromises()
+
+    const payload = vi.mocked(saveGraphTemplateDraft).mock.calls[0]![1]
+    expect(payload.scope_mode).toBe('departments')
+    expect(payload.scope_department_ids).toEqual(['dept-a', 'dept-b'])
   })
 
   it('hides save-settings and shows immutability banner for active templates', async () => {

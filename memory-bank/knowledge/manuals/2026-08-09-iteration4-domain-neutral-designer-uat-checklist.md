@@ -1,0 +1,122 @@
+---
+type: paradigma-manual
+title: "Iteration 4 · 领域中立 / 运行时 / 设计器 Phase 2 验收 Checklist"
+description: "手动验收模板领域中立、Iteration 4 运行时与模板设计器 Phase 2 首批的可勾选清单。"
+tags: [manual, uat, checklist, iteration-4, domain-neutral, designer]
+timestamp: 2026-08-09T22:09:00+08:00
+paradigma:
+  schema_version: "0.5.0"
+  temperature: warm
+  lifecycle: evolving
+  update_policy: agent-editable
+  epistemic_status: confirmed
+  retrieval_hints:
+    zh: [Iteration 4 验收, 领域中立 UAT, 设计器 Phase 2, Handler 运行时]
+    en: [iteration 4 UAT, domain neutral checklist, designer phase 2]
+  relations:
+    depends_on:
+      - ../decisions/adr-018-domain-neutral-workflow-templates.md
+      - ../decisions/adr-019-decision-subject-actor-overlap.md
+      - ../plans/workflow-graph-engine-iteration4-handler-plan.md
+      - ../plans/2026-07-28-template-decouple-phase2-plan.md
+---
+
+# Iteration 4 · 领域中立 / 运行时 / 设计器 Phase 2 验收 Checklist
+
+> 不含 I3-F 生产门禁、M-09 unarchive、`run_kind` dual-read 收窄、KI-011 管理员业务边界、可用部门专项（另测）。
+
+## 准备
+
+| 项 | 要求 | 完成 |
+|----|------|------|
+| 环境 | 含近期 main；Alembic 已到最新 head | [ ] |
+| 账号 | Admin；部门经理 A；员工 B、C | [ ] |
+| 模板 ① | 非视频通用模板（新建「材料收集」类优先） | [ ] |
+| 模板 ② | 视频包 ACTIVE（新版本或现网） | [ ] |
+| 原则 | 通用能力用 ①；视频只做兼容黄金路径 | [ ] |
+
+记录栏：`账号 / 模板 / Run ID / Pass·Fail / 备注`
+
+---
+
+## 2. 模板领域中立（ADR-017 / 018 + Phase 1）
+
+| ID | 用例 | 期望 | 结果 |
+|----|------|------|------|
+| N-01 | 建非视频草稿（可直接发起）→ 发布 | 有 tags/能力提示；无「必须选视频类型」 | [ ] |
+| N-02 | 经理对 ① 直接发起并走完 1～2 个 HumanTask | 通用详情/动作可完成 | [ ] |
+| N-03 | 模板不具备直接发起 / 仅子流程 | 不可直接实例化；提示合理 | [ ] |
+| N-04 | ACTIVE 改 tags；归档；有 Run 删除 | tags 可改；归档可用；有 Run 删除被拒 | [ ] |
+| N-05 | 列表状态 / 搜索过滤 | draft·active·archived 与关键字正确 | [ ] |
+| N-06 | 视频批次：发起 → N1/N2 → fork 制作 | 黄金路径仍通 | [ ] |
+| N-07 | 非视频 vs 视频任务中心对照 | 无「非视频缺 run_kind/code 就不能用」类门控 | [ ] |
+
+**本组通过标准**：N-01～N-05、N-06 必过；N-07 无能力误门控。
+
+---
+
+## 3. Iteration 4 运行时（I4-B～D + ADR-019）
+
+### 3A HumanTask / 集合
+
+| ID | 用例 | 期望 | 结果 |
+|----|------|------|------|
+| R-01 | 单人 HumanTask：激活 → 完成 | 任务中心与图节点一致 | [ ] |
+| R-02 | 取消或（有入口时）重试 | 约定态；无幽灵待办 | [ ] |
+| R-03 | A/B/C 都提交；负责人 A（也是贡献者）集合推进 | **允许**（collection_finalize） | [ ] |
+| R-04 | 集合未齐时推进 | 拒绝或明确未完成 | [ ] |
+
+### 3B 交付验收 / 审批重叠
+
+| ID | 用例 | 期望 | 结果 |
+|----|------|------|------|
+| R-05 | B 提交；仅 B 为唯一验收人 | **阻断**；可读原因，非 500 | [ ] |
+| R-06 | B 提交；A 验收通过 | 下游见被接受版本 | [ ] |
+| R-07 | 打回 → 新版本再验 | 按新版本重算 | [ ] |
+| R-08 | 会签（若有）：贡献者非唯一决定者 | 符合 cosign | [ ] |
+| R-09 | 正式业务审批（若有）：申请人不得自批 | 阻断且可诊断 | [ ] |
+
+### 3C 通知
+
+| ID | 用例 | 期望 | 结果 |
+|----|------|------|------|
+| R-10 | Notice 节点至完成（有则测） | 可结束；失败态不与业务拒绝混淆 | [ ] |
+
+**本组通过标准**：R-01～R-07 必过；R-08～R-10 有节点才测。Admin 仍能业务 override **不记为本轮失败**（KI-011）。
+
+---
+
+## 4. 模板设计器 Phase 2 首批（M-06～M-08）
+
+| ID | 用例 | 期望 | 结果 |
+|----|------|------|------|
+| D-01 | 节点选常用 / 自定义 `ui_profile` → 保存再开 | 值保留 | [ ] |
+| D-02 | `context_schema` 结构化增改 → 保存再开 | 与详情/导出一致 | [ ] |
+| D-03 | `launch_schema.fields` 结构化编辑 → 实例化 | Dialog 字段/必填一致 | [ ] |
+| D-04 | 高级 JSON 改复杂 launch/context → 保存 | 不被结构化表单降级毁掉 | [ ] |
+| D-05 | routing 简单 IF/ELSE 结构化编辑 | 分支符合条件 | [ ] |
+| D-06 | 复合 all/any（有样本才测） | 高级 JSON；不偷偷改写 | [ ] |
+| D-07 | ACTIVE 打开设计器 | 定义只读；需另存新版本；tags 例外可用 | [ ] |
+| D-08 | 结构化改完 → 校验 → 发布 → 发起一条 | 运行语义与改前一致 | [ ] |
+
+**本组通过标准**：D-01～D-05、D-07～D-08 必过；D-06 有样本才测。`ui_profile` 不得改变权限/完成规则。
+
+---
+
+## 建议执行顺序
+
+1. [ ] **D-***（模板 ① 草稿）→ 发布  
+2. [ ] **N-01～N-05**  
+3. [ ] **R-01～R-07**  
+4. [ ] **N-06** + 视频一条制作链  
+5. [ ] 抽测 **R-10 / D-06**（有则测）
+
+## 总验收
+
+| 区块 | 结论 Pass / Fail / 部分 | 阻塞项 |
+|------|-------------------------|--------|
+| 2 领域中立 | | |
+| 3 Iteration 4 运行时 | | |
+| 4 设计器 Phase 2 | | |
+
+**签字**：日期 ________  验收人 ________

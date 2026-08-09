@@ -291,7 +291,7 @@ async def list_graph_templates(
       templates = [
         template
         for template in templates
-        if not template.scope_department_ids
+        if template.scope_mode != "departments"
         or any(
           str(did) in managed_set
           for did in (template.scope_department_ids or [])

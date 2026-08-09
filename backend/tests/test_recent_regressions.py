@@ -116,6 +116,47 @@ async def test_graph_template_department_scope_filters_active_templates(db_sessi
 
 
 @pytest.mark.asyncio
+async def test_graph_template_list_does_not_treat_empty_departments_scope_as_global(
+  db_session,
+) -> None:
+  admin = await _admin(db_session)
+  manager = await UserService(db_session).create_user(
+    actor=admin,
+    email="scope-empty-manager@example.com",
+    password="StrongPassword123!",
+    role=UserRole.EMPLOYEE,
+  )
+  managed = await DepartmentService(db_session).create_department(
+    actor=admin,
+    name="空范围管理部门",
+    code="scope-empty-managed",
+    manager_id=manager.id,
+  )
+  db_session.add(
+    WorkflowGraphTemplate(
+      code="scope-empty-departments",
+      base_code="scope-empty-departments",
+      version=1,
+      name="空部门范围模板",
+      status=WorkflowGraphTemplateStatus.ACTIVE,
+      scope_mode="departments",
+      scope_department_ids=[],
+      created_by=admin.id,
+    )
+  )
+  await db_session.commit()
+
+  summaries = await list_graph_templates(
+    actor=manager,
+    session=db_session,
+    workflow_graph_service=WorkflowGraphService(db_session),
+    admin_service=WorkflowGraphTemplateAdminService(db_session),
+  )
+  assert managed.id is not None
+  assert "scope-empty-departments" not in {item.code for item in summaries}
+
+
+@pytest.mark.asyncio
 async def test_graph_template_delete_guards_permissions_and_existing_runs(db_session) -> None:
   admin = await _admin(db_session)
   employee = await UserService(db_session).create_user(
