@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: d7b3101d67530da0 -->
+<!-- checksum: 8062a12776643a73 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -89,6 +89,7 @@
 | [plans/2026-08-11-f05-iteration5-6-sequencing-plan.md](plans/2026-08-11-f05-iteration5-6-sequencing-plan.md) | `paradigma-plan` | F-05 至工作流图引擎 Iteration 5/6 实施顺序 | F-05 后续顺序<br>Iteration 5<br>Iteration 6 ... | - | depends_on:./2026-08-11-f05-task-detail-action-coordination-plan.md<br>related_to:./workflow-graph-engine-upgrade-iteration-plan.md<br>related_to:./workflow-graph-engine-iteration3f-readiness-gate-plan.md<br>related_to:./2026-08-09-rc-employee-trial-plan.md |
 | [plans/2026-08-11-f05-task-detail-action-coordination-plan.md](plans/2026-08-11-f05-task-detail-action-coordination-plan.md) | `paradigma-plan` | 2026-08-11 F-05 任务详情动作协调拆分计划 | F-05 动作协调<br>任务动作提交<br>交付验收 ... | - | depends_on:2026-08-10-f05-task-detail-data-coordination-plan.md<br>related_to:../domains/task-center.md |
 | [plans/2026-08-11-f05-task-detail-materials-comments-plan.md](plans/2026-08-11-f05-task-detail-materials-comments-plan.md) | `paradigma-plan` | 2026-08-11 F-05 任务资料与评论留痕拆分计划 | F-05 资料附件<br>评论留痕<br>上传协调 ... | - | depends_on:./2026-08-11-f05-task-detail-action-coordination-plan.md<br>related_to:../domains/task-center.md |
+| [plans/2026-08-12-f05-task-detail-activity-timeline-plan.md](plans/2026-08-12-f05-task-detail-activity-timeline-plan.md) | `paradigma-plan` | 2026-08-12 F-05 任务详情活动时间线拆分计划 | F-05 活动时间线<br>任务留痕展示<br>时间线拆分 ... | - | depends_on:./2026-08-11-f05-task-detail-materials-comments-plan.md<br>related_to:../domains/task-center.md<br>related_to:../known-issues/ki-010-activity-timeline-redesign.md |
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

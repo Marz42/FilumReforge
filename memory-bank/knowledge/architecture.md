@@ -6,7 +6,7 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-08-11T23:27:48+08:00
+timestamp: 2026-08-12T00:00:11+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -24,8 +24,8 @@ paradigma:
 ---
 # Project Filum 架构基线
 
-**文档版本**: v3.22.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
-**最后同步**: 2026-08-11 · F-05 动作协调拆分；Iteration 4-A–E 工程完成
+**文档版本**: v3.23.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
+**最后同步**: 2026-08-12 · F-05 资料附件与评论留痕拆分；Iteration 4-A–E 工程完成
 
 ## 1. 文档定位
 
@@ -100,6 +100,7 @@ paradigma:
 - S-01 周期统计：Employee 本人、经理/数据代理部门子树、Admin/HR 全局；Asia/Shanghai 周期；SQL 聚合摘要/人员负载/分页明细，排除归档与 graph ROOT
 - F-05 首批（@ 2026-08-10）：`useTaskDetailData` 从 `TaskDetailShell` 提取主任务、附件/活动/关注人、图实例/事件和用户/部门参考数据加载；请求版本保证快速切换 last-selection-wins，主记录先显示且旧附属数据先清空，可选数据独立降级。
 - F-05 第二批（@ 2026-08-11）：`useTaskDetailActions` 收口状态流转、交付验收、审批驳回、集合关闭、延期与动作后刷新，`useTaskAssignmentActions` 独立接单/退回/转办和候选加载；Shell 继续负责权限/Profile 与模板绑定，约 1,895 → 1,569 行。API、payload、提示、刷新和 graph-first/standalone 语义不变；资料附件与评论/留痕板块待下一批。
+- F-05 第三批（@ 2026-08-12）：`useTaskDetailCollaboration` 收口任务资料上传与评论提交状态/命令，`TaskDetailAttachmentsPanel` / `TaskDetailCommentComposer` 承接原展示板块和附件校验；Shell 保留权限/Profile、选中任务、数据加载与页面编排，约 1,569 → 1,285 行。附件 target/visibility、评论 payload、成功/失败提示与刷新时机不变；下一批只提取现有活动时间线展示，不混入 KI-010 重设计。
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
 - 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；总览页已落地看板、公告、待办事项、任务跟踪与任务中心快捷入口

@@ -1,7 +1,7 @@
 ---
 type: paradigma-runtime-state
 title: Active Task
-description: 主开发线推进 F-05 第三批，提取任务资料附件与评论留痕协调。
+description: F-05 第三批已完成，下一批提取任务详情活动时间线展示。
 tags: [runtime, active-task, mainline, task-center, frontend, f-05]
 timestamp: 2026-08-11T23:27:48+08:00
 paradigma:
@@ -17,15 +17,15 @@ paradigma:
 
 ## Task ID
 
-f05-task-detail-materials-comments-2026-08-11
+f05-task-detail-activity-timeline-2026-08-12
 
 ## User Request
 
-固定 F-05 → Iteration 5 → 稳定观察 → Iteration 6 的正式顺序，治理过时计划文档；随后从 `TaskDetailShell.vue` 提取任务资料附件与评论/留痕协调，保持现有界面、权限和业务语义不变。
+完成计划治理和 F-05 资料附件/评论留痕拆分后，继续提取现有活动时间线展示；保持排序、文案、内部评论权限、附件操作和 UI 结构不变，不混入 KI-010 重设计。
 
 ## Current Status
 
-in-progress — F-05 前两批数据与动作协调已完成；正式后续顺序已固定，计划文档正按 active/completed/legacy 治理。本批将用测试先行提取附件上传与评论提交协调，Shell 继续保留权限/Profile、选中任务和页面编排。
+engineering-complete / follow-up-planned — 计划目录已按 active/completed/legacy 治理；F-05 第三批已用 `useTaskDetailCollaboration`、`TaskDetailAttachmentsPanel` 和 `TaskDetailCommentComposer` 提取上传、评论及其展示板块。Shell 约 1,569 → 1,285 行；70 files / 203 tests、type-check、双 lint、build 通过。评估确认仍需活动时间线展示批次，工作流面板编排在其后复评。
 
 ## Checklist
 
@@ -43,9 +43,11 @@ in-progress — F-05 前两批数据与动作协调已完成；正式后续顺�
 - [x] 避免制造新巨石：通用动作 composable 304 行，接单/转办 composable 178 行
 - [x] 完成 69 files / 197 tests、type-check、ESLint、Oxlint、build 并更新 F-05 进度记录
 - [x] 固定 F-05 → Iteration 5 → 稳定观察 → Iteration 6 的正式顺序
-- [ ] 将过时计划明确标为 completed 或 legacy，并生成计划状态目录
-- [ ] F-05 第三批：先写测试，再提取任务资料附件与评论/留痕协调
-- [ ] 重新评估活动时间线/工作流面板是否需要 F-05 第四批
+- [x] 将过时计划明确标为 completed 或 legacy，并生成计划状态目录
+- [x] F-05 第三批：先写测试，再提取任务资料附件与评论/留痕协调
+- [x] 完成 70 files / 203 tests、type-check、ESLint、Oxlint 与 build
+- [x] 重新评估活动时间线/工作流面板：活动时间线需要第四批，工作流编排在其后复评
+- [ ] F-05 第四批：测试先行提取现有活动时间线展示，不混入 KI-010 重设计
 - [ ] 在目标环境运行“数据检查”和“验收准备”，清零确定错误与 P-01～P-04 阻断
 - [ ] 员工按清单完成 Iteration 4 / 设计器 Phase 2 / S-01 UAT，并记录账号、模板、Run ID 与结论
 
@@ -58,6 +60,7 @@ in-progress — F-05 前两批数据与动作协调已完成；正式后续顺�
 - `memory-bank/knowledge/plans/2026-08-10-f05-task-detail-data-coordination-plan.md`
 - `memory-bank/knowledge/plans/2026-08-11-f05-task-detail-action-coordination-plan.md`
 - `memory-bank/knowledge/plans/2026-08-11-f05-task-detail-materials-comments-plan.md`
+- `memory-bank/knowledge/plans/2026-08-12-f05-task-detail-activity-timeline-plan.md`
 - `memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md`
 - `memory-bank/knowledge/plans/plan-status-catalog.md`
 - `memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md`
@@ -70,7 +73,7 @@ in-progress — F-05 前两批数据与动作协调已完成；正式后续顺�
 ## Blockers
 
 - 无继续开发的代码阻碍。
-- F-05 第三批无代码阻碍；资料/评论板块须保持附件可见性、上传预算、内部评论权限和刷新时机不变。
+- F-05 第四批无代码阻碍；须保持活动顺序、日志摘要、内部评论可见性、评论附件操作与 Profile 折叠行为不变。
 - 人工 UAT 仍需要目标环境真实账号、部门、模板和任务样本；系统不会自动造业务数据或代替业务签字。
 - I3-F、真实 TLS/secret/backup/restore 与生产变更窗口继续作为外部门禁，不阻断主开发。
 

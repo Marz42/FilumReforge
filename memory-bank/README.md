@@ -2,7 +2,7 @@
 
 本目录是 Project Filum 的**外部记忆系统**，已对齐 Paradigma Harness `0.5.0`（三态结构、阶段 checkpoint、独立 session log、Harness 诊断和可选 DESIGN 域）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)。
 
-> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → F-05 第三批拆分任务资料附件和评论/留痕；其后按 [F-05 → Iteration 5 → 稳定观察 → Iteration 6](./knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md) 推进。`v0.93.0-rc.2` 等待员工复测，生产准入仍独立推进 · [计划状态目录](./knowledge/plans/plan-status-catalog.md) · [UAT 清单](./knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) · [上线清单](./knowledge/manuals/2026-08-09-production-release-checklist.md)
+> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → F-05 数据、动作、资料附件与评论留痕三批已完成，下一批提取现有活动时间线展示；其后按 [F-05 → Iteration 5 → 稳定观察 → Iteration 6](./knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md) 推进。`v0.93.0-rc.2` 等待员工复测，生产准入仍独立推进 · [计划状态目录](./knowledge/plans/plan-status-catalog.md) · [UAT 清单](./knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) · [上线清单](./knowledge/manuals/2026-08-09-production-release-checklist.md)
 
 > **`knowledge/manuals/` ≈ Paradigma `manuals/`**：路径名保留 `knowledge/manuals/`，语义为部署运维与测试操作手册。
 

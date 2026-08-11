@@ -1,14 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, type UploadFile, type UploadInstance } from 'element-plus'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 
-import { uploadAttachment } from '@/api/attachments'
 import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
-import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
-import {
-  addTaskWatchers,
-  createTaskComment,
-} from '@/api/tasks'
+import { addTaskWatchers } from '@/api/tasks'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import CapturePanel from '@/components/workflow/CapturePanel.vue'
@@ -18,6 +13,8 @@ import WorkflowTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
 import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
 import { resolveActiveStepTaskId } from '@/domain/workflow-graph/activeStepTask'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
+import TaskDetailAttachmentsPanel from '@/components/task-detail/TaskDetailAttachmentsPanel.vue'
+import TaskDetailCommentComposer from '@/components/task-detail/TaskDetailCommentComposer.vue'
 import TaskDetailHeaderBar from '@/components/task-detail/TaskDetailHeaderBar.vue'
 import TaskDetailContextPanel from '@/components/task-detail/TaskDetailContextPanel.vue'
 import TaskDetailMetadataPanel from '@/components/task-detail/TaskDetailMetadataPanel.vue'
@@ -46,6 +43,7 @@ import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 import { isCaptureClosed, resolveAggregateMode } from '@/utils/workflowVideoSchema'
 import { useTaskDetailActions } from '@/composables/useTaskDetailActions'
+import { useTaskDetailCollaboration } from '@/composables/useTaskDetailCollaboration'
 import { useTaskDetailData } from '@/composables/useTaskDetailData'
 
 interface Props {
@@ -64,14 +62,9 @@ const emit = defineEmits<{
   actionDone: []
   selectTask: [taskId: string]
 }>()
-const taskAttachmentUploading = ref(false)
-const commentSubmitting = ref(false)
 const watcherSubmitting = ref(false)
 const watcherUserId = ref('')
-const selectedTaskFiles = ref<File[]>([])
-const taskAttachmentUploadRef = ref<UploadInstance>()
 const activityTimelineExpanded = ref<string[]>([])
-const commentFiles = ref<File[]>([])
 
 const {
   loading,
@@ -93,12 +86,22 @@ const {
   onLoadFailure: (error) => ElMessage.error(getErrorMessage(error)),
 })
 
-const commentForm = reactive({
-  content: '',
-  is_internal: false,
-})
-
 const selectedTask = computed(() => task.value)
+
+const {
+  commentAttachmentResetKey,
+  commentFiles,
+  commentForm,
+  commentSubmitting,
+  handleCommentSubmit,
+  handleTaskAttachmentUpload,
+  selectedTaskFiles,
+  taskAttachmentResetKey,
+  taskAttachmentUploading,
+} = useTaskDetailCollaboration({
+  task,
+  reloadTask: loadSelectedTaskDetails,
+})
 
 const {
   approvalSubmitting,
@@ -662,12 +665,6 @@ function renderLogSummary(entry: TaskActivityEntry): string {
   }
 }
 
-function resetCommentForm(): void {
-  commentForm.content = ''
-  commentForm.is_internal = false
-  commentFiles.value = []
-}
-
 async function handleAddWatcher(): Promise<void> {
   if (!selectedTask.value || !watcherUserId.value) {
     ElMessage.warning('请选择关注人')
@@ -683,104 +680,6 @@ async function handleAddWatcher(): Promise<void> {
     ElMessage.error(getErrorMessage(error))
   } finally {
     watcherSubmitting.value = false
-  }
-}
-
-
-
-function handleTaskFileChange(_uploadFile: UploadFile, uploadFiles: UploadFile[]): void {
-  selectedTaskFiles.value = normalizeUploadFiles(uploadFiles)
-}
-
-function handleTaskFileRemove(_uploadFile: UploadFile, uploadFiles: UploadFile[]): void {
-  selectedTaskFiles.value = normalizeUploadFiles(uploadFiles)
-}
-
-function beforeUploadAttachmentFile(raw: File): boolean {
-  const err = validateAttachmentFile(raw)
-  if (err) {
-    ElMessage.error(err)
-    return false
-  }
-  return true
-}
-
-function normalizeUploadFiles(uploadFiles: UploadFile[]): File[] {
-  return uploadFiles.reduce<File[]>((files, uploadFile) => {
-    if (uploadFile.raw) {
-      files.push(uploadFile.raw)
-    }
-    return files
-  }, [])
-}
-
-async function handleTaskAttachmentUpload(): Promise<void> {
-  if (!selectedTask.value || selectedTaskFiles.value.length === 0) {
-    ElMessage.warning('请选择任务并上传文件')
-    return
-  }
-
-  taskAttachmentUploading.value = true
-
-  try {
-    for (const file of selectedTaskFiles.value) {
-      await uploadAttachment({
-        file,
-        target_type: 'task',
-        target_id: selectedTask.value.id,
-        visibility: 'private',
-      })
-    }
-
-    ElMessage.success(
-      selectedTaskFiles.value.length > 1
-        ? `已上传 ${selectedTaskFiles.value.length} 个任务资料附件`
-        : '任务资料附件已上传',
-    )
-    selectedTaskFiles.value = []
-    taskAttachmentUploadRef.value?.clearFiles()
-    await loadSelectedTaskDetails(selectedTask.value.id)
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    taskAttachmentUploading.value = false
-  }
-}
-
-function handleCommentFileChange(_: UploadFile, uploadFiles: UploadFile[]): void {
-  commentFiles.value = normalizeUploadFiles(uploadFiles)
-}
-
-function handleCommentFileRemove(_: UploadFile, uploadFiles: UploadFile[]): void {
-  commentFiles.value = normalizeUploadFiles(uploadFiles)
-}
-
-async function handleCommentSubmit(): Promise<void> {
-  if (!selectedTask.value) {
-    ElMessage.warning('请先选择任务')
-    return
-  }
-  if (!commentForm.content.trim()) {
-    ElMessage.warning('请输入评论内容')
-    return
-  }
-
-  commentSubmitting.value = true
-
-  try {
-    await createTaskComment(selectedTask.value.id, {
-      content: commentForm.content.trim(),
-      is_internal: commentForm.is_internal,
-      files: commentFiles.value,
-    })
-
-    ElMessage.success('评论已提交')
-    resetCommentForm()
-    await loadSelectedTaskDetails(selectedTask.value.id)
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    commentSubmitting.value = false
   }
 }
 
@@ -1062,129 +961,27 @@ watch(
             </div>
             </template>
 
-            <section
+            <TaskDetailAttachmentsPanel
               v-if="!usesWorkflowLayout"
-              class="page__attachments-section"
-              data-testid="task-attachments-section"
-            >
-              <div class="page__section-heading">
-                <strong>任务资料附件</strong>
-                <span>{{ taskAttachments.length }} 个文件</span>
-              </div>
+              :attachments="taskAttachments"
+              :uploading="taskAttachmentUploading"
+              :reset-key="taskAttachmentResetKey"
+              @files-change="selectedTaskFiles = $event"
+              @upload="handleTaskAttachmentUpload"
+            />
 
-              <div class="page__attachment-upload-row">
-                <div data-testid="tasks-attachment-upload">
-                  <el-upload
-                    ref="taskAttachmentUploadRef"
-                    class="page__upload"
-                    :auto-upload="false"
-                    multiple
-                    :limit="10"
-                    :show-file-list="true"
-                    :accept="ATTACHMENT_ACCEPT"
-                    :before-upload="beforeUploadAttachmentFile"
-                    :on-change="handleTaskFileChange"
-                    :on-remove="handleTaskFileRemove"
-                  >
-                    <template #trigger>
-                      <el-button>选择附件</el-button>
-                    </template>
-                  </el-upload>
-                </div>
+            <TaskDetailCommentComposer
+              v-model:content="commentForm.content"
+              v-model:is-internal="commentForm.is_internal"
+              :collapse="selectedTaskProfile.collapseComments"
+              :is-management-role="authStore.isManagementRole"
+              :submitting="commentSubmitting"
+              :attachment-reset-key="commentAttachmentResetKey"
+              @files-change="commentFiles = $event"
+              @submit="handleCommentSubmit"
+            />
 
-                <el-button
-                  type="primary"
-                  :loading="taskAttachmentUploading"
-                  @click="handleTaskAttachmentUpload"
-                >
-                  上传到任务
-                </el-button>
-              </div>
-
-              <el-empty
-                v-if="taskAttachments.length === 0"
-                :image-size="56"
-                description="暂无任务资料附件"
-              />
-
-              <div v-else class="page__attachments-list">
-                <el-card
-                  v-for="attachment in taskAttachments"
-                  :key="attachment.id"
-                  shadow="never"
-                  class="page__attachment-card"
-                >
-                  <div class="page__attachment-row">
-                    <div class="page__attachment-copy">
-                      <strong>{{ attachment.original_filename }}</strong>
-                      <p>{{ attachment.mime_type }} · {{ attachment.size_bytes }} bytes</p>
-                    </div>
-                    <AttachmentActions
-                      :attachment="attachment"
-                      view-test-id="task-attachment-view"
-                      download-test-id="task-attachment-download"
-                    />
-                  </div>
-                </el-card>
-              </div>
-            </section>
-
-            <el-collapse v-if="selectedTaskProfile.collapseComments" class="page__comments-collapse">
-              <el-collapse-item title="评论与留痕" name="comments">
-                <el-form label-position="top">
-                  <el-form-item label="评论内容">
-                    <el-input
-                      v-model="commentForm.content"
-                      type="textarea"
-                      :rows="4"
-                      placeholder="请输入任务评论或协作说明"
-                    />
-                  </el-form-item>
-                  <el-form-item v-if="authStore.isManagementRole" label="内部备注">
-                    <el-switch v-model="commentForm.is_internal" />
-                  </el-form-item>
-                </el-form>
-                <el-button type="primary" :loading="commentSubmitting" @click="handleCommentSubmit">
-                  提交评论
-                </el-button>
-              </el-collapse-item>
-            </el-collapse>
-
-            <template v-else>
-            <el-divider>评论与留痕</el-divider>
-
-            <el-form label-position="top">
-              <el-form-item label="评论内容">
-                <el-input
-                  v-model="commentForm.content"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="请输入任务评论或协作说明"
-                />
-              </el-form-item>
-              <el-form-item v-if="authStore.isManagementRole" label="内部备注">
-                <el-switch v-model="commentForm.is_internal" />
-              </el-form-item>
-              <el-form-item label="评论附件">
-                <el-upload
-                  :auto-upload="false"
-                  multiple
-                  :show-file-list="true"
-                  :accept="ATTACHMENT_ACCEPT"
-                  :before-upload="beforeUploadAttachmentFile"
-                  :on-change="handleCommentFileChange"
-                  :on-remove="handleCommentFileRemove"
-                >
-                  <template #trigger>
-                    <el-button>选择评论附件</el-button>
-                  </template>
-                </el-upload>
-              </el-form-item>
-            </el-form>
-
-            <el-button type="primary" :loading="commentSubmitting" @click="handleCommentSubmit">
-              提交评论
-            </el-button>
+            <template v-if="!selectedTaskProfile.collapseComments">
 
             <!-- 图引擎节点板块（仅图任务显示） -->
             <el-collapse
@@ -1416,89 +1213,8 @@ watch(
   gap: 12px;
 }
 
-.page__attachments-section {
-  width: 100%;
-  box-sizing: border-box;
-  margin-top: 20px;
-  padding: 14px 16px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 12px;
-  background: var(--el-fill-color-extra-light);
-}
-
-.page__section-heading,
-.page__attachment-upload-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.page__section-heading {
-  margin-bottom: 12px;
-}
-
-.page__section-heading span {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-}
-
-.page__attachment-upload-row {
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.page__upload {
-  min-width: 0;
-}
-
-.page__attachments-list {
-  display: grid;
-  gap: 8px;
-}
-
-.page__attachment-card {
-  min-width: 0;
-}
-
-.page__attachment-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.page__attachment-copy {
-  min-width: 0;
-}
-
-.page__attachment-copy strong {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.page__attachment-copy p {
-  margin: 4px 0 0;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.page__comments-collapse {
-  margin-top: 16px;
-}
-
 .page__activity-collapse {
   margin-top: 16px;
-}
-
-@media (max-width: 640px) {
-  .page__attachment-upload-row,
-  .page__attachment-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
 }
 
 .page__timeline-header {

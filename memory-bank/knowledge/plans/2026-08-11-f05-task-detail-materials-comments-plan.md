@@ -2,12 +2,12 @@
 type: paradigma-plan
 title: "2026-08-11 F-05 任务资料与评论留痕拆分计划"
 description: "从 TaskDetailShell 提取附件、评论与留痕协调，保持权限、上传预算、刷新时机和 UI 语义不变。"
-tags: [plan, active, f-05, task-center, frontend, attachment, comment]
+tags: [plan, completed, f-05, task-center, frontend, attachment, comment]
 timestamp: 2026-08-11T23:42:43+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -22,7 +22,7 @@ paradigma:
 
 # F-05 任务资料与评论留痕拆分计划
 
-> **计划状态：ACTIVE** — 本批是 F-05 第三批；只移动前端职责，不改变附件、评论、活动或工作流的后端契约。
+> **计划状态：COMPLETED** — F-05 第三批已交付；附件、评论和留痕协调已离开 Shell，API、权限和页面语义保持不变。下一批见活动时间线拆分计划。
 
 ## 边界
 
