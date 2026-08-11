@@ -1,7 +1,7 @@
 # Contracts Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: ef69e4f50d1bda33 -->
+<!-- checksum: bcbf6017349d90e1 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -16,6 +16,7 @@
 | [database/report-schema.md](database/report-schema.md) | `paradigma-contract` | 汇报中心 Schema | 汇报Schema<br>路由<br>report schema ... | - | depends_on:../data-contracts.md |
 | [database/task-collaboration-schema.md](database/task-collaboration-schema.md) | `paradigma-contract` | 任务与协同 Schema | 任务Schema<br>模板<br>评论 ... | - | depends_on:../data-contracts.md |
 | [database/workflow-schema.md](database/workflow-schema.md) | `paradigma-contract` | 工作流与审批 Schema | 工作流Schema<br>审批<br>流程 ... | - | depends_on:../data-contracts.md |
+| [projection-contract.md](projection-contract.md) | `paradigma-contract` | Iteration 5 投影与查询契约 | 投影契约<br>task_center_items<br>Run 摘要 ... | - | depends_on:./data-contracts.md<br>depends_on:./database/graph-engine-schema.md<br>related_to:../plans/2026-08-12-iteration5a-projection-contract-plan.md<br>related_to:../domains/task-center.md ... |
 | [repository-contract.md](repository-contract.md) | `paradigma-contract` | Project Filum — 仓库契约 | 仓库契约<br>目录协议<br>子项目 ... | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->

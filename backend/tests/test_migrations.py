@@ -6,8 +6,11 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import inspect
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import get_settings
+from app.models import Base
 from tests.postgres_migration_support import (
   drop_ephemeral_database,
   list_public_tables,
@@ -53,6 +56,9 @@ EXPECTED_UPGRADED_TABLES = {
   "workflow_deliverables",
   "workflow_outbox_events",
   "workflow_run_events",
+  "task_center_items",
+  "process_run_summaries",
+  "node_timeline_entries",
   "workflow_steps",
   "workflow_instances",
   "workflow_step_runs",
@@ -80,6 +86,30 @@ EXPECTED_UPGRADED_TABLES = {
   "report_routes",
   "error_events",
 }
+PROJECTION_TABLES = {
+  "task_center_items",
+  "process_run_summaries",
+  "node_timeline_entries",
+}
+
+
+async def _create_pre_projection_sqlite_schema(dsn: str) -> None:
+  engine = create_async_engine(dsn)
+  try:
+    tables = [table for table in Base.metadata.sorted_tables if table.name not in PROJECTION_TABLES]
+    async with engine.begin() as connection:
+      await connection.run_sync(lambda sync_connection: Base.metadata.create_all(sync_connection, tables=tables))
+  finally:
+    await engine.dispose()
+
+
+async def _list_sqlite_tables(dsn: str) -> set[str]:
+  engine = create_async_engine(dsn)
+  try:
+    async with engine.connect() as connection:
+      return await connection.run_sync(lambda sync_connection: set(inspect(sync_connection).get_table_names()))
+  finally:
+    await engine.dispose()
 
 
 def test_alembic_identifier_names_fit_postgresql_limit() -> None:
@@ -94,6 +124,30 @@ def test_alembic_identifier_names_fit_postgresql_limit() -> None:
           invalid_names[f"{revision_path.name}:{name}"] = len(name)
 
   assert invalid_names == {}
+
+
+def test_iteration5a_projection_expand_and_downgrade_on_sqlite(
+  monkeypatch: pytest.MonkeyPatch,
+  tmp_path: Path,
+) -> None:
+  database_path = tmp_path / "iteration5a-projection.db"
+  sqlite_dsn = f"sqlite+aiosqlite:///{database_path.as_posix()}"
+  run_async(_create_pre_projection_sqlite_schema(sqlite_dsn))
+
+  monkeypatch.setenv("POSTGRES_DSN", sqlite_dsn)
+  get_settings.cache_clear()
+  alembic_config = Config(str(BASE_DIR / "alembic.ini"))
+  alembic_config.set_main_option("script_location", str(BASE_DIR / "alembic"))
+
+  try:
+    command.stamp(alembic_config, "20260730_01")
+    command.upgrade(alembic_config, "head")
+    assert PROJECTION_TABLES.issubset(run_async(_list_sqlite_tables(sqlite_dsn)))
+
+    command.downgrade(alembic_config, "20260730_01")
+    assert PROJECTION_TABLES.isdisjoint(run_async(_list_sqlite_tables(sqlite_dsn)))
+  finally:
+    get_settings.cache_clear()
 
 
 @pytest.mark.postgres

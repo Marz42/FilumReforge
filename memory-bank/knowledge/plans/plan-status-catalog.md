@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "实施计划状态目录"
 description: "区分现行计划、已完成实施记录与已被取代的 Legacy 方案，避免历史计划被误作当前排期。"
 tags: [plan, governance, active, completed, legacy]
-timestamp: 2026-08-12T00:24:05+08:00
+timestamp: 2026-08-12T00:45:59+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -30,7 +30,7 @@ paradigma:
 | `implementation-plan.md` | 总体实施主线 |
 | `workflow-graph-engine-upgrade-iteration-plan.md` | 图引擎 Iteration 0～6 总计划；当前指向 I5/I6 |
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |
-| `2026-08-12-iteration5a-projection-contract-plan.md` | 当前开发批：三类投影契约、字段来源/授权矩阵与 Expand-only 迁移 |
+| `2026-08-12-iteration5a-projection-contract-plan.md` | 三类投影契约、ORM 与 Expand-only 迁移工程完成；保持 active 直到 PostgreSQL 严格迁移证据补齐 |
 | `workflow-graph-engine-iteration3f-readiness-gate-plan.md` | 仍开放的目标环境与生产切流门禁 |
 | `2026-08-09-rc-employee-trial-plan.md` | `v0.93.0-rc.2` 员工复测与主线分流 |
 

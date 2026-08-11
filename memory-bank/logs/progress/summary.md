@@ -1,6 +1,6 @@
 # Progress Summary
 
-Generated at: 2026-08-12 00:27
+Generated at: 2026-08-12 00:52
 
 This file summarizes progress logs without deleting or rewriting the source session logs.
 
@@ -19,3 +19,4 @@ This file summarizes progress logs without deleting or rewriting the source sess
 | [2026-08-12-f05-task-detail-activity-timeline.md](2026-08-12-f05-task-detail-activity-timeline.md) | 2026-08-12 F-05 任务详情活动时间线拆分 | 新增 `TaskDetailActivityTimeline`，承接空状态、评论、内部备注标记、评论附件、任务日志和摘要格式化。 |
 | [2026-08-12-f05-task-detail-materials-comments.md](2026-08-12-f05-task-detail-materials-comments.md) | 2026-08-12 F-05 任务资料附件与评论留痕拆分 | 新增 `useTaskDetailCollaboration`，统一任务资料多文件上传、评论提交、成功/失败状态、表单复位与详情刷新。 |
 | [2026-08-12-f05-task-detail-workflow-presentation.md](2026-08-12-f05-task-detail-workflow-presentation.md) | 2026-08-12 F-05 任务详情工作流展示收口 | 新增 `TaskDetailWorkflowPresentation`，按 domain-neutral Profile/capability 选择 Tracking、Run Dashboard、Capture、Deliverable 与 Aggregate 兼容面板，并承接最近 Run Event。 |
+| [2026-08-12-iteration5a-projection-contract.md](2026-08-12-iteration5a-projection-contract.md) | 2026-08-12 Iteration 5-A 投影契约与加法迁移 | 新增 HOT `projection-contract.md`，从现有 inbox/tracking/history、Run detail 和 Task activity 反向固定字段来源、canonical identity、授权复核、稳定排序、版本与重建边界。 |

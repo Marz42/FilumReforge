@@ -28,6 +28,7 @@ paradigma:
 - F-05 收口批：提取 `TaskDetailWorkflowPresentation` 与 `TaskDetailGraphTelemetry`，保留 capability/Profile 面板选择、页头交付句柄、Run Event 紧凑策略和节点状态展示；Shell 降至约 838 行，F-05 完成。
 - Memory-Bank 计划治理：固定 F-05 → Iteration 5 → 稳定观察 → Iteration 6，增加计划状态目录，并将过时方案明确标为 completed 或 legacy。
 - 主开发线进入 Iteration 5-A：先固定任务中心、Run 摘要和节点时间线三类投影契约，再实施 Expand-only 加法迁移；本阶段不切读、不回填、不停止兼容路径。
+- Iteration 5-A 工程实现：新增 `TaskCenterItem`、`ProcessRunSummary`、`NodeTimelineEntry` 与 `20260812_01`；固化 Projection 唯一写 owner、canonical source、稳定排序、版本/重建和对象授权复核边界。
 
 ## [0.93.0-rc.2] — 2026-08-11
 

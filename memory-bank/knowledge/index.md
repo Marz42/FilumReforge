@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 7c1fad9d957b384e -->
+<!-- checksum: 6fab1b3b34e5121b -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -17,6 +17,7 @@
 | [contracts/database/report-schema.md](contracts/database/report-schema.md) | `paradigma-contract` | 汇报中心 Schema | 汇报Schema<br>路由<br>report schema ... | - | depends_on:../data-contracts.md |
 | [contracts/database/task-collaboration-schema.md](contracts/database/task-collaboration-schema.md) | `paradigma-contract` | 任务与协同 Schema | 任务Schema<br>模板<br>评论 ... | - | depends_on:../data-contracts.md |
 | [contracts/database/workflow-schema.md](contracts/database/workflow-schema.md) | `paradigma-contract` | 工作流与审批 Schema | 工作流Schema<br>审批<br>流程 ... | - | depends_on:../data-contracts.md |
+| [contracts/projection-contract.md](contracts/projection-contract.md) | `paradigma-contract` | Iteration 5 投影与查询契约 | 投影契约<br>task_center_items<br>Run 摘要 ... | - | depends_on:./data-contracts.md<br>depends_on:./database/graph-engine-schema.md<br>related_to:../plans/2026-08-12-iteration5a-projection-contract-plan.md<br>related_to:../domains/task-center.md ... |
 | [contracts/repository-contract.md](contracts/repository-contract.md) | `paradigma-contract` | Project Filum — 仓库契约 | 仓库契约<br>目录协议<br>子项目 ... | - | - |
 | [conventions.md](conventions.md) | `paradigma-convention` | Project Filum — 编码与协作规范 | 编码规范<br>命名约定<br>测试 ... | - | - |
 | [decisions/adr-001-modular-monolith.md](decisions/adr-001-modular-monolith.md) | `paradigma-decision` | ADR-001: 模块化单体架构 | 模块化单体<br>架构决策<br>modular monolith ... | - | - |

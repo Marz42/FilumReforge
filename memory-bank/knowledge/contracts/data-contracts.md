@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-08-11T23:15:47+08:00
+timestamp: 2026-08-12T00:45:59+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -143,6 +143,7 @@ paradigma:
 | 任务与协同 | [`database/task-collaboration-schema.md`](./database/task-collaboration-schema.md) |
 | 工作流与审批 | [`database/workflow-schema.md`](./database/workflow-schema.md) |
 | 图引擎 | [`database/graph-engine-schema.md`](./database/graph-engine-schema.md) |
+| Iteration 5 投影读模型 | [`projection-contract.md`](./projection-contract.md) |
 | 消息与推送 | [`database/messaging-schema.md`](./database/messaging-schema.md) |
 | 知识库与附件 | [`database/knowledge-media-schema.md`](./database/knowledge-media-schema.md) |
 | 总览 | [`database/overview-schema.md`](./database/overview-schema.md) |
@@ -196,14 +197,16 @@ paradigma:
 - `workflow_operational_incidents` 以 fingerprint 唯一聚合 Link fallback/mismatch/backfill、Coordinator、Receipt、Outbox 与迁移异常
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run）
 - `workflow_node_instances 1:1 workflow_deliverables`
+- `tasks / workflow_graph_instances / workflow_node_instances` 派生 `task_center_items`；投影可重建且不反向拥有业务事实
+- `workflow_graph_instances 1:1 process_run_summaries`；`workflow_graph_instances 1:N node_timeline_entries`
 
 ## 12. 当前验证基线
 
 最新权威结果见 [`progress summary`](../../logs/progress/summary.md) 与最近独立 session log（2026-08-09 @ 安全与上线准备）：
 
-- backend：**460 collected / 428 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；`compileall` PASS；Alembic 单 head `20260730_01`
+- backend：5-A 开发前基线 **460 collected / 428 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；Alembic 单 head `20260730_01`
 - Iteration 4-E / Handler / 视频黄金流程定向：**66 PASS**
-- frontend：Vitest **64 文件 / 180 用例 PASS**；`vue-tsc --build`、production build PASS；ESLint 全量仍有 **21 个既有 error**，按 release script 为 warning，须在后续质量批次清理
+- frontend：Vitest **73 文件 / 211 用例 PASS**；`vue-tsc --build`、production build、ESLint 与 Oxlint PASS
 - 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**
 - 未纳入每次刷新：live/docker-gui、目标环境 I3-F 7 天 readiness、Ubuntu 回滚演练
 

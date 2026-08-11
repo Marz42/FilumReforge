@@ -50,6 +50,7 @@ from app.models.workflow_graph import (
   WorkflowCommandReceipt,
   WorkflowRunEvent,
 )
+from app.models.workflow_projection import NodeTimelineEntry, ProcessRunSummary, TaskCenterItem
 
 __all__ = [
   "Attachment",
@@ -68,7 +69,9 @@ __all__ = [
   "NotificationDelivery",
   "NotificationMessage",
   "NotificationReceipt",
+  "NodeTimelineEntry",
   "Position",
+  "ProcessRunSummary",
   "Profile",
   "ProfileFieldDefinition",
   "ProfileFieldPermission",
@@ -79,6 +82,7 @@ __all__ = [
   "RefreshToken",
   "ReportingLine",
   "Task",
+  "TaskCenterItem",
   "TaskComment",
   "TaskDependency",
   "TaskLog",

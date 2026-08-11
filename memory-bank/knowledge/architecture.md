@@ -6,7 +6,7 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-08-12T00:24:05+08:00
+timestamp: 2026-08-12T00:45:59+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -24,8 +24,8 @@ paradigma:
 ---
 # Project Filum 架构基线
 
-**文档版本**: v3.25.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
-**最后同步**: 2026-08-12 · F-05 完成，主开发线进入 Iteration 5-A；Iteration 4-A–E 工程完成
+**文档版本**: v3.26.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
+**最后同步**: 2026-08-12 · Iteration 5-A 投影模型/Expand 迁移工程完成；PostgreSQL 证据待补
 
 ## 1. 文档定位
 
@@ -76,7 +76,7 @@ paradigma:
 - Stage 2 Phase 6 补丁增强：人员工作台账号页已明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；管理员可删除未建档且未被业务数据引用的账号
 - Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
 - Inbox-first 任务中心：主筛选 **待处理 / 跟踪 / 历史**；页头 **建立任务** 为居中 **Dialog**（含未保存关闭确认）；筛选摘要卡；`GET /api/v1/tasks/search`；`FilumDateTimePicker` / `FilumDateTimeRangePicker`；全局 **个人备忘** 为右下角浮窗（列表 + 新建/编辑 Dialog，可选 `title`）；任务模板在 `/task-templates`
-- 工作流图引擎 schema 现为 **十五表**：十四表运行时/Link/receipt/incident 基线 + `workflow_graph_template_scope_events` 模板授权审计。新模板 Run 使用 snapshot format v2 / `graph-v3`；既有 executor 不原地升级。Iteration 3-F 以 `WorkItemWriteService` / `WorkflowRuntimeWriteService` 固化独占写端口，`HumanTaskCoordinator` 只编排同一 UoW，全仓库 AST guard 阻止越界写和内部 commit；Link 支持 iteration/superseded，readiness API/CLI 可查询 fallback、Coordinator/Receipt/Outbox 异常、engine version 与未迁移对象。兼容 JSON 仍双写；Iteration 4 可进行向下兼容开发，但生产切流仍须目标环境连续 7 天零 fallback 与最终 31/31 批准
+- 工作流图引擎 schema 现为 **十五张运行时/治理表 + 三张空投影表**：`task_center_items`、`process_run_summaries`、`node_timeline_entries` 由 `20260812_01` Expand-only 新增，可清空重建且不反向拥有业务事实。新模板 Run 使用 snapshot format v2 / `graph-v3`；既有 executor 不原地升级。Iteration 3-F 以 `WorkItemWriteService` / `WorkflowRuntimeWriteService` 固化独占写端口，5-A AST guard 另行固定 Projection 唯一写 owner。兼容 JSON 与动态 graph-first 仍在使用；生产切流仍须目标环境证据和单独批准
 - 工作流图引擎 Iteration 4-A（@ 2026-07-28）：新增 `WorkflowNodeHandlerRegistry` 与统一 `WorkflowCapabilityResult`，Handler 契约声明 definition validation、activate、command、cancel、retry、interruptible、compensation、side effects 与 result mapping；HumanTask/Notice 已注册，Runtime 的激活/完成状态映射消费统一结果并写入 RunEvent 审计，Approval 暂走 legacy 等待 I4-C
 - Iteration 4 Preflight（@ 2026-07-29）：P0/P1/P3 已收口并恢复 I4-B，前端 P2 持续接收。ADR-018 明确视频流程是普通模板包，Runtime 不得以 `run_kind`、模板 code、节点 key、tags 或 `video_*` Profile 驱动行为，也不新增 `VideoHandler`；现有专用路径按领域中立迁移清单分批迁移
 - Iteration 4-B（@ 2026-07-29）：HumanTask 完成、取消、重试结果由 `HumanTaskCoordinator` 通过 Runtime owner port 应用并同步 Link/Outbox；显式区分普通 `complete` 与 `collection_finalize`，A/B/C 均提交且 A 同时负责集合确认属于合法推进。
@@ -103,6 +103,7 @@ paradigma:
 - F-05 第三批（@ 2026-08-12）：`useTaskDetailCollaboration` 收口任务资料上传与评论提交状态/命令，`TaskDetailAttachmentsPanel` / `TaskDetailCommentComposer` 承接原展示板块和附件校验；Shell 保留权限/Profile、选中任务、数据加载与页面编排，约 1,569 → 1,285 行。附件 target/visibility、评论 payload、成功/失败提示与刷新时机不变；下一批只提取现有活动时间线展示，不混入 KI-010 重设计。
 - F-05 第四批（@ 2026-08-12）：`TaskDetailActivityTimeline` 承接 Task Activity 空状态、评论/内部标记/附件、任务日志与摘要格式化；Shell 保留折叠状态和数据加载，约 1,285 → 1,153 行。服务端顺序、时间格式、文案与附件操作不变，KI-010 未实施；最后一批收口 capability 面板、Run Event 与图节点追踪展示。
 - F-05 收口批（@ 2026-08-12）：`TaskDetailWorkflowPresentation` 以 domain-neutral Profile/capability 组合现有 Tracking/Run/Capture/Deliverable/Aggregate 展示并向页头透传提交句柄，`TaskDetailGraphTelemetry` 承接 Run Event 与 compact/full 节点状态展示；Shell 约 1,153 → 838 行，F-05 完成。下一主线为 Iteration 5-A 三类投影契约与 Expand-only 迁移。
+- Iteration 5-A（@ 2026-08-12）：`workflow_projection.py` 定义 actor-neutral `TaskCenterItem`、`ProcessRunSummary` 与统一 `NodeTimelineEntry`，保存 canonical subject、源 revision/schema、稳定排序字段和 audience 候选；最终对象授权仍由 Task/Workflow policy 裁决。`20260812_01` 只建表/约束/索引，无 projector、回填、读侧切换或旧结构删除；SQLite expand/downgrade 通过，PostgreSQL 严格迁移证据待目标环境补齐。
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
 - 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；总览页已落地看板、公告、待办事项、任务跟踪与任务中心快捷入口

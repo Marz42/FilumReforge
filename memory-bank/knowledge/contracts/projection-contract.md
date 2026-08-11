@@ -1,0 +1,103 @@
+---
+type: paradigma-contract
+title: "Iteration 5 投影与查询契约"
+description: "task_center_items、process_run_summaries、node_timeline_entries 的字段来源、身份、授权、排序、所有权与重建边界。"
+tags: [contract, projection, task-center, workflow-graph, iteration-5]
+timestamp: 2026-08-12T00:24:05+08:00
+paradigma:
+  schema_version: "0.5.0"
+  temperature: hot
+  lifecycle: evolving
+  update_policy: agent-editable
+  epistemic_status: confirmed
+  contract_kind: data
+  retrieval_hints:
+    zh: [投影契约, task_center_items, Run 摘要, 节点时间线, 投影授权]
+    en: [projection contract, task center items, run summaries, node timeline, projection authorization]
+  relations:
+    depends_on:
+      - ./data-contracts.md
+      - ./database/graph-engine-schema.md
+    related_to:
+      - ../plans/2026-08-12-iteration5a-projection-contract-plan.md
+      - ../domains/task-center.md
+      - ../domains/workflow-graph-engine.md
+---
+
+# Iteration 5 投影与查询契约
+
+> **实现阶段：Iteration 5-A / EXPAND**。三类表是可清空、可重建的派生读模型，不是业务事实源。5-A 只建模型与表；5-B 才实现 projector/checkpoint/rebuild，5-C 才做 shadow comparison，5-E 获批前不得切换 Task Center 正式读路径。
+
+## 1. 通用不变量
+
+- Projection 模块是唯一写 owner；Task、Workflow Runtime、API route 和前端不得直接创建或修改投影行。
+- 业务命令先提交写模型与事件；投影失败或延迟不得回滚业务命令。
+- 每行携带 `projection_schema_version`、`source_revision`、`last_event_id`（可空）与 `projected_at`；重复或旧 revision 不得覆盖更新的数据。
+- JSON audience/payload 只用于候选筛选和展示缓存；最终对象授权必须复用现有 Task/Workflow policy，不得凭投影 UUID 直接放行。
+- 所有列表/时间线顺序均以业务时间 + UUID 作为最终 tiebreaker；重建后必须保持确定顺序。
+- 删除投影不级联删除业务对象；删除业务 Task/Run 可以清理对应投影。可空的用户、部门、节点引用采用 `SET NULL`，保留历史摘要。
+
+## 2. 字段来源矩阵
+
+| 投影 | 输出字段组 | 权威来源 | 说明 |
+|---|---|---|---|
+| `task_center_items` | 标题、优先级、截止/完成/创建时间 | `tasks`；Run shell 来自 `workflow_graph_instances`/模板快照 | 展示缓存，不替代源对象 |
+| `task_center_items` | raw status、engine/business state、阶段、当前处理人 | `tasks` + `workflow_node_instances` + `workflow_graph_instances` + `workflow_human_task_links` | 替代当前 `_graph_task_projection_map` 动态拼装 |
+| `task_center_items` | 交付时间、返工次数、质量分 | `workflow_deliverables.payload`；兼容期可回退 Task metadata | 5-C 必须记录 fallback 来源差异 |
+| `task_center_items` | audience 候选 | creator/assignee/reviewer/watcher、Run initiator/participant/event actor、部门 | 仅候选；最终走 policy |
+| `process_run_summaries` | Run 状态、result、当前节点、父子关系 | `workflow_graph_instances` | Run 身份以 `process_run_id` 唯一 |
+| `process_run_summaries` | total/completed/active/pending/blocked/progress | `workflow_node_instances` | 终态包含 completed/skipped/terminated；算法版本随 schema version 固定 |
+| `process_run_summaries` | audience 候选 | initiator、节点执行人、历史 actor、正式 watcher、部门管理范围 | 最终读取仍走 `WorkflowAccessPolicy` |
+| `node_timeline_entries` | Node/Run 事件 | `workflow_run_events` | source identity = `workflow_run_event` + event UUID |
+| `node_timeline_entries` | Task 日志/评论 | `task_logs` / `task_comments` | 正文和附件仍归源表；投影只存摘要与引用 |
+| `node_timeline_entries` | 交付/审批/返工/接管 | deliverable payload、approval event、task log/run event | 同一源事实只投影一次 |
+
+## 3. `task_center_items`
+
+**身份**：唯一 `(subject_type, subject_id)`；`subject_type ∈ {work_item, process_run, system_alert}`。`item_kind ∈ {standalone, human_task, approval, process_run, system_alert}`。work item 必须关联 `task_id`，process run 必须关联 `process_run_id`。
+
+**持久字段组**：
+
+- 引用：`task_id`、`process_run_id`、`node_instance_id`；
+- 展示：`title`、`priority`、`raw_status`、`engine_state`、`business_state`、`user_facing_state`、`current_stage_label`、`current_handler_label`、`run_label`；
+- 责任：`creator_user_id`、`assignee_user_id`、`current_action_owner_user_id`、`department_id`；
+- 动作提示：`execution_mode`、`assignment_mode`、`requires_action`、`action_type`；具体 `available_actions` 继续由请求 actor 的 policy 计算，不持久化为全局真相；
+- 跟踪指标：`latest_deliverable_submitted_at`、`rework_count`、`review_quality_score`；
+- 时间与状态：`source_created_at`、`source_updated_at`、`due_at`、`completed_at`、`is_archived`、`hidden_for_non_management`；
+- 候选范围：`audience_user_ids`、`audience_department_ids` JSON 数组。
+
+**索引顺序**：action owner/status/due、department/status/due、process run、history completed/id。Inbox 沿用“有截止时间优先 → 截止时间 → 优先级 → 创建时间倒序 → UUID”；Tracking 沿用 status/due/priority/UUID；History 使用 completed time + UUID 倒序。
+
+## 4. `process_run_summaries`
+
+**身份**：`process_run_id` 唯一并关联 `workflow_graph_instances.id`。
+
+**持久字段组**：template/parent/source/department/initiator 引用，`run_label`，engine `status`/`result`，`current_node_key`/`current_stage_label`，节点五类计数与 `progress_percent`，`started_at`/`completed_at`/`latest_event_at`，audience JSON 数组及通用投影元数据。
+
+**计数约束**：所有 count 非负，`progress_percent` 为 0～100；completed 计数包括 `completed/skipped/terminated`，blocked 仅表示需要人工/运维处理的业务或引擎阻塞，不把普通 pending 算作 blocked。
+
+## 5. `node_timeline_entries`
+
+**身份**：唯一 `(source_type, source_id)`；`entry_type ∈ {node_event, work_item_activity, comment, deliverable, approval, rework, takeover, system}`。
+
+**持久字段组**：Run/Node/Task 引用，source/event/actor，`visibility ∈ {public, internal, management}`，`title`、`summary`、非权威 `payload`，`occurred_at` 及通用投影元数据。评论正文、附件、完整交付和审批记录仍从源对象读取。
+
+**顺序与过滤**：Run 时间线按 `occurred_at, id`；Task 时间线同样按 `occurred_at, id`。读取前先授权 Task/Run，再过滤 internal/management；非管理角色不得因投影存在而看到内部备注。
+
+## 6. 授权契约
+
+| 读取对象 | 候选筛选 | 最终授权 |
+|---|---|---|
+| Task Center work item | action owner、creator、assignee、reviewer、watcher、部门 audience | 现有 `TaskService` 可见性/动作 policy |
+| Process Run summary | initiator、participant、historical actor、watcher、部门 audience | `WorkflowAccessPolicy.ensure_can_read_instance` |
+| Node timeline | 父 Task/Run audience | 先授权父对象，再按 `visibility` 过滤 |
+| 管理视角 | 管理部门/全局管理候选 | 延续现有 `MANAGEMENT_ROLES` 与部门授权；KI-011 未决边界不在投影层扩大 |
+
+投影 API 不允许接收任意 UUID 后直接 `session.get(projection)` 返回；必须先解析 canonical subject 并执行对象级 policy，未授权继续使用 404 隐藏存在性。
+
+## 7. 版本与重建
+
+- 初始 `projection_schema_version = 1`，`source_revision >= 0`；无显式 revision 的源事实由 projector 生成确定性 revision，但不得使用处理时间覆盖事件顺序。
+- `last_event_id` 是幂等/诊断锚点，不建立跨多种事件表的 FK。
+- 5-B 的 rebuild 必须支持单 subject、单 Run 和全量三种范围；采用新批次或 truncate/reproject，不修改源业务表。
+- schema 升级采用 expand → 双版本 projector/shadow → cutover → contract；5-A 的 downgrade 只删除空投影表。

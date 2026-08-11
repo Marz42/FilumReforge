@@ -18,6 +18,15 @@ RUNTIME_OWNER_FILES = {
 }
 MIGRATION_EXCEPTIONS = {"services/legacy_task_graph_migration_service.py"}
 COORDINATOR_FILE = "services/human_task_coordinator.py"
+PROJECTION_OWNER_FILES = {
+  "services/workflow_projection_service.py",
+  "services/workflow_projection_rebuild_service.py",
+}
+PROJECTION_MODELS = {
+  "TaskCenterItem",
+  "ProcessRunSummary",
+  "NodeTimelineEntry",
+}
 
 TASK_FIELDS = {
   "status",
@@ -124,6 +133,11 @@ def _scan_source(source: str, *, relative_path: str) -> list[str]:
             f"{relative_path}:{node.lineno} {constructor} constructor outside Runtime owner "
             f"({current_function})"
           )
+      if constructor in PROJECTION_MODELS and relative_path not in PROJECTION_OWNER_FILES:
+        violations.append(
+          f"{relative_path}:{node.lineno} {constructor} constructor outside Projection owner "
+          f"({current_function})"
+        )
       if (
         relative_path in {COORDINATOR_FILE, "services/work_item_write_service.py", "services/workflow_runtime_write_service.py"}
         and isinstance(node.func, ast.Attribute)
@@ -151,9 +165,11 @@ def test_i3f_architecture_scanner_rejects_new_cross_domain_writes() -> None:
 async def invalid(task, node_instance, session):
   task.status = 'done'
   node_instance.engine_state = 'completed'
+  projection = TaskCenterItem()
   await session.commit()
 """
   violations = _scan_source(source, relative_path=COORDINATOR_FILE)
   assert any("direct Work Item write" in item for item in violations)
   assert any("direct Runtime node write" in item for item in violations)
+  assert any("constructor outside Projection owner" in item for item in violations)
   assert any("flush-only" in item for item in violations)

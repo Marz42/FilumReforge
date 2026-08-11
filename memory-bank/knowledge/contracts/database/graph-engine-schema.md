@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "图引擎 Schema"
 description: "图引擎十五表：定义、模板范围审计、运行、路径账本、HumanTask Link、命令回执、运维异常、outbox、事件与调度。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-07-30T02:18:18+08:00
+timestamp: 2026-08-12T00:45:59+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -19,7 +19,7 @@ paradigma:
 ---
 # 图引擎 Schema
 
-> WARM — **十五表** as-built：定义 / 模板范围审计 / 运行 / traversal / activation dependency / HumanTask Link / command receipt / operational incident / 交付 / outbox / 运行事件 / 周期调度。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。契约索引见 [`data-contracts.md`](../data-contracts.md)。
+> WARM — **十五表运行时 + Iteration 5 三类派生投影**：定义 / 模板范围审计 / 运行 / traversal / activation dependency / HumanTask Link / command receipt / operational incident / 交付 / outbox / 运行事件 / 周期调度，以及 Task Center、Run 摘要、节点时间线读模型。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。投影细契约见 [`projection-contract.md`](../projection-contract.md)。
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
@@ -43,6 +43,9 @@ paradigma:
 | `workflow_outbox_events` | 可靠异步投递 | `event_type`、`status`、`attempt_count`、`available_at`、`last_error` |
 | `workflow_run_events` | Append-only 运行事件 | `event_type` + event/aggregate version、command/causation/correlation、actor、payload、`occurred_at`/`created_at` |
 | `workflow_graph_template_schedules` | 图模板周期调度 | `cron_expr`、`timezone`、`scope_department_id`、`scope_mode ∈ {self,subtree}`、`participant_mode`、`next_run_at`、last-run 元数据 |
+| `task_center_items` | Task Center 派生读模型（I5-A Expand） | canonical subject、Task/Run/Node 引用、原始/用户态状态、动作 owner、稳定排序字段、audience 候选与投影版本；不保存 actor-specific available actions |
+| `process_run_summaries` | Run 摘要派生读模型（I5-A Expand） | Run 唯一、父子/来源/部门/发起人、节点计数/进度、audience 与投影版本 |
+| `node_timeline_entries` | Run/Task 统一时间线派生读模型（I5-A Expand） | source identity 唯一、Run/Node/Task 引用、visibility、摘要/payload、稳定事件时间与投影版本 |
 
 **关系补充**
 

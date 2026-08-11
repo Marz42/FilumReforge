@@ -1,14 +1,14 @@
 ---
 type: paradigma-domain
 title: "领域：工作流图引擎 (Workflow Graph Engine)"
-description: "现行图任务引擎 as-built：十四表数据模型、graph-v3 路径推进、HumanTask Link、写所有权、standalone Work Item 与命令幂等。"
+description: "现行图任务引擎 as-built：graph-v3 路径推进、HumanTask Link、写所有权、standalone Work Item、命令幂等与 Iteration 5 投影结构。"
 tags:
   - domain
   - 图引擎
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-07-30T01:45:00+08:00
+timestamp: 2026-08-12T00:45:59+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -32,7 +32,7 @@ paradigma:
 # 领域：工作流图引擎 (Workflow Graph Engine)
 
 > 🌡️ WARM — **现行 as-built 总览**（非历史提案）。涉及模板、实例化、节点推进、Task 投影、详情页布局时优先读本文件。  
-> **最后同步**：2026-07-28 · 对照代码：`backend/app/models/workflow_graph.py`、`HumanTaskCoordinator`、`WorkflowIteration4ReadinessService`、`workflow_node_handlers.py`
+> **最后同步**：2026-08-12 · 对照代码：`backend/app/models/workflow_graph.py`、`workflow_projection.py`、`HumanTaskCoordinator`、`WorkflowIteration4ReadinessService`
 > **计划**：[`plans/workflow-refactor-implementation-plan.md`](../plans/workflow-refactor-implementation-plan.md) · **ADR**：[`decisions/adr-005-dual-track-workflow.md`](../decisions/adr-005-dual-track-workflow.md) · [`adr-008-graph-template-designer.md`](../decisions/adr-008-graph-template-designer.md)  
 > **契约**：[`contracts/database/graph-engine-schema.md`](../contracts/database/graph-engine-schema.md) · **视频参考模板包/兼容链路**：[`workflow-video-v1.md`](./workflow-video-v1.md) · **运行时链路**：[`architecture/core-workflows.md`](./architecture/core-workflows.md) §6.13B
 
@@ -247,6 +247,15 @@ I4-E 后的新 Run 使用 `context.capability_snapshot`；Task 使用 `extra_met
 3. 与无锚点 legacy 任务合并排序
 
 批次 ROOT（`run_kind=batch` + ROOT shell）：完成态跟 **实例生命周期**，避免 streaming 跳过导致误入历史。
+
+### 5.3 Iteration 5-A 投影结构（尚未切读）
+
+- `task_center_items`：actor-neutral Task/Run/告警候选，保存原始/用户态状态、动作 owner、排序字段和 audience 候选；具体 available actions 仍按请求 actor 计算。
+- `process_run_summaries`：Run 唯一摘要、父子/来源、节点计数、进度与 audience。
+- `node_timeline_entries`：以 source type + source UUID 去重的 Run/Task 统一时间线引用；正文、附件、交付和审批事实仍归源表。
+- 三表均携带 schema version、source revision、last event 与 projected time，只能由后续 Projection owner 写入。当前迁移仅建空表；`TASK_CENTER_V2_ENABLED` 仍走 5.2 动态 graph-first 路径。
+
+详细字段、授权与重建契约见 [`projection-contract.md`](../contracts/projection-contract.md)。
 
 ---
 

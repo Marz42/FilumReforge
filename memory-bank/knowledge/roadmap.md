@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-08-12T00:24:05+08:00
+timestamp: 2026-08-12T00:45:59+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -34,7 +34,7 @@ paradigma:
 | **最新试用候选** | `v0.93.0-rc.2`（不可变标签；主开发线位于其后） |
 | **版本主题** | 工作流图引擎 Iteration 4 · 模板领域中立与稳定化 |
 | **阶段** | **主开发线 Iteration 5-A → 5-E → 稳定观察 → Iteration 6**；RC2/I4/设计器/S-01 复测与 I3-F 生产证据并行推进 |
-| **最后整理** | 2026-08-12 — F-05 全部完成；Iteration 5-A 投影契约与加法迁移启动；KI-011 继续延后 |
+| **最后整理** | 2026-08-12 — Iteration 5-A 工程完成、PostgreSQL 证据待补；准备 5-B projector/rebuild；KI-011 继续延后 |
 
 ---
 
@@ -66,6 +66,7 @@ paradigma:
 | **F-05 详情壳层拆分第三批** | done / follow-up | `useTaskDetailCollaboration` · 附件/评论独立板块 · Shell 1,285 行 @ 2026-08-12 |
 | **F-05 详情壳层拆分第四批** | done / follow-up | `TaskDetailActivityTimeline` · 原排序/文案/附件操作 · Shell 1,153 行 @ 2026-08-12 |
 | **F-05 详情壳层拆分收口批** | done | `TaskDetailWorkflowPresentation` · `TaskDetailGraphTelemetry` · Shell 838 行 · 73 files / 211 tests @ 2026-08-12 |
+| **Iteration 5-A 投影契约与加法迁移** | engineering done / PG gate | 三类投影契约 · ORM · `20260812_01` Expand-only · SQLite expand/downgrade · 无回填/切读 @ 2026-08-12 |
 | **RC2 模板可见性热修** | done / trial retest | 可读/可管理双查询去重 · 逐模板动作授权 · test-first @ 2026-08-11 |
 
 ---
@@ -166,7 +167,7 @@ paradigma:
 1. **目标环境验收前置**：在“任务模板”先运行“数据检查”，清零确定错误；再运行“验收准备”，处理 P-01～P-04 阻断并记录 warning。工具只判断可测，不自动判定验收通过。
 2. **Iteration 4 / 设计器 Phase 2 / S-01 人工 UAT**：由员工按 checklist 验证非视频模板、参与者重叠语义、结构化 authoring、视频兼容黄金路径与周期统计，记录账号、模板、Run ID 和反馈。
 3. **F-05 已完成**：capability 工作流面板、Run Event 与图节点追踪已提取，Shell 只保留详情壳层编排；KI-010 未混入。
-4. **Iteration 5（当前 5-A）**：先固定三类投影契约并做 Expand-only 迁移，再按“projector/rebuild → shadow comparison → 运维/指标 → 受控读侧切换”推进；前四段可与外部门禁并行，切流须单独批准。
+4. **Iteration 5（5-A 工程完成）**：三类投影契约与 Expand-only 迁移已落地，PostgreSQL head↔base 证据待补；下一开发批为“projector/checkpoint/rebuild”，再进入 shadow comparison、运维/指标与受控读侧切换。前四段可与外部门禁并行，切流须单独批准。
 5. **稳定观察期**：确认 fallback、ROOT shell 新增量、投影差异和 lag 达到 Iteration 6 前置标准。
 6. **Iteration 6**：单独批准后停止 JSON/双写锚点，归档并清理动态 graph-first、Legacy E 服务/表/列和 feature flags；不得与观察期重叠。
 7. **员工 RC 复测**：升级至不可变 `v0.93.0-rc.2` 并核对 health version；用真实部门负责人验证共享模板可见/可发起且无越权管理动作。
@@ -174,7 +175,7 @@ paradigma:
 9. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
 10. **后续专项**：KI-011 按用户决定暂不推进；M-09 与 `run_kind` dual-read 收窄继续等待策略和生产证据。
 
-**下一 actionable**：开发侧执行 [`Iteration 5-A 投影契约与加法迁移`](./plans/2026-08-12-iteration5a-projection-contract-plan.md)，先完成字段来源/授权矩阵，再落新增模型和迁移；目标环境侧并行执行“数据检查”→“验收准备”→人工 UAT checklist。只有清单必测项完成并签字，才把 I4/设计器/S-01 改为 UAT 通过；Iteration 5-E 读侧切流、Iteration 6 和生产准入均须按独立门禁批准。
+**下一 actionable**：开发侧为 Iteration 5-B 固定 projector checkpoint、幂等消费和单对象/单 Run/全量 rebuild 计划；目标环境补跑 5-A PostgreSQL Alembic head↔base，并行执行“数据检查”→“验收准备”→人工 UAT checklist。5-A 的数据库证据不得由 SQLite 代替，但不阻止 5-B 加法开发；Iteration 5-E 读侧切流、Iteration 6 和生产准入仍须独立批准。
 
 ---
 
