@@ -25,7 +25,7 @@ f05-task-detail-data-coordination-2026-08-10
 
 ## Current Status
 
-engineering-complete / follow-up-planned — F-05 首批已提取 `useTaskDetailData`，修复首次打开重复加载和快速切换时旧请求覆盖新任务的问题；全量前端回归、类型、lint 与构建通过。F-05 总体仍为进行中。
+engineering-complete / follow-up-planned — F-05 首批已提取 `useTaskDetailData`，修复首次打开重复加载和快速切换时旧请求覆盖新任务的问题；RC2 热修回流后全量前端回归与类型检查通过。F-05 总体仍为进行中。
 
 ## Checklist
 
@@ -35,7 +35,7 @@ engineering-complete / follow-up-planned — F-05 首批已提取 `useTaskDetail
 - [x] 新任务主记录优先显示，可选数据独立降级；切换时先清空旧任务附属数据
 - [x] 用请求版本保证 last-selection-wins，清空选择会使在途请求失效
 - [x] 增加 composable 单测与壳层首次/切换加载回归
-- [x] 完成 68 files / 190 tests、type-check、lint 与 production build
+- [x] F-05 完成时为 68 files / 190 tests；RC2 回流后为 68 files / 191 tests，type-check 通过
 - [x] 更新 Paradigma 索引并形成本批独立提交（提交完成后以 Git 记录为准）
 - [ ] F-05 后续批次：提取动作提交协调与资料/评论板块，继续降低壳层复杂度
 - [ ] 在目标环境运行“数据检查”和“验收准备”，清零确定错误与 P-01～P-04 阻断
