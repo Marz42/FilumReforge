@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 969aaff447169abd -->
+<!-- checksum: 113fb3debfe91456 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -17,6 +17,7 @@
 | [2026-08-10-f05-task-detail-data-coordination-plan.md](2026-08-10-f05-task-detail-data-coordination-plan.md) | `paradigma-plan` | 2026-08-10 F-05 任务详情数据协调拆分计划 | F-05 壳层拆分<br>任务详情加载<br>快速切换竞态 ... | - | related_to:../domains/task-center.md |
 | [2026-08-10-iteration4-uat-preflight-plan.md](2026-08-10-iteration4-uat-preflight-plan.md) | `paradigma-plan` | 2026-08-10 Iteration 4 UAT 验收准备计划 | Iteration 4 验收准备<br>UAT 前置检查<br>S-01 验收 ... | - | depends_on:2026-08-10-template-governance-audit-plan.md<br>depends_on:../manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md |
 | [2026-08-10-template-governance-audit-plan.md](2026-08-10-template-governance-audit-plan.md) | `paradigma-plan` | 模板范围与父子依赖数据治理计划 | 模板数据检查<br>可用部门<br>父子模板 ... | - | depends_on:../decisions/adr-020-published-template-availability-scope.md<br>depends_on:./2026-08-09-rc-employee-trial-plan.md<br>validates:../manuals/2026-08-09-production-release-checklist.md |
+| [2026-08-11-f05-task-detail-action-coordination-plan.md](2026-08-11-f05-task-detail-action-coordination-plan.md) | `paradigma-plan` | 2026-08-11 F-05 任务详情动作协调拆分计划 | F-05 动作协调<br>任务动作提交<br>交付验收 ... | - | depends_on:2026-08-10-f05-task-detail-data-coordination-plan.md<br>related_to:../domains/task-center.md |
 | [implementation-plan.md](implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [improvements-stage2-implementation-plan.md](improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [paradigma-memory-bank-refactor-plan.md](paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

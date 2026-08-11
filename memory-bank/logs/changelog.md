@@ -20,7 +20,9 @@ paradigma:
 
 ## [Unreleased]
 
-暂无。
+### Changed
+
+- F-05 第二批：从 `TaskDetailShell` 提取 `useTaskDetailActions` 与 `useTaskAssignmentActions`，集中状态流转、交付验收、接单/转办、集合关闭、延期和动作后刷新；权限/Profile 与页面模板仍由 Shell 管理。
 
 ## [0.93.0-rc.2] — 2026-08-11
 

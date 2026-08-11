@@ -5,19 +5,11 @@ import { ElMessage, type UploadFile, type UploadInstance } from 'element-plus'
 import { uploadAttachment } from '@/api/attachments'
 import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
-import { acceptTaskAssignment,
+import {
   addTaskWatchers,
   createTaskComment,
-  delegateTaskAssignment,
-  listTaskDelegateCandidates,
-  rejectTaskAssignment,
-  reviewTaskDeliverable,
-  submitTaskDeliverable,
-  updateTask,
-  updateTaskStatus,
 } from '@/api/tasks'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
-import { closeInstanceCapture } from '@/api/workflow-graph'
 import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
 import CapturePanel from '@/components/workflow/CapturePanel.vue'
 import WorkflowCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
@@ -30,10 +22,7 @@ import TaskDetailHeaderBar from '@/components/task-detail/TaskDetailHeaderBar.vu
 import TaskDetailContextPanel from '@/components/task-detail/TaskDetailContextPanel.vue'
 import TaskDetailMetadataPanel from '@/components/task-detail/TaskDetailMetadataPanel.vue'
 import { resolveStatusLabel } from '@/components/task-detail/task-detail-labels'
-import {
-  canDelegateStandaloneTask,
-  isStandaloneTask as isStandaloneTaskFn,
-} from '@/domain/task-detail/actions'
+import { canDelegateStandaloneTask } from '@/domain/task-detail/actions'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
   resolveTaskDetailProfile,
@@ -51,42 +40,18 @@ import type {
   Task,
   TaskActivityEntry,
   TaskCenterUserOption,
-  TaskStatus,
   WorkflowNodeInstanceSummary,
 } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 import { isCaptureClosed, resolveAggregateMode } from '@/utils/workflowVideoSchema'
+import { useTaskDetailActions } from '@/composables/useTaskDetailActions'
 import { useTaskDetailData } from '@/composables/useTaskDetailData'
 
 interface Props {
   initialSelectedTaskId?: string
   delegateUserOptions?: TaskCenterUserOption[]
   emptyDescription?: string
-}
-
-type StatusAction = {
-  label: string
-  status: TaskStatus
-  buttonType: 'primary' | 'warning' | 'success'
-}
-
-const NEXT_STATUS_ACTIONS: Record<Exclude<TaskStatus, 'done' | 'blocked'>, StatusAction> = {
-  todo: {
-    label: '开始处理',
-    status: 'doing',
-    buttonType: 'primary',
-  },
-  doing: {
-    label: '提交评审',
-    status: 'review',
-    buttonType: 'warning',
-  },
-  review: {
-    label: '标记完成',
-    status: 'done',
-    buttonType: 'success',
-  },
 }
 
 const authStore = useAuthStore()
@@ -101,17 +66,6 @@ const emit = defineEmits<{
 }>()
 const taskAttachmentUploading = ref(false)
 const commentSubmitting = ref(false)
-const deliverableSubmitting = ref(false)
-const statusSubmitting = ref(false)
-const approvalSubmitting = ref(false)
-const handshakeSubmitting = ref(false)
-const rejectCommentDialogVisible = ref(false)
-const rejectCommentText = ref('')
-const reworkDialogVisible = ref(false)
-const reworkCommentText = ref('')
-const handshakeRejectDialogVisible = ref(false)
-const handshakeRejectReason = ref('')
-const delegateDialogVisible = ref(false)
 const watcherSubmitting = ref(false)
 const watcherUserId = ref('')
 const selectedTaskFiles = ref<File[]>([])
@@ -139,32 +93,64 @@ const {
   onLoadFailure: (error) => ElMessage.error(getErrorMessage(error)),
 })
 
-const delegateForm = reactive({
-  assignee_id: '',
-  reason: '',
-})
-const standaloneDelegateCandidates = ref<TaskCenterUserOption[]>([])
-
 const commentForm = reactive({
   content: '',
   is_internal: false,
 })
 
-const deliverableForm = reactive({
-  summary: '',
-  attachment_ids: [] as string[],
-})
+const selectedTask = computed(() => task.value)
 
-const deliverableReviewForm = reactive({
-  comment: '',
-  quality_score: 5 as number | null,
+const {
+  approvalSubmitting,
+  closeCaptureSubmitting,
+  delegateCandidateOptions,
+  delegateDialogVisible,
+  delegateForm,
+  deliverableForm,
+  deliverableReviewForm,
+  deliverableSubmitting,
+  extendDueDateDialogVisible,
+  extendDueDateSubmitting,
+  extendDueDateValue,
+  handleAcceptAssignment,
+  handleApprovalDecide,
+  handleCloseCapture,
+  handleDelegateAssignment,
+  handleDeliverableReview,
+  handleRejectAssignment,
+  handleStatusTransition,
+  handleSubmitDeliverable,
+  handleTaskArchived,
+  handshakeRejectDialogVisible,
+  handshakeRejectReason,
+  handshakeSubmitting,
+  isStandaloneTask,
+  nextStatusAction,
+  openDelegateDialog,
+  openExtendDueDateDialog,
+  openHandshakeRejectDialog,
+  openRejectDialog,
+  openReworkDialog,
+  rejectCommentDialogVisible,
+  rejectCommentText,
+  reloadAfterAction,
+  reworkCommentText,
+  reworkDialogVisible,
+  statusSubmitting,
+  submitExtendDueDate,
+} = useTaskDetailActions({
+  task,
+  graphInstance,
+  delegateUserOptions: () => props.delegateUserOptions,
+  users,
+  reloadTask: loadSelectedTaskDetails,
+  onActionDone: () => emit('actionDone'),
 })
 
 const departmentNameMap = computed(
   () => new Map(departments.value.map((department) => [department.id, department.name])),
 )
 const userEmailMap = computed(() => new Map(users.value.map((user) => [user.id, user.email])))
-const selectedTask = computed(() => task.value)
 const selectedTaskMetadata = computed<Record<string, unknown>>(
   () => (selectedTask.value?.extra_metadata as Record<string, unknown> | undefined) ?? {},
 )
@@ -203,31 +189,6 @@ const handshakeStateLabel = computed(() => {
   }
   return '—'
 })
-const isStandaloneTask = computed(() => isStandaloneTaskFn(selectedTask.value))
-
-const delegateCandidateOptions = computed(() => {
-  const currentAssigneeId = selectedTask.value?.assignee_id ?? ''
-  // Standalone Work Item: candidates come from the authorization-aligned
-  // delegate-candidates endpoint (loaded when the dialog opens), not from graph
-  // publish options or the global user list.
-  if (isStandaloneTask.value) {
-    return standaloneDelegateCandidates.value.filter((option) => option.user_id !== currentAssigneeId)
-  }
-  if (props.delegateUserOptions.length > 0) {
-    return props.delegateUserOptions.filter((option) => option.user_id !== currentAssigneeId)
-  }
-
-  return users.value
-    .filter((user) => user.status === 'active' && user.id !== currentAssigneeId)
-    .map((user) => ({
-      user_id: user.id,
-      email: user.email,
-      real_name: null,
-      department_id: null,
-      department_name: null,
-      label: user.email,
-    }))
-})
 const watcherOptions = computed(() =>
   users.value.filter(
     (user) =>
@@ -235,14 +196,6 @@ const watcherOptions = computed(() =>
       !taskWatchers.value.some((watcher) => watcher.user_id === user.id),
   ),
 )
-const nextStatusAction = computed(() => {
-  const task = selectedTask.value
-  if (!task || task.status === 'done' || task.status === 'blocked') {
-    return null
-  }
-
-  return NEXT_STATUS_ACTIONS[task.status]
-})
 const canAdvanceSelectedTask = computed(() => {
   const task = selectedTask.value
   const user = authStore.user
@@ -552,10 +505,6 @@ const showWorkflowDeliverablePanel = computed(
     && selectedTask.value !== null,
 )
 const workflowDeliverablePanelRef = ref<InstanceType<typeof WorkflowDeliverablePanel> | null>(null)
-const closeCaptureSubmitting = ref(false)
-const extendDueDateDialogVisible = ref(false)
-const extendDueDateValue = ref<Date | null>(null)
-const extendDueDateSubmitting = ref(false)
 const usesCompactDetailTelemetry = computed(() => TASK_CENTER_V2_UI_ENABLED)
 const compactRunEvents = computed(() =>
   usesCompactDetailTelemetry.value || usesWorkflowLayout.value
@@ -719,64 +668,6 @@ function resetCommentForm(): void {
   commentFiles.value = []
 }
 
-function resetDeliverableForm(): void {
-  deliverableForm.summary = ''
-  deliverableForm.attachment_ids = []
-}
-
-async function reloadAfterAction(): Promise<void> {
-  if (!selectedTask.value) {
-    emit('actionDone')
-    return
-  }
-  await loadSelectedTaskDetails(selectedTask.value.id)
-  emit('actionDone')
-}
-
-function handleTaskArchived(): void {
-  emit('actionDone')
-}
-
-function openExtendDueDateDialog(): void {
-  extendDueDateValue.value = selectedTask.value?.due_date ? new Date(selectedTask.value.due_date) : null
-  extendDueDateDialogVisible.value = true
-}
-
-async function submitExtendDueDate(): Promise<void> {
-  if (!selectedTask.value || !extendDueDateValue.value) {
-    ElMessage.warning('请选择新的截止时间')
-    return
-  }
-  extendDueDateSubmitting.value = true
-  try {
-    await updateTask(selectedTask.value.id, { due_date: extendDueDateValue.value.toISOString() })
-    ElMessage.success('截止时间已更新')
-    extendDueDateDialogVisible.value = false
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    extendDueDateSubmitting.value = false
-  }
-}
-
-async function handleCloseCapture(): Promise<void> {
-  const instanceId = graphInstance.value?.id
-  if (!instanceId) {
-    return
-  }
-  closeCaptureSubmitting.value = true
-  try {
-    const result = await closeInstanceCapture(instanceId)
-    ElMessage.success(result.message)
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    closeCaptureSubmitting.value = false
-  }
-}
-
 async function handleAddWatcher(): Promise<void> {
   if (!selectedTask.value || !watcherUserId.value) {
     ElMessage.warning('请选择关注人')
@@ -890,223 +781,6 @@ async function handleCommentSubmit(): Promise<void> {
     ElMessage.error(getErrorMessage(error))
   } finally {
     commentSubmitting.value = false
-  }
-}
-
-async function handleStatusTransition(): Promise<void> {
-  if (!selectedTask.value || !nextStatusAction.value) {
-    return
-  }
-
-  statusSubmitting.value = true
-
-  try {
-    await updateTaskStatus(selectedTask.value.id, nextStatusAction.value.status)
-    ElMessage.success(`任务已更新为${resolveStatusLabel(nextStatusAction.value.status)}`)
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    statusSubmitting.value = false
-  }
-}
-
-async function handleSubmitDeliverable(): Promise<void> {
-  if (!selectedTask.value) {
-    ElMessage.warning('请先选择任务')
-    return
-  }
-  if (!deliverableForm.summary.trim()) {
-    ElMessage.warning('请填写交付说明')
-    return
-  }
-
-  deliverableSubmitting.value = true
-
-  try {
-    await submitTaskDeliverable(selectedTask.value.id, {
-      summary: deliverableForm.summary.trim(),
-      attachment_ids: deliverableForm.attachment_ids,
-    })
-    ElMessage.success('交付物已提交，等待验收')
-    resetDeliverableForm()
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    deliverableSubmitting.value = false
-  }
-}
-
-async function handleDeliverableReview(action: 'approve' | 'return_for_rework', comment?: string): Promise<void> {
-  if (!selectedTask.value) {
-    return
-  }
-
-  approvalSubmitting.value = true
-  try {
-    await reviewTaskDeliverable(selectedTask.value.id, {
-      action,
-      comment: comment?.trim() || null,
-      quality_score: action === 'approve' ? deliverableReviewForm.quality_score : null,
-    })
-    ElMessage.success(action === 'approve' ? '验收已通过' : '任务已打回返工')
-    reworkDialogVisible.value = false
-    reworkCommentText.value = ''
-    if (action === 'approve') {
-      deliverableReviewForm.comment = ''
-      deliverableReviewForm.quality_score = 5
-    }
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    approvalSubmitting.value = false
-  }
-}
-
-async function handleApprovalDecide(decision: 'approved' | 'rejected' | 'returned'): Promise<void> {
-  if (decision === 'approved') {
-    await handleDeliverableReview('approve', deliverableReviewForm.comment)
-    return
-  }
-
-  const comment = rejectCommentText.value.trim()
-  if (!comment) {
-    ElMessage.error('驳回修改时必须填写原因')
-    return
-  }
-
-  approvalSubmitting.value = true
-  try {
-    await reviewTaskDeliverable(selectedTask.value!.id, {
-      action: 'return_for_rework',
-      comment,
-      quality_score: null,
-    })
-    ElMessage.success('已驳回，任务将重新激活')
-    rejectCommentDialogVisible.value = false
-    rejectCommentText.value = ''
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    approvalSubmitting.value = false
-  }
-}
-
-function openRejectDialog(): void {
-  rejectCommentText.value = ''
-  rejectCommentDialogVisible.value = true
-}
-
-function openHandshakeRejectDialog(): void {
-  handshakeRejectReason.value = ''
-  handshakeRejectDialogVisible.value = true
-}
-
-async function openDelegateDialog(): Promise<void> {
-  if (isStandaloneTask.value && selectedTask.value) {
-    try {
-      const candidates = await listTaskDelegateCandidates(selectedTask.value.id)
-      standaloneDelegateCandidates.value = candidates.map((candidate) => ({
-        user_id: candidate.user_id,
-        email: '',
-        real_name: candidate.display_name,
-        department_id: null,
-        department_name: candidate.department_name,
-        label: candidate.department_name
-          ? `${candidate.display_name}（${candidate.department_name}）`
-          : candidate.display_name,
-      }))
-    } catch (error) {
-      ElMessage.error(getErrorMessage(error))
-      standaloneDelegateCandidates.value = []
-    }
-  }
-  delegateForm.assignee_id = delegateCandidateOptions.value[0]?.user_id ?? ''
-  delegateForm.reason = ''
-  delegateDialogVisible.value = true
-}
-
-function openReworkDialog(): void {
-  reworkCommentText.value = ''
-  reworkDialogVisible.value = true
-}
-
-async function handleAcceptAssignment(): Promise<void> {
-  if (!selectedTask.value) {
-    return
-  }
-
-  handshakeSubmitting.value = true
-
-  try {
-    await acceptTaskAssignment(selectedTask.value.id)
-    ElMessage.success('任务已接受，可以开始处理')
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    handshakeSubmitting.value = false
-  }
-}
-
-async function handleRejectAssignment(): Promise<void> {
-  if (!selectedTask.value) {
-    return
-  }
-  if (!handshakeRejectReason.value.trim()) {
-    ElMessage.warning('请填写退回协商原因')
-    return
-  }
-
-  handshakeSubmitting.value = true
-
-  try {
-    await rejectTaskAssignment(selectedTask.value.id, {
-      reason: handshakeRejectReason.value.trim(),
-    })
-    ElMessage.success('任务已退回协商')
-    handshakeRejectDialogVisible.value = false
-    handshakeRejectReason.value = ''
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    handshakeSubmitting.value = false
-  }
-}
-
-async function handleDelegateAssignment(): Promise<void> {
-  if (!selectedTask.value) {
-    return
-  }
-  if (!delegateForm.assignee_id) {
-    ElMessage.warning('请选择转办目标')
-    return
-  }
-  if (!delegateForm.reason.trim()) {
-    ElMessage.warning('请填写转办原因')
-    return
-  }
-
-  handshakeSubmitting.value = true
-
-  try {
-    await delegateTaskAssignment(selectedTask.value.id, {
-      assignee_id: delegateForm.assignee_id,
-      reason: delegateForm.reason.trim(),
-    })
-    ElMessage.success(isStandaloneTask.value ? '任务已转办给新的执行人' : '任务已转办，等待新执行人确认')
-    delegateDialogVisible.value = false
-    delegateForm.assignee_id = ''
-    delegateForm.reason = ''
-    await reloadAfterAction()
-  } catch (error) {
-    ElMessage.error(getErrorMessage(error))
-  } finally {
-    handshakeSubmitting.value = false
   }
 }
 
