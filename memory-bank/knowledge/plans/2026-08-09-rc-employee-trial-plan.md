@@ -70,7 +70,7 @@ paradigma:
 
 ## 6. 执行顺序
 
-1. 固定 `VERSION=0.93.0-rc.1`、Changelog、应用健康版本、release commit 与注释标签。
+1. 每个候选统一固定 `VERSION`、Changelog、应用健康版本、独立 release commit 与注释标签；当前候选为 `v0.93.0-rc.2`。
 2. 在隔离环境从标签部署，运行 Linux release gate、迁移检查和核心 smoke。
 3. 开放员工试用，按统一反馈协议收集问题；I4/S-01 人工结果单独留证。
 4. P0/P1 走 RC 热修线；其余问题进入主开发线。

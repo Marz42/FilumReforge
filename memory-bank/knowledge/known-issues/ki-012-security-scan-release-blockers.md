@@ -3,7 +3,7 @@ type: paradigma-known-issue
 title: "KI-012: 2026-08-09 安全扫描发现与上线阻断项"
 description: "记录 Security Issue(temp) 六项发现的当前代码复核、处置状态、验证和残余风险。"
 tags: [known-issue, security, release, authorization, rate-limit, attachment]
-timestamp: 2026-08-09T22:31:54+08:00
+timestamp: 2026-08-11T23:15:47+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: cold
@@ -42,7 +42,7 @@ paradigma:
 # Release Exit
 
 - 6 项已有直接回归或静态配置测试，3 个 Medium 均已 fixed。
-- Backend 全量 **460 collected / 428 passed / 32 environment-skipped / 0 failed**；Frontend **64 files / 180 tests**、type-check、build 通过；Compose config 与 `git diff --check` 通过。
+- RC2 保持同一安全修复集合且没有放宽模板对象级授权。Backend 全量 **460 collected / 0 failed**；RC2 Frontend **64 files / 181 tests**、type-check、build 通过；Compose config 与 `git diff --check` 通过。
 - 目标环境仍需验证真实反向代理来源、TLS、secret、备份恢复、I3-F 与 UAT；本地全绿不能替代这些证据。
 
 # Residual Risk
@@ -53,4 +53,4 @@ paradigma:
 
 # Status
 
-**fixed locally · production verification pending**（2026-08-09）。安全代码阻断已清除；TLS/secret/备份恢复/I4 UAT/I3-F 等上线门禁仍开放。
+**fixed locally · production verification pending**（2026-08-11，最新试用候选 `v0.93.0-rc.2`）。安全代码阻断已清除；TLS/secret/备份恢复/I4 UAT/I3-F 等上线门禁仍开放。

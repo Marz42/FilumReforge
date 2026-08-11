@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-07-30T01:45:00+08:00
+timestamp: 2026-08-11T23:15:47+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -33,7 +33,7 @@ paradigma:
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
 **版本**: v3.22.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-08-10 · Iteration 4 UAT 验收准备接口 · 产品基线 `0.93.0-rc.1`
+**最后同步**: 2026-08-11 · RC2 模板可见/可管理边界 · 最新试用候选 `v0.93.0-rc.2`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
