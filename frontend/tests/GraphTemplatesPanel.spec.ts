@@ -31,17 +31,41 @@ import GraphTemplatesPanel from '@/components/workflow/GraphTemplatesPanel.vue'
 describe('GraphTemplatesPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(listGraphTemplates).mockResolvedValue([
-      {
-        id: 'tpl-active',
-        code: 'demo_v1',
-        name: 'Demo',
-        status: 'active',
-        version: 1,
-        tags: ['视频'],
-        capabilities: { can_instantiate_directly: true, derived_hints: ['可直接发起'] },
-      },
-    ])
+    vi.mocked(listGraphTemplates).mockImplementation(async (options = {}) => {
+      if (options.manage) {
+        return [
+          {
+            id: 'tpl-active',
+            code: 'department_owned_v1',
+            name: '本部门模板',
+            status: 'active',
+            version: 1,
+            tags: ['视频'],
+            capabilities: { can_instantiate_directly: true, derived_hints: ['可直接发起'] },
+          },
+        ]
+      }
+      return [
+        {
+          id: 'tpl-shared',
+          code: 'shared_v1',
+          name: '跨部门共享模板',
+          status: 'active',
+          version: 1,
+          tags: ['共享'],
+          capabilities: { can_instantiate_directly: true, derived_hints: ['可直接发起'] },
+        },
+        {
+          id: 'tpl-active',
+          code: 'department_owned_v1',
+          name: '本部门模板',
+          status: 'active',
+          version: 1,
+          tags: ['视频'],
+          capabilities: { can_instantiate_directly: true, derived_hints: ['可直接发起'] },
+        },
+      ]
+    })
     vi.mocked(archiveGraphTemplate).mockResolvedValue({
       id: 'tpl-active',
       status: 'archived',
@@ -61,6 +85,25 @@ describe('GraphTemplatesPanel', () => {
       status: ['draft', 'active'],
       q: '',
     })
+    expect(listGraphTemplates).toHaveBeenCalledWith({
+      status: ['active'],
+      q: '',
+    })
+  })
+
+  it('shows readable shared templates without exposing management actions', async () => {
+    const wrapper = mount(GraphTemplatesPanel, {
+      props: { canPublish: true, canManage: true },
+      global: { plugins: [ElementPlus], stubs: { TemplateInstantiateDialog: true, GraphTemplateEditDialog: true, GraphTemplateAvailabilityDialog: true } },
+    })
+    await flushPromises()
+
+    const sharedRow = wrapper.findAll('.el-table__row').find((row) => row.text().includes('跨部门共享模板'))
+    expect(sharedRow).toBeDefined()
+    expect(sharedRow!.find('[data-testid="graph-template-instantiate"]').exists()).toBe(true)
+    expect(sharedRow!.find('[data-testid="graph-template-design"]').exists()).toBe(false)
+    expect(sharedRow!.find('[data-testid="graph-template-availability"]').exists()).toBe(false)
+    expect(sharedRow!.find('[data-testid="graph-template-archive"]').exists()).toBe(false)
   })
 
   it('renders archive button for active templates', async () => {
@@ -82,6 +125,6 @@ describe('GraphTemplatesPanel', () => {
     await wrapper.find('[data-testid="graph-template-archive"]').trigger('click')
     await flushPromises()
     expect(archiveGraphTemplate).toHaveBeenCalledWith('tpl-active')
-    expect(listGraphTemplates).toHaveBeenCalledTimes(2)
+    expect(listGraphTemplates).toHaveBeenCalledTimes(4)
   })
 })

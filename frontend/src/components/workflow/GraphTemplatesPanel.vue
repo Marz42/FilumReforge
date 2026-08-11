@@ -33,6 +33,7 @@ const loading = ref(false)
 const statusFilter = ref<'working' | 'all' | 'draft' | 'active' | 'archived'>('working')
 const searchQuery = ref('')
 const templates = ref<GraphTemplateSummary[]>([])
+const manageableTemplateIds = ref<Set<string>>(new Set())
 const selectedTemplate = ref<GraphTemplateSummary | null>(null)
 const dialogVisible = ref(false)
 const editDialogVisible = ref(false)
@@ -64,6 +65,10 @@ const listStatusParam = computed((): Array<'draft' | 'active' | 'archived'> | un
 
 function canInstantiateTemplate(template: GraphTemplateSummary): boolean {
   return props.canPublish && templateSupportsDirectInstantiation(template)
+}
+
+function canManageTemplate(template: GraphTemplateSummary): boolean {
+  return Boolean(props.canManage && manageableTemplateIds.value.has(template.id))
 }
 
 async function loadInstantiateDepartmentContext(): Promise<void> {
@@ -98,17 +103,31 @@ async function loadInstantiateDepartmentContext(): Promise<void> {
 async function loadTemplates(): Promise<void> {
   loading.value = true
   try {
-    templates.value = await listGraphTemplates({
-      manage: props.canManage,
-      status: listStatusParam.value,
-      q: searchQuery.value,
-    })
-    if (!selectedTemplate.value && templates.value.length > 0) {
+    const shouldLoadReadableTemplates = listStatusParam.value?.includes('active') ?? false
+    const [readableTemplates, manageableTemplates] = await Promise.all([
+      shouldLoadReadableTemplates
+        ? listGraphTemplates({ status: ['active'], q: searchQuery.value })
+        : Promise.resolve([]),
+      props.canManage
+        ? listGraphTemplates({ manage: true, status: listStatusParam.value, q: searchQuery.value })
+        : Promise.resolve([]),
+    ])
+    manageableTemplateIds.value = new Set(manageableTemplates.map((template) => template.id))
+
+    const mergedTemplates = new Map(readableTemplates.map((template) => [template.id, template]))
+    for (const template of manageableTemplates) {
+      mergedTemplates.set(template.id, template)
+    }
+    templates.value = Array.from(mergedTemplates.values())
+
+    if (!selectedTemplate.value || !mergedTemplates.has(selectedTemplate.value.id)) {
       selectedTemplate.value = templates.value[0] ?? null
     }
   } catch (error) {
     ElMessage.error(getErrorMessage(error))
     templates.value = []
+    manageableTemplateIds.value = new Set()
+    selectedTemplate.value = null
   } finally {
     loading.value = false
   }
@@ -130,7 +149,7 @@ function openInstantiate(template: GraphTemplateSummary): void {
 }
 
 function openEdit(template: GraphTemplateSummary): void {
-  if (!props.canManage) {
+  if (!canManageTemplate(template)) {
     ElMessage.warning('当前账号无权编辑任务模板')
     return
   }
@@ -143,7 +162,7 @@ function openEdit(template: GraphTemplateSummary): void {
 }
 
 function openDesigner(template: GraphTemplateSummary): void {
-  if (!props.canManage) {
+  if (!canManageTemplate(template)) {
     ElMessage.warning('当前账号无权编辑任务模板')
     return
   }
@@ -151,7 +170,7 @@ function openDesigner(template: GraphTemplateSummary): void {
 }
 
 function openAvailability(template: GraphTemplateSummary): void {
-  if (!props.canManage || template.status !== 'active') {
+  if (!canManageTemplate(template) || template.status !== 'active') {
     return
   }
   availabilityTemplate.value = template
@@ -173,7 +192,7 @@ async function handleCreateBlank(): Promise<void> {
 }
 
 async function handleClone(template: GraphTemplateSummary): Promise<void> {
-  if (!props.canManage) {
+  if (!canManageTemplate(template)) {
     ElMessage.warning('当前账号无权编辑任务模板')
     return
   }
@@ -187,7 +206,7 @@ async function handleClone(template: GraphTemplateSummary): Promise<void> {
 }
 
 async function handleArchive(template: GraphTemplateSummary): Promise<void> {
-  if (!props.canManage || template.status !== 'active') {
+  if (!canManageTemplate(template) || template.status !== 'active') {
     return
   }
   try {
@@ -207,7 +226,7 @@ async function handleArchive(template: GraphTemplateSummary): Promise<void> {
 }
 
 async function handleDelete(template: GraphTemplateSummary): Promise<void> {
-  if (!props.canManage) {
+  if (!canManageTemplate(template)) {
     ElMessage.warning('当前账号无权维护任务模板')
     return
   }
@@ -315,8 +334,8 @@ onMounted(() => {
         <el-table-column label="版本" width="72" prop="version" />
         <el-table-column v-if="canManage" label="Run（30d）" width="96">
           <template #default="{ row }: { row: GraphTemplateSummary }">
-            {{ row.run_count_30d ?? 0 }}
-            <span v-if="row.active_run_count" class="graph-templates__active-runs">
+            {{ canManageTemplate(row) ? (row.run_count_30d ?? 0) : '—' }}
+            <span v-if="canManageTemplate(row) && row.active_run_count" class="graph-templates__active-runs">
               / {{ row.active_run_count }} 进行中
             </span>
           </template>
@@ -331,7 +350,7 @@ onMounted(() => {
         <el-table-column label="操作" width="440" fixed="right">
           <template #default="{ row }: { row: GraphTemplateSummary }">
             <el-button
-              v-if="canManage"
+              v-if="canManageTemplate(row)"
               type="primary"
               link
               data-testid="graph-template-design"
@@ -340,7 +359,7 @@ onMounted(() => {
               设计
             </el-button>
             <el-button
-              v-if="canManage"
+              v-if="canManageTemplate(row)"
               type="primary"
               link
               data-testid="graph-template-clone"
@@ -349,7 +368,7 @@ onMounted(() => {
               复制
             </el-button>
             <el-button
-              v-if="canManage && row.status === 'draft'"
+              v-if="canManageTemplate(row) && row.status === 'draft'"
               link
               data-testid="graph-template-edit"
               @click.stop="openEdit(row)"
@@ -357,7 +376,7 @@ onMounted(() => {
               改名
             </el-button>
             <el-button
-              v-if="canManage && row.status === 'active'"
+              v-if="canManageTemplate(row) && row.status === 'active'"
               link
               type="primary"
               data-testid="graph-template-availability"
@@ -366,7 +385,7 @@ onMounted(() => {
               可用部门
             </el-button>
             <el-button
-              v-if="canManage && row.status === 'active'"
+              v-if="canManageTemplate(row) && row.status === 'active'"
               link
               type="warning"
               data-testid="graph-template-archive"
@@ -375,7 +394,7 @@ onMounted(() => {
               归档
             </el-button>
             <el-tooltip
-              v-if="canManage && row.status === 'draft' && (row.run_count_total ?? 0) > 0"
+              v-if="canManageTemplate(row) && row.status === 'draft' && (row.run_count_total ?? 0) > 0"
               content="已有运行实例，不可删除"
               placement="top"
             >
@@ -384,7 +403,7 @@ onMounted(() => {
               </span>
             </el-tooltip>
             <el-button
-              v-else-if="canManage && row.status === 'draft'"
+              v-else-if="canManageTemplate(row) && row.status === 'draft'"
               link
               type="danger"
               data-testid="graph-template-delete"
