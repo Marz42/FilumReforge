@@ -7,7 +7,7 @@ timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -15,6 +15,8 @@ paradigma:
     en: ["iteration 4 preflight", "documentation alignment", "domain neutral workflow"]
 ---
 # Iteration 4 Preflight — 对齐与稳定化计划
+
+> **计划状态：COMPLETED** — Iteration 4 前置对齐和稳定化已完成；后续实施与验收分别由 I4 计划和统一 UAT 清单跟踪。
 
 ## 状态
 

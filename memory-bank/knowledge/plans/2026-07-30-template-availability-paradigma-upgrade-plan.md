@@ -17,6 +17,8 @@ paradigma:
 
 # Goal
 
+> **计划状态：COMPLETED** — 已发布模板可用部门治理与 Paradigma 0.5.0 升级均已交付；本文仅作实施记录。
+
 让已发布工作流模板可以在不创建新定义版本、不破坏父子模板 code 引用的前提下扩大可用部门范围，并把 Filum 的 Agent Memory Runtime 完整升级到 Paradigma `0.5.0` 的三态、阶段 checkpoint 和独立 session log 协议。
 
 # Scope

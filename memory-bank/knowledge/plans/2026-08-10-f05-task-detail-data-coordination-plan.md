@@ -7,7 +7,7 @@ timestamp: 2026-08-10T17:05:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -19,6 +19,8 @@ paradigma:
 ---
 
 # F-05 任务详情数据协调拆分计划
+
+> **计划状态：COMPLETED** — F-05 数据协调批次已交付；后续批次见当前 active task 和计划状态目录。
 
 ## 问题
 

@@ -33,7 +33,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **工作流图引擎 Iteration 4 A–E 与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.2` 已固定并等待员工复测。目标环境 I4/设计器/S-01 人工 UAT 待执行，自动检查不能代签。等待 UAT 期间继续 F-05：`useTaskDetailData` 已收口详情加载，`useTaskDetailActions` / `useTaskAssignmentActions` 已收口动作命令并保持 Shell 权限判定不变；下一批拆分任务资料附件和评论/留痕板块。Iteration 3-F 目标环境证据仍未完成，KI-011 按用户决定暂不推进。
+**当前执行位置**: **工作流图引擎 Iteration 4 A–E 与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.2` 已固定并等待员工复测。主开发顺序固定为 **完成 F-05 → Iteration 5 投影/查询/运维 → 稳定观察 → 单独批准 Iteration 6 兼容层清理**。F-05 已完成数据与动作协调，下一批拆分任务资料附件和评论/留痕。目标环境 I4/设计器/S-01 人工 UAT 与 Iteration 3-F 证据并行推进；它们不阻止 F-05 和 Iteration 5 的加法/影子建设，但会阻止读侧生产切换、停止兼容写入与 Legacy 删除。KI-011 按用户决定暂不推进。详见 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
 
 ## 2. 已确认约束
 

@@ -7,7 +7,7 @@ timestamp: 2026-07-22T15:30:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: decision
   retrieval_hints:
@@ -16,6 +16,8 @@ paradigma:
 ---
 
 # Goal
+
+> **计划状态：COMPLETED** — 模板引擎解耦 Phase 1 已交付；现行模板边界以领域文档、ADR-017/018/020 和总路线图为准。
 
 Ship Phase 1 of ADR-017 / spec §5.1: archive works end-to-end; user **tags** replace the batch/production type radio; runtime gates use **TemplateCapabilities** (dual-read legacy `run_kind`); ACTIVE templates cannot be edited in-place except tags + archive; manage list supports status filter and `q` search.
 

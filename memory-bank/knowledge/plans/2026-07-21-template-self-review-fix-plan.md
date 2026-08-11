@@ -17,6 +17,8 @@ paradigma:
 
 # Implementation Plan: Template Self-Review Deadlock Fix
 
+> **计划状态：COMPLETED** — 自行验收死锁修复已交付；本文只保留原实施边界，不再指导后续排期。
+
 **Date:** 2026-07-21  
 **Spec:** `docs/superpowers/specs/2026-07-21-template-self-review-fix-design.md`  
 **Target file:** `backend/app/services/task_service.py`  

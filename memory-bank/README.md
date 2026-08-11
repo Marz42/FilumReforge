@@ -2,7 +2,7 @@
 
 本目录是 Project Filum 的**外部记忆系统**，已对齐 Paradigma Harness `0.5.0`（三态结构、阶段 checkpoint、独立 session log、Harness 诊断和可选 DESIGN 域）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)。
 
-> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → F-05 数据协调与动作协调两批已完成，下一批拆分任务资料附件和评论/留痕；`v0.93.0-rc.2` 等待员工复测，生产准入仍独立推进 · [UAT 清单](./knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) · [上线清单](./knowledge/manuals/2026-08-09-production-release-checklist.md)
+> **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → F-05 第三批拆分任务资料附件和评论/留痕；其后按 [F-05 → Iteration 5 → 稳定观察 → Iteration 6](./knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md) 推进。`v0.93.0-rc.2` 等待员工复测，生产准入仍独立推进 · [计划状态目录](./knowledge/plans/plan-status-catalog.md) · [UAT 清单](./knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) · [上线清单](./knowledge/manuals/2026-08-09-production-release-checklist.md)
 
 > **`knowledge/manuals/` ≈ Paradigma `manuals/`**：路径名保留 `knowledge/manuals/`，语义为部署运维与测试操作手册。
 
@@ -29,7 +29,7 @@
 | [changelog.md](./logs/changelog.md) | SemVer 发布历史 |
 | [logs/progress/](./logs/progress/) | 每次会话一个 append-only session log；旧 `progress.md` 仅保留历史 |
 | [domains/](./knowledge/domains/) | 子系统领域文档 |
-| [plans/](./knowledge/plans/) | 细粒度实施计划 |
+| [plans/](./knowledge/plans/) | 细粒度实施计划；先看 [计划状态目录](./knowledge/plans/plan-status-catalog.md)，不要把 completed/legacy 文档当成现行排期 |
 | [plans/tc-p2-views-stats-plan.md](./knowledge/plans/tc-p2-views-stats-plan.md) | TC-P2 落地计划（三视图 + 统计 + Shell） |
 | [plans/task-center-enhance.md](./knowledge/plans/task-center-enhance.md) | **TCE Phase 1–5 ✅** · F-18–F-20 ✅ · **P0 B-12** · **P1 F-22** · **P2 F-21**
 | [plans/task-center-v2-implementation-plan.md](./knowledge/plans/task-center-v2-implementation-plan.md) | TC-P0–P2 ✅；TC-P3 已并入 TCE Phase 5 |
@@ -101,7 +101,7 @@
 | 编码规范 | `conventions.md` |
 | 当前任务 | `active-task.md` |
 | 阶段验测、会话结束 | `logs/progress/YYYY-MM-DD-<task>.md` 独立 session log |
-| 排期与阶段出口 | `roadmap.md` + `plans/`（**当前**: [`task-center-enhance.md`](./plans/task-center-enhance.md)） |
+| 排期与阶段出口 | `roadmap.md` + [计划状态目录](./knowledge/plans/plan-status-catalog.md)（**当前**: [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md)） |
 | ADR / 坑位 / 术语 | `decisions.md` / `known-issues.md` / `glossary.md` |
 | 运维步骤 | `knowledge/manuals/` |
 

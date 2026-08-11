@@ -12,7 +12,7 @@ timestamp: 2026-07-16T21:19:21+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -20,6 +20,8 @@ paradigma:
     en: [iteration 3, human task link, command receipt, write ownership]
 ---
 # 工作流图引擎 Iteration 3 实施计划
+
+> **计划状态：COMPLETED（A～E）** — 主体工程已交付；仍开放的目标环境、观察期和最终批准仅由 Iteration 3-F 门禁计划跟踪。
 
 > **状态**：2026-07-15 已完成并提交 I3-A–E 代码实施；I3-A 基座提交为 `79b8c42`，B–E 提交为 `27c9cb3`。2026-07-16 已完成强制 [`Iteration 3-F`](./workflow-graph-engine-iteration3f-readiness-gate-plan.md) 的工程实现与本地验证；目标环境回填、7 天观察及最终批准未完成，Iteration 4 仍 blocked。
 

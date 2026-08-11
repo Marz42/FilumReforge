@@ -10,7 +10,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -22,6 +22,8 @@ paradigma:
       - ia
 ---
 # UI 信息架构重构规划（里程碑）
+
+> **计划状态：COMPLETED** — IA Phase A～F 已交付；当前前端调整由领域计划和 F-05 跟踪。
 
 本文件为 UI 重构里程碑总览；**IA-0…IA-5（Phase A–F）已于 2026-05 交付**，细节见 [`ui-refactor-spec-v2.md`](./ui-refactor-spec-v2.md) 与用户说明书 [`knowledge/manuals/user-manual.md`](../manuals/user-manual.md) v1.1。
 

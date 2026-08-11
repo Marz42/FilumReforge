@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 78762035919d4980 -->
+<!-- checksum: d7b3101d67530da0 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -86,10 +86,13 @@
 | [plans/2026-08-10-f05-task-detail-data-coordination-plan.md](plans/2026-08-10-f05-task-detail-data-coordination-plan.md) | `paradigma-plan` | 2026-08-10 F-05 任务详情数据协调拆分计划 | F-05 壳层拆分<br>任务详情加载<br>快速切换竞态 ... | - | related_to:../domains/task-center.md |
 | [plans/2026-08-10-iteration4-uat-preflight-plan.md](plans/2026-08-10-iteration4-uat-preflight-plan.md) | `paradigma-plan` | 2026-08-10 Iteration 4 UAT 验收准备计划 | Iteration 4 验收准备<br>UAT 前置检查<br>S-01 验收 ... | - | depends_on:2026-08-10-template-governance-audit-plan.md<br>depends_on:../manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md |
 | [plans/2026-08-10-template-governance-audit-plan.md](plans/2026-08-10-template-governance-audit-plan.md) | `paradigma-plan` | 模板范围与父子依赖数据治理计划 | 模板数据检查<br>可用部门<br>父子模板 ... | - | depends_on:../decisions/adr-020-published-template-availability-scope.md<br>depends_on:./2026-08-09-rc-employee-trial-plan.md<br>validates:../manuals/2026-08-09-production-release-checklist.md |
+| [plans/2026-08-11-f05-iteration5-6-sequencing-plan.md](plans/2026-08-11-f05-iteration5-6-sequencing-plan.md) | `paradigma-plan` | F-05 至工作流图引擎 Iteration 5/6 实施顺序 | F-05 后续顺序<br>Iteration 5<br>Iteration 6 ... | - | depends_on:./2026-08-11-f05-task-detail-action-coordination-plan.md<br>related_to:./workflow-graph-engine-upgrade-iteration-plan.md<br>related_to:./workflow-graph-engine-iteration3f-readiness-gate-plan.md<br>related_to:./2026-08-09-rc-employee-trial-plan.md |
 | [plans/2026-08-11-f05-task-detail-action-coordination-plan.md](plans/2026-08-11-f05-task-detail-action-coordination-plan.md) | `paradigma-plan` | 2026-08-11 F-05 任务详情动作协调拆分计划 | F-05 动作协调<br>任务动作提交<br>交付验收 ... | - | depends_on:2026-08-10-f05-task-detail-data-coordination-plan.md<br>related_to:../domains/task-center.md |
+| [plans/2026-08-11-f05-task-detail-materials-comments-plan.md](plans/2026-08-11-f05-task-detail-materials-comments-plan.md) | `paradigma-plan` | 2026-08-11 F-05 任务资料与评论留痕拆分计划 | F-05 资料附件<br>评论留痕<br>上传协调 ... | - | depends_on:./2026-08-11-f05-task-detail-action-coordination-plan.md<br>related_to:../domains/task-center.md |
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |
+| [plans/plan-status-catalog.md](plans/plan-status-catalog.md) | `paradigma-plan` | 实施计划状态目录 | 计划状态<br>现行计划<br>已完成计划 ... | - | related_to:../roadmap.md<br>related_to:./implementation-plan.md |
 | [plans/s01-task-statistics-plan.md](plans/s01-task-statistics-plan.md) | `paradigma-plan` | S-01 任务统计实施计划（已批准） | S-01<br>任务统计计划<br>统计口径 ... | - | - |
 | [plans/task-center-enhance.md](plans/task-center-enhance.md) | `paradigma-plan` | TCE 增强计划 | TCE<br>tce | - | - |
 | [plans/task-center-v2-implementation-plan.md](plans/task-center-v2-implementation-plan.md) | `paradigma-plan` | TC v2 实施计划 | TC<br>v2<br>task ... | - | - |

@@ -9,7 +9,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -19,6 +19,8 @@ paradigma:
       - tce
 ---
 # 任务中心增强排期（Task Center Enhance）
+
+> **计划状态：COMPLETED** — TCE Phase 1～5 已交付；本文保留历史批次和验收边界，不再作为当前排期。
 
 > 🌡️ WARM — TC-P0–P2 完成后的下一工程排期。  
 > **标尺**：当前版本内能做到的较好用户体验（含 TC-P3 backlog → **Phase 5**）。  

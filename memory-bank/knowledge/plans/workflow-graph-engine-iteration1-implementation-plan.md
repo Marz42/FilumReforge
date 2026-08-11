@@ -12,7 +12,7 @@ timestamp: 2026-07-13T22:30:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -28,6 +28,8 @@ paradigma:
       - legacy executor
 ---
 # 工作流图引擎 Iteration 1 实施计划
+
+> **计划状态：COMPLETED** — Iteration 1 工程与验证已完成；遗留差距已由 Iteration 2 及后续计划承接。
 
 > **状态**：I1-A–E 已实施并通过 SQLite/PostgreSQL 全量验证，待用户验收 Iteration 1。Iteration 1 未改造路径/Join 语义；`WG-GAP-001`–`003` 留给 Iteration 2。
 

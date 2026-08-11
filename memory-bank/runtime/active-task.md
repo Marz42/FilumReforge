@@ -1,7 +1,7 @@
 ---
 type: paradigma-runtime-state
 title: Active Task
-description: 主开发线推进 F-05 第二批，提取任务详情动作提交协调。
+description: 主开发线推进 F-05 第三批，提取任务资料附件与评论留痕协调。
 tags: [runtime, active-task, mainline, task-center, frontend, f-05]
 timestamp: 2026-08-11T23:27:48+08:00
 paradigma:
@@ -17,15 +17,15 @@ paradigma:
 
 ## Task ID
 
-f05-task-detail-action-coordination-2026-08-11
+f05-task-detail-materials-comments-2026-08-11
 
 ## User Request
 
-完成 Memory-Bank 漂移修正后继续主开发线；在数据协调首批基础上，从 `TaskDetailShell.vue` 提取动作提交状态与命令协调，保持现有界面、权限和业务语义不变。
+固定 F-05 → Iteration 5 → 稳定观察 → Iteration 6 的正式顺序，治理过时计划文档；随后从 `TaskDetailShell.vue` 提取任务资料附件与评论/留痕协调，保持现有界面、权限和业务语义不变。
 
 ## Current Status
 
-engineering-complete / follow-up-planned — Memory-Bank 漂移已校准；F-05 第二批已用 `useTaskDetailActions` + `useTaskAssignmentActions` 收口命令、副作用和提交状态，Shell 保留权限/Profile 与页面编排。全量 69 files / 197 tests、type-check、双 lint、build 通过；F-05 总体仍为进行中。
+in-progress — F-05 前两批数据与动作协调已完成；正式后续顺序已固定，计划文档正按 active/completed/legacy 治理。本批将用测试先行提取附件上传与评论提交协调，Shell 继续保留权限/Profile、选中任务和页面编排。
 
 ## Checklist
 
@@ -42,7 +42,10 @@ engineering-complete / follow-up-planned — Memory-Bank 漂移已校准；F-05 
 - [x] 新增 `useTaskDetailActions` 单测并迁移状态流转、交付、握手/转办、集合关闭与延期
 - [x] 避免制造新巨石：通用动作 composable 304 行，接单/转办 composable 178 行
 - [x] 完成 69 files / 197 tests、type-check、ESLint、Oxlint、build 并更新 F-05 进度记录
-- [ ] F-05 下一批：提取任务资料附件与评论/留痕板块
+- [x] 固定 F-05 → Iteration 5 → 稳定观察 → Iteration 6 的正式顺序
+- [ ] 将过时计划明确标为 completed 或 legacy，并生成计划状态目录
+- [ ] F-05 第三批：先写测试，再提取任务资料附件与评论/留痕协调
+- [ ] 重新评估活动时间线/工作流面板是否需要 F-05 第四批
 - [ ] 在目标环境运行“数据检查”和“验收准备”，清零确定错误与 P-01～P-04 阻断
 - [ ] 员工按清单完成 Iteration 4 / 设计器 Phase 2 / S-01 UAT，并记录账号、模板、Run ID 与结论
 
@@ -54,6 +57,9 @@ engineering-complete / follow-up-planned — Memory-Bank 漂移已校准；F-05 
 - `memory-bank/knowledge/plans/2026-08-10-iteration4-uat-preflight-plan.md`
 - `memory-bank/knowledge/plans/2026-08-10-f05-task-detail-data-coordination-plan.md`
 - `memory-bank/knowledge/plans/2026-08-11-f05-task-detail-action-coordination-plan.md`
+- `memory-bank/knowledge/plans/2026-08-11-f05-task-detail-materials-comments-plan.md`
+- `memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md`
+- `memory-bank/knowledge/plans/plan-status-catalog.md`
 - `memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md`
 - `memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md`
 - `memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md`
@@ -64,7 +70,7 @@ engineering-complete / follow-up-planned — Memory-Bank 漂移已校准；F-05 
 ## Blockers
 
 - 无继续开发的代码阻碍。
-- F-05 第二批无代码阻碍；下一批资料/评论板块仍须保持附件可见性、上传预算、内部评论权限和刷新时机不变。
+- F-05 第三批无代码阻碍；资料/评论板块须保持附件可见性、上传预算、内部评论权限和刷新时机不变。
 - 人工 UAT 仍需要目标环境真实账号、部门、模板和任务样本；系统不会自动造业务数据或代替业务签字。
 - I3-F、真实 TLS/secret/backup/restore 与生产变更窗口继续作为外部门禁，不阻断主开发。
 

@@ -9,7 +9,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -19,6 +19,8 @@ paradigma:
       - stage2
 ---
 # Project Filum Stage 2 实施方案
+
+> **计划状态：LEGACY** — 该阶段命名和串行安排已被 `implementation-plan.md`、现行路线图与图引擎 Iteration 计划取代；本文只供历史考古，其中未勾选条目不得自动恢复为当前排期。
 
 ## 0. 命名约定
 

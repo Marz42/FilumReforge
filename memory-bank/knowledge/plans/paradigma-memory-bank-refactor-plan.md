@@ -9,7 +9,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -19,6 +19,8 @@ paradigma:
       - paradigma
 ---
 # Memory-Bank 文档系统重构方案（Paradigma 对齐）
+
+> **计划状态：COMPLETED** — 三态迁移和 Paradigma 0.5.0 协议升级已完成；协议维护按 Memory-Bank README 执行。
 
 **版本**: v1.0  
 **日期**: 2026-06-17  

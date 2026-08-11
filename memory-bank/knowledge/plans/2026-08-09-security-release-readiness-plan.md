@@ -7,7 +7,7 @@ timestamp: 2026-08-09T22:31:54+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -16,6 +16,8 @@ paradigma:
 ---
 
 # Goal
+
+> **计划状态：COMPLETED（本地工程）** — 安全修复和本地门禁已完成；目标环境 TLS、secret、备份恢复、迁移和生产批准继续由上线清单跟踪。
 
 让当前主分支达到“可进入目标环境预发与生产准入验证”的状态：现行文档与代码一致，扫描发现均有当前代码复核、修复或明确风险接受，自动化门禁可重复执行，无法由本地证明的目标环境事项保持显式阻断。
 

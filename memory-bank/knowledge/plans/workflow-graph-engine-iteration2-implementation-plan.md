@@ -12,7 +12,7 @@ timestamp: 2026-07-15T09:30:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -20,6 +20,8 @@ paradigma:
     en: [iteration 2, edge traversal, activation dependency, workflow routing]
 ---
 # 工作流图引擎 Iteration 2 实施计划
+
+> **计划状态：COMPLETED** — Iteration 2 工程与验证已完成；本文只保留 graph-v3 路径和兼容边界记录。
 
 > **状态**：2026-07-15 实施完成并通过自动化验证，等待用户验收。只改造新建的 `graph-v3` Run；既有 `graph-v2` snapshot Run 与 `legacy-v1` Run 保持原 executor 语义，不原地升级。
 

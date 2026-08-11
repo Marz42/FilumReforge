@@ -7,7 +7,7 @@ timestamp: 2026-08-11T23:15:47+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -21,6 +21,8 @@ paradigma:
 ---
 
 # F-05 任务详情动作协调拆分计划
+
+> **计划状态：COMPLETED** — 动作与接单/转办协调已经提取；下一批见资料附件与评论留痕拆分计划。
 
 ## 问题
 

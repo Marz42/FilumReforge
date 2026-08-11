@@ -7,7 +7,7 @@ timestamp: 2026-08-10T00:20:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -22,6 +22,8 @@ paradigma:
 ---
 
 # 模板范围与父子依赖数据治理计划
+
+> **计划状态：COMPLETED（工程）** — 只读审计、分级建议和修正版入口已交付；目标环境数据清零由 UAT/上线清单跟踪。
 
 ## 目标
 

@@ -9,7 +9,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -20,6 +20,8 @@ paradigma:
       - refactor
 ---
 # Project Filum 工作流重构实施方案
+
+> **计划状态：COMPLETED（历史主干）** — Phase 1～11 已交付；后续正确性、Handler、投影和 Legacy 清理由工作流图引擎 Iteration 计划承接。
 
 ## 1. 计划定位
 

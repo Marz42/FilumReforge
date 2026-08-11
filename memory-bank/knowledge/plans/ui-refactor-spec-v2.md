@@ -10,7 +10,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -22,6 +22,8 @@ paradigma:
       - refactor
 ---
 # UI 重构实施规格 v2（前端）
+
+> **计划状态：COMPLETED** — Phase A～F 已交付；本文是已实现规格，不再作为新增功能排期。
 
 **状态**：已交付（Phase A–F，2026-05）  
 **依据**：[`knowledge/manuals/user-manual.md`](../manuals/user-manual.md) v1.1（与当前界面对齐）  

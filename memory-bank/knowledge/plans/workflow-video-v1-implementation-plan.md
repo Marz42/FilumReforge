@@ -10,7 +10,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -22,6 +22,8 @@ paradigma:
       - v1
 ---
 # 工作流深化实施清单（综合版 v2）
+
+> **计划状态：LEGACY** — 以“视频工作流”为特殊产品线的排期已被领域中立图模板、ADR-018 和 Iteration 4 Handler 架构取代；保留本文仅用于兼容路径和历史验收考古。
 
 ## 0. 文档定位
 

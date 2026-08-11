@@ -10,7 +10,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -23,6 +23,8 @@ paradigma:
       - v2
 ---
 # 任务中心 v2 实施计划
+
+> **计划状态：COMPLETED** — TC-P0～P2 已交付，后续增强已经进入 TCE、F-05 和图引擎现行计划。
 
 > 🌡️ WARM — 可排期、可验收的工程清单。  
 > **产品规格**: [`workflow-video-v1-ui-simplification-design.md`](./workflow-video-v1-ui-simplification-design.md) v2.1  

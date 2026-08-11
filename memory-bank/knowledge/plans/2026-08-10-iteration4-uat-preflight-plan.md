@@ -7,7 +7,7 @@ timestamp: 2026-08-10T16:30:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -20,6 +20,8 @@ paradigma:
 ---
 
 # Iteration 4 UAT 验收准备计划
+
+> **计划状态：COMPLETED（准备工具）** — 数据检查、验收准备和候选输出已交付；真实账号人工 UAT 继续由统一验收清单跟踪。
 
 ## 目标
 

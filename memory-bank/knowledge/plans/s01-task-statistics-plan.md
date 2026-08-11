@@ -10,7 +10,7 @@ timestamp: 2026-07-11T23:34:27+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: decision
   retrieval_hints:
@@ -23,6 +23,8 @@ paradigma:
       - statistics plan
 ---
 # S-01 任务统计实施计划（已批准）
+
+> **计划状态：COMPLETED（工程）** — 最小周期统计已实现；真实权限和业务口径验收由统一 UAT 清单跟踪。
 
 > 2026-07-11：用户已确认 §10 六项默认决策，进入实施。
 

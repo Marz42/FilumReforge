@@ -10,7 +10,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -22,6 +22,8 @@ paradigma:
       - adr
 ---
 # ADR：视频工作流 v1 运行时与 Feature 开关（W0）
+
+> **计划状态：COMPLETED（历史决策）** — W0 已实施；视频现为普通领域中立模板，现行边界以 ADR-018 和 Iteration 4 计划为准。
 
 > **【已迁入】** 权威 ADR 条目见 [`../decisions.md`](../decisions.md) **ADR-006**。下文保留 W0 原文供对照。
 

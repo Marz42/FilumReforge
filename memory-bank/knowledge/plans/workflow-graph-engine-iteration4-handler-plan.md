@@ -12,7 +12,7 @@ timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -20,6 +20,8 @@ paradigma:
     en: [iteration 4, handler registry, capability result, human task handler]
 ---
 # 工作流图引擎 Iteration 4 · 业务能力 Handler 化实施计划
+
+> **计划状态：COMPLETED（工程）** — I4-A～E 已交付；人工 UAT 与生产准入仍按独立清单执行，不在本文继续开发。
 
 > **状态**：I4-A 至 I4-E 已完成。HumanTask、Approval、Deliverable 与 Notification 已统一接入能力结果；模板行为由领域中立 capability snapshot、runtime policy 与 task capability 驱动，视频字段仅留在兼容适配器和模板包。前端 P2 第一批 6 项已实现。Iteration 3-F 的目标环境回填、7 天观测和最终 31/31 报告仍未完成，因此生产切流继续受硬门禁约束。
 

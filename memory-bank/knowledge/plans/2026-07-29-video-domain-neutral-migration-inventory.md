@@ -7,7 +7,7 @@ timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -15,6 +15,8 @@ paradigma:
     en: ["video template neutrality", "run_kind exit", "generic workflow capability"]
 ---
 # 视频模板领域中立迁移清单
+
+> **计划状态：COMPLETED（核心迁移）** — 视频能力已回归普通领域中立模板；兼容适配器和 dual-read 的最终删除转入 Iteration 6，不继续在本文排期。
 
 > **状态（2026-07-30）**：I4-E 核心迁移完成。Runtime、TaskService、Task Center 与前端详情改为 capability snapshot / task capability；视频 seed v5 声明通用能力，旧 API/service/profile 进入兼容窗口。删除 dual-read 仍须等待调用观测归零。
 

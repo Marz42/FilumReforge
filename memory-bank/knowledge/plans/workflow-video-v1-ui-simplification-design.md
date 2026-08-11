@@ -10,7 +10,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -22,6 +22,8 @@ paradigma:
       - simplification
 ---
 # 视频工作流 v1 · 任务协同 UI 简化设计（迭代 v2.1）
+
+> **计划状态：LEGACY** — 本 UI 方案已经交付并被当前任务中心、模板设计器和领域中立详情能力取代；不得作为新视频专用入口的依据。
 
 > 🌡️ WARM — 产品/UX 迭代规格。实现前与 [`domains/workflow-video-v1.md`](../domains/workflow-video-v1.md)、[`domains/task-center.md`](../domains/task-center.md) 对照。  
 > **状态**: ✅ **P0–P2 已落地** @ `0.88.0`（`main`）· 设计 v2.1 · **日期**: 2026-06-18 · **实施**: TC-P0–P2 ✅ @ `0.89.0`；**下一排期**: [`task-center-enhance.md`](./task-center-enhance.md)（TC-P3 → Phase 5）  

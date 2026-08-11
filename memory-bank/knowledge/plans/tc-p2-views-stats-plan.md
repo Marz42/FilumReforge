@@ -9,7 +9,7 @@ timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -19,6 +19,8 @@ paradigma:
       - tc-p2
 ---
 # TC-P2 · 视图重做 + 任务统计 — 落地实施计划
+
+> **计划状态：COMPLETED** — 三视图、统计与详情壳层批次已交付；本文仅供回归和历史定位。
 
 > **状态**: ✅ 已完成 · **日期**: 2026-06-18 · **分支**: `feat/task-center-p2-views-stats` → merged main @ `0.88.0`  
 > **父计划**: [`task-center-v2-implementation-plan.md`](./task-center-v2-implementation-plan.md) §TC-P2  

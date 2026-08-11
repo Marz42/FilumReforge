@@ -28,7 +28,7 @@ paradigma:
 ---
 # Project Filum 工作流图引擎稳健升级迭代方案
 
-> **状态**：Iteration 0–2 已完成并验收；Iteration 3 A–E 已提交。2026-07-16 已完成强制 Iteration 3-F 工程实现和本地自动化；目标环境 7 天观测及 31 项最终批准未完成。2026-07-28 用户授权启动 Iteration 4 向下兼容开发，但生产切流继续 blocked。
+> **状态**：Iteration 0–4 工程实现已完成；Iteration 3-F 目标环境 7 天观测及 31 项最终批准未完成，生产切流继续 blocked。当前先完成 F-05 前端壳层收口，再进入 Iteration 5 的加法投影、影子比较和运维建设；稳定观察和单独批准后才进入 Iteration 6。正式顺序见 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
 > **输入**：根目录 `workflow-graph-engine-upgrade-guidance-report.md`、现行 ORM / Service / API / 测试，以及 [`workflow-graph-engine.md`](../domains/workflow-graph-engine.md) as-built。  
 > **与旧计划关系**：[`workflow-refactor-implementation-plan.md`](./workflow-refactor-implementation-plan.md) 记录 Phase 1–11 的历史实施主线；本文只规划其后的结构收敛与正确性升级，不回写历史阶段。
 
@@ -387,6 +387,8 @@ paradigma:
 
 ## 10. Iteration 5：P1/P2 投影、查询与运维
 
+> **进入顺序**：F-05 完成后启动。投影契约、加法迁移、projector、重建、shadow comparison 和运维建设可与 RC/UAT/I3-F 取证并行；正式读侧切换和停止新增 ROOT shell 必须等待对应目标环境证据并单独批准。
+
 ### 目标
 
 在写模型稳定后替换运行时动态 graph-first 拼装，并建立可恢复运维能力。
@@ -415,6 +417,8 @@ paradigma:
 ---
 
 ## 11. Iteration 6：收缩兼容层与 Legacy 清理
+
+> **进入顺序**：不得与 Iteration 5 的稳定观察期重叠；满足本节全部前置条件并获得单独批准后才能实施删除或停止兼容写入。
 
 ### 前置条件
 

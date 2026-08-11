@@ -7,7 +7,7 @@ timestamp: 2026-07-28T10:47:27+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -16,6 +16,8 @@ paradigma:
 ---
 
 # Template Engine Decouple — Phase 2
+
+> **计划状态：COMPLETED（工程）** — M-06～M-08 已实现；人工界面验收由统一 UAT 清单跟踪，M-09 和 dual-read 收窄不属于本计划续做项。
 
 ## 目标
 
