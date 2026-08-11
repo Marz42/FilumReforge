@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "实施计划状态目录"
 description: "区分现行计划、已完成实施记录与已被取代的 Legacy 方案，避免历史计划被误作当前排期。"
 tags: [plan, governance, active, completed, legacy]
-timestamp: 2026-08-11T23:42:43+08:00
+timestamp: 2026-08-12T00:24:05+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -30,7 +30,7 @@ paradigma:
 | `implementation-plan.md` | 总体实施主线 |
 | `workflow-graph-engine-upgrade-iteration-plan.md` | 图引擎 Iteration 0～6 总计划；当前指向 I5/I6 |
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |
-| `2026-08-12-f05-task-detail-workflow-presentation-plan.md` | F-05 收口批：工作流面板、Run Event 与图节点追踪展示 |
+| `2026-08-12-iteration5a-projection-contract-plan.md` | 当前开发批：三类投影契约、字段来源/授权矩阵与 Expand-only 迁移 |
 | `workflow-graph-engine-iteration3f-readiness-gate-plan.md` | 仍开放的目标环境与生产切流门禁 |
 | `2026-08-09-rc-employee-trial-plan.md` | `v0.93.0-rc.2` 员工复测与主线分流 |
 
@@ -51,6 +51,7 @@ paradigma:
 | `2026-08-11-f05-task-detail-action-coordination-plan.md` | F-05 动作协调批次完成 |
 | `2026-08-11-f05-task-detail-materials-comments-plan.md` | F-05 附件与评论留痕批次完成 |
 | `2026-08-12-f05-task-detail-activity-timeline-plan.md` | F-05 活动时间线展示批次完成；KI-010 仍独立保留 |
+| `2026-08-12-f05-task-detail-workflow-presentation-plan.md` | F-05 工作流展示与图节点追踪收口完成；F-05 结项 |
 | `paradigma-memory-bank-refactor-plan.md` | 三态迁移与 0.5.0 协议升级完成 |
 | `s01-task-statistics-plan.md` | 工程实现完成；人工验收由统一清单跟踪 |
 | `task-center-enhance.md` | TCE Phase 1～5 完成 |

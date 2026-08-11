@@ -4,20 +4,15 @@ import { ElMessage } from 'element-plus'
 
 import { addTaskWatchers } from '@/api/tasks'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
-import TemplateAggregatePanel from '@/components/workflow/TemplateAggregatePanel.vue'
-import CapturePanel from '@/components/workflow/CapturePanel.vue'
-import WorkflowCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
-import WorkflowDeliverablePanel from '@/components/workflow/VideoProductionPanel.vue'
-import WorkflowTrackingPanel from '@/components/workflow/VideoTrackingPanel.vue'
-import BatchRunDashboard from '@/components/workflow/BatchRunDashboard.vue'
-import { resolveActiveStepTaskId } from '@/domain/workflow-graph/activeStepTask'
 import TaskDetailActionDialogs from '@/components/task-detail/TaskDetailActionDialogs.vue'
 import TaskDetailActivityTimeline from '@/components/task-detail/TaskDetailActivityTimeline.vue'
 import TaskDetailAttachmentsPanel from '@/components/task-detail/TaskDetailAttachmentsPanel.vue'
 import TaskDetailCommentComposer from '@/components/task-detail/TaskDetailCommentComposer.vue'
 import TaskDetailHeaderBar from '@/components/task-detail/TaskDetailHeaderBar.vue'
 import TaskDetailContextPanel from '@/components/task-detail/TaskDetailContextPanel.vue'
+import TaskDetailGraphTelemetry from '@/components/task-detail/TaskDetailGraphTelemetry.vue'
 import TaskDetailMetadataPanel from '@/components/task-detail/TaskDetailMetadataPanel.vue'
+import TaskDetailWorkflowPresentation from '@/components/task-detail/TaskDetailWorkflowPresentation.vue'
 import { canDelegateStandaloneTask } from '@/domain/task-detail/actions'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
@@ -32,13 +27,8 @@ import {
   userFacingStateTagType,
 } from '@/domain/task-detail/user-state'
 import { useAuthStore } from '@/stores/auth'
-import type {
-  Task,
-  TaskCenterUserOption,
-  WorkflowNodeInstanceSummary,
-} from '@/types/api'
+import type { Task, TaskCenterUserOption } from '@/types/api'
 import { getErrorMessage } from '@/utils/errors'
-import { formatDateTime } from '@/utils/formatters'
 import { isCaptureClosed, resolveAggregateMode } from '@/utils/workflowVideoSchema'
 import { useTaskDetailActions } from '@/composables/useTaskDetailActions'
 import { useTaskDetailCollaboration } from '@/composables/useTaskDetailCollaboration'
@@ -391,24 +381,6 @@ const isGraphCollectionRootTask = computed(
     && selectedTaskMetadata.value.workflow_graph_root_task === true
     && selectedTaskProfile.value.features.tracking === true,
 )
-const isGraphHiddenRootTask = computed(
-  () =>
-    isGraphTemplateTask.value
-    && selectedTaskMetadata.value.workflow_graph_root_task === true
-    && selectedTaskProfile.value.rootVisibility === 'hidden_for_non_management',
-)
-const productionActiveStepTaskId = computed(() =>
-  resolveActiveStepTaskId(graphInstance.value, {
-    preferAssigneeUserId: authStore.user?.id ?? null,
-  }),
-)
-const showProductionRootStepRouter = computed(
-  () =>
-    isGraphHiddenRootTask.value
-    && graphInstance.value !== null
-    && productionActiveStepTaskId.value !== null
-    && productionActiveStepTaskId.value !== selectedTask.value?.id,
-)
 const selectedTaskProfile = computed(() =>
   resolveTaskDetailProfile(selectedTask.value, { currentUserId: authStore.user?.id }),
 )
@@ -447,23 +419,6 @@ const captureClosed = computed(() => isCaptureClosed(graphInstance.value?.contex
 const instanceCapabilities = computed(() => {
   return resolveInstanceCapabilities(graphInstance.value?.context)
 })
-const showCaptureProgressPanel = computed(
-  () =>
-    selectedTaskProfile.value.surface === 'collection'
-    && selectedTaskProfile.value.features.capture_progress === true
-    && graphInstance.value !== null
-    && batchAggregateMode.value === 'batch',
-)
-const showWorkflowTrackingPanel = computed(
-  () =>
-    selectedTaskProfile.value.features.tracking === true
-    && graphInstance.value !== null,
-)
-const showBatchRunDashboard = computed(
-  () =>
-    selectedTaskProfile.value.features.run_dashboard === true
-    && graphInstance.value !== null,
-)
 const showCloseCaptureButton = computed(
   () =>
     isGraphCollectionRootTask.value
@@ -479,42 +434,8 @@ const showDetailHeaderActions = computed(() => {
     && surface !== 'collection'
     && surface !== 'run_overview'
 })
-const showCapturePanel = computed(
-  () =>
-    selectedTaskProfile.value.surface === 'structured_form'
-    && selectedTask.value !== null,
-)
-const showWorkflowAggregatePanel = computed(
-  () =>
-    selectedTaskProfile.value.surface === 'collection'
-    && selectedTaskProfile.value.features.aggregate === true
-    && batchAggregateMode.value === 'batch',
-)
-const deliverablePanelMode = computed((): 'single' | 'multi' | 'platform' => {
-  if (selectedTaskProfile.value.variant === 'multi') {
-    return 'multi'
-  }
-  if (selectedTaskProfile.value.variant === 'platform') {
-    return 'platform'
-  }
-  return 'single'
-})
-const showWorkflowDeliverablePanel = computed(
-  () =>
-    selectedTaskProfile.value.surface === 'deliverable'
-    && selectedTaskProfile.value.submitMode === 'file'
-    && selectedTask.value !== null,
-)
-const workflowDeliverablePanelRef = ref<InstanceType<typeof WorkflowDeliverablePanel> | null>(null)
+const workflowPresentationRef = ref<InstanceType<typeof TaskDetailWorkflowPresentation> | null>(null)
 const usesCompactDetailTelemetry = computed(() => TASK_CENTER_V2_UI_ENABLED)
-const compactRunEvents = computed(() =>
-  usesCompactDetailTelemetry.value || usesWorkflowLayout.value
-    ? workflowRunEvents.value.slice(0, 3)
-    : workflowRunEvents.value,
-)
-const usesCompactRunEventCards = computed(
-  () => usesCompactDetailTelemetry.value || usesWorkflowLayout.value,
-)
 const graphParentInstanceId = computed(() => {
   if (graphInstance.value?.parent_instance_id) {
     return graphInstance.value.parent_instance_id
@@ -522,20 +443,6 @@ const graphParentInstanceId = computed(() => {
   const parentId = graphInstance.value?.context?.parent_instance_id
   return typeof parentId === 'string' ? parentId : null
 })
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  run_instantiated: '运行已创建',
-  capture_submitted: '采集已提交',
-  aggregate_confirmed: '汇总已确认',
-  production_run_forked: '已 fork 制作子流',
-  capture_rejected: '采集已打回',
-  production_deep_reject: '制作节点打回',
-  node_completed: '节点已完成',
-}
-
-function resolveRunEventLabel(eventType: string): string {
-  return EVENT_TYPE_LABELS[eventType] ?? eventType
-}
-
 function resolveDepartmentName(departmentId: string | null): string {
   if (!departmentId) {
     return '—'
@@ -563,42 +470,6 @@ function resolveUserLabel(userId: string, preferredLabel?: string | null): strin
     userEmailMap.value.get(userId) ??
     `用户 ${userId.slice(0, 8)}`
   )
-}
-
-function resolveNodeEngineStateLabel(state: WorkflowNodeInstanceSummary['engine_state']): string {
-  const labels: Record<string, string> = {
-    pending: '待激活',
-    activated: '进行中',
-    acknowledged: '已确认',
-    completed: '已完成',
-    terminated: '已终止',
-    skipped: '已跳过',
-    failed: '失败',
-    suspended: '已挂起',
-  }
-  return labels[state] ?? state
-}
-
-function resolveNodeEngineStateTagType(
-  state: WorkflowNodeInstanceSummary['engine_state'],
-): 'info' | 'primary' | 'success' | 'danger' | 'warning' {
-  if (state === 'completed') return 'success'
-  if (state === 'activated' || state === 'acknowledged') return 'primary'
-  if (state === 'terminated' || state === 'failed') return 'danger'
-  if (state === 'suspended') return 'warning'
-  return 'info'
-}
-
-function formatNodeDuration(node: WorkflowNodeInstanceSummary): string {
-  if (!node.activated_at) return '—'
-  const end = node.completed_at ?? node.terminated_at
-  if (!end) return '进行中'
-  const ms = new Date(end).getTime() - new Date(node.activated_at).getTime()
-  const minutes = Math.floor(ms / 60000)
-  if (minutes < 60) return `${minutes} 分钟`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} 小时`
-  return `${Math.floor(hours / 24)} 天`
 }
 
 function resolveTaskListRunLabel(task: Task): string {
@@ -671,7 +542,7 @@ watch(
               :status-submitting="statusSubmitting"
               :can-submit-deliverable="canSubmitDeliverable"
               :selected-task-profile="selectedTaskProfile"
-              :workflow-deliverable-panel-ref="workflowDeliverablePanelRef"
+              :workflow-deliverable-panel-ref="workflowPresentationRef"
               :deliverable-submitting="deliverableSubmitting"
               :uses-workflow-layout="usesWorkflowLayout"
               :can-admin-archive="canAdminArchive"
@@ -725,96 +596,19 @@ watch(
               :resolve-run-label="resolveTaskListRunLabel"
             />
 
-            <WorkflowTrackingPanel
-              v-if="showWorkflowTrackingPanel && graphInstance"
+            <TaskDetailWorkflowPresentation
+              ref="workflowPresentationRef"
+              :task="selectedTask"
               :graph-instance="graphInstance"
+              :profile="selectedTaskProfile"
               :users="users"
               :can-manage-reject="canManageCaptureReject"
-              @dispatched="reloadAfterAction"
-              @rejected="reloadAfterAction"
+              :current-user-id="authStore.user?.id ?? null"
+              :run-events="workflowRunEvents"
+              :compact-telemetry="usesCompactDetailTelemetry"
+              @reload="reloadAfterAction"
+              @select-task="(taskId: string) => emit('selectTask', taskId)"
             />
-            <el-alert
-              v-if="showProductionRootStepRouter"
-              type="info"
-              :closable="false"
-              show-icon
-              class="workflow-panel"
-              data-testid="production-root-step-router"
-            >
-              <template #title>这是制作 Run 跟踪壳层</template>
-              请打开当前步骤任务提交脚本、配音等交付物。
-              <div style="margin-top: 8px">
-                <el-button
-                  type="primary"
-                  size="small"
-                  @click="emit('selectTask', productionActiveStepTaskId!)"
-                >
-                  打开当前步骤任务
-                </el-button>
-              </div>
-            </el-alert>
-            <BatchRunDashboard
-              v-if="showBatchRunDashboard && graphInstance"
-              :graph-instance="graphInstance"
-              @open-task="(taskId: string) => emit('selectTask', taskId)"
-            />
-            <WorkflowCaptureProgressPanel
-              v-if="showCaptureProgressPanel && graphInstance"
-              :graph-instance="graphInstance"
-            />
-            <CapturePanel
-              v-if="showCapturePanel && selectedTask"
-              :task="selectedTask"
-              :graph-instance="graphInstance"
-              @submitted="reloadAfterAction"
-            />
-            <WorkflowDeliverablePanel
-              v-if="showWorkflowDeliverablePanel && selectedTask"
-              ref="workflowDeliverablePanelRef"
-              :task="selectedTask"
-              :mode="deliverablePanelMode"
-              @submitted="reloadAfterAction"
-            />
-            <TemplateAggregatePanel
-              v-if="showWorkflowAggregatePanel && selectedTask"
-              :task="selectedTask"
-              :graph-instance="graphInstance"
-              :users="users"
-              :can-manage-reject="canManageCaptureReject"
-              @finalized="reloadAfterAction"
-              @rejected="reloadAfterAction"
-            />
-
-            <el-card
-              v-if="workflowRunEvents.length > 0"
-              shadow="never"
-              class="page__run-events"
-              :data-testid="usesCompactRunEventCards ? 'workflow-run-events-compact' : 'workflow-run-events'"
-            >
-              <template #header>
-                <div class="page__header">
-                  <strong>{{ usesCompactRunEventCards ? '最近事件' : '运行事件' }}</strong>
-                  <router-link
-                    v-if="usesCompactDetailTelemetry && selectedTask"
-                    :to="{ name: 'task-center', query: { filter: 'stats', selected: selectedTask.id } }"
-                  >
-                    在任务统计中查看
-                  </router-link>
-                </div>
-              </template>
-              <el-timeline>
-                <el-timeline-item
-                  v-for="event in compactRunEvents"
-                  :key="event.id"
-                  :timestamp="formatDateTime(event.created_at)"
-                >
-                  {{ resolveRunEventLabel(event.event_type) }}
-                  <span v-if="!usesCompactRunEventCards && typeof event.payload.reason === 'string'">
-                    — {{ event.payload.reason }}
-                  </span>
-                </el-timeline-item>
-              </el-timeline>
-            </el-card>
 
             <template v-if="!selectedTaskProfile.hideDeliverable">
             <el-divider>交付与验收</el-divider>
@@ -929,79 +723,11 @@ watch(
 
             <template v-if="!selectedTaskProfile.collapseComments">
 
-            <!-- 图引擎节点板块（仅图任务显示） -->
-            <el-collapse
-              v-if="graphInstance && !usesWorkflowLayout && usesCompactDetailTelemetry"
-              data-testid="task-detail-graph-collapse"
-            >
-              <el-collapse-item title="工作流节点追踪（完整日志见任务统计）" name="graph-nodes">
-                <el-space direction="vertical" fill class="page__node-timeline" data-testid="tasks-graph-panel">
-                  <el-card
-                    v-for="node in graphInstance.node_instances"
-                    :key="node.id"
-                    shadow="never"
-                    class="page__node-card"
-                  >
-                    <div class="page__node-card-header">
-                      <div class="page__node-title">
-                        <strong>{{ node.title }}</strong>
-                        <el-tag v-if="node.iteration > 1" size="small" type="warning" effect="dark">
-                          V{{ node.iteration }}
-                        </el-tag>
-                      </div>
-                      <el-tag
-                        :type="resolveNodeEngineStateTagType(node.engine_state)"
-                        effect="plain"
-                        size="small"
-                      >
-                        {{ resolveNodeEngineStateLabel(node.engine_state) }}
-                      </el-tag>
-                    </div>
-                    <p class="page__node-meta">耗时：{{ formatNodeDuration(node) }}</p>
-                    <p
-                      v-if="node.engine_state === 'terminated'"
-                      class="page__node-meta page__node-meta--terminated"
-                    >
-                      已被系统终止（or-join 撤权或深度打回）
-                    </p>
-                  </el-card>
-                </el-space>
-              </el-collapse-item>
-            </el-collapse>
-            <template v-else-if="graphInstance && !usesWorkflowLayout">
-              <el-divider>工作流节点追踪</el-divider>
-              <el-space direction="vertical" fill class="page__node-timeline" data-testid="tasks-graph-panel">
-                <el-card
-                  v-for="node in graphInstance.node_instances"
-                  :key="node.id"
-                  shadow="never"
-                  class="page__node-card"
-                >
-                  <div class="page__node-card-header">
-                    <div class="page__node-title">
-                      <strong>{{ node.title }}</strong>
-                      <el-tag v-if="node.iteration > 1" size="small" type="warning" effect="dark">
-                        V{{ node.iteration }}
-                      </el-tag>
-                    </div>
-                    <el-tag
-                      :type="resolveNodeEngineStateTagType(node.engine_state)"
-                      effect="plain"
-                      size="small"
-                    >
-                      {{ resolveNodeEngineStateLabel(node.engine_state) }}
-                    </el-tag>
-                  </div>
-                  <p class="page__node-meta">耗时：{{ formatNodeDuration(node) }}</p>
-                  <p
-                    v-if="node.engine_state === 'terminated'"
-                    class="page__node-meta page__node-meta--terminated"
-                  >
-                    已被系统终止（or-join 撤权或深度打回）
-                  </p>
-                </el-card>
-              </el-space>
-            </template>
+            <TaskDetailGraphTelemetry
+              v-if="graphInstance && !usesWorkflowLayout"
+              :graph-instance="graphInstance"
+              :compact="usesCompactDetailTelemetry"
+            />
 
             <TaskDetailContextPanel
               v-if="!usesWorkflowLayout"
@@ -1090,13 +816,6 @@ watch(
   margin-bottom: 16px;
 }
 
-.page__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
 .page__detail {
   min-height: 100%;
 }
@@ -1116,38 +835,4 @@ watch(
   margin-top: 16px;
 }
 
-.page__node-timeline {
-  width: 100%;
-}
-
-.page__node-card {
-  margin-bottom: 8px;
-}
-
-.page__node-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.page__node-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.page__node-meta {
-  margin: 4px 0 0;
-  color: #909399;
-  font-size: 13px;
-}
-
-.page__node-meta--terminated {
-  color: #f56c6c;
-}
-
-.page__run-events {
-  margin-top: 16px;
-}
 </style>

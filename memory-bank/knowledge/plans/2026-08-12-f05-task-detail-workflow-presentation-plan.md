@@ -2,12 +2,12 @@
 type: paradigma-plan
 title: "2026-08-12 F-05 任务详情工作流展示收口计划"
 description: "提取 capability 工作流面板、Run Event 与图节点追踪展示，保留权限、动作和页头提交语义。"
-tags: [plan, active, f-05, task-center, frontend, workflow-presentation, telemetry]
+tags: [plan, completed, f-05, task-center, frontend, workflow-presentation, telemetry]
 timestamp: 2026-08-12T00:12:06+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -23,7 +23,7 @@ paradigma:
 
 # F-05 任务详情工作流展示收口计划
 
-> **计划状态：ACTIVE** — 这是 F-05 预计最后一批；只收口现有工作流展示与编排，不改变 Runtime、capability、Profile、权限或动作语义。
+> **计划状态：COMPLETED** — capability 工作流面板、Run Event 与图节点追踪已离开 Shell；Runtime、capability、Profile、权限、动作及页头提交语义保持不变，F-05 至此结束。
 
 ## 边界
 

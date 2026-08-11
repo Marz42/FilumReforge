@@ -1,8 +1,8 @@
 ---
 type: paradigma-runtime-state
 title: Active Task
-description: F-05 活动时间线已完成，下一批收口工作流面板与图节点追踪展示。
-tags: [runtime, active-task, mainline, task-center, frontend, f-05]
+description: F-05 已完成；主开发线进入 Iteration 5-A 投影契约与加法迁移。
+tags: [runtime, active-task, mainline, workflow-graph, iteration-5, projection]
 timestamp: 2026-08-11T23:27:48+08:00
 paradigma:
   layer: runtime
@@ -17,15 +17,15 @@ paradigma:
 
 ## Task ID
 
-f05-task-detail-workflow-presentation-2026-08-12
+iteration5a-projection-contract-2026-08-12
 
 ## User Request
 
-完成现有活动时间线展示拆分后，提取 capability 工作流面板、Run Event 和图节点追踪；保留权限/Profile、动作语义和页头交付提交句柄，完成 F-05 壳层收口。
+按已确认顺序继续主开发：F-05 完成后进入 Iteration 5-A，先固定三类投影的字段、所有权、授权、排序和重建边界，再实施可回滚的新增结构。
 
 ## Current Status
 
-engineering-complete / final-batch-planned — `TaskDetailActivityTimeline` 已承接评论/日志时间线和摘要格式化，Shell 约 1,285 → 1,153 行；71 files / 206 tests、type-check、双 lint、build 通过，KI-010 未混入。复评确认 capability 面板、Run Event 和重复图节点卡片应形成最后一个工作流展示边界；完成后若无新高内聚板块，即结束 F-05 并进入 Iteration 5-A。
+F-05 complete / Iteration 5-A active — `TaskDetailWorkflowPresentation` 与 `TaskDetailGraphTelemetry` 已承接 capability 面板、页头交付句柄、Run Event 和 compact/full 节点追踪；Shell 约 1,153 → 838 行。前端 73 files / 211 tests、type-check、双 lint、build 通过。当前开始投影字段来源盘点与契约设计；5-A 只做 Expand-only 模型/迁移，不切换读路径。
 
 ## Checklist
 
@@ -50,7 +50,12 @@ engineering-complete / final-batch-planned — `TaskDetailActivityTimeline` 已�
 - [x] F-05 第四批：测试先行提取现有活动时间线展示，不混入 KI-010 重设计
 - [x] 完成 71 files / 206 tests、type-check、ESLint、Oxlint 与 build
 - [x] 复评剩余职责：工作流面板、Run Event 与图节点追踪适合作为 F-05 收口批
-- [ ] F-05 收口批：测试先行提取工作流展示边界并确认 Shell 只保留壳层编排
+- [x] F-05 收口批：测试先行提取工作流展示边界并确认 Shell 只保留壳层编排
+- [x] 完成 73 files / 211 tests、type-check、ESLint、Oxlint 与 build；F-05 正式结项
+- [ ] Iteration 5-A：盘点任务中心、Run 摘要与节点时间线字段来源及对象授权入口
+- [ ] 固定三类投影的身份、状态、授权、游标、版本、owner 与重建契约
+- [ ] 新增 SQLAlchemy 模型和 Expand-only Alembic 迁移，不回填、不切读
+- [ ] 增加模型/迁移/owner 边界测试，并完成 PostgreSQL 迁移专项
 - [ ] 在目标环境运行“数据检查”和“验收准备”，清零确定错误与 P-01～P-04 阻断
 - [ ] 员工按清单完成 Iteration 4 / 设计器 Phase 2 / S-01 UAT，并记录账号、模板、Run ID 与结论
 
@@ -65,6 +70,7 @@ engineering-complete / final-batch-planned — `TaskDetailActivityTimeline` 已�
 - `memory-bank/knowledge/plans/2026-08-11-f05-task-detail-materials-comments-plan.md`
 - `memory-bank/knowledge/plans/2026-08-12-f05-task-detail-activity-timeline-plan.md`
 - `memory-bank/knowledge/plans/2026-08-12-f05-task-detail-workflow-presentation-plan.md`
+- `memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md`
 - `memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md`
 - `memory-bank/knowledge/plans/plan-status-catalog.md`
 - `memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md`
@@ -77,7 +83,8 @@ engineering-complete / final-batch-planned — `TaskDetailActivityTimeline` 已�
 ## Blockers
 
 - 无继续开发的代码阻碍。
-- F-05 收口批无代码阻碍；须保持 capability/Profile 判定、Run Event 紧凑策略、节点卡片状态和页头 Deliverable 提交句柄不变。
+- Iteration 5-A 无代码阻碍；须先解释权限、状态、稳定排序与重建来源，再落数据库结构。
+- 本地可完成 SQLite/契约测试；迁移约束的最终证据必须来自 PostgreSQL 专项，不能用 SQLite 代替。
 - 人工 UAT 仍需要目标环境真实账号、部门、模板和任务样本；系统不会自动造业务数据或代替业务签字。
 - I3-F、真实 TLS/secret/backup/restore 与生产变更窗口继续作为外部门禁，不阻断主开发。
 
@@ -86,4 +93,4 @@ engineering-complete / final-batch-planned — `TaskDetailActivityTimeline` 已�
 - `v0.93.0-rc.1` 保留在 `2260bd5`；部门负责人模板可见性热修已固定为 `v0.93.0-rc.2`（release commit `4d15829`），两个标签均不得移动。
 - 热修功能提交已回流主线为 `d7927bc`；未把 RC1 之后的主线功能反向带入 RC2。
 - RC 环境不得与继续开发环境共用数据库、Redis 或附件存储。
-- KI-011 按用户决定暂不推进；本批次不扩大系统管理员业务权限，也不改变生产切流状态。
+- KI-011 按用户决定暂不推进；Iteration 5-A 不扩大系统管理员业务权限，也不改变生产切流状态。
