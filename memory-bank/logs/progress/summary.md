@@ -1,6 +1,6 @@
 # Progress Summary
 
-Generated at: 2026-08-09 23:54
+Generated at: 2026-08-11 22:49
 
 This file summarizes progress logs without deleting or rewriting the source session logs.
 
@@ -11,3 +11,4 @@ This file summarizes progress logs without deleting or rewriting the source sess
 | [2026-08-09-iteration4-uat-checklist.md](2026-08-09-iteration4-uat-checklist.md) | Iteration 4 UAT Checklist and Scope Fix Commit | 将 Iteration 4 领域中立、运行时与设计器 Phase 2 验收方案落成 checklist，并提交当前工作区更改。 |
 | [2026-08-09-security-release-readiness.md](2026-08-09-security-release-readiness.md) | 安全扫描处置与上线准备 | 校准主计划、路线图、架构/数据契约、测试基线、部署手册与当前任务。 |
 | [2026-08-09-v0.93.0-rc.1-release-candidate.md](2026-08-09-v0.93.0-rc.1-release-candidate.md) | v0.93.0-rc.1 员工试用候选固定 | 以不可变注释标签、隔离数据环境、RC 热修递增和热修回流为核心，记录员工试用与持续开发分流方案。 |
+| [2026-08-11-v0.93.0-rc.2-template-visibility-hotfix.md](2026-08-11-v0.93.0-rc.2-template-visibility-hotfix.md) | v0.93.0-rc.2 部门负责人模板可见性热修 | ../../knowledge/decisions/adr-020-published-template-availability-scope.md |

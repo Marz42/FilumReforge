@@ -27,7 +27,7 @@ paradigma:
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同全貌：**产品架构 · 单步/任务流/统计 · 实现与差距 · 改造跟踪**。  
-> **最后同步**：2026-08-09 @ **0.93.0-rc.1** · Iteration 4-A–E、前端稳定化与安全发布候选
+> **最后同步**：2026-08-11 @ **0.93.0-rc.2** · 部门负责人模板可见性热修；Iteration 4-A–E 与安全基线不变
 > **排期**：[`roadmap.md`](../roadmap.md) · **决策**：[`decisions.md`](../decisions.md) ADR-009 · ADR-010  
 > **契约**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)
 

@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 38639a78259e5db3 -->
+<!-- checksum: 172afe5a020cbab9 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -12,7 +12,7 @@
 | [2026-07-29-iteration4-preflight-alignment-plan.md](2026-07-29-iteration4-preflight-alignment-plan.md) | `paradigma-plan` | Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化 | Iteration 4 前置<br>文档漂移<br>视频去特殊化 ... | - | - |
 | [2026-07-29-video-domain-neutral-migration-inventory.md](2026-07-29-video-domain-neutral-migration-inventory.md) | `paradigma-plan` | 视频模板领域中立迁移清单 | 视频模板去特殊化<br>run_kind 退出<br>通用工作流能力 ... | - | - |
 | [2026-07-30-template-availability-paradigma-upgrade-plan.md](2026-07-30-template-availability-paradigma-upgrade-plan.md) | `paradigma-plan` | 已发布模板可用部门治理与 Paradigma 0.5.0 协议升级 | 模板可用部门<br>已发布模板授权<br>范围审计 ... | - | - |
-| [2026-08-09-rc-employee-trial-plan.md](2026-08-09-rc-employee-trial-plan.md) | `paradigma-plan` | v0.93.0-rc.1 员工试用与持续开发分流方案 | RC 试用<br>员工内测<br>发布标签 ... | - | depends_on:../manuals/2026-08-09-production-release-checklist.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>related_to:../roadmap.md |
+| [2026-08-09-rc-employee-trial-plan.md](2026-08-09-rc-employee-trial-plan.md) | `paradigma-plan` | v0.93.0-rc.x 员工试用与持续开发分流方案 | RC 试用<br>员工内测<br>发布标签 ... | - | depends_on:../manuals/2026-08-09-production-release-checklist.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>related_to:../roadmap.md |
 | [2026-08-09-security-release-readiness-plan.md](2026-08-09-security-release-readiness-plan.md) | `paradigma-plan` | 安全问题处置与上线准备计划 | 安全问题<br>上线准备<br>发布门禁 ... | - | - |
 | [implementation-plan.md](implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [improvements-stage2-implementation-plan.md](improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |

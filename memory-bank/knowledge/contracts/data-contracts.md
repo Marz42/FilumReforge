@@ -33,7 +33,7 @@ paradigma:
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
 **版本**: v3.21.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-08-09 · 安全对象授权、可信代理与 OOXML 预算 · 产品基线 `0.93.0-rc.1`
+**最后同步**: 2026-08-11 · RC2 模板可见/可管理边界 · 产品基线 `0.93.0-rc.2`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 

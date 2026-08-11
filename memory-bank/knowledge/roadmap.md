@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-07-30T01:45:00+08:00
+timestamp: 2026-08-11T22:40:49+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -31,10 +31,10 @@ paradigma:
 
 | 字段 | 内容 |
 |------|------|
-| **当前版本** | `0.93.0-rc.1`（根目录 `VERSION`） |
+| **当前版本** | `0.93.0-rc.2`（根目录 `VERSION`） |
 | **版本主题** | 工作流图引擎 Iteration 4 · 模板领域中立与稳定化 |
-| **阶段** | **Iteration 4 RC 固定中** — I4-A–E、安全加固与前端稳定化进入员工试用候选；I3-F 生产切流仍 gated |
-| **最后整理** | 2026-08-09 — `v0.93.0-rc.1` 员工试用与持续开发分流方案确认 |
+| **阶段** | **Iteration 4 RC 热修复测** — RC2 修复部门负责人模板可见性；主开发线独立前进，I3-F 生产切流仍 gated |
+| **最后整理** | 2026-08-11 — `v0.93.0-rc.2` 模板可见性热修与回流策略 |
 
 ---
 
@@ -155,14 +155,14 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-1. **固定并部署员工 RC**：创建不可变 `v0.93.0-rc.1`，在隔离环境从标签部署并核对 health version；主开发线可继续前进。
+1. **升级并复测员工 RC**：从不可变 `v0.93.0-rc.2` 部署，核对 health version，并由真实部门负责人验证共享/全局模板可见、可发起且无越权管理动作；主开发线继续前进。
 2. **Iteration 4 / 设计器 Phase 2 / S-01 UAT**：由员工按 checklist 验证非视频模板、参与者重叠语义、结构化 authoring、视频兼容黄金路径与周期统计。
 3. **模板 scope 数据修复**：盘点曾误存为 global 的 ACTIVE 模板，通过新版本修正并核对父子 `child_template_code`。
 4. **I3-F 生产门禁**：目标环境 Expand/Contract、Link 回填、恢复/回滚演练、连续 7 天观测与 31/31 报告。
 5. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
 6. **后续专项**：系统管理员业务边界治理按 KI-011 单独规划；M-09 与 `run_kind` dual-read 收窄继续等待策略和生产证据。
 
-**下一 actionable**：按 [`RC 员工试用方案`](./plans/2026-08-09-rc-employee-trial-plan.md) 从固定标签部署；员工反馈与主线开发分流，P0/P1 才从 RC 热修。生产仍按 [`production release checklist`](./manuals/2026-08-09-production-release-checklist.md) 独立批准。
+**下一 actionable**：按 [`RC 员工试用方案`](./plans/2026-08-09-rc-employee-trial-plan.md) 将员工试用环境升级至 `v0.93.0-rc.2` 并完成真实负责人复测；员工反馈与主线开发继续分流。生产仍按 [`production release checklist`](./manuals/2026-08-09-production-release-checklist.md) 独立批准。
 
 ---
 

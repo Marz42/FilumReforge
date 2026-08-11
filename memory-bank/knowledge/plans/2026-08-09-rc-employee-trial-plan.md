@@ -1,9 +1,9 @@
 ---
 type: paradigma-plan
-title: "v0.93.0-rc.1 员工试用与持续开发分流方案"
+title: "v0.93.0-rc.x 员工试用与持续开发分流方案"
 description: "固定不可变 RC、隔离员工试用环境，并让后续开发与 RC 热修互不污染。"
 tags: [plan, release-candidate, employee-trial, branching, hotfix]
-timestamp: 2026-08-09T23:40:00+08:00
+timestamp: 2026-08-11T22:40:49+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -21,7 +21,7 @@ paradigma:
       - ../roadmap.md
 ---
 
-# v0.93.0-rc.1 员工试用与持续开发分流方案
+# v0.93.0-rc.x 员工试用与持续开发分流方案
 
 ## 1. 决策与目标
 
@@ -34,7 +34,7 @@ paradigma:
 - RC 环境拥有独立 PostgreSQL、Redis、附件存储和环境变量，不与继续开发环境共用数据卷或数据库。
 - RC 只使用合成或经批准的试用数据；反馈中不得粘贴 secret、令牌或敏感人事内容。
 - 部署记录必须同时保存标签、解析后的 commit、部署时间、操作者和数据库迁移 head。
-- `health` 返回的 `version` 应为 `0.93.0-rc.1`，用来核对浏览器实际访问的构建。
+- `health` 返回的 `version` 必须与当次部署标签一致；当前复测目标为 `0.93.0-rc.2`。
 
 ## 3. 代码分流与热修规则
 
@@ -48,7 +48,7 @@ paradigma:
 
 ## 4. RC 准入范围
 
-`v0.93.0-rc.1` 只吸收当前已完成的 Iteration 4-A–E、安全加固、已确认前端修复、文档校准和低风险质量清理。以下事项不为固定 RC 而强行完成：
+`v0.93.0-rc.1` 只吸收已完成的 Iteration 4-A–E、安全加固、已确认前端修复、文档校准和低风险质量清理；`v0.93.0-rc.2` 在该基线上仅增加部门负责人模板可见性热修及对应测试/发布材料。以下事项不为固定 RC 而强行完成：
 
 - F-05 `TaskDetailShell` 大型拆分；
 - S-01 与 Iteration 4 的人工 UAT；
@@ -70,7 +70,7 @@ paradigma:
 
 ## 6. 执行顺序
 
-1. 固定 `VERSION=0.93.0-rc.1`、Changelog、应用健康版本、release commit 与注释标签。
+1. 固定 `VERSION`、Changelog、应用健康版本、release commit 与不可变注释标签。
 2. 在隔离环境从标签部署，运行 Linux release gate、迁移检查和核心 smoke。
 3. 开放员工试用，按统一反馈协议收集问题；I4/S-01 人工结果单独留证。
 4. P0/P1 走 RC 热修线；其余问题进入主开发线。
@@ -78,6 +78,6 @@ paradigma:
 
 ## 7. 当前状态
 
-- 本地工程门禁：通过；`v0.93.0-rc.1` 已按单一 release commit/注释标签固定。
-- 员工试用部署：未执行。
+- 本地工程门禁：`v0.93.0-rc.1` 已固定；RC2 热修门禁通过并固定为 `v0.93.0-rc.2`。
+- 员工试用部署：用户已报告 RC1 开始实际测试；下一步升级 RC2 并复测模板可见性。
 - 生产准入：未批准；目标环境与人工证据仍待完成。

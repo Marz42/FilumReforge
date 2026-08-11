@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
   app_name: str = "Project Filum API"
   app_env: str = "development"
-  app_version: str = "0.93.0-rc.1"
+  app_version: str = "0.93.0-rc.2"
   api_v1_prefix: str = "/api/v1"
   postgres_dsn: str = "postgresql+asyncpg://filum:filum@localhost:5432/filum"
   redis_dsn: str = "redis://localhost:6379/0"

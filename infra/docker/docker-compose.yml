@@ -37,7 +37,7 @@ services:
     environment:
       APP_NAME: Project Filum API
       APP_ENV: development
-      APP_VERSION: 0.93.0-rc.1
+      APP_VERSION: 0.93.0-rc.2
       API_V1_PREFIX: /api/v1
       POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-filum}:${POSTGRES_PASSWORD:-filum}@postgres:5432/${POSTGRES_DB:-filum}
       REDIS_DSN: redis://redis:6379/0
@@ -89,7 +89,7 @@ services:
     environment:
       APP_NAME: Project Filum API
       APP_ENV: development
-      APP_VERSION: 0.93.0-rc.1
+      APP_VERSION: 0.93.0-rc.2
       API_V1_PREFIX: /api/v1
       POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-filum}:${POSTGRES_PASSWORD:-filum}@postgres:5432/${POSTGRES_DB:-filum}
       REDIS_DSN: redis://redis:6379/0
