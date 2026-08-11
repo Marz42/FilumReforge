@@ -24,6 +24,7 @@ paradigma:
 
 - F-05 第二批：从 `TaskDetailShell` 提取 `useTaskDetailActions` 与 `useTaskAssignmentActions`，集中状态流转、交付验收、接单/转办、集合关闭、延期和动作后刷新；权限/Profile 与页面模板仍由 Shell 管理。
 - F-05 第三批：提取 `useTaskDetailCollaboration`、`TaskDetailAttachmentsPanel` 与 `TaskDetailCommentComposer`，收口附件上传、评论提交和展示板块；Shell 从约 1,569 行降至约 1,285 行。
+- F-05 第四批：提取 `TaskDetailActivityTimeline`，保留活动顺序、评论/内部标记/附件操作和日志摘要；Shell 从约 1,285 行降至约 1,153 行，KI-010 重设计继续独立保留。
 - Memory-Bank 计划治理：固定 F-05 → Iteration 5 → 稳定观察 → Iteration 6，增加计划状态目录，并将过时方案明确标为 completed 或 legacy。
 
 ## [0.93.0-rc.2] — 2026-08-11

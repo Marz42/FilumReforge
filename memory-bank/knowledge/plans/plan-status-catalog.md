@@ -30,7 +30,7 @@ paradigma:
 | `implementation-plan.md` | 总体实施主线 |
 | `workflow-graph-engine-upgrade-iteration-plan.md` | 图引擎 Iteration 0～6 总计划；当前指向 I5/I6 |
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |
-| `2026-08-12-f05-task-detail-activity-timeline-plan.md` | F-05 下一批：提取现有活动时间线展示，不做 KI-010 重设计 |
+| `2026-08-12-f05-task-detail-workflow-presentation-plan.md` | F-05 收口批：工作流面板、Run Event 与图节点追踪展示 |
 | `workflow-graph-engine-iteration3f-readiness-gate-plan.md` | 仍开放的目标环境与生产切流门禁 |
 | `2026-08-09-rc-employee-trial-plan.md` | `v0.93.0-rc.2` 员工复测与主线分流 |
 
@@ -50,6 +50,7 @@ paradigma:
 | `2026-08-10-template-governance-audit-plan.md` | 数据检查与修正版入口完成 |
 | `2026-08-11-f05-task-detail-action-coordination-plan.md` | F-05 动作协调批次完成 |
 | `2026-08-11-f05-task-detail-materials-comments-plan.md` | F-05 附件与评论留痕批次完成 |
+| `2026-08-12-f05-task-detail-activity-timeline-plan.md` | F-05 活动时间线展示批次完成；KI-010 仍独立保留 |
 | `paradigma-memory-bank-refactor-plan.md` | 三态迁移与 0.5.0 协议升级完成 |
 | `s01-task-statistics-plan.md` | 工程实现完成；人工验收由统一清单跟踪 |
 | `task-center-enhance.md` | TCE Phase 1～5 完成 |

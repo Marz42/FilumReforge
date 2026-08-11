@@ -2,12 +2,12 @@
 type: paradigma-plan
 title: "2026-08-12 F-05 任务详情活动时间线拆分计划"
 description: "提取任务详情活动时间线展示，保持排序、文案、内部评论权限和附件操作不变，不混入 KI-010 重设计。"
-tags: [plan, active, f-05, task-center, frontend, activity-timeline]
+tags: [plan, completed, f-05, task-center, frontend, activity-timeline]
 timestamp: 2026-08-12T00:00:11+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: evolving
+  lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
   retrieval_hints:
@@ -23,7 +23,7 @@ paradigma:
 
 # F-05 任务详情活动时间线拆分计划
 
-> **计划状态：ACTIVE** — 本批只提取现有展示和格式化职责，不实施 KI-010 的事件分组、摘要或交互重设计。
+> **计划状态：COMPLETED** — 现有活动时间线展示和日志摘要已离开 Shell；排序、文案、内部备注和附件操作保持不变，KI-010 仍未实施。
 
 ## 边界
 

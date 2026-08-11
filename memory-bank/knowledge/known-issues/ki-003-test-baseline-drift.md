@@ -3,7 +3,7 @@ type: paradigma-known-issue
 title: "KI-003: 测试基线漂移"
 description: "pytest skip、工作区 mass deletion、Playwright 等测试环境状态。"
 tags: ["known-issue", "testing", "baseline", "playwright"]
-timestamp: "2026-08-12T00:00:11+08:00"
+timestamp: "2026-08-12T00:12:06+08:00"
 paradigma:
   schema_version: "0.5.0"
   temperature: cold
@@ -29,8 +29,8 @@ paradigma:
 | backend full | **460 collected / 428 passed / 32 skipped / 0 failed** @ 2026-08-09 | skip 为 PostgreSQL/Redis 等登记环境条件；目标环境严格模式仍须重跑 |
 | httpx deprecation | **cleared** @ 2026-08-09 RC1 | logout cookie 回归已改用客户端 cookie jar |
 | frontend RC2 tag | **64 files / 181 tests PASS** @ 2026-08-11 | type-check / production build PASS |
-| frontend current main | **70 files / 203 tests PASS** @ 2026-08-12 | F-05 资料附件与评论留痕拆分后 type-check、production build PASS |
+| frontend current main | **71 files / 206 tests PASS** @ 2026-08-12 | F-05 活动时间线展示拆分后 type-check、production build PASS |
 | frontend lint | **ESLint + Oxlint 0 errors** @ 2026-08-12 main | RC1 快照遗留的测试/E2E Oxlint 项已在后续主线清理；RC2 改动文件单独为 0 |
 | Ubuntu 最小回滚 | **暂缓** | 原 P0，用户决定上线前再练 |
 
-**本地单元基线 ID**: `2026-08-12-f05-task-detail-materials-comments`；浏览器 E2E 最近完整基线为 `2026-08-09-v0.93.0-rc.1-release-candidate`，RC2/当前主线仍待目标环境刷新。
+**本地单元基线 ID**: `2026-08-12-f05-task-detail-activity-timeline`；浏览器 E2E 最近完整基线为 `2026-08-09-v0.93.0-rc.1-release-candidate`，RC2/当前主线仍待目标环境刷新。

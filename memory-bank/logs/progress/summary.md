@@ -1,6 +1,6 @@
 # Progress Summary
 
-Generated at: 2026-08-12 00:03
+Generated at: 2026-08-12 00:14
 
 This file summarizes progress logs without deleting or rewriting the source session logs.
 
@@ -16,4 +16,5 @@ This file summarizes progress logs without deleting or rewriting the source sess
 | [2026-08-10-template-governance-audit.md](2026-08-10-template-governance-audit.md) | 模板范围与父子依赖数据治理 | `v0.93.0-rc.1` 保持不可变，主开发线在标签之后恢复；KI-011 明确排除在本批次之外。 |
 | [2026-08-11-f05-task-detail-action-coordination.md](2026-08-11-f05-task-detail-action-coordination.md) | 2026-08-11 F-05 任务详情动作协调拆分 | 新增 `useTaskDetailActions`：统一通用状态流转、交付提交/验收、审批驳回、集合关闭、延期、对话框/表单/loading 和动作后刷新。 |
 | [2026-08-11-v0.93.0-rc.2-template-visibility-hotfix.md](2026-08-11-v0.93.0-rc.2-template-visibility-hotfix.md) | v0.93.0-rc.2 部门负责人模板可见性热修 | 根因：前端把页面级模板管理能力直接映射为 `scope=manage`，导致全局 ACTIVE 和跨部门共享模板虽可读、可实例化，却从部门负责人列表中消失。 |
+| [2026-08-12-f05-task-detail-activity-timeline.md](2026-08-12-f05-task-detail-activity-timeline.md) | 2026-08-12 F-05 任务详情活动时间线拆分 | 新增 `TaskDetailActivityTimeline`，承接空状态、评论、内部备注标记、评论附件、任务日志和摘要格式化。 |
 | [2026-08-12-f05-task-detail-materials-comments.md](2026-08-12-f05-task-detail-materials-comments.md) | 2026-08-12 F-05 任务资料附件与评论留痕拆分 | 新增 `useTaskDetailCollaboration`，统一任务资料多文件上传、评论提交、成功/失败状态、表单复位与详情刷新。 |

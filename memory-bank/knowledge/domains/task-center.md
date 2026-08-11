@@ -7,7 +7,7 @@ tags:
   - 任务中心
   - Inbox
   - 跟踪
-timestamp: 2026-08-12T00:00:11+08:00
+timestamp: 2026-08-12T00:12:06+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -27,7 +27,7 @@ paradigma:
 # 领域：任务中心 (Task Center)
 
 > 🌡️ WARM — 任务协同全貌：**产品架构 · 单步/任务流/统计 · 实现与差距 · 改造跟踪**。  
-> **最后同步**：2026-08-12 @ **v0.93.0-rc.2 / main** · F-05 数据、动作、资料附件与评论留痕三批完成，活动时间线待拆
+> **最后同步**：2026-08-12 @ **v0.93.0-rc.2 / main** · F-05 数据、动作、资料评论与活动时间线四批完成，工作流展示待收口
 > **排期**：[`roadmap.md`](../roadmap.md) · **决策**：[`decisions.md`](../decisions.md) ADR-009 · ADR-010  
 > **契约**：[`data-contracts.md`](../data-contracts.md) §10.14–10.18B · **交互基准**：[`demos/workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html)
 
@@ -76,7 +76,7 @@ flowchart TB
 | **任务流** | ✅ 通用图模板可用 / 待人工 UAT | 图模板为统一入口；视频是普通模板包 · **F-28/F-23/W-08 ✅** |
 | **任务统计** | ✅ 待验收 | S-01 周期/权限/DB 聚合/负载/明细；Run 事件保留 |
 | **设计器** | ✅ D1–D3 + ADR-017 P1/P2 | tags/capabilities/归档 + `ui_profile`/context/launch/routing 结构化编辑；高级 JSON 保留 |
-| **架构债** | ⏳ | Legacy E 历史表族清理；**F-05** 数据/动作/资料评论已提取，Shell 约 1,285 行；活动时间线待拆，工作流面板随后复评 |
+| **架构债** | ⏳ | Legacy E 历史表族清理；**F-05** 数据/动作/资料评论/活动时间线已提取，Shell 约 1,153 行；工作流面板、Run Event 与图节点追踪待收口 |
 
 ---
 
@@ -485,7 +485,7 @@ flowchart LR
 | G-05 / W-01 | 架构 | Legacy E 产品入口已删；历史表族迁移/清理 | B-12 follow-up | 待策略 |
 | G-04 | 单步 | 创建抄送 | **F-22 ✅** | — |
 | W-09 | 任务流 | copywriters 池不串部门 | **F-28 ✅** | — |
-| F-05 | 壳层 | Shell 拆分 | **数据协调 ✅；动作协调 ✅；资料/评论 ✅；活动时间线待拆** | P0 |
+| F-05 | 壳层 | Shell 拆分 | **数据协调 ✅；动作协调 ✅；资料/评论 ✅；活动时间线 ✅；工作流展示待收口** | P0 |
 | G-01 / W-07 | 单步/流 | 组织树路径 CC | **F-21** · **F-27** ✅ | — |
 | W-03 | 任务流 | 通用模板链 + 防环 | **F-23** ✅ | — |
 | W-08 | 任务流 | streaming/N2 UX | **engine skip** ✅ | — |
