@@ -3,7 +3,7 @@ type: paradigma-manual
 title: "2026-08-09 生产上线准入 Checklist"
 description: "把本地工程就绪、预发验收与生产变更窗口分开的可勾选上线清单。"
 tags: [manual, release, production, checklist, security, readiness]
-timestamp: 2026-08-09T23:01:59+08:00
+timestamp: 2026-08-11T22:50:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -26,7 +26,7 @@ paradigma:
 
 > 当前结论：**本地工程候选已就绪，生产准入尚未批准**。只有 A–D 全部完成并记录负责人、时间和证据后，才允许执行 E。
 
-> 员工试用例外：可将固定的 `v0.93.0-rc.1` 部署到数据隔离的 RC 环境收集反馈；这不执行生产 E，也不把 B–D 自动标记为完成。分流与热修规则见 [`RC 员工试用方案`](../plans/2026-08-09-rc-employee-trial-plan.md)。
+> 员工试用例外：当前复测候选为固定的 `v0.93.0-rc.2`；它取代 RC1 作为后续试用部署目标，但不移动旧标签，也不把 B–D 自动标记为完成。分流与热修规则见 [`RC 员工试用方案`](../plans/2026-08-09-rc-employee-trial-plan.md)。
 
 ## A. 固定发布候选
 
@@ -34,7 +34,7 @@ paradigma:
 |----|------|------|
 | A-01 | 审阅当前 diff，确认不包含 `Security Issue(temp)` 原始扫描材料或真实 secret | [x] |
 | A-02 | 创建单一 release commit/tag，记录 commit SHA | [x] |
-| A-03 | Backend 460 collected、0 failed；Frontend 64 files/180 tests、type-check、build 通过 | [x] |
+| A-03 | RC2：Backend 460 collected、0 failed；Frontend 64 files/181 tests、type-check、build 通过 | [x] |
 | A-04 | `compileall`、Compose `config -q`、Alembic 单 head `20260730_01`、Paradigma 5/5、`git diff --check` 通过 | [x] |
 | A-05 | 记录剩余非阻断项：32 个目标环境 skip 与 809 KB Element Plus 主包；httpx deprecation、ESLint 21 errors 已在 RC 清理 | [x] |
 
@@ -80,5 +80,6 @@ paradigma:
 ## 当前阻断
 
 - A 已完成；员工试用环境只允许部署固定标签，不得部署未命名的分支头。
+- RC2 部署后必须用真实部门负责人账号验证：可见并可发起 scope 覆盖本部门的 ACTIVE 模板；对全局/跨部门共享模板不出现管理动作。
 - B、C、D 均依赖真实预发/生产环境与人工确认，本地不能代签。
 - 在 C-04 前可以进行向下兼容预发/UAT，但不得据此宣布 I3-F 生产切流完成。

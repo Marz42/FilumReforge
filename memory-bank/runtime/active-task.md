@@ -3,7 +3,7 @@ type: paradigma-runtime-state
 title: Active Task
 description: 主开发线推进 F-05 任务详情壳层拆分，首批收口数据加载协调。
 tags: [runtime, active-task, mainline, task-center, frontend, f-05]
-timestamp: 2026-08-10T17:05:00+08:00
+timestamp: 2026-08-11T22:50:00+08:00
 paradigma:
   layer: runtime
   temperature: hot
@@ -64,6 +64,7 @@ engineering-complete / follow-up-planned — F-05 首批已提取 `useTaskDetail
 
 ## Notes
 
-- `v0.93.0-rc.1` 已固定在 `2260bd5`，主线提交不得移动该标签。
+- `v0.93.0-rc.1` 保留在 `2260bd5`；部门负责人模板可见性热修已固定为 `v0.93.0-rc.2`（release commit `4d15829`），两个标签均不得移动。
+- 热修功能提交已回流主线为 `d7927bc`；未把 RC1 之后的主线功能反向带入 RC2。
 - RC 环境不得与继续开发环境共用数据库、Redis 或附件存储。
 - KI-011 按用户决定暂不推进；本批次不扩大系统管理员业务权限，也不改变生产切流状态。

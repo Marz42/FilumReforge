@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: af932f747a4da0ae -->
+<!-- checksum: 40c3791c05114ffd -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -81,7 +81,7 @@
 | [plans/2026-07-29-iteration4-preflight-alignment-plan.md](plans/2026-07-29-iteration4-preflight-alignment-plan.md) | `paradigma-plan` | Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化 | Iteration 4 前置<br>文档漂移<br>视频去特殊化 ... | - | - |
 | [plans/2026-07-29-video-domain-neutral-migration-inventory.md](plans/2026-07-29-video-domain-neutral-migration-inventory.md) | `paradigma-plan` | 视频模板领域中立迁移清单 | 视频模板去特殊化<br>run_kind 退出<br>通用工作流能力 ... | - | - |
 | [plans/2026-07-30-template-availability-paradigma-upgrade-plan.md](plans/2026-07-30-template-availability-paradigma-upgrade-plan.md) | `paradigma-plan` | 已发布模板可用部门治理与 Paradigma 0.5.0 协议升级 | 模板可用部门<br>已发布模板授权<br>范围审计 ... | - | - |
-| [plans/2026-08-09-rc-employee-trial-plan.md](plans/2026-08-09-rc-employee-trial-plan.md) | `paradigma-plan` | v0.93.0-rc.1 员工试用与持续开发分流方案 | RC 试用<br>员工内测<br>发布标签 ... | - | depends_on:../manuals/2026-08-09-production-release-checklist.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>related_to:../roadmap.md |
+| [plans/2026-08-09-rc-employee-trial-plan.md](plans/2026-08-09-rc-employee-trial-plan.md) | `paradigma-plan` | v0.93.0-rc.x 员工试用与持续开发分流方案 | RC 试用<br>员工内测<br>发布标签 ... | - | depends_on:../manuals/2026-08-09-production-release-checklist.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>related_to:../roadmap.md |
 | [plans/2026-08-09-security-release-readiness-plan.md](plans/2026-08-09-security-release-readiness-plan.md) | `paradigma-plan` | 安全问题处置与上线准备计划 | 安全问题<br>上线准备<br>发布门禁 ... | - | - |
 | [plans/2026-08-10-f05-task-detail-data-coordination-plan.md](plans/2026-08-10-f05-task-detail-data-coordination-plan.md) | `paradigma-plan` | 2026-08-10 F-05 任务详情数据协调拆分计划 | F-05 壳层拆分<br>任务详情加载<br>快速切换竞态 ... | - | related_to:../domains/task-center.md |
 | [plans/2026-08-10-iteration4-uat-preflight-plan.md](plans/2026-08-10-iteration4-uat-preflight-plan.md) | `paradigma-plan` | 2026-08-10 Iteration 4 UAT 验收准备计划 | Iteration 4 验收准备<br>UAT 前置检查<br>S-01 验收 ... | - | depends_on:2026-08-10-template-governance-audit-plan.md<br>depends_on:../manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md |
