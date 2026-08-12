@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "F-05 至工作流图引擎 Iteration 5/6 实施顺序"
 description: "记录已完成的 F-05，并固定 Iteration 5 投影运维建设、稳定观察与 Iteration 6 兼容层清理的顺序和门禁。"
 tags: [plan, active, f-05, workflow-graph, iteration-5, iteration-6, sequencing]
-timestamp: 2026-08-12T00:24:05+08:00
+timestamp: 2026-08-12T12:05:50+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -24,14 +24,14 @@ paradigma:
 
 # F-05 至 Iteration 5/6 实施顺序
 
-> **计划状态：ACTIVE** — F-05 已于 2026-08-12 完成，当前执行 Iteration 5-A。RC2 复测、Iteration 4/设计器/S-01 人工 UAT 与 Iteration 3-F 目标环境取证作为并行门禁，不改变开发顺序，但会阻止生产切流、停止兼容写入和删除旧结构。
+> **计划状态：ACTIVE** — F-05、Iteration 5-A/B 工程完成，下一开发批为 Iteration 5-C Shadow Comparison。RC2 复测、Iteration 4/设计器/S-01 人工 UAT 与 Iteration 3-F/5-A-B PostgreSQL 取证作为并行门禁，不改变开发顺序，但会阻止生产切流、停止兼容写入和删除旧结构。
 
 ## 1. 已确认的主开发顺序
 
 1. **完成 F-05（已完成）**：数据、动作、任务资料附件、评论与留痕、活动时间线、工作流面板和节点追踪均已拆出；UI、权限、API 与业务语义不变。
-2. **Iteration 5-A — 投影契约与加法迁移（当前）**：确定 `task_center_items`、`process_run_summaries`、`node_timeline_entries` 的字段、所有权、权限和重建边界，只做可回滚的新增结构。
-3. **Iteration 5-B — Projector 基座**：实现 checkpoint、幂等消费、单对象/单 Run/全量重建；投影失败不得回滚业务命令。
-4. **Iteration 5-C — Shadow Comparison**：新旧查询并行，记录字段差异、缺失项和延迟；此阶段不切换用户读路径。
+2. **Iteration 5-A — 投影契约与加法迁移（工程完成 / PG 证据待补）**：已固定三类读模型契约并落地 `20260812_01`。
+3. **Iteration 5-B — Projector 基座（工程完成 / PG 证据待补）**：已实现 `20260812_02` checkpoint、三源流幂等消费、失败隔离和单 Task/单 Run/全量高水位重建。
+4. **Iteration 5-C — Shadow Comparison（下一批）**：新旧查询并行，记录字段差异、缺失项和延迟；此阶段不切换用户读路径。
 5. **Iteration 5-D — 运维与可观测性**：建设 Outbox FAILED/重放、卡死 Run、no-route、Join wait、Context conflict 工作台，以及 projection lag、backlog 和统一 trace。
 6. **Iteration 5-E — 受控读侧切换**：满足门禁并经批准后，让任务中心读取正式投影；ROOT Task 先降为 projection shell，稳定后才停止新增。
 7. **稳定观察期**：确认 Link fallback、graph-first fallback、ROOT shell 新增量和投影差异达到 Iteration 6 前置标准。

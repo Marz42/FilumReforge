@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "Iteration 5-A 投影契约与加法迁移计划"
 description: "先固定任务中心、Run 摘要和节点时间线投影的字段、所有权、授权与重建边界，再以可回滚迁移增加读模型结构。"
 tags: [plan, active, workflow-graph, iteration-5, projection, contract, migration]
-timestamp: 2026-08-12T00:45:59+08:00
+timestamp: 2026-08-12T12:05:50+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -70,7 +70,7 @@ paradigma:
 ## 6. 当前验证结果
 
 - `task_center_items`、`process_run_summaries`、`node_timeline_entries` ORM/约束/索引已实现；Projection AST guard 固定未来唯一写 owner 文件。
-- 迁移 head 为 `20260812_01`；从 `20260730_01` 到新 head 的 PostgreSQL 离线 SQL 可生成。
+- 5-A revision 为 `20260812_01`；5-B 追加 checkpoint 后仓库单 head 已前移至 `20260812_02`。两段 PostgreSQL 增量离线 SQL 均可生成。
 - SQLite pre-head schema 上的 stamp → upgrade → downgrade 通过，证明三表可加可撤且未触碰旧表。
 - 模型/迁移/架构定向 7 passed / 1 PostgreSQL skip；完整后端回归通过。
 - 尚缺真实 PostgreSQL `head → base` 证据；本机 Docker daemon 不可用，因此本计划保持 active gate，不把 SQLite 当作生产约束结论。

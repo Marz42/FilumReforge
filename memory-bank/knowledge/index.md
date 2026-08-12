@@ -1,7 +1,7 @@
 # Knowledge Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 6fab1b3b34e5121b -->
+<!-- checksum: fd490558f7035571 -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -17,7 +17,7 @@
 | [contracts/database/report-schema.md](contracts/database/report-schema.md) | `paradigma-contract` | 汇报中心 Schema | 汇报Schema<br>路由<br>report schema ... | - | depends_on:../data-contracts.md |
 | [contracts/database/task-collaboration-schema.md](contracts/database/task-collaboration-schema.md) | `paradigma-contract` | 任务与协同 Schema | 任务Schema<br>模板<br>评论 ... | - | depends_on:../data-contracts.md |
 | [contracts/database/workflow-schema.md](contracts/database/workflow-schema.md) | `paradigma-contract` | 工作流与审批 Schema | 工作流Schema<br>审批<br>流程 ... | - | depends_on:../data-contracts.md |
-| [contracts/projection-contract.md](contracts/projection-contract.md) | `paradigma-contract` | Iteration 5 投影与查询契约 | 投影契约<br>task_center_items<br>Run 摘要 ... | - | depends_on:./data-contracts.md<br>depends_on:./database/graph-engine-schema.md<br>related_to:../plans/2026-08-12-iteration5a-projection-contract-plan.md<br>related_to:../domains/task-center.md ... |
+| [contracts/projection-contract.md](contracts/projection-contract.md) | `paradigma-contract` | Iteration 5 投影与查询契约 | 投影契约<br>task_center_items<br>Run 摘要 ... | - | depends_on:./data-contracts.md<br>depends_on:./database/graph-engine-schema.md<br>related_to:../plans/2026-08-12-iteration5a-projection-contract-plan.md<br>related_to:../plans/2026-08-12-iteration5b-projector-rebuild-plan.md ... |
 | [contracts/repository-contract.md](contracts/repository-contract.md) | `paradigma-contract` | Project Filum — 仓库契约 | 仓库契约<br>目录协议<br>子项目 ... | - | - |
 | [conventions.md](conventions.md) | `paradigma-convention` | Project Filum — 编码与协作规范 | 编码规范<br>命名约定<br>测试 ... | - | - |
 | [decisions/adr-001-modular-monolith.md](decisions/adr-001-modular-monolith.md) | `paradigma-decision` | ADR-001: 模块化单体架构 | 模块化单体<br>架构决策<br>modular monolith ... | - | - |
@@ -93,6 +93,7 @@
 | [plans/2026-08-12-f05-task-detail-activity-timeline-plan.md](plans/2026-08-12-f05-task-detail-activity-timeline-plan.md) | `paradigma-plan` | 2026-08-12 F-05 任务详情活动时间线拆分计划 | F-05 活动时间线<br>任务留痕展示<br>时间线拆分 ... | - | depends_on:./2026-08-11-f05-task-detail-materials-comments-plan.md<br>related_to:../domains/task-center.md<br>related_to:../known-issues/ki-010-activity-timeline-redesign.md |
 | [plans/2026-08-12-f05-task-detail-workflow-presentation-plan.md](plans/2026-08-12-f05-task-detail-workflow-presentation-plan.md) | `paradigma-plan` | 2026-08-12 F-05 任务详情工作流展示收口计划 | F-05 工作流面板<br>Run Event<br>图节点追踪 ... | - | depends_on:./2026-08-12-f05-task-detail-activity-timeline-plan.md<br>related_to:../domains/task-center.md<br>related_to:./2026-08-11-f05-iteration5-6-sequencing-plan.md |
 | [plans/2026-08-12-iteration5a-projection-contract-plan.md](plans/2026-08-12-iteration5a-projection-contract-plan.md) | `paradigma-plan` | Iteration 5-A 投影契约与加法迁移计划 | Iteration 5-A<br>投影契约<br>task_center_items ... | - | depends_on:./2026-08-12-f05-task-detail-workflow-presentation-plan.md<br>depends_on:./2026-08-11-f05-iteration5-6-sequencing-plan.md<br>related_to:../contracts/data-contracts.md<br>related_to:../contracts/database/graph-engine-schema.md ... |
+| [plans/2026-08-12-iteration5b-projector-rebuild-plan.md](plans/2026-08-12-iteration5b-projector-rebuild-plan.md) | `paradigma-plan` | Iteration 5-B 投影消费与重建基座计划 | Iteration 5-B<br>投影消费<br>checkpoint ... | - | depends_on:./2026-08-12-iteration5a-projection-contract-plan.md<br>depends_on:../contracts/projection-contract.md<br>related_to:../contracts/database/graph-engine-schema.md<br>related_to:../domains/workflow-graph-engine.md ... |
 | [plans/implementation-plan.md](plans/implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [plans/improvements-stage2-implementation-plan.md](plans/improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [plans/paradigma-memory-bank-refactor-plan.md](plans/paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

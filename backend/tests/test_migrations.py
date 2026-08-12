@@ -59,6 +59,7 @@ EXPECTED_UPGRADED_TABLES = {
   "task_center_items",
   "process_run_summaries",
   "node_timeline_entries",
+  "projection_checkpoints",
   "workflow_steps",
   "workflow_instances",
   "workflow_step_runs",
@@ -90,6 +91,7 @@ PROJECTION_TABLES = {
   "task_center_items",
   "process_run_summaries",
   "node_timeline_entries",
+  "projection_checkpoints",
 }
 
 

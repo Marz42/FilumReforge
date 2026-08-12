@@ -26,6 +26,7 @@ PROJECTION_MODELS = {
   "TaskCenterItem",
   "ProcessRunSummary",
   "NodeTimelineEntry",
+  "ProjectionCheckpoint",
 }
 
 TASK_FIELDS = {

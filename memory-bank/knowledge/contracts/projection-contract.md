@@ -1,9 +1,9 @@
 ---
 type: paradigma-contract
 title: "Iteration 5 投影与查询契约"
-description: "task_center_items、process_run_summaries、node_timeline_entries 的字段来源、身份、授权、排序、所有权与重建边界。"
+description: "三类投影及 projection_checkpoints 的字段来源、身份、授权、排序、所有权、消费与重建边界。"
 tags: [contract, projection, task-center, workflow-graph, iteration-5]
-timestamp: 2026-08-12T00:24:05+08:00
+timestamp: 2026-08-12T12:05:50+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: hot
@@ -20,13 +20,14 @@ paradigma:
       - ./database/graph-engine-schema.md
     related_to:
       - ../plans/2026-08-12-iteration5a-projection-contract-plan.md
+      - ../plans/2026-08-12-iteration5b-projector-rebuild-plan.md
       - ../domains/task-center.md
       - ../domains/workflow-graph-engine.md
 ---
 
 # Iteration 5 投影与查询契约
 
-> **实现阶段：Iteration 5-A / EXPAND**。三类表是可清空、可重建的派生读模型，不是业务事实源。5-A 只建模型与表；5-B 才实现 projector/checkpoint/rebuild，5-C 才做 shadow comparison，5-E 获批前不得切换 Task Center 正式读路径。
+> **实现阶段：Iteration 5-B ENGINEERING COMPLETE / PostgreSQL EVIDENCE PENDING**。三类读模型和独立 checkpoint 已落地，projector、增量消费与三种重建入口已实现；5-C 才做 shadow comparison，5-E 获批前不得切换 Task Center 正式读路径。
 
 ## 1. 通用不变量
 
@@ -99,5 +100,14 @@ paradigma:
 
 - 初始 `projection_schema_version = 1`，`source_revision >= 0`；无显式 revision 的源事实由 projector 生成确定性 revision，但不得使用处理时间覆盖事件顺序。
 - `last_event_id` 是幂等/诊断锚点，不建立跨多种事件表的 FK。
-- 5-B 的 rebuild 必须支持单 subject、单 Run 和全量三种范围；采用新批次或 truncate/reproject，不修改源业务表。
-- schema 升级采用 expand → 双版本 projector/shadow → cutover → contract；5-A 的 downgrade 只删除空投影表。
+- 5-B rebuild 已支持单 Task、单 Run 和全量三种范围；单对象先清理对应时间线再幂等重投，全量在同一事务清空/重投，不修改源业务表。
+- 全量重建开始时分别捕获 Run Event、Task Log、Task Comment 的高水位，成功后 checkpoint 定位到该高水位；之后到达的数据由增量消费补齐，重建窗口不丢事件。
+- schema 升级采用 expand → projector/shadow → cutover → contract；`20260812_01` 新增三类读模型，`20260812_02` 新增 checkpoint，二者 downgrade 均只删除派生结构。
+
+## 8. Checkpoint 与消费实现
+
+- `projection_checkpoints` 以 `(projection_name, stream_name)` 唯一；cursor 必须同时具有 `cursor_occurred_at` 与 `cursor_source_id`，状态为 `idle/running/failed`，并记录累计处理量、尝试次数、最近成功时间和错误摘要。
+- 当前 projection 名为 `workflow_query_v1`；三个独立源流为 `workflow_run_events`、`task_logs`、`task_comments`，均按来源业务时间 + UUID 稳定推进。
+- `WorkflowProjectionService` 和 `WorkflowProjectionRebuildService` 是唯一写 owner，均为 flush-only；ARQ 的 `process_workflow_projection_events_job` 每 30 秒在独立事务中逐流消费。
+- 某一源流失败时只回滚该流当批投影/checkpoint，并在新事务记录 `failed`；其他流继续推进。原 Task、Run、Log、Comment 与 Run Event 不被 projector 修改。
+- 5-B 暂时复用 `TaskService` 已验证的动态图任务派生逻辑作为过渡适配器；5-C 以 shadow comparison 证明字段一致后，才允许规划读侧替换或进一步解耦。

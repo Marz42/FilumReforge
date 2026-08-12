@@ -36,6 +36,53 @@ class ProjectionMetadataMixin:
   )
 
 
+class ProjectionCheckpoint(
+  UUIDPrimaryKeyMixin,
+  TimestampMixin,
+  Base,
+):
+  """Independent durable cursor and retry state for one projection source stream."""
+
+  __tablename__ = "projection_checkpoints"
+  __table_args__ = (
+    UniqueConstraint(
+      "projection_name",
+      "stream_name",
+      name="uq_projection_checkpoints_projection_stream",
+    ),
+    CheckConstraint(
+      "status in ('idle', 'running', 'failed')",
+      name=conv("projection_checkpoints_status_chk"),
+    ),
+    CheckConstraint(
+      "(cursor_occurred_at IS NULL AND cursor_source_id IS NULL) "
+      "OR (cursor_occurred_at IS NOT NULL AND cursor_source_id IS NOT NULL)",
+      name=conv("projection_checkpoints_cursor_pair_chk"),
+    ),
+    CheckConstraint(
+      "processed_count >= 0 AND attempt_count >= 0",
+      name=conv("projection_checkpoints_counts_chk"),
+    ),
+    Index("idx_projection_checkpoints_status", "status", "updated_at"),
+  )
+
+  projection_name: Mapped[str] = mapped_column(String(64), nullable=False)
+  stream_name: Mapped[str] = mapped_column(String(32), nullable=False)
+  status: Mapped[str] = mapped_column(String(16), default="idle", nullable=False)
+  cursor_occurred_at: Mapped[datetime | None] = mapped_column(
+    DateTime(timezone=True),
+    nullable=True,
+  )
+  cursor_source_id: Mapped[UUID | None] = mapped_column(nullable=True)
+  processed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+  attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+  last_success_at: Mapped[datetime | None] = mapped_column(
+    DateTime(timezone=True),
+    nullable=True,
+  )
+  last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class TaskCenterItem(
   ProjectionMetadataMixin,
   UUIDPrimaryKeyMixin,

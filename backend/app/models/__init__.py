@@ -50,7 +50,12 @@ from app.models.workflow_graph import (
   WorkflowCommandReceipt,
   WorkflowRunEvent,
 )
-from app.models.workflow_projection import NodeTimelineEntry, ProcessRunSummary, TaskCenterItem
+from app.models.workflow_projection import (
+  NodeTimelineEntry,
+  ProcessRunSummary,
+  ProjectionCheckpoint,
+  TaskCenterItem,
+)
 
 __all__ = [
   "Attachment",
@@ -72,6 +77,7 @@ __all__ = [
   "NodeTimelineEntry",
   "Position",
   "ProcessRunSummary",
+  "ProjectionCheckpoint",
   "Profile",
   "ProfileFieldDefinition",
   "ProfileFieldPermission",

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import NodeTimelineEntry, ProcessRunSummary, TaskCenterItem
+from app.models import NodeTimelineEntry, ProcessRunSummary, ProjectionCheckpoint, TaskCenterItem
 
 
 def _constraint_names(model: type) -> set[str]:
@@ -26,6 +26,7 @@ def test_projection_models_fix_identity_rebuild_and_sort_contracts() -> None:
   assert TaskCenterItem.__tablename__ == "task_center_items"
   assert ProcessRunSummary.__tablename__ == "process_run_summaries"
   assert NodeTimelineEntry.__tablename__ == "node_timeline_entries"
+  assert ProjectionCheckpoint.__tablename__ == "projection_checkpoints"
 
   assert "uq_task_center_items_subject" in _constraint_names(TaskCenterItem)
   assert "task_center_items_subject_target_chk" in _constraint_names(TaskCenterItem)
@@ -42,12 +43,23 @@ def test_projection_models_fix_identity_rebuild_and_sort_contracts() -> None:
   assert "idx_node_timeline_entries_run_time" in _index_names(NodeTimelineEntry)
   assert "idx_node_timeline_entries_task_time" in _index_names(NodeTimelineEntry)
 
+  assert "uq_projection_checkpoints_projection_stream" in _constraint_names(ProjectionCheckpoint)
+  assert "projection_checkpoints_cursor_pair_chk" in _constraint_names(ProjectionCheckpoint)
+  assert "projection_checkpoints_status_chk" in _constraint_names(ProjectionCheckpoint)
+  assert "idx_projection_checkpoints_status" in _index_names(ProjectionCheckpoint)
+
   for model in (TaskCenterItem, ProcessRunSummary, NodeTimelineEntry):
     columns = model.__table__.columns
     assert columns["projection_schema_version"].nullable is False
     assert columns["source_revision"].nullable is False
     assert columns["last_event_id"].nullable is True
     assert columns["projected_at"].nullable is False
+
+  checkpoint_columns = ProjectionCheckpoint.__table__.columns
+  assert checkpoint_columns["cursor_occurred_at"].nullable is True
+  assert checkpoint_columns["cursor_source_id"].nullable is True
+  assert checkpoint_columns["processed_count"].nullable is False
+  assert checkpoint_columns["attempt_count"].nullable is False
 
   # Actor-specific policy stays request-time; full business bodies stay in source tables.
   assert "available_actions" not in TaskCenterItem.__table__.columns
@@ -102,6 +114,19 @@ async def test_projection_database_constraints_reject_invalid_shapes(
       raw_status="todo",
       source_created_at=now,
       source_updated_at=now,
+    )
+  )
+  with pytest.raises(IntegrityError):
+    await db_session.flush()
+  await db_session.rollback()
+
+  db_session.add(
+    ProjectionCheckpoint(
+      projection_name="workflow_query_v1",
+      stream_name="task_logs",
+      status="idle",
+      cursor_occurred_at=now,
+      cursor_source_id=None,
     )
   )
   with pytest.raises(IntegrityError):

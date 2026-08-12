@@ -8,7 +8,7 @@ tags:
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-08-12T00:45:59+08:00
+timestamp: 2026-08-12T12:05:50+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -248,12 +248,14 @@ I4-E 后的新 Run 使用 `context.capability_snapshot`；Task 使用 `extra_met
 
 批次 ROOT（`run_kind=batch` + ROOT shell）：完成态跟 **实例生命周期**，避免 streaming 跳过导致误入历史。
 
-### 5.3 Iteration 5-A 投影结构（尚未切读）
+### 5.3 Iteration 5-A/B 投影结构与生产基座（尚未切读）
 
 - `task_center_items`：actor-neutral Task/Run/告警候选，保存原始/用户态状态、动作 owner、排序字段和 audience 候选；具体 available actions 仍按请求 actor 计算。
 - `process_run_summaries`：Run 唯一摘要、父子/来源、节点计数、进度与 audience。
 - `node_timeline_entries`：以 source type + source UUID 去重的 Run/Task 统一时间线引用；正文、附件、交付和审批事实仍归源表。
-- 三表均携带 schema version、source revision、last event 与 projected time，只能由后续 Projection owner 写入。当前迁移仅建空表；`TASK_CENTER_V2_ENABLED` 仍走 5.2 动态 graph-first 路径。
+- 三表均携带 schema version、source revision、last event 与 projected time；`projection_checkpoints` 分别保存 Run Event、Task Log、Task Comment 的时间+UUID 游标、状态和失败摘要。
+- `WorkflowProjectionService` 负责幂等投影与逐流消费，`WorkflowProjectionRebuildService` 支持单 Task、单 Run 与全量高水位重建；ARQ 每 30 秒运行独立投影任务。某流失败仅回滚该流并另事务记录，不影响业务命令或其他流。
+- `TASK_CENTER_V2_ENABLED` 仍走 5.2 动态 graph-first 路径；5-C shadow comparison 完成且 5-E 获批前，不读取上述正式投影。
 
 详细字段、授权与重建契约见 [`projection-contract.md`](../contracts/projection-contract.md)。
 
