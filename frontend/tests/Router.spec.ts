@@ -60,6 +60,16 @@ describe('router navigation refactor', () => {
 
     await router.push('/departments')
     expect(router.currentRoute.value.name).toBe('overview')
+
+    await router.push('/workflow-operations')
+    expect(router.currentRoute.value.name).toBe('overview')
+  })
+
+  it('allows admins to enter workflow operations', async () => {
+    await seedUser('admin')
+
+    await router.push('/workflow-operations')
+    expect(router.currentRoute.value.name).toBe('workflow-operations')
   })
 
   it('allows authenticated users to enter settings', async () => {

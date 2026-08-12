@@ -56,6 +56,7 @@ from app.services.workflow_video_rework_service import WorkflowVideoReworkServic
 from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_graph_template_admin_service import WorkflowGraphTemplateAdminService
 from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.workflow_operations_service import WorkflowOperationsService
 from app.services.workflow_engine_service import WorkflowEngineService
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -172,6 +173,12 @@ def get_workflow_run_event_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> WorkflowRunEventService:
   return WorkflowRunEventService(session)
+
+
+def get_workflow_operations_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> WorkflowOperationsService:
+  return WorkflowOperationsService(session)
 
 
 def get_workflow_graph_template_admin_service(

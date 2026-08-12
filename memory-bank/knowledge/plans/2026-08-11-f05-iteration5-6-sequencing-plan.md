@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "F-05 至工作流图引擎 Iteration 5/6 实施顺序"
 description: "记录已完成的 F-05，并固定 Iteration 5 投影运维建设、稳定观察与 Iteration 6 兼容层清理的顺序和门禁。"
 tags: [plan, active, f-05, workflow-graph, iteration-5, iteration-6, sequencing]
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-08-12T14:25:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -24,7 +24,7 @@ paradigma:
 
 # F-05 至 Iteration 5/6 实施顺序
 
-> **计划状态：ACTIVE** — F-05、Iteration 5-A/B/C 工程完成，下一开发批为 Iteration 5-D 运维与可观测性。RC2 复测、Iteration 4/设计器/S-01 人工 UAT、Iteration 3-F/5-A-C PostgreSQL 取证及目标环境 shadow 观察作为并行门禁，不改变开发顺序，但会阻止生产切流、停止兼容写入和删除旧结构。
+> **计划状态：ACTIVE / 5-E BLOCKED** — F-05、Iteration 5-A/B/C/D 工程完成。下一阶段是 5-E 受控读侧切换，但 RC2 复测、Iteration 4/设计器/S-01 人工 UAT、Iteration 3-F/5-A-D PostgreSQL 取证及目标环境 shadow 观察仍是并行门禁；未完成且未单独批准前不得生产切流、停止兼容写入或删除旧结构。
 
 ## 1. 已确认的主开发顺序
 
@@ -32,7 +32,7 @@ paradigma:
 2. **Iteration 5-A — 投影契约与加法迁移（工程完成 / PG 证据待补）**：已固定三类读模型契约并落地 `20260812_01`。
 3. **Iteration 5-B — Projector 基座（工程完成 / PG 证据待补）**：已实现 `20260812_02` checkpoint、三源流幂等消费、失败隔离和单 Task/单 Run/全量高水位重建。
 4. **Iteration 5-C — Shadow Comparison（工程完成 / 目标环境观察待补）**：新旧查询独立并行，记录字段差异、缺失/孤儿项和延迟；不切换用户读路径。
-5. **Iteration 5-D — 运维与可观测性（下一批）**：建设 Outbox FAILED/重放、卡死 Run、no-route、Join wait、Context conflict 工作台，以及 projection lag、backlog 和统一 trace。
+5. **Iteration 5-D — 运维与可观测性（工程完成 / PG 证据待补）**：已建设 Outbox FAILED/重放、incident 处置、卡死 Run、no-route、Join wait、Context conflict、节点重试/挂起/恢复工作台，以及 projection lag/backlog、shadow 摘要和统一 trace；仅 Admin 可见且不赋予业务审批权。
 6. **Iteration 5-E — 受控读侧切换**：满足门禁并经批准后，让任务中心读取正式投影；ROOT Task 先降为 projection shell，稳定后才停止新增。
 7. **稳定观察期**：确认 Link fallback、graph-first fallback、ROOT shell 新增量和投影差异达到 Iteration 6 前置标准。
 8. **Iteration 6 — 单独批准的破坏性清理**：停止 JSON/双写锚点、移除跨模块直接写入和动态 graph-first 查询，归档后清理 Legacy E 服务、表、列与 feature flags。
@@ -45,6 +45,7 @@ paradigma:
 | Iteration 4 / 设计器 / S-01 人工 UAT | F-05、Iteration 5-A～D | 未签字不得标记业务验收通过 |
 | Iteration 3-F 目标环境证据 | F-05、Iteration 5-A～D | 未完成 7 天观测和 31/31 报告，不得生产切流或收缩兼容层 |
 | secret/TLS/备份恢复/迁移与回滚演练 | 可与开发并行 | 未通过不得进入生产变更窗口 |
+| Iteration 5-A～D PostgreSQL + shadow 证据 | 目标环境取证可与 RC/UAT 并行 | 未完成不得进入 5-E 正式读侧切流 |
 
 Iteration 5-A～D 是加法、影子和运维建设，可以在外部门禁执行期间开发。Iteration 5-E 涉及生产读路径与 ROOT shell 行为，必须在对应目标环境证据齐全后单独批准。Iteration 6 不与稳定观察期重叠。
 

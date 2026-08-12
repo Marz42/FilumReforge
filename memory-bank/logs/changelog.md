@@ -29,6 +29,8 @@ paradigma:
 - Memory-Bank 计划治理：固定 F-05 → Iteration 5 → 稳定观察 → Iteration 6，增加计划状态目录，并将过时方案明确标为 completed 或 legacy。
 - 主开发线进入 Iteration 5-A：先固定任务中心、Run 摘要和节点时间线三类投影契约，再实施 Expand-only 加法迁移；本阶段不切读、不回填、不停止兼容路径。
 - Iteration 5-A 工程实现：新增 `TaskCenterItem`、`ProcessRunSummary`、`NodeTimelineEntry` 与 `20260812_01`；固化 Projection 唯一写 owner、canonical source、稳定排序、版本/重建和对象授权复核边界。
+- Iteration 5-B/C 工程实现：新增独立 projection checkpoint、幂等 projector/rebuild、隐私安全 shadow comparison、recent/full 扫描与 `20260812_02/03`；正式读路径保持不变。
+- Iteration 5-D 工程实现：新增 Admin-only 工作流运维页面/API、FAILED Outbox 人工重放、incident 处置、节点 retry/suspend/resume、Run/Join/Outbox/projection/shadow 指标和统一 trace；迁移前进至 `20260812_04`，管理员不获得业务审批权。
 
 ## [0.93.0-rc.2] — 2026-08-11
 

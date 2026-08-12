@@ -1,6 +1,6 @@
 # Progress Summary
 
-Generated at: 2026-08-12 13:19
+Generated at: 2026-08-12 14:33
 
 This file summarizes progress logs without deleting or rewriting the source session logs.
 
@@ -22,3 +22,4 @@ This file summarizes progress logs without deleting or rewriting the source sess
 | [2026-08-12-iteration5a-projection-contract.md](2026-08-12-iteration5a-projection-contract.md) | 2026-08-12 Iteration 5-A 投影契约与加法迁移 | 新增 HOT `projection-contract.md`，从现有 inbox/tracking/history、Run detail 和 Task activity 反向固定字段来源、canonical identity、授权复核、稳定排序、版本与重建边界。 |
 | [2026-08-12-iteration5b-projector-rebuild.md](2026-08-12-iteration5b-projector-rebuild.md) | 2026-08-12 Iteration 5-B Projector 与重建基座 | ../../knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md |
 | [2026-08-12-iteration5c-shadow-comparison.md](2026-08-12-iteration5c-shadow-comparison.md) | Iteration 5-C Shadow Comparison 工程完成 | ../../knowledge/plans/2026-08-12-iteration5c-shadow-comparison-plan.md |
+| [2026-08-12-iteration5d-workflow-operations.md](2026-08-12-iteration5d-workflow-operations.md) | Iteration 5-D 工作流运维与可观测性工程完成 | ../../knowledge/plans/2026-08-12-iteration5d-operations-observability-plan.md |

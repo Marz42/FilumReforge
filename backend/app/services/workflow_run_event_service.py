@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
+from app.core.request_context import get_request_context
 from app.models import WorkflowGraphInstance, WorkflowRunEvent
 from app.services.workflow_event_context import current_workflow_event_context
 from app.schemas.workflow_video import WorkflowRunEventListResponse, WorkflowRunEventRead
@@ -28,22 +29,39 @@ class WorkflowRunEventService:
     event_version: int = 1,
     aggregate_version: int | None = None,
     causation_id: UUID | None = None,
+    node_instance_id: UUID | None = None,
+    task_id: UUID | None = None,
   ) -> WorkflowRunEvent:
     instance = await self._session.get(WorkflowGraphInstance, instance_id)
     if instance is None:
       raise NotFoundError("图实例不存在。")
 
     envelope = current_workflow_event_context()
+    request_context = get_request_context()
+    event_payload = dict(payload or {})
+    if node_instance_id is None:
+      try:
+        node_instance_id = UUID(str(event_payload.get("node_instance_id")))
+      except (TypeError, ValueError):
+        node_instance_id = None
+    if task_id is None:
+      try:
+        task_id = UUID(str(event_payload.get("task_id")))
+      except (TypeError, ValueError):
+        task_id = None
     event = WorkflowRunEvent(
       instance_id=instance_id,
       event_type=event_type,
       event_version=event_version,
       aggregate_version=aggregate_version or instance.context_version,
       command_id=envelope.command_id,
+      request_id=str(request_context.get("request_id") or "") or None,
       causation_id=causation_id or envelope.causation_id,
       correlation_id=envelope.correlation_id,
+      node_instance_id=node_instance_id,
+      task_id=task_id,
       actor_user_id=actor_user_id,
-      payload=dict(payload or {}),
+      payload=event_payload,
     )
     self._session.add(event)
     await self._session.flush()

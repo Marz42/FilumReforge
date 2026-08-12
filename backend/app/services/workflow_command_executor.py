@@ -19,6 +19,7 @@ from app.services.workflow_command_receipt_service import (
   WorkflowCommandReceiptService,
 )
 from app.services.workflow_event_context import bind_workflow_event_context
+from app.core.request_context import get_request_context, update_request_context
 from app.services.workflow_operational_incident_service import WorkflowOperationalIncidentService
 
 
@@ -101,7 +102,14 @@ class WorkflowCommandExecutor:
       raise ConflictError("相同 command 正在处理中，请稍后重试。")
 
     try:
-      with bind_workflow_event_context(command_id=command_id):
+      with bind_workflow_event_context(command_id=command_id) as event_context:
+        if get_request_context().get("request_id"):
+          update_request_context(
+            command_id=command_id,
+            correlation_id=str(event_context.correlation_id),
+            workflow_aggregate_type=aggregate_type,
+            workflow_aggregate_id=str(aggregate_id) if aggregate_id is not None else None,
+          )
         result = await operation()
       resolved_aggregate_id = aggregate_id
       if resolved_aggregate_id is None and result.get("instance_id"):

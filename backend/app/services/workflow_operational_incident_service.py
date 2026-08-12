@@ -59,6 +59,8 @@ class WorkflowOperationalIncidentService:
     if existing is not None:
       existing.status = "open"
       existing.resolved_at = None
+      existing.resolved_by_user_id = None
+      existing.resolution_note = None
       existing.last_seen_at = now
       existing.occurrence_count += 1
       existing.severity = severity
@@ -97,6 +99,8 @@ class WorkflowOperationalIncidentService:
         raise
       existing.status = "open"
       existing.resolved_at = None
+      existing.resolved_by_user_id = None
+      existing.resolution_note = None
       existing.last_seen_at = now
       existing.occurrence_count += 1
       existing.details = {**dict(existing.details or {}), **dict(details or {})}

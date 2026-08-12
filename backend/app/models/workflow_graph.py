@@ -311,6 +311,9 @@ class WorkflowRunEvent(UUIDPrimaryKeyMixin, Base):
     Index("idx_wf_run_events_instance_type", "instance_id", "event_type"),
     Index("idx_wf_run_events_command", "command_id"),
     Index("idx_wf_run_events_correlation", "correlation_id", "occurred_at"),
+    Index("idx_wf_run_events_request", "request_id", "occurred_at"),
+    Index("idx_wf_run_events_node", "node_instance_id", "occurred_at"),
+    Index("idx_wf_run_events_task", "task_id", "occurred_at"),
   )
 
   instance_id: Mapped[UUID] = mapped_column(
@@ -321,8 +324,14 @@ class WorkflowRunEvent(UUIDPrimaryKeyMixin, Base):
   event_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
   aggregate_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
   command_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+  request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
   causation_id: Mapped[UUID | None] = mapped_column(nullable=True)
   correlation_id: Mapped[UUID | None] = mapped_column(nullable=True)
+  node_instance_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("workflow_node_instances.id", name="fk_wf_run_events_node", ondelete="SET NULL"),
+    nullable=True,
+  )
+  task_id: Mapped[UUID | None] = mapped_column(nullable=True)
   actor_user_id: Mapped[UUID | None] = mapped_column(
     ForeignKey("users.id", name="fk_wf_run_events_actor", ondelete="SET NULL"),
     nullable=True,
@@ -580,6 +589,11 @@ class WorkflowOperationalIncident(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     nullable=False,
   )
   resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  resolved_by_user_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("users.id", name="fk_wf_operational_incidents_resolver", ondelete="SET NULL"),
+    nullable=True,
+  )
+  resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
   instance_id: Mapped[UUID | None] = mapped_column(
     ForeignKey(
       "workflow_graph_instances.id",
@@ -751,6 +765,13 @@ class WorkflowOutboxEvent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   available_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
   dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
   last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+  manual_replay_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+  last_replayed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+  last_replayed_by_user_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("users.id", name="fk_wf_outbox_events_replayer", ondelete="SET NULL"),
+    nullable=True,
+  )
+  last_replay_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
   payload: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
 
   instance = relationship("WorkflowGraphInstance", back_populates="outbox_events")

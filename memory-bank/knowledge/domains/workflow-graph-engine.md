@@ -248,7 +248,7 @@ I4-E 后的新 Run 使用 `context.capability_snapshot`；Task 使用 `extra_met
 
 批次 ROOT（`run_kind=batch` + ROOT shell）：完成态跟 **实例生命周期**，避免 streaming 跳过导致误入历史。
 
-### 5.3 Iteration 5-A/B/C 投影、消费与影子比较（尚未切读）
+### 5.3 Iteration 5-A/B/C/D 投影、消费、影子比较与运维（尚未切读）
 
 - `task_center_items`：actor-neutral Task/Run/告警候选，保存原始/用户态状态、动作 owner、排序字段和 audience 候选；具体 available actions 仍按请求 actor 计算。
 - `process_run_summaries`：Run 唯一摘要、父子/来源、节点计数、进度与 audience。
@@ -257,6 +257,9 @@ I4-E 后的新 Run 使用 `context.capability_snapshot`；Task 使用 `extra_met
 - `WorkflowProjectionService` 负责幂等投影与逐流消费，`WorkflowProjectionRebuildService` 支持单 Task、单 Run 与全量高水位重建；ARQ 每 30 秒运行独立投影任务。某流失败仅回滚该流并另事务记录，不影响业务命令或其他流。
 - `projection_shadow_observations` 只保存比较对象、差异字段名、指纹、revision、lag 和分级；recent worker 每 5 分钟抽样并保留 30 天，full CLI 用于切流前审计。评论正文、任务描述、邮箱、附件和业务 payload 不进入观察表。
 - `TASK_CENTER_V2_ENABLED` 仍走 5.2 动态 graph-first 路径；虽然 5-C 工程完成，但目标环境证据和 5-E 批准前不读取上述正式投影。
+- 5-D 复用既有 Outbox、incident、command receipt、Run Event 与 projection checkpoint 建立 Admin-only 运维面：诊断 failed/stalled/no-route/Join wait/Context conflict/挂起节点，展示 lag/backlog/shadow，并提供带原因的 Outbox 重放、incident 处置和节点技术恢复。
+- 管理员人工挂起仅允许可中断的 active Handler；恢复必须匹配 `operational_suspension.status=active` 及保存的原 engine/business state。策略阻断的 `SUSPENDED` 不带此标记，不能用 resume 绕过。管理员不获得业务交付、验收或审批动作。
+- 新 Run Event 可携带 request/command/correlation/Run/Node/Task 标识；历史事件保持 nullable。trace API 只返回 payload keys，不返回正文或 payload values。
 
 详细字段、授权与重建契约见 [`projection-contract.md`](../contracts/projection-contract.md)。
 
@@ -293,6 +296,7 @@ I4-E 后的新 Run 使用 `context.capability_snapshot`；Task 使用 `extra_met
 | Video 动作 | submit-capture · finalize-topics · close-capture · fork/dispatch/reject… |
 | Schedules | `GET/POST /schedules` · `PATCH` · `run-now` |
 | Admin readiness | `GET /admin/iteration4-readiness`（Admin-only，聚合 Link/incident/receipt/outbox/engine/migration blocker） |
+| Admin operations | `GET /admin/operations` · `GET /admin/operations/traces` · Outbox replay · incident update · Node retry/suspend/resume（Admin-only，原因 + command receipt） |
 | 其他 | `POST /smart-notice-candidates` |
 
 握手、评论、通用交付/验收仍走 **`/tasks`** / **`/task-center`**，不在本前缀。
@@ -308,6 +312,7 @@ Schema：`backend/app/schemas/workflow_graph.py`（+ `workflow_graph_schedule.py
 | 区域 | 路径 | 职责 |
 |------|------|------|
 | API | `frontend/src/api/workflow-graph.ts` | 全部 `/workflow-graph/*` 客户端；列表摘要映射、`active_task_id` |
+| 运维 | `frontend/src/api/workflow-operations.ts` · `views/WorkflowOperationsView.vue` | Admin-only `/workflow-operations`；异常、Outbox、incident、投影健康、节点动作与 trace |
 | 类型 | `types/api.ts` · `types/workflowVideo.ts` | 实例/节点枚举与视频/设计器类型 |
 | 布局开关 | `domain/task-detail/profile.ts` | `ui_profile` → `TaskDetailProfile` 标志位 |
 | 辅助 | `domain/workflow-graph/activeStepTask.ts` · `utils/graphTemplateTopology.ts` · `utils/workflowVideoSchema.ts` · `run-label.ts` | 当前步骤 Task、拓扑预览、schema、Run 名 |

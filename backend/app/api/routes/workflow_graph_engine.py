@@ -18,6 +18,7 @@ from app.api.dependencies import (
   get_workflow_graph_template_admin_service,
   get_workflow_graph_template_schedule_service,
   get_workflow_run_event_service,
+  get_workflow_operations_service,
   get_settings,
 )
 from app.core.config import Settings
@@ -88,6 +89,13 @@ from app.schemas.workflow_graph_schedule import (
   GraphTemplateScheduleRunNowResponse,
   GraphTemplateScheduleUpdateRequest,
 )
+from app.schemas.workflow_operations import (
+  WorkflowIncidentUpdateRequest,
+  WorkflowOperationActionRead,
+  WorkflowOperationReasonRequest,
+  WorkflowOperationsDashboardRead,
+  WorkflowTraceListRead,
+)
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.participant_resolution_service import ParticipantResolutionService
 from app.services.workflow_graph_service import WorkflowGraphService
@@ -104,6 +112,7 @@ from app.services.workflow_graph_template_schedule_service import (
   template_is_schedulable,
 )
 from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.workflow_operations_service import WorkflowOperationsService
 from app.services.workflow_command_executor import WorkflowCommandExecutor
 from app.services.workflow_iteration4_readiness_service import WorkflowIteration4ReadinessService
 from app.services.workflow_iteration4_uat_preflight_service import (
@@ -128,6 +137,209 @@ async def get_iteration4_readiness(
     raise NotFoundError("未找到 Iteration 4 readiness 资源。")
   report = await WorkflowIteration4ReadinessService(session).build_report()
   return WorkflowIteration4ReadinessResponse.model_validate(report)
+
+
+def _ensure_workflow_operations_admin(actor: User) -> None:
+  if actor.role != UserRole.ADMIN:
+    raise NotFoundError("未找到工作流运维资源。")
+
+
+@router.get(
+  "/admin/operations",
+  response_model=WorkflowOperationsDashboardRead,
+  tags=["workflow-graph"],
+)
+async def get_workflow_operations_dashboard(
+  actor: Annotated[User, Depends(get_current_user)],
+  service: Annotated[WorkflowOperationsService, Depends(get_workflow_operations_service)],
+  stalled_minutes: int = Query(default=30, ge=5, le=1440),
+  limit: int = Query(default=50, ge=1, le=100),
+) -> WorkflowOperationsDashboardRead:
+  _ensure_workflow_operations_admin(actor)
+  dashboard = await service.build_dashboard(stalled_minutes=stalled_minutes, limit=limit)
+  return WorkflowOperationsDashboardRead.model_validate(dashboard)
+
+
+@router.get(
+  "/admin/operations/traces",
+  response_model=WorkflowTraceListRead,
+  tags=["workflow-graph"],
+)
+async def search_workflow_operation_traces(
+  actor: Annotated[User, Depends(get_current_user)],
+  service: Annotated[WorkflowOperationsService, Depends(get_workflow_operations_service)],
+  request_id: str | None = Query(default=None, max_length=64),
+  command_id: str | None = Query(default=None, max_length=128),
+  correlation_id: UUID | None = Query(default=None),
+  instance_id: UUID | None = Query(default=None),
+  node_instance_id: UUID | None = Query(default=None),
+  task_id: UUID | None = Query(default=None),
+  limit: int = Query(default=50, ge=1, le=100),
+) -> WorkflowTraceListRead:
+  _ensure_workflow_operations_admin(actor)
+  items = await service.search_traces(
+    request_id=request_id,
+    command_id=command_id,
+    correlation_id=correlation_id,
+    instance_id=instance_id,
+    node_instance_id=node_instance_id,
+    task_id=task_id,
+    limit=limit,
+  )
+  return WorkflowTraceListRead.model_validate({"items": items})
+
+
+@router.post(
+  "/admin/operations/outbox/{outbox_event_id}/replay",
+  response_model=WorkflowOperationActionRead,
+  tags=["workflow-graph"],
+)
+async def replay_workflow_outbox_event(
+  outbox_event_id: UUID,
+  payload: WorkflowOperationReasonRequest,
+  response: Response,
+  actor: Annotated[User, Depends(get_current_user)],
+  service: Annotated[WorkflowOperationsService, Depends(get_workflow_operations_service)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  command_id_header: Annotated[str | None, Header(alias="X-Command-ID")] = None,
+) -> WorkflowOperationActionRead:
+  _ensure_workflow_operations_admin(actor)
+  command_id = _resolve_command_id(command_id_header, response)
+
+  async def operation() -> dict[str, object]:
+    return await service.replay_outbox(
+      outbox_event_id=outbox_event_id,
+      actor_user_id=actor.id,
+      reason=payload.reason,
+    )
+
+  result = await WorkflowCommandExecutor(session).execute(
+    command_id=command_id,
+    command_type="admin_replay_outbox",
+    payload={"outbox_event_id": str(outbox_event_id), "reason": payload.reason},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_outbox",
+    aggregate_id=outbox_event_id,
+  )
+  return WorkflowOperationActionRead.model_validate(result)
+
+
+@router.patch(
+  "/admin/operations/incidents/{incident_id}",
+  response_model=WorkflowOperationActionRead,
+  tags=["workflow-graph"],
+)
+async def update_workflow_operational_incident(
+  incident_id: UUID,
+  payload: WorkflowIncidentUpdateRequest,
+  response: Response,
+  actor: Annotated[User, Depends(get_current_user)],
+  service: Annotated[WorkflowOperationsService, Depends(get_workflow_operations_service)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  command_id_header: Annotated[str | None, Header(alias="X-Command-ID")] = None,
+) -> WorkflowOperationActionRead:
+  _ensure_workflow_operations_admin(actor)
+  command_id = _resolve_command_id(command_id_header, response)
+
+  async def operation() -> dict[str, object]:
+    return await service.update_incident(
+      incident_id=incident_id,
+      actor_user_id=actor.id,
+      status=payload.status,
+      reason=payload.reason,
+    )
+
+  result = await WorkflowCommandExecutor(session).execute(
+    command_id=command_id,
+    command_type="admin_update_incident",
+    payload={"incident_id": str(incident_id), **payload.model_dump()},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_incident",
+    aggregate_id=incident_id,
+  )
+  return WorkflowOperationActionRead.model_validate(result)
+
+
+async def _execute_admin_node_operation(
+  *,
+  action: str,
+  node_instance_id: UUID,
+  reason: str,
+  actor: User,
+  graph_service: WorkflowGraphService,
+  session: AsyncSession,
+  command_id: str,
+) -> dict[str, object]:
+  async def operation() -> dict[str, object]:
+    if action == "retry":
+      await graph_service.retry_node_instance(
+        node_instance_id=node_instance_id,
+        actor_id=actor.id,
+        reason=reason,
+        allow_suspended=False,
+        commit=False,
+      )
+    elif action == "suspend":
+      await graph_service.suspend_node_instance_by_admin(
+        node_instance_id=node_instance_id,
+        actor_id=actor.id,
+        reason=reason,
+        commit=False,
+      )
+    else:
+      await graph_service.resume_node_instance_by_admin(
+        node_instance_id=node_instance_id,
+        actor_id=actor.id,
+        reason=reason,
+        commit=False,
+      )
+    node = await session.get(WorkflowNodeInstance, node_instance_id)
+    if node is None:
+      raise NotFoundError("节点实例不存在。")
+    return {"id": str(node.id), "status": node.engine_state.value}
+
+  return await WorkflowCommandExecutor(session).execute(
+    command_id=command_id,
+    command_type=f"admin_{action}_workflow_node",
+    payload={"node_instance_id": str(node_instance_id), "reason": reason},
+    operation=operation,
+    actor_user_id=actor.id,
+    aggregate_type="workflow_node",
+    aggregate_id=node_instance_id,
+  )
+
+
+@router.post(
+  "/admin/operations/node-instances/{node_instance_id}/{action}",
+  response_model=WorkflowOperationActionRead,
+  tags=["workflow-graph"],
+)
+async def operate_workflow_node_instance(
+  node_instance_id: UUID,
+  action: str,
+  payload: WorkflowOperationReasonRequest,
+  response: Response,
+  actor: Annotated[User, Depends(get_current_user)],
+  graph_service: Annotated[WorkflowGraphService, Depends(get_workflow_graph_service)],
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+  command_id_header: Annotated[str | None, Header(alias="X-Command-ID")] = None,
+) -> WorkflowOperationActionRead:
+  _ensure_workflow_operations_admin(actor)
+  if action not in {"retry", "suspend", "resume"}:
+    raise NotFoundError("未找到工作流节点运维动作。")
+  command_id = _resolve_command_id(command_id_header, response)
+  result = await _execute_admin_node_operation(
+    action=action,
+    node_instance_id=node_instance_id,
+    reason=payload.reason,
+    actor=actor,
+    graph_service=graph_service,
+    session=session,
+    command_id=command_id,
+  )
+  return WorkflowOperationActionRead.model_validate(result)
 
 
 def _resolve_command_id(raw_command_id: str | None, response: Response) -> str:

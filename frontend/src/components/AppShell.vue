@@ -8,6 +8,7 @@ import {
   House,
   Memo,
   OfficeBuilding,
+  Monitor,
   Setting,
   User,
 } from '@element-plus/icons-vue'
@@ -53,6 +54,7 @@ const specialNavigationItems = computed(() => {
 
   if (authStore.user?.role === 'admin') {
     items.push({ label: '部门管理', routeName: 'departments', icon: OfficeBuilding })
+    items.push({ label: '工作流运维', routeName: 'workflow-operations', icon: Monitor })
   }
 
   return items

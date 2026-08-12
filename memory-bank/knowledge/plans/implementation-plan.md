@@ -33,7 +33,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **工作流图引擎 Iteration 4 A–E、F-05、Iteration 5-A/B/C 与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.2` 已固定并等待员工复测。主开发线下一批为 **Iteration 5-D 运维与可观测性**，之后才是目标环境门禁下的 5-E 受控读侧切换、稳定观察和单独批准的 Iteration 6 兼容层清理。F-05 最终将 `TaskDetailShell` 约 1,989 → 838 行，权限与动作语义不变；5-C 已建立只记录不切读的 shadow comparison。目标环境 I4/设计器/S-01 人工 UAT、Iteration 3-F、PostgreSQL head↔base 与 shadow 持续样本可同 5-D 并行，但会阻止 5-E 生产切流、停止兼容写入与 Legacy 删除。KI-011 按用户决定暂不推进。详见 [`2026-08-12-iteration5c-shadow-comparison-plan.md`](./2026-08-12-iteration5c-shadow-comparison-plan.md) 与 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
+**当前执行位置**: **工作流图引擎 Iteration 4 A–E、F-05、Iteration 5-A/B/C/D 与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.2` 已固定并等待员工复测。5-D 已提供 Admin-only 运维工作台、Outbox 重放、incident 处置、节点技术恢复、投影健康和统一 trace，且不赋予管理员业务审批权。下一阶段为 **5-E 受控读侧切换**，但在目标环境 PostgreSQL head↔base、rebuild/full shadow、持续样本和用户单独批准前保持 blocked；其后才是稳定观察和单独批准的 Iteration 6 兼容层清理。F-05 最终将 `TaskDetailShell` 约 1,989 → 838 行，权限与动作语义不变。目标环境 I4/设计器/S-01 人工 UAT、Iteration 3-F 与生产准入仍并行推进。KI-011 按用户决定暂不推进。详见 [`2026-08-12-iteration5d-operations-observability-plan.md`](./2026-08-12-iteration5d-operations-observability-plan.md) 与 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
 
 ## 2. 已确认约束
 

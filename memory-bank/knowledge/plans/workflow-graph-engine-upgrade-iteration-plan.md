@@ -7,7 +7,7 @@ tags:
   - workflow-graph
   - runtime
   - migration
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-08-12T14:25:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -28,7 +28,7 @@ paradigma:
 ---
 # Project Filum 工作流图引擎稳健升级迭代方案
 
-> **状态**：Iteration 0–4、F-05 与 Iteration 5-A/B/C 工程实现已完成；Iteration 3-F 目标环境 7 天观测、31 项最终批准、5-A-C PostgreSQL 迁移和 shadow 持续样本未完成，生产切流继续 blocked。下一开发批为 5-D 运维与可观测性；稳定观察和单独批准后才进入 Iteration 6。正式顺序见 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
+> **状态**：Iteration 0–4、F-05 与 Iteration 5-A/B/C/D 工程实现已完成；Iteration 3-F 目标环境 7 天观测、31 项最终批准、5-A-D PostgreSQL 迁移和 shadow 持续样本未完成，5-E 生产读侧切流继续 blocked。证据齐全并单独批准后进入 5-E，再经稳定观察和单独批准进入 Iteration 6。正式顺序见 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
 > **输入**：根目录 `workflow-graph-engine-upgrade-guidance-report.md`、现行 ORM / Service / API / 测试，以及 [`workflow-graph-engine.md`](../domains/workflow-graph-engine.md) as-built。  
 > **与旧计划关系**：[`workflow-refactor-implementation-plan.md`](./workflow-refactor-implementation-plan.md) 记录 Phase 1–11 的历史实施主线；本文只规划其后的结构收敛与正确性升级，不回写历史阶段。
 

@@ -1,9 +1,9 @@
 ---
 type: paradigma-contract
 title: "图引擎 Schema"
-description: "图引擎十五张运行时/治理表与五张 Iteration 5 投影/观察表。"
+description: "图引擎十五张运行时/治理表、五张 Iteration 5 投影/观察表及 5-D 运维审计扩展。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-08-12T14:25:00+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -19,7 +19,7 @@ paradigma:
 ---
 # 图引擎 Schema
 
-> WARM — **十五张运行时/治理表 + Iteration 5 五张投影/观察表**：除 Task Center、Run 摘要、节点时间线读模型外，5-B 增加独立源流 checkpoint，5-C 增加隐私安全 shadow observation。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。投影细契约见 [`projection-contract.md`](../projection-contract.md)。
+> WARM — **十五张运行时/治理表 + Iteration 5 五张投影/观察表**：除 Task Center、Run 摘要、节点时间线读模型外，5-B 增加独立源流 checkpoint，5-C 增加隐私安全 shadow observation，5-D 在既有 Outbox/incident/Run Event 上增加人工运维审计和 trace 标识，不新造业务事实表。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。投影细契约见 [`projection-contract.md`](../projection-contract.md)。
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
@@ -38,10 +38,10 @@ paradigma:
 | `workflow_node_activation_dependencies` | 激活依赖账本 | 目标/源 NodeInstance + traversal；`waiting/satisfied/cancelled/invalidated`；解释 Join 实际等待来源 |
 | `workflow_human_task_links` | Work Item ↔ NodeExecution 正式关系 | FK 到 Run/Node/Task；一个 Task 唯一归属一个 Node；每 Node 仅一个 active primary；`iteration >= 1`；支持 supporting/observer 与 completed/invalidated/superseded 历史链 |
 | `workflow_command_receipts` | 工作流命令幂等账本 | 唯一 `(actor_key,command_type,command_id)`；canonical payload SHA-256；`processing/succeeded/failed` 与首次 result/error |
-| `workflow_operational_incidents` | 持久化运维异常与迁移队列 | fingerprint 唯一幂等聚合；category/status/severity/count/时间窗；可关联 Run/Node/Task/Receipt/Outbox，保存脱敏 details |
+| `workflow_operational_incidents` | 持久化运维异常与迁移队列 | fingerprint 唯一幂等聚合；category/status/severity/count/时间窗；可关联 Run/Node/Task/Receipt/Outbox，保存脱敏 details；5-D 增加 resolver/note，重复出现会 reopen 并清空旧处置 |
 | `workflow_deliverables` | 节点交付快照 | `node_instance_id`（UNIQUE）、`summary`、`payload`、`submitted_at` |
-| `workflow_outbox_events` | 可靠异步投递 | `event_type`、`status`、`attempt_count`、`available_at`、`last_error` |
-| `workflow_run_events` | Append-only 运行事件 | `event_type` + event/aggregate version、command/causation/correlation、actor、payload、`occurred_at`/`created_at` |
+| `workflow_outbox_events` | 可靠异步投递 | `event_type`、`status`、`attempt_count`、`available_at`、`last_error`；5-D 人工重放累计次数、操作人、时间和原因 |
+| `workflow_run_events` | Append-only 运行事件 | `event_type` + event/aggregate version、request/command/causation/correlation、Run/Node/Task、actor、payload、`occurred_at`/`created_at`；历史 trace 新字段 nullable |
 | `workflow_graph_template_schedules` | 图模板周期调度 | `cron_expr`、`timezone`、`scope_department_id`、`scope_mode ∈ {self,subtree}`、`participant_mode`、`next_run_at`、last-run 元数据 |
 | `task_center_items` | Task Center 派生读模型（I5-A Expand） | canonical subject、Task/Run/Node 引用、原始/用户态状态、动作 owner、稳定排序字段、audience 候选与投影版本；不保存 actor-specific available actions |
 | `process_run_summaries` | Run 摘要派生读模型（I5-A Expand） | Run 唯一、父子/来源/部门/发起人、节点计数/进度、audience 与投影版本 |
@@ -55,6 +55,7 @@ paradigma:
 - `workflow_graph_instances 1:N workflow_node_instances / edge_traversals / activation_dependencies / human_task_links / operational_incidents / outbox_events / run_events`
 - `projection_checkpoints` 不拥有业务事实；Run Event、Task Log、Task Comment 各自独立推进，失败不改变业务命令结果
 - `projection_shadow_observations` 是 30 天可再生诊断证据；recent/full 比较不参与用户请求、对象授权或业务事务
+- 5-D 运维动作全部通过 command receipt 幂等执行；Outbox/incident 审计字段只记录人工处置，Run Event trace 查询只返回 payload 字段名，不返回业务值
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run fork）
 - `workflow_node_instances 1:1 workflow_deliverables`（按节点快照）
 - 新写 HumanTask 投影同时写 `workflow_human_task_links` 与兼容 `Task.extra_metadata` / `Node.config.task_id`；读取 Link-first、JSON fallback。Link 存在而 JSON 不一致时以 Link 为准并登记 `link_mismatch`；fallback/回填歧义进入 operational incident。存量回填须三锚点交叉校验，不猜测修复（见 [`core-workflows.md`](../../domains/architecture/core-workflows.md) §6.13B）

@@ -132,6 +132,7 @@ describe('App shell', () => {
     expect(wrapper.text()).toContain('人员管理')
     expect(wrapper.text()).toContain('任务模板')
     expect(wrapper.text()).toContain('部门管理')
+    expect(wrapper.text()).toContain('工作流运维')
     expect(wrapper.findAll('.el-menu-item .el-icon').length).toBeGreaterThan(0)
     expect(wrapper.find('.router-view-stub').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('仪表盘')
@@ -161,6 +162,7 @@ describe('App shell', () => {
 
     expect(wrapper.text()).toContain('人员管理')
     expect(wrapper.text()).not.toContain('部门管理')
+    expect(wrapper.text()).not.toContain('工作流运维')
   })
 
   it('shows only general modules for employees', async () => {
@@ -188,6 +190,7 @@ describe('App shell', () => {
     expect(wrapper.text()).not.toContain('特殊模块')
     expect(wrapper.text()).not.toContain('人员管理')
     expect(wrapper.text()).not.toContain('部门管理')
+    expect(wrapper.text()).not.toContain('工作流运维')
   })
 
   it('uses a drawer trigger for narrow screens', async () => {

@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
@@ -17,6 +17,7 @@ from app.api.dependencies import (
   get_job_queue_publisher,
   get_notification_queue_publisher,
   get_workflow_graph_service,
+  get_workflow_operations_service,
   get_report_service,
   get_openai_client,
 )
@@ -48,6 +49,100 @@ from app.workers.jobs import rebuild_all_document_embeddings, rebuild_document_e
 
 TEST_JWT_SECRET = "test-secret-key-with-32-bytes-minimum!!"
 TEST_REFRESH_COOKIE_NAME = "filum_refresh_token"
+
+
+@pytest.mark.asyncio
+async def test_workflow_operations_dashboard_and_traces_are_admin_only(api_client) -> None:
+  client, _queue_publisher = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+
+  dashboard = await client.get(
+    "/api/v1/workflow-graph/admin/operations",
+    headers=admin_headers,
+  )
+  assert dashboard.status_code == 200, dashboard.text
+  body = dashboard.json()
+  assert body["metrics"]["outbox_backlog_count"] == 0
+  assert {item["stream_name"] for item in body["projection_streams"]} == {
+    "workflow_run_events",
+    "task_logs",
+    "task_comments",
+  }
+  assert body["shadow"] is None
+
+  traces = await client.get(
+    "/api/v1/workflow-graph/admin/operations/traces",
+    headers=admin_headers,
+  )
+  assert traces.status_code == 200, traces.text
+  assert traces.json() == {"items": []}
+
+  employee_response = await client.post(
+    "/api/v1/users",
+    headers=admin_headers,
+    json={
+      "email": "workflow-operations-employee@example.com",
+      "password": "StrongPassword123!",
+      "role": "employee",
+      "status": "active",
+    },
+  )
+  assert employee_response.status_code == 201
+  employee_headers = await login(
+    client,
+    email="workflow-operations-employee@example.com",
+    password="StrongPassword123!",
+  )
+  denied = await client.get(
+    "/api/v1/workflow-graph/admin/operations",
+    headers=employee_headers,
+  )
+  assert denied.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_workflow_operations_outbox_replay_is_command_idempotent(api_client) -> None:
+  client, _queue_publisher = api_client
+  admin_headers, _ = await bootstrap_and_login(client)
+  calls: list[tuple[UUID, UUID, str]] = []
+
+  class FakeOperationsService:
+    async def replay_outbox(
+      self,
+      *,
+      outbox_event_id: UUID,
+      actor_user_id: UUID,
+      reason: str,
+    ) -> dict[str, object]:
+      calls.append((outbox_event_id, actor_user_id, reason))
+      return {
+        "id": str(outbox_event_id),
+        "status": "retrying",
+        "manual_replay_count": 1,
+      }
+
+  application = client._transport.app  # type: ignore[attr-defined]
+  application.dependency_overrides[get_workflow_operations_service] = FakeOperationsService
+  outbox_event_id = uuid4()
+  headers = {**admin_headers, "X-Command-ID": "test-ops-replay-command"}
+  try:
+    first = await client.post(
+      f"/api/v1/workflow-graph/admin/operations/outbox/{outbox_event_id}/replay",
+      headers=headers,
+      json={"reason": "通知通道恢复后人工重放"},
+    )
+    second = await client.post(
+      f"/api/v1/workflow-graph/admin/operations/outbox/{outbox_event_id}/replay",
+      headers=headers,
+      json={"reason": "通知通道恢复后人工重放"},
+    )
+  finally:
+    application.dependency_overrides.pop(get_workflow_operations_service, None)
+
+  assert first.status_code == 200, first.text
+  assert second.status_code == 200, second.text
+  assert first.json() == second.json()
+  assert len(calls) == 1
 
 
 @pytest.mark.asyncio

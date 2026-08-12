@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "实施计划状态目录"
 description: "区分现行计划、已完成实施记录与已被取代的 Legacy 方案，避免历史计划被误作当前排期。"
 tags: [plan, governance, active, completed, legacy]
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-08-12T14:25:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -32,7 +32,8 @@ paradigma:
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |
 | `2026-08-12-iteration5a-projection-contract-plan.md` | 三类投影契约、ORM 与 Expand-only 迁移工程完成；保持 active 直到 PostgreSQL 严格迁移证据补齐 |
 | `2026-08-12-iteration5b-projector-rebuild-plan.md` | checkpoint、幂等 projector、三种 rebuild 与失败隔离工程完成；保持 active 直到 PostgreSQL 严格迁移证据补齐 |
-| `2026-08-12-iteration5c-shadow-comparison-plan.md` | shadow comparison 工程完成；保持 active 直到目标环境持续样本与 PostgreSQL 严格迁移证据补齐，下一开发批转 5-D |
+| `2026-08-12-iteration5c-shadow-comparison-plan.md` | shadow comparison 工程完成；保持 active 直到目标环境持续样本与 PostgreSQL 严格迁移证据补齐 |
+| `2026-08-12-iteration5d-operations-observability-plan.md` | 运维工作台、受控动作、指标与 trace 工程完成；保持 active 直到 PostgreSQL/目标环境证据补齐并决定 5-E |
 | `workflow-graph-engine-iteration3f-readiness-gate-plan.md` | 仍开放的目标环境与生产切流门禁 |
 | `2026-08-09-rc-employee-trial-plan.md` | `v0.93.0-rc.2` 员工复测与主线分流 |
 

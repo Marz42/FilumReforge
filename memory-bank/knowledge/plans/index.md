@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 960ea694bd660ee5 -->
+<!-- checksum: 46eabf002edf430e -->
 <!-- generated_by: pd-sync-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -25,6 +25,7 @@
 | [2026-08-12-iteration5a-projection-contract-plan.md](2026-08-12-iteration5a-projection-contract-plan.md) | `paradigma-plan` | Iteration 5-A 投影契约与加法迁移计划 | Iteration 5-A<br>投影契约<br>task_center_items ... | - | depends_on:./2026-08-12-f05-task-detail-workflow-presentation-plan.md<br>depends_on:./2026-08-11-f05-iteration5-6-sequencing-plan.md<br>related_to:../contracts/data-contracts.md<br>related_to:../contracts/database/graph-engine-schema.md ... |
 | [2026-08-12-iteration5b-projector-rebuild-plan.md](2026-08-12-iteration5b-projector-rebuild-plan.md) | `paradigma-plan` | Iteration 5-B 投影消费与重建基座计划 | Iteration 5-B<br>投影消费<br>checkpoint ... | - | depends_on:./2026-08-12-iteration5a-projection-contract-plan.md<br>depends_on:../contracts/projection-contract.md<br>related_to:../contracts/database/graph-engine-schema.md<br>related_to:../domains/workflow-graph-engine.md ... |
 | [2026-08-12-iteration5c-shadow-comparison-plan.md](2026-08-12-iteration5c-shadow-comparison-plan.md) | `paradigma-plan` | Iteration 5-C 投影 Shadow Comparison 计划 | Iteration 5-C<br>影子比较<br>投影差异 ... | - | depends_on:./2026-08-12-iteration5b-projector-rebuild-plan.md<br>depends_on:../contracts/projection-contract.md<br>related_to:./2026-08-11-f05-iteration5-6-sequencing-plan.md |
+| [2026-08-12-iteration5d-operations-observability-plan.md](2026-08-12-iteration5d-operations-observability-plan.md) | `paradigma-plan` | Iteration 5-D 工作流运维与可观测性计划 | Iteration 5-D<br>工作流运维<br>Outbox 重放 ... | - | depends_on:./2026-08-12-iteration5c-shadow-comparison-plan.md<br>depends_on:../contracts/projection-contract.md<br>related_to:./2026-08-11-f05-iteration5-6-sequencing-plan.md<br>related_to:../domains/workflow-graph-engine.md |
 | [implementation-plan.md](implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | - |
 | [improvements-stage2-implementation-plan.md](improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |
 | [paradigma-memory-bank-refactor-plan.md](paradigma-memory-bank-refactor-plan.md) | `paradigma-plan` | Paradigma 对齐方案 | Paradigma<br>paradigma | - | - |

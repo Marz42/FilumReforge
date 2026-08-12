@@ -1393,6 +1393,8 @@ class WorkflowGraphService:
     *,
     node_instance_id: UUID,
     actor_id: UUID,
+    reason: str | None = None,
+    allow_suspended: bool = True,
     commit: bool = True,
   ) -> None:
     """Retry a failed/suspended HumanTask inside the caller-owned transaction."""
@@ -1406,6 +1408,8 @@ class WorkflowGraphService:
       WorkflowGraphInstanceStatus.TERMINATED,
     }:
       raise ConflictError("已结束的工作流图实例不能重试节点。")
+    if not allow_suspended and node_instance.engine_state != WorkflowNodeEngineState.FAILED:
+      raise ConflictError("管理员运维入口只能重试 FAILED 节点。")
 
     now = datetime.now(UTC)
     capability_result = self._retry_result(node_instance=node_instance)
@@ -1444,11 +1448,151 @@ class WorkflowGraphService:
           node_type=node_instance.node_type,
           result=capability_result,
         ),
+        "reason": reason.strip()[:500] if reason else None,
       },
     )
     await self.enqueue_node_activated_notifications(
       instance=graph_instance,
       node_instances=[node_instance],
+    )
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
+
+  async def suspend_node_instance_by_admin(
+    self,
+    *,
+    node_instance_id: UUID,
+    actor_id: UUID,
+    reason: str,
+    commit: bool = True,
+  ) -> None:
+    """Technically pause an interruptible active node without changing business ownership."""
+    normalized_reason = reason.strip()
+    if len(normalized_reason) < 3 or len(normalized_reason) > 500:
+      raise ConflictError("运维原因长度必须为 3–500 个字符。")
+    graph_instance, node_instance = await self._lock_graph_and_node_instance(
+      node_instance_id=node_instance_id,
+    )
+    self._ensure_snapshot_integrity(graph_instance)
+    if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
+      raise ConflictError("只有运行中的工作流可以人工挂起节点。")
+    handler = self._node_handlers.resolve(node_instance.node_type)
+    if handler is None or not handler.interruptible:
+      raise ConflictError("当前节点能力不可中断，不能人工挂起。")
+    if node_instance.engine_state not in {
+      WorkflowNodeEngineState.ACTIVATED,
+      WorkflowNodeEngineState.ACKNOWLEDGED,
+    }:
+      raise ConflictError("只有 ACTIVATED/ACKNOWLEDGED 节点可以人工挂起。")
+
+    now = datetime.now(UTC)
+    previous_engine_state = node_instance.engine_state
+    previous_business_state = node_instance.business_state
+    await HumanTaskCoordinator(self._session).coordinate_mutations(
+      node_instance=node_instance,
+      node_changes={
+        "engine_state": WorkflowNodeEngineState.SUSPENDED,
+        "node_instance_version": node_instance.node_instance_version + 1,
+      },
+      node_config_patch={
+        "operational_suspension": {
+          "status": "active",
+          "previous_engine_state": previous_engine_state.value,
+          "previous_business_state": previous_business_state.value,
+          "suspended_by_user_id": str(actor_id),
+          "suspended_at": now.isoformat(),
+          "suspend_reason": normalized_reason,
+        }
+      },
+    )
+    await self._session.flush()
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type="node_suspended_by_admin",
+      actor_user_id=actor_id,
+      aggregate_version=node_instance.node_instance_version,
+      node_instance_id=node_instance.id,
+      payload={
+        "node_instance_id": str(node_instance.id),
+        "node_key": node_instance.node_key,
+        "reason": normalized_reason,
+        "previous_engine_state": previous_engine_state.value,
+      },
+    )
+    if commit:
+      await self._session.commit()
+    else:
+      await self._session.flush()
+
+  async def resume_node_instance_by_admin(
+    self,
+    *,
+    node_instance_id: UUID,
+    actor_id: UUID,
+    reason: str,
+    commit: bool = True,
+  ) -> None:
+    """Resume only a node carrying an active admin-suspension marker."""
+    normalized_reason = reason.strip()
+    if len(normalized_reason) < 3 or len(normalized_reason) > 500:
+      raise ConflictError("运维原因长度必须为 3–500 个字符。")
+    graph_instance, node_instance = await self._lock_graph_and_node_instance(
+      node_instance_id=node_instance_id,
+    )
+    self._ensure_snapshot_integrity(graph_instance)
+    if graph_instance.status != WorkflowGraphInstanceStatus.ACTIVE:
+      raise ConflictError("只有运行中的工作流可以恢复节点。")
+    suspension = dict((node_instance.config or {}).get("operational_suspension") or {})
+    if (
+      node_instance.engine_state != WorkflowNodeEngineState.SUSPENDED
+      or suspension.get("status") != "active"
+    ):
+      raise ConflictError("当前节点不是管理员人工挂起状态，不能从此入口恢复。")
+    try:
+      previous_engine_state = WorkflowNodeEngineState(str(suspension["previous_engine_state"]))
+      previous_business_state = WorkflowNodeBusinessState(str(suspension["previous_business_state"]))
+    except (KeyError, ValueError) as exc:
+      raise ConflictError("人工挂起记录缺少可恢复的原状态。") from exc
+    if previous_engine_state not in {
+      WorkflowNodeEngineState.ACTIVATED,
+      WorkflowNodeEngineState.ACKNOWLEDGED,
+    }:
+      raise ConflictError("人工挂起记录中的原状态不可恢复。")
+
+    now = datetime.now(UTC)
+    updated_suspension = {
+      **suspension,
+      "status": "resumed",
+      "resumed_by_user_id": str(actor_id),
+      "resumed_at": now.isoformat(),
+      "resume_reason": normalized_reason,
+    }
+    await HumanTaskCoordinator(self._session).coordinate_mutations(
+      node_instance=node_instance,
+      graph_instance=graph_instance,
+      node_changes={
+        "engine_state": previous_engine_state,
+        "business_state": previous_business_state,
+        "node_instance_version": node_instance.node_instance_version + 1,
+      },
+      node_config_patch={"operational_suspension": updated_suspension},
+      instance_changes={"current_node_key": node_instance.node_key},
+    )
+    await self._session.flush()
+    await WorkflowRunEventService(self._session).append(
+      instance_id=graph_instance.id,
+      event_type="node_resumed_by_admin",
+      actor_user_id=actor_id,
+      aggregate_version=node_instance.node_instance_version,
+      node_instance_id=node_instance.id,
+      payload={
+        "node_instance_id": str(node_instance.id),
+        "node_key": node_instance.node_key,
+        "reason": normalized_reason,
+        "restored_engine_state": previous_engine_state.value,
+      },
     )
     if commit:
       await self._session.commit()

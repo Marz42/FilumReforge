@@ -18,6 +18,7 @@ const ReportsView = () => import('@/views/ReportsView.vue')
 const TaskCenterView = () => import('@/views/TaskCenterView.vue')
 const TaskTemplatesView = () => import('@/views/TaskTemplatesView.vue')
 const GraphTemplateDesignerView = () => import('@/views/GraphTemplateDesignerView.vue')
+const WorkflowOperationsView = () => import('@/views/WorkflowOperationsView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -90,6 +91,14 @@ const router = createRouter({
           path: 'departments',
           name: 'departments',
           component: DepartmentsView,
+          meta: {
+            roles: ['admin'] satisfies UserRole[],
+          },
+        },
+        {
+          path: 'workflow-operations',
+          name: 'workflow-operations',
+          component: WorkflowOperationsView,
           meta: {
             roles: ['admin'] satisfies UserRole[],
           },

@@ -33,7 +33,7 @@ paradigma:
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
 **版本**: v3.22.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-08-11 · RC2 模板可见/可管理边界 · 最新试用候选 `v0.93.0-rc.2`
+**最后同步**: 2026-08-12 · Iteration 5-D 运维/trace 契约 · 最新试用候选 `v0.93.0-rc.2`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -49,6 +49,7 @@ paradigma:
 - **图引擎 + 视频 v1 运行时**: `backend/app/api/routes/workflow_graph_engine.py`（前缀 `/api/v1/workflow-graph`）
   - 图实例/节点：`GET/POST .../instances/{id}`、`.../node-instances/{id}/complete|deep-reject|takeover`
   - Iteration 4 准入：Admin-only `GET .../admin/iteration4-readiness`；无管理权限统一 404
+  - **Iteration 5-D 运维（Admin-only）**：`GET .../admin/operations` 返回 Run/Join/Outbox/projection/shadow 指标、派生异常、FAILED Outbox 与 incident；`GET .../admin/operations/traces` 可按 request/command/correlation/Run/Node/Task 精确过滤，只返回 payload 字段名。`POST .../outbox/{id}/replay`、`PATCH .../incidents/{id}`、`POST .../node-instances/{id}/retry|suspend|resume` 必须带 3–500 字符原因和 durable command receipt；无管理权限统一 404。人工 resume 只接受本入口的 active suspension marker，不能绕过策略阻断。
   - 图模板管理：`GET/PATCH .../templates/{id}`、`GET .../feature-flags`
   - **图模板设计器（F-18–F-20 @ 2026-06-21）**：`GET .../templates?scope=manage`；`POST .../templates`（clone）；`GET/PUT .../templates/{id}/designer|draft`；`POST .../templates/{id}/versions`；`PATCH .../templates/{id}/status`；`GET .../templates/{id}/validate`；`GET/POST .../templates/{id}/export|import`；`POST .../templates/import`；`POST .../templates/{id}/dry-run`；`GET .../templates/{id}/stats`
   - **模板数据治理（2026-08-10）**：`GET .../templates/governance-audit` 对调用者可管理的 ACTIVE/DRAFT 模板执行只读检查，返回 `error|warning|review` 分级、模板/问题/建议、`edit_draft|create_new_version|review_configuration` 修正动作，以及可选引用编码、建议编码和受影响部门。检查覆盖 global 人工确认、global 残留部门编号、空 departments、缺失/停用部门、顶层/节点 `child_template_code`、`on_complete.next_template_code`、旧版本引用与父子 scope 不兼容；接口不自动修改数据。
@@ -194,20 +195,21 @@ paradigma:
 - `workflow_graph_templates 1:N workflow_graph_template_scope_events`；每条事件 N:1 `users` actor
 - `workflow_graph_instances 1:N workflow_node_instances` / `workflow_edge_traversals` / `workflow_node_activation_dependencies` / `workflow_human_task_links` / `workflow_operational_incidents` / `workflow_run_events` / `workflow_outbox_events`
 - `workflow_command_receipts` 以 `(actor_key,command_type,command_id)` 唯一；五类关键 API 命令与业务写同事务提交
-- `workflow_operational_incidents` 以 fingerprint 唯一聚合 Link fallback/mismatch/backfill、Coordinator、Receipt、Outbox 与迁移异常
+- `workflow_operational_incidents` 以 fingerprint 唯一聚合 Link fallback/mismatch/backfill、Coordinator、Receipt、Outbox 与迁移异常；5-D 处置记录 resolver/reason，复发自动 reopen
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run）
 - `workflow_node_instances 1:1 workflow_deliverables`
 - `tasks / workflow_graph_instances / workflow_node_instances` 派生 `task_center_items`；投影可重建且不反向拥有业务事实
 - `workflow_graph_instances 1:1 process_run_summaries`；`workflow_graph_instances 1:N node_timeline_entries`
 - `projection_checkpoints` 以 projection+stream 唯一，独立跟踪 `workflow_run_events` / `task_logs` / `task_comments`；checkpoint 不是业务事实，也不与通知 Outbox 共用状态
+- 5-D 为 `workflow_outbox_events` 增加人工重放审计，为 `workflow_run_events` 增加 nullable request/node/task trace 锚点；不回填猜测历史标识，不把运维派生异常复制为新的业务账本
 
 ## 12. 当前验证基线
 
 最新权威结果见 [`progress summary`](../../logs/progress/summary.md) 与最近独立 session log（2026-08-09 @ 安全与上线准备）：
 
-- backend：Iteration 5-C 后基线 **488 collected / 456 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；Alembic 单 head `20260812_03`
+- backend：Iteration 5-D 后基线 **494 collected / 462 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；Alembic 单 head `20260812_04`
 - Iteration 4-E / Handler / 视频黄金流程定向：**66 PASS**
-- frontend：Vitest **73 文件 / 211 用例 PASS**；`vue-tsc --build`、production build、ESLint 与 Oxlint PASS
+- frontend：Vitest **74 文件 / 214 用例 PASS**；`vue-tsc --build`、ESLint、Oxlint 与 production build PASS
 - 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**
 - 未纳入每次刷新：live/docker-gui、目标环境 I3-F 7 天 readiness、Ubuntu 回滚演练
 

@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "Iteration 5 投影与查询契约"
 description: "三类投影及 projection_checkpoints 的字段来源、身份、授权、排序、所有权、消费与重建边界。"
 tags: [contract, projection, task-center, workflow-graph, iteration-5]
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-08-12T14:25:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: hot
@@ -27,7 +27,7 @@ paradigma:
 
 # Iteration 5 投影与查询契约
 
-> **实现阶段：Iteration 5-C ENGINEERING COMPLETE / TARGET EVIDENCE PENDING**。三类读模型、独立 checkpoint、projector/rebuild 与隐私安全 shadow comparison 已落地；5-D 建设运维入口，5-E 获批前不得切换 Task Center 正式读路径。
+> **实现阶段：Iteration 5-D ENGINEERING COMPLETE / 5-E BLOCKED**。三类读模型、独立 checkpoint、projector/rebuild、隐私安全 shadow comparison、projection lag/backlog 与 Admin-only 运维入口均已落地；真实 PostgreSQL、rebuild/full shadow、持续样本和人工批准完成前不得切换 Task Center 正式读路径。
 
 ## 1. 通用不变量
 
@@ -102,7 +102,7 @@ paradigma:
 - `last_event_id` 是幂等/诊断锚点，不建立跨多种事件表的 FK。
 - 5-B rebuild 已支持单 Task、单 Run 和全量三种范围；单对象先清理对应时间线再幂等重投，全量在同一事务清空/重投，不修改源业务表。
 - 全量重建开始时分别捕获 Run Event、Task Log、Task Comment 的高水位，成功后 checkpoint 定位到该高水位；之后到达的数据由增量消费补齐，重建窗口不丢事件。
-- schema 升级采用 expand → projector/shadow → cutover → contract；`20260812_01` 新增三类读模型，`20260812_02` 新增 checkpoint，`20260812_03` 新增 shadow observation 并将微秒 revision/累计计数提升为 `BIGINT`。downgrade 不触碰业务源表；`03` 降级会清空可重建投影行后恢复旧整数类型。
+- schema 升级采用 expand → projector/shadow/operations → cutover → contract；`20260812_01` 新增三类读模型，`20260812_02` 新增 checkpoint，`20260812_03` 新增 shadow observation 并将微秒 revision/累计计数提升为 `BIGINT`，`20260812_04` 增加 Outbox/incident 运维审计和 Run Event trace 标识。downgrade 不触碰业务源表；`03` 降级会清空可重建投影行后恢复旧整数类型。
 
 ## 8. Checkpoint 与消费实现
 
