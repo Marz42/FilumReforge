@@ -8,10 +8,11 @@ tags:
 timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh:
       - Paradigma
@@ -386,3 +387,7 @@ Paradigma 用 `.template.md` 供 greenfield 复制；Filum 作为 **已有项目
 | `templates/*.json` | 工作流种子数据 |
 | `.github/instructions/*.instructions.md` | 可保留为 conventions 的补充细节 |
 | 内嵌文档版本号 | 迁移期可与根 `VERSION` 并存，最终以 VERSION + changelog 为准 |
+
+# Status
+
+Machine status: completed.

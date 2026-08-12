@@ -17,13 +17,15 @@ description: 审查 memory-bank 与实际代码是否对齐，并输出结构化
 
 ## 先做的事情
 
-开始读文档前，先查看最近提交历史：
+开始读文档前，先恢复 Paradigma Coding runtime，并查看最近提交历史：
 
 ```sh
+pd task status
+pd session status
 git log --oneline -n 20
 ```
 
-如果最近提交明显涉及部署、发布、工作流 E、README 或 memory-bank，同步把相关文件纳入本次审查范围，不要只盯住旧文档。
+将用户意图和下列关键路径转成显式 Context signals，运行 `pd context build ... --write` 与 `pd context verify`。如果最近提交明显涉及部署、发布、工作流、README 或 Memory-Bank，把相关路径补入请求并重建 Manifest，不要用递归扫描全部知识和日志代替 Context Builder。
 
 ## 必读资料
 
@@ -35,7 +37,7 @@ git log --oneline -n 20
 - `memory-bank/knowledge/architecture.md`
 - `memory-bank/knowledge/contracts/data-contracts.md`
 - `memory-bank/knowledge/contracts/repository-contract.md`
-- `memory-bank/logs/progress/` 下最近的 session log
+- `memory-bank/runtime/handoff.md` 与 latest Checkpoint；仅在需要历史证据时读取相关 progress log
 - `memory-bank/knowledge/roadmap.md`
 - `memory-bank/knowledge/plans/implementation-plan.md`
 - `memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md`
@@ -100,4 +102,5 @@ git log --oneline -n 20
 - 不要把 `design-document.md` 中的目标态当作当前实现事实
 - 不要忽略最近提交已经新增但旧 README 仍未同步的事实；这类情况应明确标记为“文档漂移”
 - 如果 `memory-bank` 与代码冲突，必须以可验证的代码、迁移、测试和运行命令为准
-- 不要追加旧 `memory-bank/logs/progress/progress.md`；审查完成后创建独立 session log，并运行 `pd-sync-index.py --write` 与 `pd-check-all.py`
+- 不要修改旧 `memory-bank/logs/progress/0000-legacy-progress.md`；progress log 只在版本、Batch 或人工审计需要时追加
+- 审查完成后运行 `pd index rebuild`、`pd index verify`、`pd check`，写最终 Checkpoint 并结束 Session；严格门禁使用 `pd agent-adapter check` 与 `pd compliance check --profile strict`

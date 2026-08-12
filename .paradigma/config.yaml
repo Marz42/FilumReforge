@@ -1,5 +1,6 @@
+config_schema_version: "0.5"
 okf_version: "0.1"
-schema_version: "0.1"
+installed_distribution_version: "0.7.0"
 
 knowledge_roots:
   - memory-bank/knowledge
@@ -16,9 +17,23 @@ generated_markers:
 runtime_root: memory-bank/runtime
 logs_root: memory-bank/logs
 template_root: memory-bank-template
+machine_index_path: .paradigma/cache/knowledge-index.json
+memory_root: memory-bank/memories
+catalog_path: .paradigma/cache/catalog.sqlite3
 
-# Paradigma Harness 版本追踪。
-# 记录当前项目使用的 Paradigma 模板库版本号。
-# 运行 pd-diagnose.py 可以检查是否有更新。
-paradigma_harness_version: "0.5.0"
-paradigma_upstream_commit: "c4c5e06b1ace2a510dbe365819776258de9e3e51"
+harness_upstream:
+  repository_url: https://github.com/Marz42/paradigma.git
+  channel: main
+  ref: refs/heads/main
+
+agent_protocol:
+  source: AGENT_RULES.md
+  surfaces:
+    - .cursor/rules/memory-bank-protocol.mdc
+    - .github/copilot-instructions.md
+  managed_surfaces: []
+
+# Filum 根 VERSION 属于产品发布版本，不是 Paradigma 发行版本。
+# 上游累计升级 Profile 尚不能表达这一边界，因此协议版本与来源在此独立固定。
+filum_paradigma_version_file: .paradigma/VERSION
+paradigma_upstream_commit: "3422ecf95109d48cfa89036ae96b4085201baef4"

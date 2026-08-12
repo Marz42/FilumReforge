@@ -1,100 +1,52 @@
 #!/usr/bin/env python3
-"""Run all Paradigma quality-gate checks in sequence.
-
-Equivalent to the Update Phase command sequence:
-  pd-lint-okf.py --strict
-  pd-check-links.py
-  pd-sync-index.py --check
-  pd-check-hot-size.py
-  DESIGN.md basic validation (if present)
-
-Stops on the first failure unless --keep-going is passed.
-"""
+"""Compatibility adapter for the package-backed aggregate quality gate."""
 
 from __future__ import annotations
 
-import subprocess
+import argparse
 import sys
-from pathlib import Path
 
+from _bootstrap import ensure_package
 
-ROOT = Path(__file__).resolve().parents[2]
-TOOLS = ROOT / ".paradigma" / "tools"
+ROOT = ensure_package()
 
-STEPS = [
-    ("lint", "pd-lint-okf.py", ["--normal"]),
-    ("links", "pd-check-links.py", ["--allow-warnings"]),
-    ("index", "pd-sync-index.py", ["--check"]),
-    ("hot-size", "pd-check-hot-size.py", []),
-]
-
-
-def _check_design_md() -> bool:
-    """Basic DESIGN.md validation. Returns True if OK or not present."""
-    design_path = ROOT / "DESIGN.md"
-    if not design_path.exists():
-        return True  # No frontend — skip silently.
-
-    content = design_path.read_text(encoding="utf-8")
-    lines = content.splitlines()
-
-    # Check 1: has YAML frontmatter delimiters
-    has_opening = any(line.strip() == "---" for line in lines[:5])
-    if not has_opening:
-        print("  WARNING: DESIGN.md exists but has no YAML frontmatter (missing --- delimiter).")
-        return True  # Warning only, don't block.
-
-    # Check 2: has at least colors and typography tokens
-    lower = content.lower()
-    issues = []
-    if "colors:" not in lower:
-        issues.append("colors")
-    if "typography:" not in lower:
-        issues.append("typography")
-    if issues:
-        print(f"  WARNING: DESIGN.md may be missing token sections: {', '.join(issues)}.")
-    else:
-        # Count approximate token definitions
-        color_count = content.count("#")  # Rough: count hex color occurrences
-        font_count = content.lower().count("fontfamily:")
-        print(f"  OK: DESIGN.md found ({color_count} color hints, {font_count} font declarations).")
-        print("  HINT: For deep validation, run: npx @google/design.md lint DESIGN.md")
-    return True
+from paradigma.application.validation import check_outcome
+from paradigma.errors import ParadigmaError
 
 
 def main() -> int:
-    import argparse
-    parser = argparse.ArgumentParser(description="Run all Paradigma quality-gate checks.")
-    parser.add_argument("--keep-going", action="store_true",
-                        help="run all steps even after a failure")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--keep-going", action="store_true")
     args = parser.parse_args()
-
-    failures = 0
-    total = len(STEPS) + 1  # +1 for DESIGN.md check
-
-    for name, script, extra_args in STEPS:
-        print(f"--- {name} ({script}) ---")
-        cmd = [sys.executable, str(TOOLS / script)] + extra_args
-        result = subprocess.run(cmd, cwd=str(ROOT))
-        if result.returncode != 0:
-            failures += 1
-            print(f"  FAILED (exit {result.returncode})")
-            if not args.keep_going:
-                print(f"\n{failures}/{total} check(s) failed (stopped early).")
-                return 1
-        else:
-            print(f"  OK")
-        print()
-
-    # DESIGN.md check (always warn-only, never fails)
-    print("--- design (DESIGN.md) ---")
-    _check_design_md()
-    print()
-
-    if failures:
-        print(f"{failures}/{total} check(s) failed.")
+    try:
+        outcome = check_outcome(ROOT)
+    except ParadigmaError as error:
+        print(f"ERROR: {error.format()}")
         return 1
-    print(f"All {total} checks passed.")
+    failures = 0
+    displayed = 0
+    for step in outcome.data["steps"]:
+        displayed += 1
+        print(f"--- {step['name']} ---")
+        for diagnostic in step["diagnostics"]:
+            print(
+                f"  {diagnostic['severity'].upper()}: "
+                f"[{diagnostic['code']}] {diagnostic['source']}: "
+                f"{diagnostic['message']}"
+            )
+        if step["ok"]:
+            print("  OK")
+        else:
+            failures += 1
+            print("  FAILED (exit 1)")
+        print()
+        if failures and not args.keep_going:
+            print(f"{failures}/{displayed} check(s) failed (stopped early).")
+            return 1
+    if failures:
+        print(f"{failures}/{outcome.data['total']} check(s) failed.")
+        return 1
+    print(f"All {outcome.data['total']} checks passed.")
     return 0
 
 

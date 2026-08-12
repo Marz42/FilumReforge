@@ -11,10 +11,11 @@ tags:
 timestamp: 2026-07-15T09:30:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: hot
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: [Iteration 2, 路径语义, traversal, activation dependency, no-route]
     en: [iteration 2, edge traversal, activation dependency, workflow routing]
@@ -96,3 +97,7 @@ Iteration 3 的 HumanTask Link、写所有权与 command receipt 未提前实施
 - 为修路径语义必须提前改造 Task 写所有权。
 
 满足停止条件时保留 `graph-v2` 默认，不扩大到 Iteration 3。
+
+# Status
+
+Machine status: completed.

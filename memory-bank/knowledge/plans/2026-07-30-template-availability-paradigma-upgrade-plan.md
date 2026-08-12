@@ -10,6 +10,7 @@ paradigma:
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: [模板可用部门, 已发布模板授权, 范围审计, Paradigma 升级]
     en: [template availability, published scope grant, scope audit, Paradigma upgrade]
@@ -35,7 +36,7 @@ paradigma:
 1. 将 availability scope 视为可变治理元数据，与不可变工作流定义版本分离。
 2. 新增独立 scope event 表，服务层保证 ACTIVE 更新单调扩大，并将模板范围与审计事件同事务提交。
 3. 前端只展示允许的扩大操作；后端继续作为最终安全边界。
-4. 保留旧 `logs/progress/progress.md` 作为历史汇总，从本次开始按 Paradigma 0.5.0 写入 `logs/progress/YYYY-MM-DD-*.md`。
+4. 当时保留的旧汇总现已迁为 `logs/progress/0000-legacy-progress.md`，并由 Paradigma 0.7 log governance 冻结。
 5. 协议先更新 `AGENT_RULES.md`，再同步 `INIT_PROMPT.md`、IDE 适配器和仓库 Prompt。
 
 # Tasks
@@ -49,4 +50,6 @@ paradigma:
 
 # Status
 
+
+Machine status: completed.
 **completed** — 通用模板范围治理、前端入口、审计、Paradigma 0.5.0 协议与 Prompt 已完成；全量回归通过。

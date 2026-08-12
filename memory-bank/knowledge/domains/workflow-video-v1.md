@@ -94,7 +94,7 @@ Pydantic：`backend/app/schemas/workflow_video.py`
 
 ## 阶段状态
 
-W0–W10 **done**（历史验收见 [`logs/progress/progress.md`](../../logs/progress/progress.md)「视频工作流 v1」表）
+W0–W10 **done**（历史验收见 [`logs/progress/0000-legacy-progress.md`](../../logs/progress/0000-legacy-progress.md)「视频工作流 v1」表）
 
 W0–W10 视频黄金流程与 I4-E 领域中立内核均已完成；旧公共 API、历史 Run 和旧客户端字段仍在兼容窗口，尚未满足删除 dual-read 的条件。
 

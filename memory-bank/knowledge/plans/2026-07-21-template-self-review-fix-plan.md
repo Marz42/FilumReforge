@@ -6,10 +6,11 @@ tags: ["plan", "task-center", "self-review", "reviewer"]
 timestamp: 2026-07-21T00:00:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: ["模板自审", "验收人", "self-review"]
     en: ["template self review", "reviewer"]
@@ -510,3 +511,7 @@ tests/test_p1_10_template_review_safety.py::test_without_self_review_fallback_fl
 - [ ] All test functions are `async def` with `@pytest.mark.asyncio` and take `db_session` fixture — consistent with existing test file pattern.
 - [ ] `AuthorizationError` import not needed in tests (tests only catch `ConflictError`) — consistent with existing imports.
 - [ ] Task order preserves guard priority: ADMIN bypass → self_review_fallback → assignee block → reviewer_id check.
+
+# Status
+
+Machine status: completed.

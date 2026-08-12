@@ -8,10 +8,11 @@ tags:
 timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh:
       - 工作流重构
@@ -85,7 +86,7 @@ paradigma:
 
 1. `memory-bank/data-contracts.md`：schema、枚举变更。
 2. `memory-bank/architecture.md`：模块职责与行为事实。
-3. `memory-bank/logs/progress/progress.md`：当时的阶段状态、验证命令和用户验收结论；新会话使用独立日志。
+3. `memory-bank/logs/progress/0000-legacy-progress.md`：当时的阶段状态、验证命令和用户验收结论；新证据以 Checkpoint 为事实源。
 3. 本文件：只在阶段边界变化或顺序调整时更新，不做流水账。
 
 ## 4. 路线总览
@@ -836,7 +837,7 @@ Set-Location d:/Repos/FilumReforge/frontend; npm run build
 3. Playwright 框架接入：已新增 `frontend/playwright.config.ts`、`frontend/playwright.live.config.ts`、`frontend/e2e/` 与配套 npm scripts，分别承载 mock API E2E 与真实 backend/Compose E2E。
 4. 基础浏览器端到端用例：mock 基线已覆盖登录 / 会话恢复、任务中心加载与主标签切换、graph-first 详情展示；live 基线已覆盖隔离 Compose 环境下的真实登录与任务中心建立任务链路，不新增完整 workflow graph 可视化 UI。
 5. 前端单测补强：已扩展 `frontend/tests/LoginView.spec.ts`、`TaskCenterView.spec.ts`，并为登录页 / 任务中心 / 任务详情新增稳定锚点，保证 E2E 所需选择器有单测保护。
-6. 最终文档与回归收口：已更新迁移后的 `memory-bank/knowledge/architecture.md`、`memory-bank/logs/progress/progress.md`、`memory-bank/knowledge/plans/implementation-plan.md` 与 `frontend/README.md`；当时已完成 frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`、`npm run test:e2e`、`npm run test:e2e:live`。Linux/Ubuntu 近似环境上的 `bash scripts/check-release.sh` 继续保留为部署工程化主线闸门，不计入 11-G 的前端交付关闭条件。
+6. 最终文档与回归收口：已更新迁移后的 `memory-bank/knowledge/architecture.md`、`memory-bank/logs/progress/0000-legacy-progress.md`、`memory-bank/knowledge/plans/implementation-plan.md` 与 `frontend/README.md`；当时已完成 frontend `npm run test:unit -- --run`、`npm run type-check`、`npm run build`、`npm run test:e2e`、`npm run test:e2e:live`。Linux/Ubuntu 近似环境上的 `bash scripts/check-release.sh` 继续保留为部署工程化主线闸门，不计入 11-G 的前端交付关闭条件。
 
 #### 当前已确认边界
 
@@ -897,3 +898,7 @@ npm run test:e2e:live
 - 这三步能最快把“页面方向”“底层模型”“新旧链路兼容策略”固定下来。
 - 它们尚未引入最危险的 Deep Rejection 和 Wait-Any 并发撤权问题。
 - 做完这三步后，后续每个动作都能围绕新引擎追加，而不是继续在旧状态机上堆补丁。
+
+# Status
+
+Machine status: completed.

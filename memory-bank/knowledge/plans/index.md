@@ -1,8 +1,8 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 46eabf002edf430e -->
-<!-- generated_by: pd-sync-index.py -->
+<!-- checksum: 406b2976bc9131a4 -->
+<!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
 |------|------|-------|-------|---------|-----------|

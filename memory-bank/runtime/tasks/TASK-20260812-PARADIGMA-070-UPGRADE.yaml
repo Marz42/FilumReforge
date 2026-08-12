@@ -1,0 +1,18 @@
+coding_runtime_schema_version: '0.1'
+kind: coding_task
+snapshot_revision: 2
+task:
+  task_id: TASK-20260812-PARADIGMA-070-UPGRADE
+  repository:
+    workspace_id: FilumReforge
+    repository_id: FilumReforge
+    repository_path: .
+    remote_url: null
+  title: Upgrade Filum to latest Paradigma protocol
+  goal: Adopt Paradigma 0.7.0 protocol semantics and latest main fixes without changing the Filum product
+    version.
+  status: completed
+  created_at: '2026-08-12T20:57:38.442565+08:00'
+  updated_at: '2026-08-12T21:17:30.142776+08:00'
+  status_reason: null
+  parent_task_id: null

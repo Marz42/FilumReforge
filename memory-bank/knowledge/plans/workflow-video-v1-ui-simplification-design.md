@@ -9,10 +9,11 @@ tags:
 timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: deprecated
+  plan_status: archived
   retrieval_hints:
     zh:
       - UI
@@ -445,3 +446,7 @@ P0 **不要求** 改后端；P1 增量派发需下列扩展（写入 `data-contr
 | 2026-06-18 | v2.1 | 纳入产品四场景（S1–S4）；§6.2b 增量派发与 `dispatch_topic` 契约；Action Profile `submit_mode`；任务中心 IA 2.0；验收标准分 P0/P1/P2 |
 | 2026-06-18 | v2.1-demo | 新增 [`workflow-task-center-v2.1-demo.html`](../demos/workflow-task-center-v2.1-demo.html) 交互 Demo |
 | 2026-06-18 | v2.1-shipped | §11.1–§11.3 验收全勾选；P0–P2 工程落地 @ `0.88.0`；TC-P3 后置 |
+
+# Status
+
+Machine status: archived.

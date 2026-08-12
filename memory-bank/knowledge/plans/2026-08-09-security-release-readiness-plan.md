@@ -6,10 +6,11 @@ tags: [plan, security, release, authorization, hardening]
 timestamp: 2026-08-09T22:31:54+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: [安全问题, 上线准备, 发布门禁, 对象授权]
     en: [security findings, release readiness, authorization, hardening]
@@ -59,4 +60,6 @@ paradigma:
 
 # Status
 
+
+Machine status: completed.
 **engineering complete · external gates pending** — 本地安全修复和自动化门禁完成；生产部署仍须完成上线 checklist 中的目标环境证据。

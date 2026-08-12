@@ -6,10 +6,11 @@ tags: ["plan", "workflow-graph", "iteration-4", "alignment", "frontend", "domain
 timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: ["Iteration 4 前置", "文档漂移", "视频去特殊化", "前端问题分级"]
     en: ["iteration 4 preflight", "documentation alignment", "domain neutral workflow"]
@@ -69,3 +70,7 @@ paradigma:
 - [x] 前端第一批 6 项已实现且无 P0/P1；反馈入口继续开放，新增反馈按 P0–P3 即时分级。
 - [x] 提交者/推进者重叠规则经用户确认并写入 ADR-019 / I4 计划。
 - [ ] Iteration 3-F 生产切流门禁仍独立有效。
+
+# Status
+
+Machine status: completed.

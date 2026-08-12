@@ -101,7 +101,7 @@ Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、�
 | 通用模板链 + 防环 | **done** @ `0.90.0` — F-23 |
 | 部门定时图模板 · 附件预览 | **done** @ `0.90.0` — F-24 / F-25 |
 | **F-29 管理员任务归档** · Admin 跟踪督办 · 逾期延期 | **done** @ `0.91.0` |
-| Paradigma v0.5.0 三态迁移 · 文档大小合规 | **done** @ `0.92.0` |
+| Paradigma v0.7.0 CLI runtime · Context/计划/日志治理 | **done** @ upstream `3422ecf`；版本路径兼容见 KI-013 |
 | Task Center P0–P2 审计修复 · 模板任务防自审 | **done** @ `0.92.1` |
 | 模板引擎解耦 Phase 1 | **done** @ Unreleased — tags / capabilities / archive / ACTIVE lock |
 | 模板引擎解耦 Phase 2 首批 | **implemented · pending UAT** — structured authoring |

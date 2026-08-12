@@ -6,10 +6,11 @@ tags: [plan, frontend, task-center, f-05, refactor, actions]
 timestamp: 2026-08-11T23:15:47+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: [F-05 动作协调, 任务动作提交, 交付验收, 握手转办]
     en: [F-05 action coordination, task commands, deliverable review, delegation]
@@ -52,3 +53,7 @@ paradigma:
 - `TaskDetailShell.vue` 从约 1,895 行降至约 1,569 行；模板和权限计算保持在 Shell。
 - `useTaskDetailActions.ts` 304 行，负责通用命令、表单、loading 与动作后刷新；`useTaskAssignmentActions.ts` 178 行，负责接单/退回/转办及候选加载。
 - 新增 6 项 composable 回归；前端全量 69 files / 197 tests、type-check、ESLint、Oxlint 与 production build 通过。
+
+# Status
+
+Machine status: completed.

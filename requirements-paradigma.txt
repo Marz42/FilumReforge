@@ -1,0 +1,2 @@
+# Developer-only Paradigma protocol tooling; not an application runtime dependency.
+paradigma @ git+https://github.com/Marz42/paradigma.git@3422ecf95109d48cfa89036ae96b4085201baef4

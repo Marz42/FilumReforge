@@ -237,4 +237,4 @@ paradigma:
 ### Notes
 
 - 此版本号为 **文档体系与协作协议** 基线，不代表产品功能大版本发布
-- 产品功能交付历史见 [`progress/progress.md`](./progress/progress.md) 与 [`roadmap.md`](../knowledge/roadmap.md)
+- 产品功能交付历史见 [`progress/0000-legacy-progress.md`](./progress/0000-legacy-progress.md) 与 [`roadmap.md`](../knowledge/roadmap.md)

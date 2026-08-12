@@ -1,23 +1,26 @@
-# Copilot Instructions — Project Filum (FilumReforge)
+# Copilot Instructions — Project Filum
 
-> **完整协议**: [`AGENT_RULES.md`](../AGENT_RULES.md) | **Cursor**: `.cursor/rules/memory-bank-protocol.mdc`
+> 完整协议以 [`AGENT_RULES.md`](../AGENT_RULES.md) 为准；本文件只映射 Paradigma `0.7.0` 最小操作语义。
 
-## 🔥 HOT（每次对话必读）
+## 启动
 
-`memory-bank/runtime/active-task.md` → `memory-bank/knowledge/index.md` → `project-brief.md` · `architecture.md` · `contracts/data-contracts.md` · `contracts/repository-contract.md` · `conventions.md`；续接任务再读 `memory-bank/logs/progress/` 最近 session log。
+1. 运行 `pd task status` 与 `pd session status`；需要新 Task/Session 时先 dry-run，再以 `--write` 执行。
+2. 将任务转成 path/symbol/keyword/budget，运行 `pd context build ... --write` 和 `pd context verify`。
+3. 只读取 Context Manifest 选择的文档与理由；前端任务把 `DESIGN.md` 作为显式 path signal。
 
-## 工作方式
+## 执行
 
-简体中文 | 写代码前读 HOT | schema 破坏性变更须用户同意 | 不默认 commit | 阶段 checkpoint 更新 active-task/contracts | 会话结束创建独立 session log | `pd-sync-index --write` 后运行 `pd-check-all`
+- Task、Session、Checkpoint YAML 是事实；`active-task.md`、`handoff.md`、`context-manifest.yaml` 是 generated projection，不直接编辑。
+- 长期事实写 knowledge；阻塞、暂停、恢复和完成通过 `pd task block/unblock/suspend/resume/complete/abort`。
+- 可恢复边界使用 `pd session checkpoint`；只修改任务范围，保留用户既有改动。
+- 简体中文；破坏性 API/schema 变更先征得用户同意；不默认 commit。
 
-## 专项入口
+## 收口
 
-| 任务 | 文件 |
-|------|------|
-| 会话启动 | `INIT_PROMPT.md` |
-| 对齐审查 | `.github/prompts/memory-bank-alignment-review.prompt.md` |
-| ADR / 术语 / 坑位 | `memory-bank/knowledge/decisions/`、`glossary.md`、`known-issues/` |
-| 子系统细节 | `memory-bank/knowledge/domains/*.md` |
-| 部署 | `memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md` |
+1. 更新受影响的 knowledge/ADR/contract/known issue/changelog。
+2. 运行 `pd index rebuild`、`pd index verify`、范围测试、`pd check`；按需运行 `pd runtime verify`、`pd catalog rebuild/verify`。
+3. 最终运行 `pd agent-adapter check` 与 `pd compliance check --profile strict`。
+4. source 变化后重建并验证 Context Manifest；写最终 Checkpoint，随后 `pd session end --write`。
+5. Task 完成时在 Session end 后 `pd task complete --write`；否则保持 active 或明确 block/suspend。
 
-技术细节见 `memory-bank/knowledge/conventions.md` 与 `backend/README.md`、`frontend/README.md`。
+专项入口：会话模板见 `INIT_PROMPT.md`；对齐审查见 `.github/prompts/memory-bank-alignment-review.prompt.md`；工程规范见 `memory-bank/knowledge/conventions.md`。

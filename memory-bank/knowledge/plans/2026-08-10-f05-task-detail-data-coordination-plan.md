@@ -6,10 +6,11 @@ tags: [plan, frontend, task-center, f-05, refactor]
 timestamp: 2026-08-10T17:05:00+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: [F-05 壳层拆分, 任务详情加载, 快速切换竞态]
     en: [F-05 shell split, task detail loading, selection race]
@@ -45,3 +46,7 @@ paradigma:
 ## 后续 F-05
 
 本批不宣告 F-05 完成。下一批优先把动作提交状态与命令处理提取为 composable，再评估把任务资料/评论展示表单拆成独立板块；每批均保持行为不变并单独提交。
+
+# Status
+
+Machine status: completed.

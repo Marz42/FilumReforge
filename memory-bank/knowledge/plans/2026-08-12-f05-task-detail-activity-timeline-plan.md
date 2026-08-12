@@ -6,10 +6,11 @@ tags: [plan, completed, f-05, task-center, frontend, activity-timeline]
 timestamp: 2026-08-12T00:00:11+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: [F-05 活动时间线, 任务留痕展示, 时间线拆分]
     en: [F-05 activity timeline, task trace presentation, timeline split]
@@ -38,3 +39,7 @@ paradigma:
 2. 保留 Shell 数据、动作、协作与 `TasksView` 集成回归。
 3. 全量 unit、type-check、ESLint、Oxlint 和 build 通过。
 4. Shell 不再承担 Task Activity 的逐项模板与日志摘要格式化，但不以机械追求单文件行数作为唯一标准。
+
+# Status
+
+Machine status: completed.

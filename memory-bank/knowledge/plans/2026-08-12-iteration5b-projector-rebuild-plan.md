@@ -6,10 +6,11 @@ tags: [plan, active, workflow-graph, iteration-5, projection, projector, rebuild
 timestamp: 2026-08-12T12:05:50+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: hot
+  temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [Iteration 5-B, 投影消费, checkpoint, 幂等重建, projector]
     en: [Iteration 5-B, projection consumer, checkpoint, idempotent rebuild, projector]
@@ -79,3 +80,7 @@ paradigma:
 - ARQ 已注册独立 `process_workflow_projection_events_job`，与通知 Outbox 分开调度、checkpoint 和重试状态。
 - Alembic 单 head `20260812_02`；PostgreSQL 增量离线 SQL、`compileall`、定向 18 tests 与后端全量 479 collected / 447 passed / 32 skipped / 0 failed 通过。
 - 真实 PostgreSQL head↔base 仍因本机无 Docker/PostgreSQL 待目标环境补证；该证据阻止 5-E，不阻止 5-C shadow comparison 开发。
+
+# Status
+
+Machine status: in-progress.

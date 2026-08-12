@@ -13,7 +13,8 @@ paradigma:
   temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh:
       - 图引擎升级
@@ -541,3 +542,7 @@ npm run build
 2. 用 readiness API/CLI 连续记录 7 天 Link 覆盖、fallback、incident 与 migration blocker；
 3. 完成目标环境恢复/无损代码回滚演练；
 4. 输出 31 项最终准入报告，用户批准后才启动 Iteration 4。
+
+# Status
+
+Machine status: in-progress.

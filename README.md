@@ -83,7 +83,9 @@ Legacy E 历史能力已收口，当前模板产品入口统一走图引擎。�
 
 ## 文档入口
 
-Agent 协作见 [`AGENT_RULES.md`](AGENT_RULES.md)、[`VERSION`](VERSION)。memory-bank 索引与温度分层见 [`memory-bank/README.md`](memory-bank/README.md)。
+Agent 协作见 [`AGENT_RULES.md`](AGENT_RULES.md) 与 [`.paradigma/VERSION`](.paradigma/VERSION)；根 [`VERSION`](VERSION) 仅表示 Filum 产品版本。Memory-Bank 的 CLI runtime、Context 与检索约定见 [`memory-bank/README.md`](memory-bank/README.md)。开发机可用 `python -m pip install -r requirements-paradigma.txt` 安装固定提交的 Paradigma 工具。
+
+Paradigma 0.7 的最小启动与门禁命令为 `pd runtime init`、`pd context build`、`pd agent-adapter check` 和 `pd compliance check --profile strict`；所有 mutation 先 dry-run，再显式 `--write`。Filum 根产品版本与协议版本的上游兼容缺口见 [KI-013](memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md)。
 
 | 文件 | 用途 |
 | --- | --- |
@@ -358,7 +360,7 @@ sudo journalctl -u filum-backend -u filum-worker -f
 
 ## 测试与验证
 
-**当前测试基线**见 [`memory-bank/logs/progress/summary.md`](memory-bank/logs/progress/summary.md) 与最新独立 session log。旧 [`progress.md`](memory-bank/logs/progress/progress.md) 仅作为 Paradigma 0.5.0 升级前历史基线保留。Playwright/live 与 I3-F 目标环境门禁不纳入每次本地刷新。
+**当前测试基线**见 [`memory-bank/logs/progress/summary.md`](memory-bank/logs/progress/summary.md) 与最新审计日志。旧 [`0000-legacy-progress.md`](memory-bank/logs/progress/0000-legacy-progress.md) 已纳入 Paradigma 0.7 exact-byte 历史基线。Playwright/live 与 I3-F 目标环境门禁不纳入每次本地刷新。
 
 ### Backend
 

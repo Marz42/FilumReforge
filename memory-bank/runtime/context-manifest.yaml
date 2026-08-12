@@ -1,0 +1,384 @@
+manifest_version: '0.2'
+profile: coding
+request:
+  intent: Upgrade Filum to Paradigma 0.7.0 and latest M0-M4 governance fixes while preserving product
+    version semantics
+  task_id: TASK-20260812-PARADIGMA-070-UPGRADE
+  explicit_paths:
+  - AGENT_RULES.md
+  - .paradigma/config.yaml
+  - memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
+  - memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
+  explicit_symbols: []
+  keywords:
+  - Paradigma
+  - protocol
+  - runtime
+  budget_tokens: 55000
+  allow_required_over_budget: false
+session_id: SESSION-20260812-PARADIGMA-070-UPGRADE
+checkpoint_id: CHECKPOINT-20260812-PARADIGMA-070-UPGRADE
+source_digest: sha256:d16d3fcc407901b3544bb8970d92f3d757c2132bef088526a0ded21a397a5e99
+estimated_tokens: 54721
+documents:
+- document_id: memory-bank/knowledge/architecture.md
+  path: memory-bank/knowledge/architecture.md
+  source_kind: knowledge
+  title: Project Filum — 系统架构
+  priority: required
+  estimated_tokens: 8017
+  reasons:
+  - mandatory_hot_document
+  - keyword_match:runtime
+  - relation_from:docs/rfc/paradigma-okf-compatible-runtime.md:informs
+- document_id: memory-bank/knowledge/contracts/data-contracts.md
+  path: memory-bank/knowledge/contracts/data-contracts.md
+  source_kind: knowledge
+  title: Project Filum — 数据契约
+  priority: required
+  estimated_tokens: 5458
+  reasons:
+  - mandatory_hot_document
+  - keyword_match:runtime
+  - relation_from:memory-bank/knowledge/contracts/database/graph-engine-schema.md:depends_on
+  - relation_from:memory-bank/knowledge/contracts/projection-contract.md:depends_on
+  - relation_from:memory-bank/knowledge/decisions/adr-020-published-template-availability-scope.md:informs
+  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md:related_to
+- document_id: memory-bank/knowledge/contracts/projection-contract.md
+  path: memory-bank/knowledge/contracts/projection-contract.md
+  source_kind: knowledge
+  title: Iteration 5 投影与查询契约
+  priority: required
+  estimated_tokens: 2696
+  reasons:
+  - mandatory_hot_document
+  - keyword_match:runtime
+  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5d-operations-observability-plan.md:depends_on
+- document_id: memory-bank/knowledge/contracts/repository-contract.md
+  path: memory-bank/knowledge/contracts/repository-contract.md
+  source_kind: knowledge
+  title: Project Filum — 仓库契约
+  priority: required
+  estimated_tokens: 347
+  reasons:
+  - mandatory_hot_document
+  - keyword_match:Paradigma
+  - keyword_match:protocol
+  - relation_from:docs/rfc/paradigma-okf-compatible-runtime.md:informs
+  - relation_from:memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md:constrains
+- document_id: memory-bank/knowledge/conventions.md
+  path: memory-bank/knowledge/conventions.md
+  source_kind: knowledge
+  title: Project Filum — 编码与协作规范
+  priority: required
+  estimated_tokens: 1989
+  reasons:
+  - mandatory_hot_document
+  - keyword_match:Paradigma
+- document_id: memory-bank/knowledge/project-brief.md
+  path: memory-bank/knowledge/project-brief.md
+  source_kind: knowledge
+  title: Project Filum — 项目身份卡片
+  priority: required
+  estimated_tokens: 1908
+  reasons:
+  - mandatory_hot_document
+  - keyword_match:Paradigma
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
+  path: memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
+  source_kind: knowledge
+  title: 'ADR-021: 采用 Paradigma 0.7 CLI 运行态并分离产品版本'
+  priority: required
+  estimated_tokens: 1027
+  reasons:
+  - path_match:memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
+  - keyword_match:Paradigma
+  - keyword_match:runtime
+  - relation_from:memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md:related_to
+- document_id: memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
+  path: memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
+  source_kind: knowledge
+  title: 'KI-013: Paradigma 与 Filum 根 VERSION 语义冲突'
+  priority: required
+  estimated_tokens: 765
+  reasons:
+  - path_match:memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
+  - keyword_match:Paradigma
+  - keyword_match:runtime
+  - relation_from:memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md:related_to
+- document_id: docs/rfc/paradigma-okf-compatible-runtime.md
+  path: docs/rfc/paradigma-okf-compatible-runtime.md
+  source_kind: knowledge
+  title: Paradigma OKF-Compatible Agent Memory Runtime
+  priority: relevant
+  estimated_tokens: 11343
+  reasons:
+  - keyword_match:Paradigma
+  - keyword_match:protocol
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/contracts/database/graph-engine-schema.md
+  path: memory-bank/knowledge/contracts/database/graph-engine-schema.md
+  source_kind: knowledge
+  title: 图引擎 Schema
+  priority: relevant
+  estimated_tokens: 2478
+  reasons:
+  - keyword_match:runtime
+  - relation_from:memory-bank/knowledge/contracts/projection-contract.md:depends_on
+  - relation_from:memory-bank/knowledge/manuals/workflow-graph-engine-iteration3f-test-runbook.md:depends_on
+  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md:related_to
+- document_id: memory-bank/knowledge/decisions/adr-005-dual-track-workflow.md
+  path: memory-bank/knowledge/decisions/adr-005-dual-track-workflow.md
+  source_kind: knowledge
+  title: 'ADR-005: 工作流双轨'
+  priority: relevant
+  estimated_tokens: 308
+  reasons:
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/decisions/adr-007-paradigma-alignment.md
+  path: memory-bank/knowledge/decisions/adr-007-paradigma-alignment.md
+  source_kind: knowledge
+  title: 'ADR-007: Memory-Bank Paradigma 对齐'
+  priority: relevant
+  estimated_tokens: 266
+  reasons:
+  - keyword_match:Paradigma
+  - relation_from:memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md:supersedes
+  - relation_from:memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md:caused_by
+- document_id: memory-bank/knowledge/decisions/adr-008-graph-template-designer.md
+  path: memory-bank/knowledge/decisions/adr-008-graph-template-designer.md
+  source_kind: knowledge
+  title: 'ADR-008: 图模板设计器'
+  priority: relevant
+  estimated_tokens: 331
+  reasons:
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/decisions/adr-009-single-step-boundary.md
+  path: memory-bank/knowledge/decisions/adr-009-single-step-boundary.md
+  source_kind: knowledge
+  title: 'ADR-009: 单步任务产品边界'
+  priority: relevant
+  estimated_tokens: 475
+  reasons:
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/decisions/adr-014-task-work-item-link-boundary.md
+  path: memory-bank/knowledge/decisions/adr-014-task-work-item-link-boundary.md
+  source_kind: knowledge
+  title: 'ADR-014: 保留 Task 接口并建立正式工作项 Link'
+  priority: relevant
+  estimated_tokens: 501
+  reasons:
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/decisions/adr-015-approval-handler-reuse.md
+  path: memory-bank/knowledge/decisions/adr-015-approval-handler-reuse.md
+  source_kind: knowledge
+  title: 'ADR-015: 通过 Handler 复用现有审批引擎'
+  priority: relevant
+  estimated_tokens: 463
+  reasons:
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/decisions/adr-018-domain-neutral-workflow-templates.md
+  path: memory-bank/knowledge/decisions/adr-018-domain-neutral-workflow-templates.md
+  source_kind: knowledge
+  title: 'ADR-018: 工作流模板领域中立 — 视频流程作为普通模板包'
+  priority: relevant
+  estimated_tokens: 1030
+  reasons:
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/decisions/adr-019-decision-subject-actor-overlap.md
+  path: memory-bank/knowledge/decisions/adr-019-decision-subject-actor-overlap.md
+  source_kind: knowledge
+  title: 'ADR-019: 按决策对象与动作语义处理参与者重叠'
+  priority: relevant
+  estimated_tokens: 1403
+  reasons:
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/decisions/adr-020-published-template-availability-scope.md
+  path: memory-bank/knowledge/decisions/adr-020-published-template-availability-scope.md
+  source_kind: knowledge
+  title: 'ADR-020: 已发布模板可用范围作为可变治理元数据'
+  priority: relevant
+  estimated_tokens: 770
+  reasons:
+  - keyword_match:Paradigma
+- document_id: memory-bank/knowledge/decisions/decisions.md
+  path: memory-bank/knowledge/decisions/decisions.md
+  source_kind: knowledge
+  title: ADR 合集 (已拆分)
+  priority: relevant
+  estimated_tokens: 2464
+  reasons:
+  - keyword_match:Paradigma
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/domains/architecture/backend-architecture.md
+  path: memory-bank/knowledge/domains/architecture/backend-architecture.md
+  source_kind: knowledge
+  title: Backend 架构细节
+  priority: relevant
+  estimated_tokens: 9779
+  reasons:
+  - keyword_match:runtime
+- document_id: memory-bank/knowledge/glossary.md
+  path: memory-bank/knowledge/glossary.md
+  source_kind: knowledge
+  title: Project Filum — 术语表
+  priority: relevant
+  estimated_tokens: 903
+  reasons:
+  - keyword_match:Paradigma
+excluded:
+- document_id: memory-bank/knowledge/plans/2026-07-22-template-decouple-phase1-plan.md
+  path: memory-bank/knowledge/plans/2026-07-22-template-decouple-phase1-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 12251
+- document_id: memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md
+  path: memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 1217
+- document_id: memory-bank/knowledge/plans/2026-07-29-video-domain-neutral-migration-inventory.md
+  path: memory-bank/knowledge/plans/2026-07-29-video-domain-neutral-migration-inventory.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 1547
+- document_id: memory-bank/knowledge/plans/2026-07-30-template-availability-paradigma-upgrade-plan.md
+  path: memory-bank/knowledge/plans/2026-07-30-template-availability-paradigma-upgrade-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 725
+- document_id: memory-bank/knowledge/plans/2026-08-09-security-release-readiness-plan.md
+  path: memory-bank/knowledge/plans/2026-08-09-security-release-readiness-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 882
+- document_id: memory-bank/knowledge/plans/2026-08-10-iteration4-uat-preflight-plan.md
+  path: memory-bank/knowledge/plans/2026-08-10-iteration4-uat-preflight-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 832
+- document_id: memory-bank/knowledge/plans/2026-08-12-f05-task-detail-workflow-presentation-plan.md
+  path: memory-bank/knowledge/plans/2026-08-12-f05-task-detail-workflow-presentation-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 563
+- document_id: memory-bank/knowledge/plans/improvements-stage2-implementation-plan.md
+  path: memory-bank/knowledge/plans/improvements-stage2-implementation-plan.md
+  reason: plan_status_filtered:archived
+  estimated_tokens: 3492
+- document_id: memory-bank/knowledge/plans/paradigma-memory-bank-refactor-plan.md
+  path: memory-bank/knowledge/plans/paradigma-memory-bank-refactor-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 4639
+- document_id: memory-bank/knowledge/plans/task-center-enhance.md
+  path: memory-bank/knowledge/plans/task-center-enhance.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 5637
+- document_id: memory-bank/knowledge/plans/tc-p2-views-stats-plan.md
+  path: memory-bank/knowledge/plans/tc-p2-views-stats-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 3777
+- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md
+  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 1959
+- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
+  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 2353
+- document_id: memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md
+  path: memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 11556
+- document_id: memory-bank/knowledge/domains/architecture/core-workflows.md
+  path: memory-bank/knowledge/domains/architecture/core-workflows.md
+  reason: budget_trimmed
+  estimated_tokens: 4411
+- document_id: memory-bank/knowledge/domains/architecture/frontend-architecture.md
+  path: memory-bank/knowledge/domains/architecture/frontend-architecture.md
+  reason: budget_trimmed
+  estimated_tokens: 6646
+- document_id: memory-bank/knowledge/domains/architecture/infra-architecture.md
+  path: memory-bank/knowledge/domains/architecture/infra-architecture.md
+  reason: budget_trimmed
+  estimated_tokens: 5011
+- document_id: memory-bank/knowledge/domains/task-center.md
+  path: memory-bank/knowledge/domains/task-center.md
+  reason: budget_trimmed
+  estimated_tokens: 6882
+- document_id: memory-bank/knowledge/domains/workflow-graph-engine.md
+  path: memory-bank/knowledge/domains/workflow-graph-engine.md
+  reason: budget_trimmed
+  estimated_tokens: 7467
+- document_id: memory-bank/knowledge/domains/workflow-video-v1.md
+  path: memory-bank/knowledge/domains/workflow-video-v1.md
+  reason: budget_trimmed
+  estimated_tokens: 1430
+- document_id: memory-bank/knowledge/known-issues/ki-007-windows-playwright-excluded-port.md
+  path: memory-bank/knowledge/known-issues/ki-007-windows-playwright-excluded-port.md
+  reason: budget_trimmed
+  estimated_tokens: 324
+- document_id: memory-bank/knowledge/known-issues/known-issues.md
+  path: memory-bank/knowledge/known-issues/known-issues.md
+  reason: budget_trimmed
+  estimated_tokens: 2173
+- document_id: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
+  path: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
+  reason: budget_trimmed
+  estimated_tokens: 1406
+- document_id: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
+  path: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
+  reason: budget_trimmed
+  estimated_tokens: 7288
+- document_id: memory-bank/knowledge/manuals/workflow-graph-engine-iteration3f-test-runbook.md
+  path: memory-bank/knowledge/manuals/workflow-graph-engine-iteration3f-test-runbook.md
+  reason: budget_trimmed
+  estimated_tokens: 2920
+- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
+  path: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1376
+- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5d-operations-observability-plan.md
+  path: memory-bank/knowledge/plans/2026-08-12-iteration5d-operations-observability-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1628
+- document_id: memory-bank/knowledge/plans/implementation-plan.md
+  path: memory-bank/knowledge/plans/implementation-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 4104
+- document_id: memory-bank/knowledge/plans/plan-status-catalog.md
+  path: memory-bank/knowledge/plans/plan-status-catalog.md
+  reason: budget_trimmed
+  estimated_tokens: 1435
+- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
+  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 4730
+- document_id: memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
+  path: memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 6841
+- document_id: memory-bank/knowledge/roadmap.md
+  path: memory-bank/knowledge/roadmap.md
+  reason: budget_trimmed
+  estimated_tokens: 3060
+- document_id: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
+  path: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
+  reason: budget_trimmed
+  estimated_tokens: 1196
+- document_id: memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
+  path: memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
+  reason: budget_trimmed
+  estimated_tokens: 1757
+- document_id: memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md
+  path: memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1188
+- document_id: memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md
+  path: memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1300
+- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
+  path: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1625
+- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5c-shadow-comparison-plan.md
+  path: memory-bank/knowledge/plans/2026-08-12-iteration5c-shadow-comparison-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1488
+warnings: []
+checksum: sha256:1284c20533caa7a4215ca462514618e664c1e87fb3caf94b081bfa69269cf12a

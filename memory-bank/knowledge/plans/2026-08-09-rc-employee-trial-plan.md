@@ -9,7 +9,8 @@ paradigma:
   temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [RC 试用, 员工内测, 发布标签, 持续开发, 热修]
     en: [release candidate, employee trial, immutable tag, hotfix, continued development]
@@ -81,3 +82,7 @@ paradigma:
 - 本地工程门禁：`v0.93.0-rc.1` 与 `v0.93.0-rc.2` 均已按独立 release commit/注释标签固定。
 - 员工试用部署：用户已报告 RC1 开始实际测试；下一步升级 RC2 并复测模板可见性。
 - 生产准入：未批准；目标环境与人工证据仍待完成。
+
+# Status
+
+Machine status: in-progress.

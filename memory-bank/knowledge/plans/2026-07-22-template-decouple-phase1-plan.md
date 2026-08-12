@@ -6,10 +6,11 @@ tags: ["plan", "workflow-graph", "template-engine", "phase-1", "tags", "capabili
 timestamp: 2026-07-22T15:30:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
-  epistemic_status: decision
+  epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: ["模板引擎解耦", "Phase 1", "tags", "capabilities", "归档", "M-01"]
     en: ["template decouple", "phase 1", "tags", "capabilities", "archive"]
@@ -1721,4 +1722,6 @@ Expected: all tests `PASS`
 
 # Status
 
+
+Machine status: completed.
 **complete**（2026-07-28；Backend 419 collected 全量通过，Frontend 59 files / 168 tests + type-check/build、视频 mock E2E 2/2 通过）

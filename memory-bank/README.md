@@ -1,6 +1,6 @@
 # memory-bank 文档索引
 
-本目录是 Project Filum 的**外部记忆系统**，已对齐 Paradigma Harness `0.5.0`（三态结构、阶段 checkpoint、独立 session log、Harness 诊断和可选 DESIGN 域）。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)、[`VERSION`](../VERSION)。
+本目录是 Project Filum 的**外部记忆系统**，已对齐 Paradigma `0.7.0` 与上游 `3422ecf`：Task/Session/Checkpoint YAML 为运行事实，active-task/handoff/Context Manifest、索引和 Memory catalog 为可重建投影，并启用 M0–M4 迁移与治理修复。协议见 [`AGENT_RULES.md`](../AGENT_RULES.md)；产品版本见根 [`VERSION`](../VERSION)，协议版本独立见 [`.paradigma/VERSION`](../.paradigma/VERSION)。
 
 > **当前实施焦点**：[`active-task.md`](./runtime/active-task.md) → Iteration [5-A](./knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md)、[5-B](./knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md)、[5-C](./knowledge/plans/2026-08-12-iteration5c-shadow-comparison-plan.md) 与 [5-D](./knowledge/plans/2026-08-12-iteration5d-operations-observability-plan.md) 工程完成；5-E 受控读侧切流等待 PostgreSQL 严格迁移、rebuild/full shadow、目标环境持续样本与人工批准。其后按 [稳定观察 → Iteration 6](./knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md) 推进。`v0.93.0-rc.2` 等待员工复测，生产准入仍独立推进 · [投影契约](./knowledge/contracts/projection-contract.md) · [UAT 清单](./knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) · [上线清单](./knowledge/manuals/2026-08-09-production-release-checklist.md)
 
@@ -8,7 +8,9 @@
 
 ---
 
-## 🔥 HOT — 每次对话必读
+## 🔥 HOT — Context Builder 必需候选
+
+HOT/WARM/COLD 是检索元数据，不再要求每次固定扫描。新会话先恢复 Task/Session，再根据用户意图用 `pd context build` 生成清单，并按 Manifest 的选择理由读取。
 
 | 文件 | 用途 |
 | --- | --- |
@@ -16,7 +18,7 @@
 | [architecture.md](./knowledge/architecture.md) | 工程蓝图：模块、运行时、核心流程、关键文件 |
 | [data-contracts.md](./knowledge/contracts/data-contracts.md) | schema、枚举、实体关系、API 索引 |
 | [conventions.md](./knowledge/conventions.md) | 编码与协作规范 |
-| [active-task.md](./runtime/active-task.md) | 当前唯一聚焦任务 |
+| [active-task.md](./runtime/active-task.md) | 当前 Task 的 generated 人类投影；事实在 runtime YAML |
 | [knowledge/index.md](./knowledge/index.md) | generated 长期知识路由入口 |
 
 ---
@@ -27,7 +29,7 @@
 | --- | --- |
 | [roadmap.md](./knowledge/roadmap.md) | 宏观里程碑与版本焦点 |
 | [changelog.md](./logs/changelog.md) | SemVer 发布历史 |
-| [logs/progress/](./logs/progress/) | 每次会话一个 append-only session log；旧 `progress.md` 仅保留历史 |
+| [logs/progress/](./logs/progress/) | 版本、Batch 或人工审计日志；旧 `0000-legacy-progress.md` 为冻结基线 |
 | [domains/](./knowledge/domains/) | 子系统领域文档 |
 | [plans/](./knowledge/plans/) | 细粒度实施计划；先看 [计划状态目录](./knowledge/plans/plan-status-catalog.md)，不要把 completed/legacy 文档当成现行排期 |
 | [plans/tc-p2-views-stats-plan.md](./knowledge/plans/tc-p2-views-stats-plan.md) | TC-P2 落地计划（三视图 + 统计 + Shell） |
@@ -99,10 +101,10 @@
 | 模块、运行时、流程 | `architecture.md` |
 | 产品边界 | `project-brief.md` |
 | 编码规范 | `conventions.md` |
-| 当前任务 | `active-task.md` |
-| 阶段验测、会话结束 | `logs/progress/YYYY-MM-DD-<task>.md` 独立 session log |
+| 当前 Task / Session / Checkpoint | 仅通过 `pd task` / `pd session` 命令写 runtime YAML；Markdown 为投影 |
+| 版本、Batch、人工审计 | `logs/progress/YYYY-MM-DD-<task>.md` append-first 日志，Evidence 仅引用 Checkpoint |
 | 排期与阶段出口 | `roadmap.md` + [计划状态目录](./knowledge/plans/plan-status-catalog.md)（**当前**: [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md)） |
 | ADR / 坑位 / 术语 | `decisions.md` / `known-issues.md` / `glossary.md` |
 | 运维步骤 | `knowledge/manuals/` |
 
-generated index 不手工修改。更新 source 文档后先运行 `python .paradigma/tools/pd-sync-index.py --write`，再运行 `python .paradigma/tools/pd-check-all.py`。任务完成可用 `pd-archive-task.py --write` 归档，日志压缩只生成 summary，不删除原始 session log。
+generated runtime、Context、index 与 cache 不手工修改。更新 source 文档后运行 `pd index rebuild` / `pd index verify`，再运行 `pd check`；按需运行 `pd runtime verify`、`pd catalog verify`，最终门禁运行 `pd agent-adapter check` 与 `pd compliance check --profile strict`。Task 完成前先写最终 Checkpoint 并结束 Session，再执行 `pd task complete --write`；YAML runtime 不使用 legacy archive 脚本。

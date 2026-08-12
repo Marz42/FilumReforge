@@ -1,8 +1,8 @@
 # Decisions Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 4ae922beba214334 -->
-<!-- generated_by: pd-sync-index.py -->
+<!-- checksum: f1694db8ac463547 -->
+<!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
 |------|------|-------|-------|---------|-----------|
@@ -26,6 +26,7 @@
 | [adr-018-domain-neutral-workflow-templates.md](adr-018-domain-neutral-workflow-templates.md) | `paradigma-decision` | ADR-018: 工作流模板领域中立 — 视频流程作为普通模板包 | 工作流领域中立<br>视频普通模板<br>去视频特殊化 ... | - | - |
 | [adr-019-decision-subject-actor-overlap.md](adr-019-decision-subject-actor-overlap.md) | `paradigma-decision` | ADR-019: 按决策对象与动作语义处理参与者重叠 | 参与者重叠<br>集合确认<br>独立验收 ... | - | - |
 | [adr-020-published-template-availability-scope.md](adr-020-published-template-availability-scope.md) | `paradigma-decision` | ADR-020: 已发布模板可用范围作为可变治理元数据 | 已发布模板<br>可用部门<br>增量授权 ... | - | informs:../domains/workflow-graph-engine.md<br>informs:../contracts/data-contracts.md<br>implements:../plans/2026-07-30-template-availability-paradigma-upgrade-plan.md |
+| [adr-021-paradigma-070-cli-runtime.md](adr-021-paradigma-070-cli-runtime.md) | `paradigma-decision` | ADR-021: 采用 Paradigma 0.7 CLI 运行态并分离产品版本 | Paradigma 0.7<br>CLI 运行态<br>Context Manifest ... | - | supersedes:./adr-007-paradigma-alignment.md<br>constrains:../contracts/repository-contract.md<br>related_to:../known-issues/ki-013-paradigma-product-version-collision.md |
 | [decisions.md](decisions.md) | `paradigma-decision` | ADR 合集 (已拆分) | ADR<br>决策<br>合辑 ... | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->

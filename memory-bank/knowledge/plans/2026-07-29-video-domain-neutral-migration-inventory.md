@@ -6,10 +6,11 @@ tags: ["plan", "workflow-graph", "domain-neutral", "video-template", "compatibil
 timestamp: 2026-07-30T01:45:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: ["视频模板去特殊化", "run_kind 退出", "通用工作流能力"]
     en: ["video template neutrality", "run_kind exit", "generic workflow capability"]
@@ -68,3 +69,7 @@ paradigma:
 - 不新增 `VideoHandler` 或按模板 code、node key、tags、`video_*` Profile 路由 Runtime。
 - 不在兼容调用归零前删除现有 API/service/schema。
 - 不把前端视觉 Profile 当作权限、完成策略或决策语义的事实来源。
+
+# Status
+
+Machine status: completed.

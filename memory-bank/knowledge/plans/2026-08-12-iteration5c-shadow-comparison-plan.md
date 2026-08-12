@@ -6,10 +6,11 @@ tags: [plan, active, workflow-graph, iteration-5, projection, shadow-comparison]
 timestamp: 2026-08-12T14:20:00+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: hot
+  temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [Iteration 5-C, 影子比较, 投影差异, projection lag, 隐私]
     en: [Iteration 5-C, shadow comparison, projection diff, projection lag, privacy]
@@ -71,3 +72,7 @@ paradigma:
 - ARQ 每 5 分钟执行 recent 抽样并清理 30 天前诊断证据；`python -m app.scripts.scan_workflow_projection_shadow --full` 提供切流前显式全量审计。
 - shadow 测试暴露并修正 Run 进度的舍入漂移：projector 现在与现行详情 API 一致使用整数向下取整。
 - SQLite expand/downgrade、PostgreSQL `20260812_02:20260812_03` 离线 SQL、定向测试及后端全量 **488 collected / 456 passed / 32 skipped / 0 failed** 通过。真实 PostgreSQL head↔base 与目标环境持续观察仍待补。
+
+# Status
+
+Machine status: in-progress.

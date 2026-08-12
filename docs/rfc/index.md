@@ -27,13 +27,3 @@ paradigma:
 # RFC Index
 
 * [Paradigma OKF-Compatible Agent Memory Runtime](paradigma-okf-compatible-runtime.md) - Proposal for evolving Project Paradigma into an OKF-compatible Agent Memory Runtime framework.
-
-<!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 79fef8508d90e3c2 -->
-<!-- generated_by: pd-sync-index.py -->
-
-| Path | Type | Title | Hints | Symbols | Relations |
-|------|------|-------|-------|---------|-----------|
-| [paradigma-okf-compatible-runtime.md](paradigma-okf-compatible-runtime.md) | `paradigma-rfc` | Paradigma OKF-Compatible Agent Memory Runtime | OKF 兼容运行时<br>Agent Memory Runtime<br>工具闭环 ... | OKF-compatible Agent Memory Runtime<br>L1 Format Layer<br>L2 Semantic Layer ... | informs:../../memory-bank/knowledge/architecture.md<br>informs:../../memory-bank/knowledge/contracts/repository-contract.md |
-
-<!-- END PARADIGMA AUTO-INDEX -->

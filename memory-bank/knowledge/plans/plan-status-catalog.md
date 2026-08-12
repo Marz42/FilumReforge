@@ -9,7 +9,8 @@ paradigma:
   temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [计划状态, 现行计划, 已完成计划, Legacy 计划]
     en: [plan status, active plan, completed plan, legacy plan]
@@ -83,3 +84,7 @@ paradigma:
 - 计划被架构决策或新主计划取代时标为 `LEGACY`，不得仅因仍有未勾选项而继续执行。
 - `COMPLETED` / `LEGACY` 文档使用 `lifecycle: stable`；active 主计划使用 `lifecycle: evolving`。
 - `logs/progress/` 是事实日志，不参与计划状态迁移，也不回写历史数字。
+
+# Status
+
+Machine status: in-progress.

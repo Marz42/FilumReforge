@@ -11,7 +11,8 @@ paradigma:
   temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh:
       - 实施计划
@@ -71,7 +72,7 @@ paradigma:
 - 生命周期事件的**规则化默认映射**与**前端结构化配置入口**（显式绑定 + worker 触发已落地）
 - 真实 Email / WebSocket 对外发送接入深化（当前仍为最小 / 占位适配器为主）
 - **Legacy E 历史表族清理**：B-12 已移除 `task_templates` 对外 API、实例化入口与旧调度路径；表/ORM/未挂载服务暂保留用于历史数据兼容，后续需明确迁移和删除策略
-- 更系统的重构、集成测试、E2E 扩面；**Ubuntu 最小回滚演练**；docker-gui / Playwright 基线定期刷新（历史基线见旧 `logs/progress/progress.md`，新结果写入独立 session log）
+- 更系统的重构、集成测试、E2E 扩面；**Ubuntu 最小回滚演练**；docker-gui / Playwright 基线定期刷新（历史基线见冻结的 `logs/progress/0000-legacy-progress.md`，新证据由 Checkpoint 持有）
 
 独立迭代（不并入 Stage 2 串行表内阶段）的积压主题已汇总至 `memory-bank/knowledge/plans/improvements-stage2-implementation-plan.md` **§11**。
 
@@ -270,7 +271,11 @@ paradigma:
 ## 7. 跨阶段通用规则
 
 - `architecture.md` 必须持续维护完整 schema 与模块边界
-- 阶段验测通过或关键 follow-up 收口后创建独立 session log；旧 `logs/progress/progress.md` 不再追加
+- 阶段验测通过或关键 follow-up 收口后写 Checkpoint；版本、Batch 或人工审计需要时再创建 session log；旧 `logs/progress/0000-legacy-progress.md` 不得修改
 - 新功能优先复用现有附件、通知、权限抽象
 - 所有敏感流程必须由服务层兜底，前端只做辅助限制
 - 若后续需求再次改变阶段边界，先修改本文件，再开始编码
+
+# Status
+
+Machine status: in-progress.

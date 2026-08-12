@@ -6,10 +6,11 @@ tags: [plan, active, workflow-graph, iteration-5, operations, observability]
 timestamp: 2026-08-12T14:25:00+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: hot
+  temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [Iteration 5-D, 工作流运维, Outbox 重放, 卡死 Run, projection lag, trace]
     en: [Iteration 5-D, workflow operations, outbox replay, stalled run, projection lag, trace]
@@ -92,3 +93,7 @@ paradigma:
 - 不自动重放 FAILED Outbox，不自动恢复卡死 Run，不自动忽略 incident。
 - 不在日志或前端展示敏感业务 payload。
 - 不实现 Iteration 6 的兼容层删除。
+
+# Status
+
+Machine status: in-progress.

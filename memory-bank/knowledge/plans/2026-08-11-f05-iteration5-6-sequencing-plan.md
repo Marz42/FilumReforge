@@ -9,7 +9,8 @@ paradigma:
   temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [F-05 后续顺序, Iteration 5, Iteration 6, 投影, Legacy 清理]
     en: [F-05 sequence, Iteration 5, Iteration 6, projection, legacy cleanup]
@@ -70,3 +71,7 @@ Iteration 5-A～D 是加法、影子和运维建设，可以在外部门禁执�
 - 先写测试，至少覆盖幂等、对象授权、重复消费、重建和降级路径；
 - 每批独立提交、独立进度记录，不把生产切流与功能开发混进同一提交；
 - 任何删除、停止兼容写入或数据改写都必须提供归档、恢复与回滚证据。
+
+# Status
+
+Machine status: in-progress.

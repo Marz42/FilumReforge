@@ -9,10 +9,11 @@ tags:
 timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: deprecated
+  plan_status: archived
   retrieval_hints:
     zh:
       - 视频
@@ -608,3 +609,7 @@ W0 → W1 → W2 → WF → W3 → W4 → W5 → WFK → W6 → W7 **✅**
 ---
 
 *文档版本：v2.0 | 修订：批次 Run + 按题 fork、模板表单引擎（launch/capture/aggregate）、统一模板实例化入口 | 基线 commit 参考 `36c6a77`*
+
+# Status
+
+Machine status: archived.

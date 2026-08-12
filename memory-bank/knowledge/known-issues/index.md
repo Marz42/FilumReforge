@@ -1,8 +1,8 @@
 # Known-Issues Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 0a38e95e208ead0d -->
-<!-- generated_by: pd-sync-index.py -->
+<!-- checksum: 126414e6f725f333 -->
+<!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
 |------|------|-------|-------|---------|-----------|
@@ -18,6 +18,7 @@
 | [ki-010-activity-timeline-redesign.md](ki-010-activity-timeline-redesign.md) | `paradigma-known-issue` | KI-010: 活动时间线需重做为更有指向性的留痕 | 活动时间线<br>折叠<br>留痕 ... | - | - |
 | [ki-011-system-admin-business-boundary.md](ki-011-system-admin-business-boundary.md) | `paradigma-known-issue` | KI-011: 系统管理员与业务参与权限尚未解耦 | 管理员业务边界<br>系统管理员<br>管理员不参与业务 ... | - | - |
 | [ki-012-security-scan-release-blockers.md](ki-012-security-scan-release-blockers.md) | `paradigma-known-issue` | KI-012: 2026-08-09 安全扫描发现与上线阻断项 | 安全扫描<br>上线阻断<br>IDOR ... | - | - |
+| [ki-013-paradigma-product-version-collision.md](ki-013-paradigma-product-version-collision.md) | `paradigma-known-issue` | KI-013: Paradigma 与 Filum 根 VERSION 语义冲突 | Paradigma 版本冲突<br>产品 VERSION<br>升级 Profile ... | - | caused_by:../decisions/adr-007-paradigma-alignment.md<br>related_to:../decisions/adr-021-paradigma-070-cli-runtime.md |
 | [known-issues.md](known-issues.md) | `paradigma-known-issue` | 已知问题合辑 (已拆分) | 已知问题<br>合辑<br>known issue | - | - |
 
 <!-- END PARADIGMA AUTO-INDEX -->

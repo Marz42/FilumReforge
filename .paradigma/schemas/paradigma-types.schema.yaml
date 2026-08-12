@@ -1,4 +1,4 @@
-schema_version: "0.2"
+document_schema_version: "0.3"
 description: Paradigma semantic type registry for OKF-compatible concept documents.
 
 allowed_update_policies:
@@ -29,6 +29,12 @@ allowed_lifecycles:
   - generated
   - proposal
 
+allowed_plan_statuses:
+  - proposed
+  - in-progress
+  - completed
+  - archived
+
 required_frontmatter:
   - type
   - title
@@ -53,114 +59,50 @@ types:
   paradigma-project-brief:
     layer: knowledge
     default_temperature: hot
-    required_sections:
-      - Vision
-      - Target Users
-      - Scope
-      - Non-goals
-      - Success Criteria
-      - Constraints
+    required_sections: []
   paradigma-architecture:
     layer: knowledge
     default_temperature: hot
-    required_sections:
-      - Overview
-      - Technology Stack
-      - Module Boundaries
-      - Data Flow
-      - Key Constraints
-      - Open Questions
-      - Citations
+    required_sections: []
   paradigma-convention:
     layer: knowledge
     default_temperature: hot
-    required_sections:
-      - Naming
-      - Code Style
-      - Error Handling
-      - Testing Conventions
-      - Documentation Conventions
-      - Prohibited Patterns
+    required_sections: []
   paradigma-contract:
     layer: knowledge
     default_temperature: hot
-    required_sections:
-      - Scope
-      - Contract
-      - Request Schema
-      - Response Schema
-      - State Transitions
-      - Compatibility Notes
-      - Breaking Change Policy
-      - Citations
+    required_sections: []
   paradigma-domain:
     layer: knowledge
     default_temperature: warm
-    required_sections:
-      - Responsibility
-      - Public Interfaces
-      - Internal Flow
-      - Dependencies
-      - Related Contracts
-      - Known Risks
+    required_sections: []
   paradigma-manual:
     layer: knowledge
     default_temperature: cold
-    required_sections:
-      - Purpose
-      - Preconditions
-      - Steps
-      - Verification
-      - Rollback
-      - Troubleshooting
-      - Citations
+    required_sections: []
   paradigma-decision:
     layer: knowledge
     default_temperature: cold
-    required_sections:
-      - Context
-      - Decision
-      - Consequences
-      - Alternatives Considered
-      - Status
-      - Related Documents
+    required_sections: []
   paradigma-known-issue:
     layer: knowledge
     default_temperature: cold
-    required_sections:
-      - Symptom
-      - Impact
-      - Root Cause
-      - Workaround
-      - Permanent Fix
-      - Related Documents
-      - Status
+    required_sections: []
   paradigma-glossary:
     layer: knowledge
     default_temperature: cold
-    required_sections:
-      - Terms
-      - Abbreviations
-      - Domain-specific Meanings
+    required_sections: []
   paradigma-rfc:
     layer: docs
     default_temperature: warm
-    required_sections:
-      - Citations
+    required_sections: []
   paradigma-design-system:
     layer: knowledge
     default_temperature: warm
-    required_sections:
-      - Responsibility
-      - Public Interfaces
-      - Dependencies
-      - Known Risks
+    required_sections: []
   paradigma-plan:
     layer: knowledge
     default_temperature: warm
-    required_sections:
-      - Goal
-      - Scope
-      - Approach
-      - Tasks
-      - Status
+    # Filum 既有计划使用中文且结构多样；v0.7 的机器状态由 plan_status
+    # 及其 temperature/epistemic tuple 强制，避免为了英文标题批量改写历史正文。
+    required_sections: []

@@ -15,7 +15,8 @@ paradigma:
   temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [Iteration 3-F, Iteration 4 准入, 写所有权, Link superseded, 事务故障注入, 可观测性]
     en: [iteration 3f, iteration 4 gate, write ownership, link superseded, fault injection, observability]
@@ -312,3 +313,7 @@ Iteration 3-F 只有同时满足以下条件才能标记完成：
 - 最终准入报告由用户批准。
 
 在此之前，Iteration 4 的生产切流始终保持 blocked。2026-07-28 起可按用户授权并行进行不改变生产路由、不删除兼容路径的 Handler 契约开发与本地验证，但不得将其记为准入通过。
+
+# Status
+
+Machine status: in-progress.

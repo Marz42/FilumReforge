@@ -6,10 +6,11 @@ tags: [plan, completed, f-05, task-center, frontend, attachment, comment]
 timestamp: 2026-08-11T23:42:43+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: [F-05 资料附件, 评论留痕, 上传协调, 任务详情拆分]
     en: [F-05 attachments, comments, activity trace, task detail split]
@@ -44,3 +45,7 @@ paradigma:
 - 权限条件、模板绑定和页面结构没有变化；
 - 新边界规模可维护，不把附件与评论之外的职责吸入新巨石；
 - 完成后重新盘点活动时间线/工作流面板，决定 F-05 是否还需第四批。
+
+# Status
+
+Machine status: completed.

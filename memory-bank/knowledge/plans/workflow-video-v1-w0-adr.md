@@ -9,10 +9,11 @@ tags:
 timestamp: 2026-07-08T17:34:00+08:00
 paradigma:
   schema_version: 0.5.0
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh:
       - W0
@@ -54,3 +55,7 @@ paradigma:
 
 - `workflow_graph_template_engine_enabled=true` 时是否将 `instantiate_template` 内部转调 graph（W10-4 可选）。
 - 单 Run 内多选题 DAG（已明确 **不做**，改为按题 fork 子 Run）。
+
+# Status
+
+Machine status: completed.

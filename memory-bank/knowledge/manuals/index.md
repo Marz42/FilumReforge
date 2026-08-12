@@ -1,8 +1,8 @@
 # Manuals Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 2335bda2f98681a8 -->
-<!-- generated_by: pd-sync-index.py -->
+<!-- checksum: 1401b7b48c4ba4aa -->
+<!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
 |------|------|-------|-------|---------|-----------|

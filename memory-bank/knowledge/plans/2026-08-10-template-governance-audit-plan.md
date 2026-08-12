@@ -6,10 +6,11 @@ tags: [plan, workflow-template, availability-scope, governance, iteration-4]
 timestamp: 2026-08-10T00:20:00+08:00
 paradigma:
   schema_version: "0.5.0"
-  temperature: warm
+  temperature: cold
   lifecycle: stable
   update_policy: agent-editable
   epistemic_status: confirmed
+  plan_status: completed
   retrieval_hints:
     zh: [模板数据检查, 可用部门, 父子模板, 修正版]
     en: [template governance, availability scope, template dependency, repair version]
@@ -64,3 +65,7 @@ paradigma:
 ## 状态
 
 工程实现、本地自动化验证与提交已完成；等待目标环境/用户验收。
+
+# Status
+
+Machine status: completed.

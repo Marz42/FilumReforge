@@ -9,7 +9,8 @@ paradigma:
   temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [Iteration 5-A, 投影契约, task_center_items, process_run_summaries, node_timeline_entries]
     en: [Iteration 5-A, projection contract, task center items, process run summaries, node timeline]
@@ -74,3 +75,7 @@ paradigma:
 - SQLite pre-head schema 上的 stamp → upgrade → downgrade 通过，证明三表可加可撤且未触碰旧表。
 - 模型/迁移/架构定向 7 passed / 1 PostgreSQL skip；完整后端回归通过。
 - 尚缺真实 PostgreSQL `head → base` 证据；本机 Docker daemon 不可用，因此本计划保持 active gate，不把 SQLite 当作生产约束结论。
+
+# Status
+
+Machine status: in-progress.

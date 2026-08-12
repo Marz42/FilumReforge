@@ -32,7 +32,7 @@ paradigma:
 
 **现象**: Git Bash/WSL 直跑 `scripts/check-release.sh` 因 `node_modules` 跨平台绑定或 PATH 无 `python` 失败。  
 **处理**: 在 **Linux 原生目录**（Ubuntu 主机或 WSL 内完整 `npm ci`）执行；Windows 可跑等价 P0：`pytest`、`compileall`、前端 `test:unit`/`type-check`/`build`。  
-**参考**: [`logs/progress/progress.md`](../../logs/progress/progress.md) 历史测试基线表与 KI-003 当前基线
+**参考**: [`logs/progress/0000-legacy-progress.md`](../../logs/progress/0000-legacy-progress.md) 历史测试基线表与 KI-003 当前基线
 
 ### `backend/scripts/*.sh` CRLF
 
@@ -155,12 +155,12 @@ paradigma:
 | docker-gui 18/18 | 沿用 2026-05-20 基线 | 本机未重跑时需 Compose 栈 |
 | Playwright core mock | **33/33** @ 2026-06-22 | `npm run test:e2e`；含 `task-center-interactions` + designer + task-center-extended |
 | Playwright multi-account mock | **15/15** @ 2026-06-22 | `npm run test:e2e:workflow-video-multi-account-mock`（A–N） |
-| Playwright UAT | **待重跑** | `test:e2e:workflow-video-uat`；见 [`logs/progress/progress.md`](../../logs/progress/progress.md) 历史「E2E 待办」 |
+| Playwright UAT | **待重跑** | `test:e2e:workflow-video-uat`；见 [`logs/progress/0000-legacy-progress.md`](../../logs/progress/0000-legacy-progress.md) 历史「E2E 待办」 |
 | Playwright live | 未纳入每次基线 | 多账号见 `workflow-video-v1-multi-account-e2e-guide.md` |
 | eslint | 21 existing errors @ 2026-08-09 | release script 中为 warning；详见 KI-003 |
 | Ubuntu 最小回滚 | **暂缓** | 原 P0，用户决定上线前再练 |
 
-**浏览器基线 ID**: `2026-06-22-main-e2e-core-33`（历史见 [`logs/progress/progress.md`](../../logs/progress/progress.md)；当前单元基线见 KI-003）
+**浏览器基线 ID**: `2026-06-22-main-e2e-core-33`（历史见 [`logs/progress/0000-legacy-progress.md`](../../logs/progress/0000-legacy-progress.md)；当前单元基线见 KI-003）
 
 ---
 

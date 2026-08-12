@@ -10,7 +10,6 @@ paradigma:
   lifecycle: evolving
   update_policy: agent-editable
   epistemic_status: confirmed
-  retrieval_hints:
   related_to:
     - ../decisions/adr-005-dual-track-workflow.md
     - ../decisions/adr-009-single-step-boundary.md

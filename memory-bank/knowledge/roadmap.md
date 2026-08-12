@@ -12,7 +12,8 @@ paradigma:
   temperature: warm
   lifecycle: evolving
   update_policy: requires-human-confirmation
-  epistemic_status: confirmed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh:
       - 路线图
@@ -54,7 +55,7 @@ paradigma:
 | **F-24 / F-25** | done | 定时派发 · 附件预览 @ `0.90.0` |
 | **生产 hotfix** | done | N3/N5/N7/N10 流转与附件 @ `efa450c` |
 | **F-29 管理员治理** | done | 归档 API · 图 Run 终止 · 跟踪督办 · 逾期延期 @ `0.91.0` |
-| **Paradigma v0.5.0 三态迁移** | done | runtime/logs/knowledge 三态 · OKF frontmatter · 文档合规 @ `0.92.0` |
+| **Paradigma v0.7.0 协议升级** | done | CLI Task/Session/Checkpoint · Context Manifest · catalog · M0–M4 治理修复 @ `3422ecf`；KI-013 保留版本路径差异 |
 | **Task Center P0–P2 审计修复** | done | 锁/CAS · 分页/附件 · 模板评审候选链 @ `0.92.1` |
 | **工作流图引擎 Iteration 1–3-F 工程实现** | done | snapshot · graph-v3 · Link/receipt · ownership/UoW · readiness 工具；生产证据仍 gated |
 | **模板解耦 Phase 1 + Phase 2 首批** | done / UAT | tags · capabilities · archive · structured authoring |
@@ -200,3 +201,7 @@ paradigma:
 | S3 对象存储 | 附件生产化 |
 | 国际化 | 产品需求后 |
 | Ubuntu 回滚演练 | 暂缓 |
+
+# Status
+
+Machine status: `in-progress`.

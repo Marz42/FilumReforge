@@ -1,10 +1,3 @@
-<!--
-  此文件是 DESIGN.md 的空白模板，遵循 google-labs-code/design.md 格式。
-  推荐使用 INIT_PROMPT 模式 G（设计器模式）通过 Agent 问答方式填充。
-
-  激活方式：cp memory-bank-template/DESIGN.md DESIGN.md
-  若项目无前端需求，无需创建此文件。DESIGN.md 不存在时所有相关检查自动跳过。
--->
 ---
 name: ""
 description: ""
@@ -36,6 +29,14 @@ spacing:
   lg: ""
   xl: ""
 ---
+
+<!--
+  此文件是 DESIGN.md 的空白模板，遵循 google-labs-code/design.md 格式。
+  推荐使用 INIT_PROMPT 模式 G（设计器模式）通过 Agent 问答方式填充。
+
+  激活方式：cp memory-bank-template/DESIGN.md DESIGN.md
+  若项目无前端需求，无需创建此文件。DESIGN.md 不存在时所有相关检查自动跳过。
+-->
 
 ## Overview
 
