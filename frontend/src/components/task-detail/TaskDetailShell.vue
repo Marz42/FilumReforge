@@ -13,7 +13,10 @@ import TaskDetailContextPanel from '@/components/task-detail/TaskDetailContextPa
 import TaskDetailGraphTelemetry from '@/components/task-detail/TaskDetailGraphTelemetry.vue'
 import TaskDetailMetadataPanel from '@/components/task-detail/TaskDetailMetadataPanel.vue'
 import TaskDetailWorkflowPresentation from '@/components/task-detail/TaskDetailWorkflowPresentation.vue'
-import { canDelegateStandaloneTask } from '@/domain/task-detail/actions'
+import {
+  canDelegateStandaloneTask,
+  canUseTaskDetailAction,
+} from '@/domain/task-detail/actions'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import {
   resolveTaskDetailProfile,
@@ -199,7 +202,15 @@ const canAdvanceSelectedTask = computed(() => {
 
 const canAdvanceSelectedTaskByStatus = computed(() => {
   const task = selectedTask.value
-  if (!task || !canAdvanceSelectedTask.value) {
+  if (!task) {
+    return false
+  }
+
+  if (isStandaloneTask.value) {
+    return task.status === 'todo' && canUseTaskDetailAction(task, 'start_work', false)
+  }
+
+  if (!canAdvanceSelectedTask.value) {
     return false
   }
 
@@ -252,7 +263,11 @@ const canSubmitDeliverable = computed(() => {
     return false
   }
 
-  return authStore.isManagementRole || user.id === task.assignee_id
+  return canUseTaskDetailAction(
+    task,
+    'submit_deliverable',
+    authStore.isManagementRole || user.id === task.assignee_id,
+  )
 })
 
 const isApprovalTask = computed(() => {
@@ -275,7 +290,9 @@ const canReviewDeliverable = computed(() => {
     return false
   }
 
-  return authStore.isManagementRole || user.id === task.creator_id
+  const workflowFallback = authStore.isManagementRole || user.id === task.creator_id
+  return canUseTaskDetailAction(task, 'approve_deliverable', workflowFallback)
+    || canUseTaskDetailAction(task, 'return_for_rework', false)
 })
 const useWorkflowReviewMoreMenu = computed(
   () =>

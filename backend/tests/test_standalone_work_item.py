@@ -18,7 +18,7 @@ from app.core.enums import (
   UserRole,
   UserStatus,
 )
-from app.core.exceptions import ConflictError
+from app.core.exceptions import AuthorizationError, ConflictError
 from app.models import Task, TaskLog, WorkflowGraphInstance, WorkflowHumanTaskLink, WorkflowNodeInstance
 from app.services.auth_service import AuthService
 from app.services.task_action_policy import build_standalone_action_context
@@ -115,6 +115,55 @@ async def test_standalone_todo_buckets_owner_and_creator(db_session) -> None:
   assert any(e.task_id == task.id for e in creator_tracking.items)
   creator_inbox = await service.list_task_inbox(actor=creator, limit=50)
   assert not any(e.task_id == task.id for e in creator_inbox.items)
+
+
+@pytest.mark.asyncio
+async def test_standalone_creator_cannot_start_assignee_work(db_session) -> None:
+  settings, _admin, creator, assignee_a, _b = await _seed(db_session)
+  task = await _new_standalone_task(db_session, creator=creator, assignee=assignee_a)
+  service = _service(db_session, settings)
+
+  with pytest.raises(AuthorizationError, match="当前执行人"):
+    await service.transition_task_status(
+      actor=creator,
+      task_id=task.id,
+      target_status=TaskStatus.DOING,
+    )
+
+  await db_session.refresh(task)
+  assert task.status == TaskStatus.TODO
+
+
+@pytest.mark.asyncio
+async def test_standalone_assignee_cannot_approve_own_delivery(db_session) -> None:
+  settings, _admin, creator, assignee_a, _b = await _seed(db_session)
+  task = await _new_standalone_task(db_session, creator=creator, assignee=assignee_a)
+  service = _service(db_session, settings)
+
+  await service.transition_task_status(
+    actor=assignee_a,
+    task_id=task.id,
+    target_status=TaskStatus.DOING,
+  )
+  await service.transition_task_status(
+    actor=assignee_a,
+    task_id=task.id,
+    target_status=TaskStatus.REVIEW,
+  )
+
+  with pytest.raises(AuthorizationError, match="当前执行人"):
+    await service.transition_task_status(
+      actor=assignee_a,
+      task_id=task.id,
+      target_status=TaskStatus.DONE,
+    )
+
+  completed = await service.transition_task_status(
+    actor=creator,
+    task_id=task.id,
+    target_status=TaskStatus.DONE,
+  )
+  assert completed.status == TaskStatus.DONE
 
 
 @pytest.mark.asyncio

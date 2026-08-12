@@ -83,6 +83,8 @@ from app.services.condition_evaluator import evaluate_routing_rules
 from app.services.task_action_policy import (
   ACTION_APPROVE_DELIVERABLE,
   ACTION_RETURN_FOR_REWORK,
+  ACTION_START_WORK,
+  ACTION_SUBMIT_DELIVERABLE,
   ActionOption,
   WorkItemActionContext,
   build_standalone_action_context,
@@ -3180,7 +3182,22 @@ class TaskService:
     # standalone and workflow tasks (see the lock helper).
     await self._refresh_task_row_with_lock(task_id=task.id)
 
-    if not await self._can_operate_task(actor=actor, task=task):
+    if is_standalone(task):
+      action_context = build_standalone_action_context(
+        task=task,
+        actor=actor,
+        is_management=self._has_task_admin_override(actor),
+      )
+      required_action = {
+        TaskStatus.TODO: ACTION_START_WORK,
+        TaskStatus.DOING: ACTION_SUBMIT_DELIVERABLE,
+        TaskStatus.REVIEW: ACTION_APPROVE_DELIVERABLE,
+      }.get(task.status)
+      if required_action is None or required_action not in {
+        option.action for option in action_context.available_actions
+      }:
+        raise AuthorizationError("当前账号不是此阶段的当前执行人，不能变更该独立任务状态。")
+    elif not await self._can_operate_task(actor=actor, task=task):
       raise AuthorizationError("当前账号不能变更该任务状态。")
 
     if target_status == task.status:

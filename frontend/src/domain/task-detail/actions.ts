@@ -15,6 +15,17 @@ export function taskHasAction(task: Task | null | undefined, action: string): bo
   return taskAvailableActions(task).includes(action)
 }
 
+export function canUseTaskDetailAction(
+  task: Task | null | undefined,
+  action: string,
+  workflowFallback: boolean,
+): boolean {
+  if (isStandaloneTask(task)) {
+    return taskHasAction(task, action)
+  }
+  return workflowFallback
+}
+
 export function isStandaloneTask(task: Task | null | undefined): boolean {
   return task?.execution_mode === 'standalone'
 }

@@ -32,6 +32,10 @@ paradigma:
 - Iteration 5-B/C 工程实现：新增独立 projection checkpoint、幂等 projector/rebuild、隐私安全 shadow comparison、recent/full 扫描与 `20260812_02/03`；正式读路径保持不变。
 - Iteration 5-D 工程实现：新增 Admin-only 工作流运维页面/API、FAILED Outbox 人工重放、incident 处置、节点 retry/suspend/resume、Run/Join/Outbox/projection/shadow 指标和统一 trace；迁移前进至 `20260812_04`，管理员不获得业务审批权。
 
+### Fixed
+
+- KI-009：standalone 详情的开始、提交、验收按钮统一读取服务端 `available_actions`，状态命令按阶段复核当前执行人；任务创建者仍可跟踪，但不能代执行人开工，workflow/graph 兼容路径保持不变。
+
 ## [0.93.0-rc.2] — 2026-08-11
 
 ### Fixed

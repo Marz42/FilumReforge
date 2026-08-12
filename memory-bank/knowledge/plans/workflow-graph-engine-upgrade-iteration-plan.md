@@ -7,7 +7,7 @@ tags:
   - workflow-graph
   - runtime
   - migration
-timestamp: 2026-08-12T14:25:00+08:00
+timestamp: 2026-08-12T22:25:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -446,9 +446,9 @@ paradigma:
 
 ---
 
-## 12. 实施前待用户确认的决策
+## 12. 已确认的实施决策（历史基线）
 
-以下为推荐默认值；未确认前不进入 schema / API 编码。
+以下决策已经指导 Iteration 1～4 与 5-A～5-D 的工程实现，不再是“实施前待确认项”。5-E 读侧切流与 Iteration 6 破坏性清理仍各自保留独立批准闸门。
 
 | 决策 | 推荐默认 | 影响 |
 |------|----------|------|
@@ -538,10 +538,11 @@ npm run build
 
 ## 16. 下一步
 
-1. 在目标环境执行 `20260716_01` / `20260716_02`、Link dry-run/apply 与 reconciliation；
-2. 用 readiness API/CLI 连续记录 7 天 Link 覆盖、fallback、incident 与 migration blocker；
-3. 完成目标环境恢复/无损代码回滚演练；
-4. 输出 31 项最终准入报告，用户批准后才启动 Iteration 4。
+1. 在目标 PostgreSQL 环境迁移至 `20260812_04`，同时完成 Iteration 3-F Link 迁移、reconciliation 与恢复/回滚演练；
+2. 执行 projection 全量重建、full shadow comparison 与 5-D 运维工作台核对，积累可复核的持续样本；
+3. 完成 RC2、Iteration 4、设计器 Phase 2、S-01 与 KI-009 的人工复测，保留账号、模板、Run/Task ID 与时间证据；
+4. 输出 Iteration 3-F 31/31 和 Iteration 5 目标环境报告，证据齐全后单独申请 5-E 受控读侧切流；
+5. 5-E 通过稳定观察期后，再单独申请 Iteration 6；未批准前不得删除兼容结构或停止双轨锚点。
 
 # Status
 

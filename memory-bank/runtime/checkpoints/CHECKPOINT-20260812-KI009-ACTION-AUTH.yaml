@@ -1,0 +1,106 @@
+coding_runtime_schema_version: '0.1'
+kind: coding_checkpoint
+snapshot_revision: 1
+checkpoint:
+  checkpoint_id: CHECKPOINT-20260812-KI009-ACTION-AUTH
+  task_id: TASK-20260812-KI009-ACTION-AUTH
+  session_id: SESSION-20260812-KI009-ACTION-AUTH
+  created_at: '2026-08-12T22:38:37.319175+08:00'
+  task_status: active
+  git:
+    repository_id: FilumReforge
+    observed_at: '2026-08-12T22:38:37.319175+08:00'
+    head_commit: 4b4280a85945d2923ee8aafd9908cfcfdb64054c
+    branch: main
+    dirty: true
+    worktree_paths:
+    - backend/app/services/task_service.py
+    - backend/tests/test_services.py
+    - backend/tests/test_standalone_work_item.py
+    - frontend/src/components/task-detail/TaskDetailShell.vue
+    - frontend/src/domain/task-detail/actions.ts
+    - memory-bank/knowledge/architecture.md
+    - memory-bank/knowledge/contracts/data-contracts.md
+    - memory-bank/knowledge/known-issues/index.md
+    - memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md
+    - memory-bank/knowledge/known-issues/ki-009-standalone-action-dual-track.md
+    - memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
+    - memory-bank/knowledge/plans/implementation-plan.md
+    - memory-bank/knowledge/plans/plan-status-catalog.md
+    - memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
+    - memory-bank/knowledge/project-brief.md
+    - memory-bank/knowledge/roadmap.md
+    - memory-bank/logs/changelog.md
+    - memory-bank/runtime/active-session.yaml
+    - memory-bank/runtime/active-task.md
+    - memory-bank/runtime/active-task.yaml
+    - memory-bank/runtime/context-manifest.yaml
+    - memory-bank/runtime/handoff.md
+    - .paradigma-checkpoint-ki009.yaml
+    - frontend/tests/task-detail-actions.spec.ts
+    - memory-bank/logs/progress/2026-08-12-ki009-action-authorization.md
+    - memory-bank/runtime/sessions/SESSION-20260812-KI009-ACTION-AUTH.yaml
+    - memory-bank/runtime/tasks/TASK-20260812-KI009-ACTION-AUTH.yaml
+  tests:
+  - command: backend\.venv\Scripts\python.exe -m pytest -q backend\tests\test_standalone_work_item.py
+      backend\tests\test_services.py::test_task_service_enforces_status_transitions_and_records_logs backend\tests\test_services.py::test_task_service_comments_attachments_and_stats
+    status: passed
+    observed_at: '2026-08-12T22:38:37.319175+08:00'
+    exit_code: 0
+    passed_count: null
+    failed_count: null
+    skipped_count: null
+    duration_seconds: 9.828000000001339
+    report_path: null
+    output_hash: sha256:68f85683ace12a9dd1f3795da61886f578b4be5013b48f96e893f0e257e8a66e
+  builds:
+  - command: frontend\node_modules\.bin\vite.cmd build frontend
+    status: passed
+    observed_at: '2026-08-12T22:38:37.319175+08:00'
+    exit_code: 0
+    duration_seconds: 2.014999999999418
+    artifact_paths: []
+    output_hash: sha256:0bafa22020eba017c729461b83d3afead531928a09c835fd1f683f8862eee993
+  touched_paths:
+  - backend/app/services/task_service.py
+  - backend/tests/test_services.py
+  - backend/tests/test_standalone_work_item.py
+  - frontend/src/components/task-detail/TaskDetailShell.vue
+  - frontend/src/domain/task-detail/actions.ts
+  - memory-bank/knowledge/architecture.md
+  - memory-bank/knowledge/contracts/data-contracts.md
+  - memory-bank/knowledge/known-issues/index.md
+  - memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md
+  - memory-bank/knowledge/known-issues/ki-009-standalone-action-dual-track.md
+  - memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
+  - memory-bank/knowledge/plans/implementation-plan.md
+  - memory-bank/knowledge/plans/plan-status-catalog.md
+  - memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
+  - memory-bank/knowledge/project-brief.md
+  - memory-bank/knowledge/roadmap.md
+  - memory-bank/logs/changelog.md
+  - memory-bank/runtime/active-session.yaml
+  - memory-bank/runtime/active-task.md
+  - memory-bank/runtime/active-task.yaml
+  - memory-bank/runtime/context-manifest.yaml
+  - memory-bank/runtime/handoff.md
+  - .paradigma-checkpoint-ki009.yaml
+  - frontend/tests/task-detail-actions.spec.ts
+  - memory-bank/logs/progress/2026-08-12-ki009-action-authorization.md
+  - memory-bank/runtime/sessions/SESSION-20260812-KI009-ACTION-AUTH.yaml
+  - memory-bank/runtime/tasks/TASK-20260812-KI009-ACTION-AUTH.yaml
+  narrative:
+    summary: KI-009 standalone 动作授权与 Memory-Bank 路线漂移已收口
+    completed_work:
+    - 测试先行修复 standalone 创建者代开工和执行人自验收路径
+    - 前端 standalone 动作统一消费 available_actions，workflow fallback 保持兼容
+    - 总体计划、路线图、架构、数据契约、Known Issue、上线清单和测试基线已同步
+    - 后端 496 collected / 464 passed / 32 skipped；前端 75 files / 217 tests 全量通过
+    remaining_work:
+    - 真实浏览器多账号复测 KI-009 与 RC2 模板可见性
+    - 员工完成 Iteration 4、设计器 Phase 2 与 S-01 UAT
+    - 目标环境补齐 Iteration 3-F 与 Iteration 5 PostgreSQL/Redis、rebuild、full shadow 和持续观察证据
+    blockers: []
+    next_steps:
+    - 收集人工复测和员工观察证据
+    - 证据齐全后单独申请 Iteration 5-E 读侧切流

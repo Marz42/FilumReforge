@@ -6,7 +6,7 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-08-12T22:25:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -24,8 +24,8 @@ paradigma:
 ---
 # Project Filum 架构基线
 
-**文档版本**: v3.26.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
-**最后同步**: 2026-08-12 · Iteration 5-A 投影模型/Expand 迁移工程完成；PostgreSQL 证据待补
+**文档版本**: v3.27.0（与产品 SemVer [`VERSION`](../../VERSION) 独立）
+**最后同步**: 2026-08-12 · Iteration 5-D 工程完成；KI-009 standalone 动作授权收口；目标环境证据待补
 
 ## 1. 文档定位
 
@@ -62,6 +62,7 @@ paradigma:
 - 代理授权：创建、撤销、按时间窗自动生效 / 过期
 - 任务创建、重新指派、前置依赖建模与开始前依赖校验
 - 严格任务状态机：`Todo -> Doing -> Review -> Done`
+- standalone 任务的按钮与后端状态命令共同消费 `available_actions`：创建者可以跟踪任务，但 TODO/DOING 阶段只有当前执行人（或现行显式管理 override）可启动/提交；workflow/graph 仍保留其既有 handshake 兼容路径
 - 任务评论、内部备注、审计日志、评论附件、活动时间线
 - 任务模板、模板步骤依赖建模、模板实例运行态、按依赖逐步激活、多人扇出 / 汇聚、watcher / 抄送与周期调度
 - Stage 2 Phase 2 首批前端治理：模板设计器已补步骤编码重复、循环依赖、孤岛步骤、单任务多人负责人规则校验，并新增流转关系邻接预览

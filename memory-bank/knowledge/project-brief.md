@@ -6,7 +6,7 @@ tags:
   - project-brief
   - vision
   - filum
-timestamp: 2026-07-30T01:45:00+08:00
+timestamp: 2026-08-12T22:25:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -35,7 +35,7 @@ paradigma:
 | **一句话描述** | 面向 50–100 人企业的模块化单体内部管理平台，统一承载人事、任务协同、流程/汇报、消息、知识库与 AI 指令入口 |
 | **项目类型** | Web 应用（B 端后台 + PWA 基线） |
 | **最新试用候选** | `v0.93.0-rc.2`（SemVer 预发布标签；主开发线继续前进） |
-| **当前阶段** | **Iteration 4 员工试用 RC** — 固定候选与后续开发分流；正式 UAT 与 I3-F 生产门禁仍待收口 |
+| **当前阶段** | **RC2 员工试用 + Iteration 5-D 工程完成** — 5-E 受目标环境证据和单独批准门禁；正式 UAT 与 I3-F 生产门禁仍待收口 |
 
 ---
 
@@ -111,6 +111,7 @@ Phase A–5、重构 Step 1–7、UI IA A–F、工作流图引擎 Phase 11、�
 | 图引擎 Iteration 4 Preflight | **done** — ADR-018 / 文档对齐 / 前端第一批稳定化 |
 | 决策对象与参与者重叠 | **ADR-019 implemented** — 集合负责人可贡献并推进；同版本独立验收仍职责分离 |
 | 系统管理员仅维护、不参与业务 | **产品边界 confirmed · implementation deferred** — KI-011，不属于 I4 |
+| 独立任务动作授权双轨（KI-009） | **engineering fixed · pending manual retest** — 创建者可跟踪但不能代当前执行人启动/提交；workflow 兼容路径不变 |
 | Ubuntu 最小回滚演练 | **暂缓**（上线前再补） |
 | 真实 Email / WebSocket 外部接入深化 | 待深化 |
 | 生命周期规则化默认映射 + 前端配置入口 | 待补齐 |

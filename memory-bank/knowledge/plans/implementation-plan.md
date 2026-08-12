@@ -5,7 +5,7 @@ description: "FilumReforge 总体实施计划。"
 tags:
   - plan
   - 实施计划
-timestamp: 2026-08-12T00:24:05+08:00
+timestamp: 2026-08-12T22:25:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -193,56 +193,39 @@ paradigma:
 - 附件绑定与权限控制
 - adapter 失败 / 重试 / 过期订阅处理
 
-### 6.5 工作流 E：结构化任务模板与多步骤协作
+### 6.5 工作流 E：任务模板与多步骤协作（图引擎主线）
 
 **目标**
 
-在已完成“模板实例驱动的逐步激活”“多人扇出 / 汇聚”“结构化模板设计器首版”的基础上，继续把工作流 E 收口为可回归、可部署、可持续扩展的稳定能力，使模板可以稳定覆盖“参与选题会后多人提交”“前置完成后再激活下游”的实际协作场景。
+以 `WorkflowGraphTemplate` / 图运行时作为唯一产品入口，持续完善领域中立的多步骤协作、模板治理和结构化设计器。Legacy E 只保留历史兼容与迁移职责，不再承接新业务功能。
 
 **当前状态**
 
-- 后端已完成 `TaskTemplateInstance` / `TaskTemplateStepRun`、`assignment_mode` / `join_mode`、`tasks` 对模板运行态的回链字段，以及对应 Alembic 迁移
-- `TaskTemplateService` / `TaskService` 已切到“实例驱动激活”模式：实例化只激活首批就绪步骤，任务完成后会自动推进下游
-- API 已补结构化步骤字段、模板实例快照与实例列表接口
-- `TaskTemplatesView.vue` 已升级为结构化设计器首版，支持步骤增删改、JSON 导入、实例快照与已有模板编辑
-- 当前重心已从“从 0 到 1 实现”切到“全量回归、部署收口、模板管理深化与生命周期联动”
+- B-12 已移除 Legacy E 对外入口；图模板、图 Run 与节点实例是当前产品主线
+- 图模板设计器已具备结构化 authoring、拓扑校验、草稿/发布、导入导出和 dry-run
+- 已发布模板具备 `global / departments` 可用范围、部门经理治理与审计历史
+- Iteration 4 已完成 HumanTask、Approval、Deliverable、Notification Handler 化与领域中立 capability snapshot
+- Iteration 4 UAT Preflight、数据治理审计和 S-01 样本准备已落地，正式人工 UAT 尚待目标环境完成
 
 **已确认决策**
 
-1. 激活策略采用“模板实例 / 步骤运行态独立建模 + 仅为已激活步骤创建真实任务”，不采用“预创建全部任务再锁定”
-2. 多人汇聚规则首版支持可配置 `all` / `any`
-3. 设计器首版采用结构化表单，不做完整拖拽式流程图；保留 JSON 预览 / 导入作为高级入口
+1. 视频能力是普通模板能力组合，不允许 Runtime 按模板编码、`run_kind` 或视频节点键分支
+2. 集合确认、交付验收、正式审批按 ADR-019 分别定义参与者重叠规则
+3. 结构化表单是默认 authoring 入口；高级 JSON 只作兼容与精细配置
+4. Legacy E API/Service 不再恢复为产品入口，其表族清理只能在 Iteration 6 单独批准后执行
 
-**下一批顺序**
+**当前开放项**
 
-1. 验证与部署收口
-	- 执行 backend / frontend 全量回归，确认工作流 E 首批实现与现有基线没有回归冲突
-	- 持续同步 `memory-bank`、README 与云服务器部署指南，避免文档继续漂移
-	- 已完成的部署工程化产物（可直接使用）：
-	  - `backend/scripts/start-prod.sh`：生产启动脚本，无 `--reload`，支持 `BIND_HOST` / `WORKERS` 调参
-	  - `backend/Dockerfile.prod`：生产后端镜像，仅安装 core 依赖
-	  - `frontend/Dockerfile.prod`：多阶段构建，`nginx:alpine` 托管静态产物
-	  - `frontend/nginx.frontend.conf`：SPA 感知的缓存策略（sw.js、assets、fallback）
-	  - `infra/docker/docker-compose.prod.yml`：生产 Compose，无 bind mount，无 `--reload`，Redis 持久化
-	  - `infra/docker/.env.prod.example`：Compose 生产 env 模板
-	  - `backend/.env.production.example`：systemd 部署 env 模板
-	  - `infra/nginx/nginx.prod.conf`：host-level Nginx 模板，含 HTTPS/TLS、gzip、SPA fallback、安全 headers
-	  - `infra/nginx/nginx.compose.prod.conf`：Compose 内部 gateway Nginx 配置
-	  - `scripts/check-release.sh`：发布前全量验证脚本（pytest、compileall、type-check、build、lint、alembic check）
-	- 近期已完成核心回归：backend `pytest -q`、`python -m compileall app tests`，frontend `npm run test:unit -- --run`、`npm run type-check`
-	- Stage 2 Phase 6 已完成；发布前在 **Linux 原生路径** 执行 `bash scripts/check-release.sh`（结果写入当次 session log）
-2. 模板管理深化
-	- 继续补模板 / 调度更完整的管理动作与更强设计器校验，而不是停留在“可创建 / 可实例化”的首版能力
-3. 业务联动
-	- 将生命周期事件与任务模板 / 审批流联动，形成真正的事件驱动事务入口
-4. 稳定性与测试强化
-	- 扩展 workflow E 相关 API / 集成测试与更大范围的前端交互回归
+1. 完成 RC2、Iteration 4、设计器 Phase 2、S-01 与 KI-009 人工 UAT
+2. 在目标 PostgreSQL 环境补齐 Iteration 3-F 与 5-A～5-D 迁移、重建、shadow 和运维证据
+3. `run_kind` / M-09 dual-read 收窄继续等待生产证据与单独策略，不抢跑 Iteration 6
+4. 生命周期规则化默认映射和前端配置入口作为后续业务增强，不回填到 Legacy E
 
 **测试出口**
 
-- 当前已完成验证：backend `pytest -q /app/tests/test_services.py /app/tests/test_api.py`、`pytest -q`、`python -m compileall app tests`；frontend `npm run test:unit -- --run tests/TaskTemplatesView.spec.ts`、`npm run test:unit -- --run`、`npm run type-check`
-- 发布前补充验证：frontend `npm run build`；如需一键收口，执行 `bash scripts/check-release.sh`
-- 前端 lint 若仅做只读校验，优先执行 `npm exec oxlint .` 与 `npm exec eslint .`，避免 `npm run lint` 的 `--fix` 副作用混入回归结果
+- 工程回归：backend 全量 pytest + compileall；frontend Vitest + type-check + build + 只读 lint
+- 人工 UAT：使用真实部门负责人、执行人和验收人，记录模板、Run/Task ID、账号与时间
+- 目标环境：PostgreSQL/Redis 严格模式与上线 checklist；本地 SQLite 通过不得替代
 
 ### 6.6 工作流 F：图引擎运行时深化（已完成主干）
 
@@ -258,10 +241,11 @@ paradigma:
 
 **后续深化**
 
-1. 为 Legacy E 历史表族制定数据迁移、归档与最终删除策略
-2. 刷新全量 API、worker、前端单测与 Playwright mock/live 覆盖基线
-3. 继续降低 `TaskDetailShell.vue` 等大组件复杂度，不改变 graph-first 行为
-4. 结合内测反馈补强模板/调度管理与可观测性
+1. 补齐 Iteration 3-F 与 5-A～5-D 的目标环境迁移、重建、shadow 和运维证据
+2. 证据齐全并获单独批准后实施 5-E 受控读侧切流
+3. 完成稳定观察，确认 fallback、差异、lag 与异常 Run 达标
+4. 仅在再次单独批准后进入 Iteration 6，归档/删除 Legacy E 与兼容锚点
+5. 主线闭环后再排生命周期规则化、设计器增强等新能力
 
 **测试出口**
 

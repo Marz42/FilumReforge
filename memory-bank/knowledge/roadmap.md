@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-08-12T22:25:00+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -72,6 +72,7 @@ paradigma:
 | **Iteration 5-C Shadow Comparison** | engineering done / target observation gate | `20260812_03` · work item/Run shell/Run summary/Timeline 独立对照 · 隐私安全差异记录 · lag/孤儿/30 天保留 · recent/full 扫描 · 无切读 @ 2026-08-12 |
 | **Iteration 5-D 运维与可观测性** | engineering done / PG gate | `20260812_04` · Admin-only 异常工作台 · Outbox 重放/incident 处置/节点技术恢复 · projection lag/backlog · trace · 无切读 @ 2026-08-12 |
 | **RC2 模板可见性热修** | done / trial retest | 可读/可管理双查询去重 · 逐模板动作授权 · test-first @ 2026-08-11 |
+| **KI-009 独立任务动作授权收口** | engineering done / manual retest | standalone 详情只消费 `available_actions` · 状态命令校验当前阶段执行人 · workflow 兼容路径不变 @ 2026-08-12 |
 
 ---
 
@@ -168,16 +169,14 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-1. **目标环境验收前置**：在“任务模板”先运行“数据检查”，清零确定错误；再运行“验收准备”，处理 P-01～P-04 阻断并记录 warning。工具只判断可测，不自动判定验收通过。
-2. **Iteration 4 / 设计器 Phase 2 / S-01 人工 UAT**：由员工按 checklist 验证非视频模板、参与者重叠语义、结构化 authoring、视频兼容黄金路径与周期统计，记录账号、模板、Run ID 和反馈。
-3. **F-05 已完成**：capability 工作流面板、Run Event 与图节点追踪已提取，Shell 只保留详情壳层编排；KI-010 未混入。
-4. **Iteration 5（5-A/B/C/D 工程完成）**：三类投影、独立 checkpoint、幂等 projector/rebuild、隐私安全 shadow comparison、Admin-only 运维工作台、受控恢复、projection lag/backlog 和统一 trace 已落地；PostgreSQL head↔base 与目标环境持续样本待补。下一阶段 5-E 受控读侧切换被门禁阻止，切流须单独批准。
-5. **稳定观察期**：确认 fallback、ROOT shell 新增量、投影差异和 lag 达到 Iteration 6 前置标准。
-6. **Iteration 6**：单独批准后停止 JSON/双写锚点，归档并清理动态 graph-first、Legacy E 服务/表/列和 feature flags；不得与观察期重叠。
-7. **员工 RC 复测**：升级至不可变 `v0.93.0-rc.2` 并核对 health version；用真实部门负责人验证共享模板可见/可发起且无越权管理动作。
-8. **I3-F 生产门禁**：目标环境 Expand/Contract、Link 回填、恢复/回滚演练、连续 7 天观测与 31/31 报告。
-9. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
-10. **后续专项**：KI-011 按用户决定暂不推进；M-09 与 `run_kind` dual-read 收窄继续等待策略和生产证据。
+1. **员工 RC2 复测**：核对 health version；用真实部门负责人验证共享模板可见/可发起且无越权管理动作，并持续记录实际试用反馈。
+2. **数据检查与人工 UAT**：清零治理错误，完成 Iteration 4、设计器 Phase 2、S-01 与 KI-009 人工复测；自动 Preflight 不代替业务签字。
+3. **目标环境证据**：补齐 Iteration 3-F Link/reconciliation/7 天/31 项，以及 5-A～5-D PostgreSQL head↔base、projection rebuild、full shadow 和运维工作台证据。
+4. **Iteration 5-E**：仅在上述证据齐全并获单独批准后，受控切换读侧；未批准前保持现行动态 graph-first 路径。
+5. **稳定观察期**：确认 fallback、ROOT shell 新增量、投影差异、lag 和异常 Run 达标。
+6. **Iteration 6**：再次单独批准后停止兼容写入并清理 Legacy E/JSON/feature flags；不得与观察期重叠。
+7. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
+8. **后续专项**：KI-011 按用户决定暂不推进；M-09 与 `run_kind` dual-read 收窄等待策略和生产证据。
 
 **下一 actionable**：在目标环境补跑至 `20260812_04` 的 PostgreSQL head↔base、projection rebuild + full shadow、5-D 运维看板校验与持续样本，并执行“数据检查”→“验收准备”→人工 UAT checklist。证据齐全后提交 5-E 受控读侧切流批准；未批准前继续使用现行动态 graph-first 读路径。Iteration 6 和生产准入仍须独立批准。
 
@@ -185,9 +184,9 @@ paradigma:
 
 ## 并行工作线
 
-- 产品/架构：ADR-019 决策语义映射；视频模板领域中立
-- 前端：问题清单待接收并分级；模板解耦 Phase 2 UAT
-- 工程质量：I3-F 目标环境证据、Iteration 5 投影/运维、测试覆盖、Legacy E 历史兼容清理；KI-011 延后
+- 产品/架构：验证 ADR-019 与领域中立模板在真实业务样本中的语义，不新增视频特例
+- 前端：完成 KI-009、RC2、模板解耦 Phase 2 与 S-01 UAT；继续接收试用反馈
+- 工程质量：I3-F 与 Iteration 5 目标环境证据、测试覆盖和可观测性；Legacy E 清理与 KI-011 均延后
 
 历史细计划：[`plans/task-center-enhance.md`](./plans/task-center-enhance.md) · 当前主线：[`plans/implementation-plan.md`](./plans/implementation-plan.md)
 

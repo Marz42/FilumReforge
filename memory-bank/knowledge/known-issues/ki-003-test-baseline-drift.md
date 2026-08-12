@@ -3,7 +3,7 @@ type: paradigma-known-issue
 title: "KI-003: 测试基线漂移"
 description: "pytest skip、工作区 mass deletion、Playwright 等测试环境状态。"
 tags: ["known-issue", "testing", "baseline", "playwright"]
-timestamp: "2026-08-12T14:25:00+08:00"
+timestamp: "2026-08-12T22:35:00+08:00"
 paradigma:
   schema_version: "0.5.0"
   temperature: cold
@@ -26,13 +26,13 @@ paradigma:
 | Playwright multi-account mock | **15/15** @ 2026-06-22 | `npm run test:e2e:workflow-video-multi-account-mock`（A–N） |
 | Playwright UAT | **待重跑** | `test:e2e:workflow-video-uat` |
 | Playwright live | 未纳入每次基线 | 多账号见 `manuals/workflow-video-v1-multi-account-e2e-guide.md` |
-| backend current main | **494 collected / 462 passed / 32 skipped / 0 failed** @ 2026-08-12 | Iteration 5-D 运维、动作幂等/审计、trace 隐私、`20260812_04` 与 SQLite expand/downgrade 后的完整汇总 |
+| backend current main | **496 collected / 464 passed / 32 skipped / 0 failed** @ 2026-08-12 | Iteration 5-D + KI-009 standalone 阶段动作授权、`20260812_04` 与 SQLite expand/downgrade 后的完整汇总 |
 | httpx deprecation | **cleared** @ 2026-08-09 RC1 | logout cookie 回归已改用客户端 cookie jar |
 | frontend RC2 tag | **64 files / 181 tests PASS** @ 2026-08-11 | type-check / production build PASS |
-| frontend current main | **74 files / 214 tests PASS** @ 2026-08-12 | Iteration 5-D Admin 工作流运维页后 type-check、production build PASS |
+| frontend current main | **75 files / 217 tests PASS** @ 2026-08-12 | Iteration 5-D + KI-009 动作契约后 type-check、production build PASS |
 | frontend lint | **ESLint + Oxlint 0 errors** @ 2026-08-12 main | RC1 快照遗留的测试/E2E Oxlint 项已在后续主线清理；RC2 改动文件单独为 0 |
 | Ubuntu 最小回滚 | **暂缓** | 原 P0，用户决定上线前再练 |
 
-**本地单元基线 ID**: `2026-08-12-iteration5d-workflow-operations`；浏览器 E2E 最近完整基线为 `2026-08-09-v0.93.0-rc.1-release-candidate`，RC2/当前主线仍待目标环境刷新。
+**本地单元基线 ID**: `2026-08-12-ki009-action-authorization`；浏览器 E2E 最近完整基线为 `2026-08-09-v0.93.0-rc.1-release-candidate`，RC2/当前主线仍待目标环境刷新。
 
 **Iteration 5-A/B/C/D 数据库门禁**：Alembic 单 head `20260812_04`；SQLite pre-projection expand/downgrade PASS；PostgreSQL 增量离线 SQL（至 `20260812_04`）PASS。真实 PostgreSQL head↔base 因本机无 Docker/PostgreSQL 保持 skip，目标环境须用 `FILUM_REQUIRE_POSTGRES_TESTS=true` 补证；5-E 前还须运行 rebuild + full shadow、校验运维指标并保留持续样本。

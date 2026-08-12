@@ -1,9 +1,9 @@
 ---
 type: paradigma-known-issue
-title: "KI-009: Standalone Work Item 详情动作仍走旧契约"
-description: "P0 已引入 available_actions，但 standalone 详情主按钮与部分后端状态权限仍允许创建人代执行，干扰 C 业务闭环验收。"
+title: "KI-009: Standalone Work Item 动作授权双轨"
+description: "Standalone 详情和状态命令曾绕过 available_actions；主线已完成工程修复，等待多账号人工复测。"
 tags: ["known-issue", "standalone", "available_actions", "task-center", "E2E"]
-timestamp: "2026-07-20T14:44:00+08:00"
+timestamp: "2026-08-12T22:25:00+08:00"
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -15,10 +15,10 @@ paradigma:
     en: ["standalone", "start_work", "creator", "available_actions", "legacy action"]
 ---
 
-# KI-009: Standalone Work Item 详情动作仍走旧契约
+# KI-009: Standalone Work Item 动作授权双轨
 
-> **处置节奏**：先记档，等 **C. 业务闭环**（`E2E-GUI-VERIFICATION.md` C1.x）人工排查完成后再统一修复。  
-> **范围**：只收紧 **standalone** 路径；workflow / graph handshake 继续临时双轨，不纳入本 KI 的强制迁移。
+> **当前状态**：🟢 **工程已修复，等待多账号人工复测**。
+> **范围**：只收紧 **standalone** 路径；workflow / graph handshake 继续兼容，不纳入本 KI 的强制迁移。现行 Admin/HR override 不在本项修改，继续由 KI-011 单独治理。
 
 ## 现象（C1.1）
 
@@ -43,31 +43,35 @@ P0 已落地：
 
 新契约侧：`start_work` 仅 assignee 或 `task_admin_override`（ADMIN/HR）。创建人 L2 不在其中。
 
-## 类似问题（同一批待修）
+## 同批问题与修复结果
 
-以下均属「standalone 详情仍用旧启发式，未统一消费 `available_actions`」：
+以下均属「standalone 详情曾使用旧启发式，未统一消费 `available_actions`」：
 
-1. **开始处理**（TODO→DOING）：创建人可点 — **已确认**
-2. **提交交付 / 提交评审**：`canSubmitDeliverable` 仍本地判断 assignee，未读契约（碰巧较接近正确）
-3. **验收通过 / 打回**：`canReviewDeliverable` 仍本地判断 creator，未读契约（碰巧较接近正确）
-4. **后端状态命令授权**：`transition_task_status` 走 `_can_operate_task`，与 `available_actions` 不一致
-5. **防护缺口**：workflow 任务 `available_actions` 常为空；若误把空列表当「无操作」会坏图任务（修复 standalone 时须保留双轨判定）
+1. **开始处理**（TODO→DOING）：standalone 只在含 `start_work` 时显示；后端同步复核
+2. **提交交付 / 提交评审**：standalone 只在含 `submit_deliverable` 时显示
+3. **验收通过 / 打回**：standalone 只在含 `approve_deliverable` / `return_for_rework` 时显示
+4. **后端状态命令授权**：`transition_task_status` 按当前阶段映射动作并使用同一 policy context 校验
+5. **workflow 兼容防护**：workflow 任务仍使用原 handshake/Handler 判断，不把空 `available_actions` 当作无权限
 
 转办按钮（standalone）已走新契约，**不在本 KI 必改清单内**。
 
-## 建议修复（待 C 闭环排查结束后）
+## 已实施修复（2026-08-12）
 
-最小必要，不为进 I4 做全量 workflow 迁契约：
+按最小必要范围实施，不为修 standalone 顺带改写 workflow 契约：
 
-1. standalone 详情：「开始处理 / 提交交付 / 验收」只认 `available_actions`
-2. standalone 后端：状态变更/提交与契约一致（创建人不能代开工；ADMIN/HR 若保留则显式 override）
-3. 保留：`execution_mode === 'workflow'` → legacy graph 路径
-4. 补回归：C1.1 创建人跟踪可见且无 `start_work`；L4 待处理有 `start_work`
+1. `canUseTaskDetailAction()` 对 standalone 以 `available_actions` 为权威，对 workflow 保留显式 fallback
+2. `transition_task_status()` 对 standalone 复用 `build_standalone_action_context()`；创建者关系不再等同于阶段执行权限
+3. ADMIN/HR 继续通过现行 `task_admin_override` 显式进入 policy；是否移除由 KI-011 决定
+4. test-first 回归覆盖创建者不能启动他人任务、standalone 空动作权威、单一动作授权和 workflow fallback
 
-## 验收时临时规避
+## 人工复测要求
 
-- C1.1：L2 只建任务并确认跟踪可见；**不要用 L2 点「开始处理」**
-- C1.2+：用 **L4** 账号开工与提交
+1. L2 创建 standalone 并指派 L4：L2 在“跟踪”可见，但无“开始处理/提交”动作，直接调用状态接口也应被拒绝
+2. L4 在“待处理”可开始并提交；进入 REVIEW 后 L2 可验收通过或打回
+3. 打回后 L4 可再次提交，L2 可完成验收
+4. 抽样一个 workflow 模板任务，确认接单、交付、验收按钮没有因空 `available_actions` 消失
+
+工程修复部署后不再需要“创建者避免点击”的临时规避。
 
 ## 关联
 

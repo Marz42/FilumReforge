@@ -3,7 +3,7 @@ type: paradigma-manual
 title: "2026-08-09 生产上线准入 Checklist"
 description: "把本地工程就绪、预发验收与生产变更窗口分开的可勾选上线清单。"
 tags: [manual, release, production, checklist, security, readiness]
-timestamp: 2026-08-11T22:50:00+08:00
+timestamp: 2026-08-12T22:25:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -49,6 +49,7 @@ paradigma:
 | B-05 | 在“任务模板 → 验收准备”确认 P-01～P-04 无阻断，并由员工完成 I4 / 设计器 Phase 2 / S-01 UAT checklist 全部必过项；自动检查结果不得代替人工记录与签字 | [ ] |
 | B-06 | 在“任务模板 → 数据检查”执行 scope/依赖盘点：intentional global 已由业务负责人确认，空 departments、缺失/停用部门、旧 `child_template_code`、父子范围不兼容均通过草稿或新版本处理；复查 `error=0` | [ ] |
 | B-07 | 若候选包含 Iteration 5：在真实 PostgreSQL 严格执行至 `20260812_04` 的 head↔base 演练；升级后先 `python -m app.scripts.rebuild_workflow_projections --all`，再 `python -m app.scripts.scan_workflow_projection_shadow --full`，保存 scan 统计并确认 critical/error、missing/orphan 与容忍窗外 lag 达标；用 Admin“工作流运维”核对 Outbox backlog、projection failed/lag 和 trace 查询 | [ ] |
+| B-08 | 若候选包含 KI-009：创建者指派 standalone 给另一员工后仍可在“跟踪”查看，但无“开始处理/提交”动作；执行人可开始并提交，进入 REVIEW 后创建者可通过或打回；同时抽样确认 workflow 模板任务原握手/交付/验收动作未消失 | [ ] |
 
 ## C. I3-F 硬门禁
 

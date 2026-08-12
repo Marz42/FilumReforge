@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-08-12T22:25:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -32,8 +32,8 @@ paradigma:
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
-**版本**: v3.22.0（与 [`architecture.md`](../architecture.md) 同步）
-**最后同步**: 2026-08-12 · Iteration 5-D 运维/trace 契约 · 最新试用候选 `v0.93.0-rc.2`
+**版本**: v3.23.0（与 [`architecture.md`](../architecture.md) 同步）
+**最后同步**: 2026-08-12 · Iteration 5-D 运维/trace + KI-009 standalone 动作授权契约 · 最新试用候选 `v0.93.0-rc.2`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
 
@@ -46,6 +46,7 @@ paradigma:
 - **通用错误**: `backend/app/api/error_handlers.py` 返回 `request_id` + 业务错误码
 - **认证**: JWT access token + HttpOnly refresh cookie（`backend/app/api/routes/auth.py`）
 - **附件下载**: `GET /api/v1/attachments/{id}/content`（鉴权后流式返回）
+- **standalone 任务动作契约（KI-009）**：任务详情 `available_actions` 是 standalone 前端按钮的权威来源；`PATCH /api/v1/tasks/{id}/status` 按当前状态映射 `start_work` / `submit_deliverable` / `approve_deliverable` 并复核当前 actor。创建关系只授予跟踪，不授予 TODO/DOING 代执行权限；现行 Admin/HR override 保留，待 KI-011 单独治理。workflow/graph 不把空 `available_actions` 解释为禁止动作，继续走既有 handshake/Handler 兼容路径。
 - **图引擎 + 视频 v1 运行时**: `backend/app/api/routes/workflow_graph_engine.py`（前缀 `/api/v1/workflow-graph`）
   - 图实例/节点：`GET/POST .../instances/{id}`、`.../node-instances/{id}/complete|deep-reject|takeover`
   - Iteration 4 准入：Admin-only `GET .../admin/iteration4-readiness`；无管理权限统一 404
@@ -207,9 +208,9 @@ paradigma:
 
 最新权威结果见 [`progress summary`](../../logs/progress/summary.md) 与最近独立 session log（2026-08-09 @ 安全与上线准备）：
 
-- backend：Iteration 5-D 后基线 **494 collected / 462 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；Alembic 单 head `20260812_04`
+- backend：KI-009 收口后基线 **496 collected / 464 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；Alembic 单 head `20260812_04`
 - Iteration 4-E / Handler / 视频黄金流程定向：**66 PASS**
-- frontend：Vitest **74 文件 / 214 用例 PASS**；`vue-tsc --build`、ESLint、Oxlint 与 production build PASS
+- frontend：Vitest **75 文件 / 217 用例 PASS**；`vue-tsc --build`、ESLint、Oxlint 与 production build PASS
 - 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**
 - 未纳入每次刷新：live/docker-gui、目标环境 I3-F 7 天 readiness、Ubuntu 回滚演练
 

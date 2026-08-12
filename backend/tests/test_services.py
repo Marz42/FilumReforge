@@ -1888,7 +1888,7 @@ async def test_task_service_enforces_status_transitions_and_records_logs(db_sess
   )
   assert review_task.status == TaskStatus.REVIEW
   done_task = await task_service.transition_task_status(
-    actor=employee,
+    actor=admin,
     task_id=task.id,
     target_status=TaskStatus.DONE,
   )
@@ -1964,7 +1964,7 @@ async def test_task_service_comments_attachments_and_stats(db_session) -> None:
       target_status=TaskStatus.REVIEW,
     )
     active_task = await task_service.transition_task_status(
-      actor=employee,
+      actor=admin,
       task_id=active_task.id,
       target_status=TaskStatus.DONE,
     )

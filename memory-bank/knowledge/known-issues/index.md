@@ -1,7 +1,7 @@
 # Known-Issues Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 126414e6f725f333 -->
+<!-- checksum: 4cc8a1aaf4f0e884 -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -14,7 +14,7 @@
 | [ki-006-report-center-history.md](ki-006-report-center-history.md) | `paradigma-known-issue` | KI-006: 汇报中心历史问题 | 汇报中心<br>PostgreSQL enum<br>ORM | - | - |
 | [ki-007-windows-playwright-excluded-port.md](ki-007-windows-playwright-excluded-port.md) | `paradigma-known-issue` | KI-007: Windows 保留端口导致 Playwright webServer EACCES | Playwright EACCES<br>4173 端口<br>Windows 保留端口 ... | - | - |
 | [ki-008-docker-frontend-dependency-volume.md](ki-008-docker-frontend-dependency-volume.md) | `paradigma-known-issue` | KI-008: Docker 前端依赖命名卷可能滞后于 lockfile | Vite import-analysis<br>Docker 缺少依赖<br>node_modules 命名卷 ... | - | - |
-| [ki-009-standalone-action-dual-track.md](ki-009-standalone-action-dual-track.md) | `paradigma-known-issue` | KI-009: Standalone Work Item 详情动作仍走旧契约 | standalone<br>开始处理<br>创建人 ... | - | - |
+| [ki-009-standalone-action-dual-track.md](ki-009-standalone-action-dual-track.md) | `paradigma-known-issue` | KI-009: Standalone Work Item 动作授权双轨 | standalone<br>开始处理<br>创建人 ... | - | - |
 | [ki-010-activity-timeline-redesign.md](ki-010-activity-timeline-redesign.md) | `paradigma-known-issue` | KI-010: 活动时间线需重做为更有指向性的留痕 | 活动时间线<br>折叠<br>留痕 ... | - | - |
 | [ki-011-system-admin-business-boundary.md](ki-011-system-admin-business-boundary.md) | `paradigma-known-issue` | KI-011: 系统管理员与业务参与权限尚未解耦 | 管理员业务边界<br>系统管理员<br>管理员不参与业务 ... | - | - |
 | [ki-012-security-scan-release-blockers.md](ki-012-security-scan-release-blockers.md) | `paradigma-known-issue` | KI-012: 2026-08-09 安全扫描发现与上线阻断项 | 安全扫描<br>上线阻断<br>IDOR ... | - | - |
@@ -32,11 +32,11 @@
 | Task Center P1-10 (`4398439`) | ✅ Resolved | Self-review prevention with fallback reviewer chain and audited admin reassignment |
 | Task Center P2-11/P2-13 (`0.92.1`) | ✅ Resolved | Graph source-type collision guard and historical permission-branch documentation |
 
-## Open — Standalone action dual-track
+## Verification pending — Standalone action dual-track
 
 | ID | Status | Note |
 |----|--------|------|
-| [KI-009](ki-009-standalone-action-dual-track.md) | 🟡 Deferred | C1.1 创建人可「开始处理」等；等 C 业务闭环排查完再修 standalone 详情/后端授权 |
+| [KI-009](ki-009-standalone-action-dual-track.md) | 🟢 Engineering fixed / retest pending | standalone 前端与状态命令已统一按 `available_actions`；待创建者/执行人/验收人多账号人工复测 |
 
 ## Open — Activity timeline UX
 

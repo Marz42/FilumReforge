@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "实施计划状态目录"
 description: "区分现行计划、已完成实施记录与已被取代的 Legacy 方案，避免历史计划被误作当前排期。"
 tags: [plan, governance, active, completed, legacy]
-timestamp: 2026-08-12T14:25:00+08:00
+timestamp: 2026-08-12T22:25:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -83,6 +83,7 @@ paradigma:
 - 新计划默认标为 `ACTIVE`；完成后改为 `COMPLETED`，并把仍开放的工作迁到新的 active 计划或清单。
 - 计划被架构决策或新主计划取代时标为 `LEGACY`，不得仅因仍有未勾选项而继续执行。
 - `COMPLETED` / `LEGACY` 文档使用 `lifecycle: stable`；active 主计划使用 `lifecycle: evolving`。
+- `plan_status` 表示计划的工程生命周期，不等同于业务验收；工程完成但仍待 UAT/目标环境证据时，在用途或完成边界中单独记录，不把计划误退回“未实施”。
 - `logs/progress/` 是事实日志，不参与计划状态迁移，也不回写历史数字。
 
 # Status
