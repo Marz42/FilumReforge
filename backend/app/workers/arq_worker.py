@@ -21,6 +21,7 @@ from app.workers.jobs import (
 )
 from app.workers.workflow_outbox_worker import process_workflow_outbox_events
 from app.workers.workflow_projection_worker import process_workflow_projection_events
+from app.workers.workflow_projection_shadow_worker import scan_workflow_projection_shadow
 
 OVERDUE_REMINDER_JOB = "enqueue_overdue_task_reminders"
 WORKFLOW_REMINDER_JOB = "enqueue_pending_workflow_reminders"
@@ -31,6 +32,7 @@ REBUILD_ALL_DOCUMENT_EMBEDDINGS_JOB = "rebuild_all_document_embeddings_job"
 PROCESS_EMPLOYMENT_EVENT_JOB = "process_employment_event_job"
 WORKFLOW_OUTBOX_JOB = "process_workflow_outbox_events_job"
 WORKFLOW_PROJECTION_JOB = "process_workflow_projection_events_job"
+WORKFLOW_PROJECTION_SHADOW_JOB = "scan_workflow_projection_shadow_job"
 
 
 async def startup(ctx: dict[str, object]) -> None:
@@ -160,6 +162,11 @@ async def process_workflow_projection_events_job(ctx: dict[str, object]) -> int:
   return await process_workflow_projection_events(session_factory=session_factory)
 
 
+async def scan_workflow_projection_shadow_job(ctx: dict[str, object]) -> int:
+  session_factory: async_sessionmaker[AsyncSession] = ctx["session_factory"]  # type: ignore[assignment]
+  return await scan_workflow_projection_shadow(session_factory=session_factory)
+
+
 _settings = get_settings()
 
 
@@ -175,6 +182,7 @@ class WorkerSettings:
     process_employment_event_job,
     process_workflow_outbox_events_job,
     process_workflow_projection_events_job,
+    scan_workflow_projection_shadow_job,
   ]
   cron_jobs = [
     cron(
@@ -210,6 +218,14 @@ class WorkerSettings:
       name=WORKFLOW_PROJECTION_JOB,
       second={10, 40},
       run_at_startup=True,
+      unique=True,
+    ),
+    cron(
+      scan_workflow_projection_shadow_job,
+      name=WORKFLOW_PROJECTION_SHADOW_JOB,
+      minute={2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57},
+      second=50,
+      run_at_startup=False,
       unique=True,
     ),
     cron(

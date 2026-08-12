@@ -60,6 +60,7 @@ EXPECTED_UPGRADED_TABLES = {
   "process_run_summaries",
   "node_timeline_entries",
   "projection_checkpoints",
+  "projection_shadow_observations",
   "workflow_steps",
   "workflow_instances",
   "workflow_step_runs",
@@ -92,6 +93,7 @@ PROJECTION_TABLES = {
   "process_run_summaries",
   "node_timeline_entries",
   "projection_checkpoints",
+  "projection_shadow_observations",
 }
 
 

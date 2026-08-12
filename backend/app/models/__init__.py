@@ -54,6 +54,7 @@ from app.models.workflow_projection import (
   NodeTimelineEntry,
   ProcessRunSummary,
   ProjectionCheckpoint,
+  ProjectionShadowObservation,
   TaskCenterItem,
 )
 
@@ -78,6 +79,7 @@ __all__ = [
   "Position",
   "ProcessRunSummary",
   "ProjectionCheckpoint",
+  "ProjectionShadowObservation",
   "Profile",
   "ProfileFieldDefinition",
   "ProfileFieldPermission",

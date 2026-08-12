@@ -76,7 +76,7 @@ paradigma:
 - Stage 2 Phase 6 补丁增强：人员工作台账号页已明确区分邀请“已手动撤销”与“已完成注册（非撤销）”；管理员可删除未建档且未被业务数据引用的账号
 - Step 6 消息联动收口：严格用户级收件箱隔离、消息来源模块 / 来源对象 / 来源回跳、未读 / 已确认状态与聚合筛选
 - Inbox-first 任务中心：主筛选 **待处理 / 跟踪 / 历史**；页头 **建立任务** 为居中 **Dialog**（含未保存关闭确认）；筛选摘要卡；`GET /api/v1/tasks/search`；`FilumDateTimePicker` / `FilumDateTimeRangePicker`；全局 **个人备忘** 为右下角浮窗（列表 + 新建/编辑 Dialog，可选 `title`）；任务模板在 `/task-templates`
-- 工作流图引擎 schema 现为 **十五张运行时/治理表 + 四张投影基础表**：`20260812_01` 新增三类可重建读模型，`20260812_02` 新增三源流独立 checkpoint。Projection owner 复用持久化 Run Event、Task Log、Task Comment 做幂等消费与重建，失败不回滚业务事实。兼容 JSON 与动态 graph-first 仍在正式读路径；生产切流仍须目标环境证据和单独批准
+- 工作流图引擎 schema 现为 **十五张运行时/治理表 + 五张投影/观察表**：`20260812_01` 新增三类可重建读模型，`20260812_02` 新增三源流独立 checkpoint，`20260812_03` 新增隐私安全 shadow observation 并修正 revision/累计计数为 `BIGINT`。Projection owner 复用持久化 Run Event、Task Log、Task Comment 做幂等消费与重建，失败不回滚业务事实；独立 shadow worker 每 5 分钟比较旧查询与投影。兼容 JSON 与动态 graph-first 仍在正式读路径；生产切流仍须目标环境证据和单独批准
 - 工作流图引擎 Iteration 4-A（@ 2026-07-28）：新增 `WorkflowNodeHandlerRegistry` 与统一 `WorkflowCapabilityResult`，Handler 契约声明 definition validation、activate、command、cancel、retry、interruptible、compensation、side effects 与 result mapping；HumanTask/Notice 已注册，Runtime 的激活/完成状态映射消费统一结果并写入 RunEvent 审计，Approval 暂走 legacy 等待 I4-C
 - Iteration 4 Preflight（@ 2026-07-29）：P0/P1/P3 已收口并恢复 I4-B，前端 P2 持续接收。ADR-018 明确视频流程是普通模板包，Runtime 不得以 `run_kind`、模板 code、节点 key、tags 或 `video_*` Profile 驱动行为，也不新增 `VideoHandler`；现有专用路径按领域中立迁移清单分批迁移
 - Iteration 4-B（@ 2026-07-29）：HumanTask 完成、取消、重试结果由 `HumanTaskCoordinator` 通过 Runtime owner port 应用并同步 Link/Outbox；显式区分普通 `complete` 与 `collection_finalize`，A/B/C 均提交且 A 同时负责集合确认属于合法推进。
@@ -105,6 +105,7 @@ paradigma:
 - F-05 收口批（@ 2026-08-12）：`TaskDetailWorkflowPresentation` 以 domain-neutral Profile/capability 组合现有 Tracking/Run/Capture/Deliverable/Aggregate 展示并向页头透传提交句柄，`TaskDetailGraphTelemetry` 承接 Run Event 与 compact/full 节点状态展示；Shell 约 1,153 → 838 行，F-05 完成。下一主线为 Iteration 5-A 三类投影契约与 Expand-only 迁移。
 - Iteration 5-A（@ 2026-08-12）：`workflow_projection.py` 定义 actor-neutral `TaskCenterItem`、`ProcessRunSummary` 与统一 `NodeTimelineEntry`，保存 canonical subject、源 revision/schema、稳定排序字段和 audience 候选；最终对象授权仍由 Task/Workflow policy 裁决。`20260812_01` 只建表/约束/索引，无 projector、回填、读侧切换或旧结构删除；SQLite expand/downgrade 通过，PostgreSQL 严格迁移证据待目标环境补齐。
 - Iteration 5-B（@ 2026-08-12）：`projection_checkpoints` 与 `20260812_02` 固定每个源流的时间+UUID 游标、状态和失败摘要；`WorkflowProjectionService` 幂等投影 Task/Run/Event/Log/Comment，`WorkflowProjectionRebuildService` 支持单 Task、单 Run 与高水位全量重建。ARQ 周期任务逐流独立提交，失败另事务登记；未切换任何用户读路径。
+- Iteration 5-C（@ 2026-08-12）：`WorkflowProjectionShadowService` 独立派生 source snapshot，对照 Task Center work item/Run shell、Run summary 与三类 Timeline 投影；只持久化差异字段名、指纹、revision、lag 和等级。ARQ recent 抽样、显式 full 审计、孤儿识别与 30 天保留已落地；未切换用户读路径。
 - 文档知识库、RAG 检索、LLM Router 与 Tool Calling
 - 浏览器 Push 订阅、Web Push adapter 与 PWA manifest / service worker 基线
 - 浏览器后台界面：已切换到“通用模块 / 特殊模块”壳层导航；总览页已落地看板、公告、待办事项、任务跟踪与任务中心快捷入口

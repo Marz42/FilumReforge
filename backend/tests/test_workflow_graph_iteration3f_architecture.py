@@ -21,12 +21,14 @@ COORDINATOR_FILE = "services/human_task_coordinator.py"
 PROJECTION_OWNER_FILES = {
   "services/workflow_projection_service.py",
   "services/workflow_projection_rebuild_service.py",
+  "services/workflow_projection_shadow_service.py",
 }
 PROJECTION_MODELS = {
   "TaskCenterItem",
   "ProcessRunSummary",
   "NodeTimelineEntry",
   "ProjectionCheckpoint",
+  "ProjectionShadowObservation",
 }
 
 TASK_FIELDS = {

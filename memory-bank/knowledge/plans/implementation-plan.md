@@ -33,7 +33,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **工作流图引擎 Iteration 4 A–E、F-05 与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.2` 已固定并等待员工复测。主开发线现位于 **Iteration 5-A 投影契约与加法迁移**，随后依次为 projector/rebuild、shadow comparison、运维可观测、受控读侧切换、稳定观察和单独批准的 Iteration 6 兼容层清理。F-05 最终将 `TaskDetailShell` 约 1,989 → 838 行，权限与动作语义不变。目标环境 I4/设计器/S-01 人工 UAT 与 Iteration 3-F 证据可同 5-A～5-D 并行，但会阻止 5-E 生产切流、停止兼容写入与 Legacy 删除。KI-011 按用户决定暂不推进。详见 [`2026-08-12-iteration5a-projection-contract-plan.md`](./2026-08-12-iteration5a-projection-contract-plan.md) 与 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
+**当前执行位置**: **工作流图引擎 Iteration 4 A–E、F-05、Iteration 5-A/B/C 与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.2` 已固定并等待员工复测。主开发线下一批为 **Iteration 5-D 运维与可观测性**，之后才是目标环境门禁下的 5-E 受控读侧切换、稳定观察和单独批准的 Iteration 6 兼容层清理。F-05 最终将 `TaskDetailShell` 约 1,989 → 838 行，权限与动作语义不变；5-C 已建立只记录不切读的 shadow comparison。目标环境 I4/设计器/S-01 人工 UAT、Iteration 3-F、PostgreSQL head↔base 与 shadow 持续样本可同 5-D 并行，但会阻止 5-E 生产切流、停止兼容写入与 Legacy 删除。KI-011 按用户决定暂不推进。详见 [`2026-08-12-iteration5c-shadow-comparison-plan.md`](./2026-08-12-iteration5c-shadow-comparison-plan.md) 与 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
 
 ## 2. 已确认约束
 

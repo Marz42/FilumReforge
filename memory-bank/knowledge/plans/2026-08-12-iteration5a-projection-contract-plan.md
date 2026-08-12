@@ -70,7 +70,7 @@ paradigma:
 ## 6. 当前验证结果
 
 - `task_center_items`、`process_run_summaries`、`node_timeline_entries` ORM/约束/索引已实现；Projection AST guard 固定未来唯一写 owner 文件。
-- 5-A revision 为 `20260812_01`；5-B 追加 checkpoint 后仓库单 head 已前移至 `20260812_02`。两段 PostgreSQL 增量离线 SQL 均可生成。
+- 5-A revision 为 `20260812_01`；5-B 追加 checkpoint，5-C 追加 shadow observation 与 BIGINT 修正后仓库单 head 已前移至 `20260812_03`。三段 PostgreSQL 增量离线 SQL均可生成。
 - SQLite pre-head schema 上的 stamp → upgrade → downgrade 通过，证明三表可加可撤且未触碰旧表。
 - 模型/迁移/架构定向 7 passed / 1 PostgreSQL skip；完整后端回归通过。
 - 尚缺真实 PostgreSQL `head → base` 证据；本机 Docker daemon 不可用，因此本计划保持 active gate，不把 SQLite 当作生产约束结论。

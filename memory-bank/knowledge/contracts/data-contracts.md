@@ -205,7 +205,7 @@ paradigma:
 
 最新权威结果见 [`progress summary`](../../logs/progress/summary.md) 与最近独立 session log（2026-08-09 @ 安全与上线准备）：
 
-- backend：Iteration 5-B 后基线 **479 collected / 447 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；Alembic 单 head `20260812_02`
+- backend：Iteration 5-C 后基线 **488 collected / 456 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；Alembic 单 head `20260812_03`
 - Iteration 4-E / Handler / 视频黄金流程定向：**66 PASS**
 - frontend：Vitest **73 文件 / 211 用例 PASS**；`vue-tsc --build`、production build、ESLint 与 Oxlint PASS
 - 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**

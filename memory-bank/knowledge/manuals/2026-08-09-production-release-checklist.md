@@ -48,6 +48,7 @@ paradigma:
 | B-04 | 真实反向代理只信任明确 peer；外部伪造 XFF 不改变认证限流 identity | [ ] |
 | B-05 | 在“任务模板 → 验收准备”确认 P-01～P-04 无阻断，并由员工完成 I4 / 设计器 Phase 2 / S-01 UAT checklist 全部必过项；自动检查结果不得代替人工记录与签字 | [ ] |
 | B-06 | 在“任务模板 → 数据检查”执行 scope/依赖盘点：intentional global 已由业务负责人确认，空 departments、缺失/停用部门、旧 `child_template_code`、父子范围不兼容均通过草稿或新版本处理；复查 `error=0` | [ ] |
+| B-07 | 若候选包含 Iteration 5：在真实 PostgreSQL 严格执行至 `20260812_03` 的 head↔base 演练；升级后先 `python -m app.scripts.rebuild_workflow_projections --all`，再 `python -m app.scripts.scan_workflow_projection_shadow --full`，保存 scan 统计并确认 critical/error、missing/orphan 与容忍窗外 lag 达标 | [ ] |
 
 ## C. I3-F 硬门禁
 

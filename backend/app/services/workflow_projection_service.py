@@ -474,7 +474,8 @@ class WorkflowProjectionService:
       audience_users.update(watcher.user_id for watcher in task.watchers)
       audience_departments.add(task.department_id)
     total_count = len(nodes)
-    progress = round(completed_count * 100 / total_count) if total_count else 0
+    # Match the existing Run detail API's integer-floor progress contract.
+    progress = int(completed_count * 100 / total_count) if total_count else 0
     values: dict[str, Any] = {
       "process_run_id": instance.id,
       "template_id": instance.template_id,

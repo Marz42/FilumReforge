@@ -1,7 +1,7 @@
 ---
 type: paradigma-runtime-state
 title: Active Task
-description: Iteration 5-A/B 工程完成；等待 PostgreSQL 迁移证据，下一开发批为 5-C Shadow Comparison。
+description: Iteration 5-A/B/C 工程完成；等待 PostgreSQL 与目标环境 shadow 证据，下一开发批为 5-D 运维与可观测性。
 tags: [runtime, active-task, mainline, workflow-graph, iteration-5, projection]
 timestamp: 2026-08-12T12:05:50+08:00
 paradigma:
@@ -17,15 +17,15 @@ paradigma:
 
 ## Task ID
 
-iteration5b-projector-rebuild-2026-08-12
+iteration5c-shadow-comparison-2026-08-12
 
 ## User Request
 
-检查 Memory-Bank 后继续主开发：在 5-A 三类读模型契约上完成 checkpoint、幂等 projector、失败隔离、单 Task/单 Run/全量高水位 rebuild，并保持用户读路径不变。
+继续 Iteration 5-C：为 5-B 投影建立独立、隐私安全的新旧查询 shadow comparison，记录字段差异、缺失/孤儿与延迟，同时保持用户读路径和授权不变。
 
 ## Current Status
 
-Iteration 5-A/B engineering-complete / PostgreSQL evidence pending — 三类读模型外新增 `ProjectionCheckpoint` 和单 head `20260812_02`；复用 Run Event、Task Log、Task Comment 三条持久化事实流，完成逐流幂等消费、失败隔离、单 Task/单 Run/全量高水位重建、显式重建 CLI 和 ARQ 周期任务。SQLite expand/downgrade、PostgreSQL 增量离线 SQL、模型/架构/worker 测试及后端 479 项全量回归通过；本机无可用 Docker/PostgreSQL，生产方言 head↔base 测试保持登记 skip。用户读路径、ROOT shell 和兼容写入均未改变，下一批为 5-C shadow comparison。
+Iteration 5-A/B/C engineering-complete / target evidence pending — 新增 `ProjectionShadowObservation` 与单 head `20260812_03`，将微秒 revision 和 checkpoint 累计计数提升为 `BIGINT`；独立比较 work item、Run shell、Run summary 与三类 Timeline 源，只记录字段名、指纹、revision、lag 和分级。ARQ recent 抽样、显式 full CLI、孤儿识别、60 秒容忍和 30 天保留已完成；Run progress 舍入已与现行详情 API 对齐。SQLite expand/downgrade、PostgreSQL 增量离线 SQL、定向测试及后端 488 项全量回归通过；用户读路径、授权、ROOT shell 和兼容写入均未改变。下一批为 5-D 运维与可观测性。
 
 ## Checklist
 
@@ -62,7 +62,10 @@ Iteration 5-A/B engineering-complete / PostgreSQL evidence pending — 三类读
 - [x] 实现独立 ARQ 周期消费；单流失败另事务记录且不阻断其他流或业务事实
 - [x] 完成 Alembic 单 head `20260812_02`、PostgreSQL 增量离线 SQL与后端 479 collected / 447 passed / 32 skipped / 0 failed
 - [ ] 在可用 PostgreSQL 上执行 Alembic head↔base 严格专项，确认生产方言约束与回滚
-- [ ] Iteration 5-C：单独计划字段映射、差异分级、采样/lag 口径与隐私边界，再实现只记录不切流的 shadow comparison
+- [x] Iteration 5-C：固定字段映射、差异分级、采样/lag、隐私和保留边界
+- [x] 实现 Task/Run shell/Run summary/Timeline shadow comparison、recent/full 扫描和孤儿识别
+- [x] 新增 `20260812_03` shadow observation 与 `BIGINT` 修正；保持正式读路径不变
+- [x] 完成后端 488 collected / 456 passed / 32 skipped / 0 failed，下一批转 5-D
 - [ ] 在目标环境运行“数据检查”和“验收准备”，清零确定错误与 P-01～P-04 阻断
 - [ ] 员工按清单完成 Iteration 4 / 设计器 Phase 2 / S-01 UAT，并记录账号、模板、Run ID 与结论
 
@@ -79,6 +82,7 @@ Iteration 5-A/B engineering-complete / PostgreSQL evidence pending — 三类读
 - `memory-bank/knowledge/plans/2026-08-12-f05-task-detail-workflow-presentation-plan.md`
 - `memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md`
 - `memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md`
+- `memory-bank/knowledge/plans/2026-08-12-iteration5c-shadow-comparison-plan.md`
 - `memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md`
 - `memory-bank/knowledge/plans/plan-status-catalog.md`
 - `memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md`
@@ -91,9 +95,9 @@ Iteration 5-A/B engineering-complete / PostgreSQL evidence pending — 三类读
 ## Blockers
 
 - 无继续开发的代码阻碍。
-- Iteration 5-A/B 无代码阻碍，工程实现已完成。
-- 本机 Docker daemon 不存在且没有可达 PostgreSQL；生产方言 head↔base 是 5-A 的剩余验证门禁，不能用 SQLite 代替。
-- 该外部证据不阻止 5-C/5-D 的加法与影子代码开发，但在证据完成前不得进行 5-E 读侧切流。
+- Iteration 5-A/B/C 无代码阻碍，工程实现已完成。
+- 本机 Docker daemon 不存在且没有可达 PostgreSQL；生产方言 head↔base 是 5-A/B/C 的剩余验证门禁，不能用 SQLite 代替。
+- 该外部证据不阻止 5-D 的加法与运维代码开发，但在 PostgreSQL 证据、rebuild/full shadow 与持续样本完成前不得进行 5-E 读侧切流。
 - 人工 UAT 仍需要目标环境真实账号、部门、模板和任务样本；系统不会自动造业务数据或代替业务签字。
 - I3-F、真实 TLS/secret/backup/restore 与生产变更窗口继续作为外部门禁，不阻断主开发。
 
@@ -102,4 +106,4 @@ Iteration 5-A/B engineering-complete / PostgreSQL evidence pending — 三类读
 - `v0.93.0-rc.1` 保留在 `2260bd5`；部门负责人模板可见性热修已固定为 `v0.93.0-rc.2`（release commit `4d15829`），两个标签均不得移动。
 - 热修功能提交已回流主线为 `d7927bc`；未把 RC1 之后的主线功能反向带入 RC2。
 - RC 环境不得与继续开发环境共用数据库、Redis 或附件存储。
-- KI-011 按用户决定暂不推进；Iteration 5-A 不扩大系统管理员业务权限，也不改变生产切流状态。
+- KI-011 按用户决定暂不推进；Iteration 5-A～C 不扩大系统管理员业务权限，也不改变生产切流状态。

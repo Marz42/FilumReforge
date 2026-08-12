@@ -31,7 +31,8 @@ paradigma:
 | `workflow-graph-engine-upgrade-iteration-plan.md` | 图引擎 Iteration 0～6 总计划；当前指向 I5/I6 |
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |
 | `2026-08-12-iteration5a-projection-contract-plan.md` | 三类投影契约、ORM 与 Expand-only 迁移工程完成；保持 active 直到 PostgreSQL 严格迁移证据补齐 |
-| `2026-08-12-iteration5b-projector-rebuild-plan.md` | checkpoint、幂等 projector、三种 rebuild 与失败隔离工程完成；保持 active 直到 PostgreSQL 严格迁移证据补齐，下一开发批转 5-C |
+| `2026-08-12-iteration5b-projector-rebuild-plan.md` | checkpoint、幂等 projector、三种 rebuild 与失败隔离工程完成；保持 active 直到 PostgreSQL 严格迁移证据补齐 |
+| `2026-08-12-iteration5c-shadow-comparison-plan.md` | shadow comparison 工程完成；保持 active 直到目标环境持续样本与 PostgreSQL 严格迁移证据补齐，下一开发批转 5-D |
 | `workflow-graph-engine-iteration3f-readiness-gate-plan.md` | 仍开放的目标环境与生产切流门禁 |
 | `2026-08-09-rc-employee-trial-plan.md` | `v0.93.0-rc.2` 员工复测与主线分流 |
 

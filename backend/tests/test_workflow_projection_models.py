@@ -4,10 +4,17 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import BigInteger
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import NodeTimelineEntry, ProcessRunSummary, ProjectionCheckpoint, TaskCenterItem
+from app.models import (
+  NodeTimelineEntry,
+  ProcessRunSummary,
+  ProjectionCheckpoint,
+  ProjectionShadowObservation,
+  TaskCenterItem,
+)
 
 
 def _constraint_names(model: type) -> set[str]:
@@ -27,6 +34,7 @@ def test_projection_models_fix_identity_rebuild_and_sort_contracts() -> None:
   assert ProcessRunSummary.__tablename__ == "process_run_summaries"
   assert NodeTimelineEntry.__tablename__ == "node_timeline_entries"
   assert ProjectionCheckpoint.__tablename__ == "projection_checkpoints"
+  assert ProjectionShadowObservation.__tablename__ == "projection_shadow_observations"
 
   assert "uq_task_center_items_subject" in _constraint_names(TaskCenterItem)
   assert "task_center_items_subject_target_chk" in _constraint_names(TaskCenterItem)
@@ -48,10 +56,24 @@ def test_projection_models_fix_identity_rebuild_and_sort_contracts() -> None:
   assert "projection_checkpoints_status_chk" in _constraint_names(ProjectionCheckpoint)
   assert "idx_projection_checkpoints_status" in _index_names(ProjectionCheckpoint)
 
+  assert "uq_projection_shadow_scan_subject" in _constraint_names(
+    ProjectionShadowObservation
+  )
+  assert "projection_shadow_outcome_chk" in _constraint_names(
+    ProjectionShadowObservation
+  )
+  assert "idx_projection_shadow_scan_outcome" in _index_names(
+    ProjectionShadowObservation
+  )
+  assert "idx_projection_shadow_created_at" in _index_names(
+    ProjectionShadowObservation
+  )
+
   for model in (TaskCenterItem, ProcessRunSummary, NodeTimelineEntry):
     columns = model.__table__.columns
     assert columns["projection_schema_version"].nullable is False
     assert columns["source_revision"].nullable is False
+    assert isinstance(columns["source_revision"].type, BigInteger)
     assert columns["last_event_id"].nullable is True
     assert columns["projected_at"].nullable is False
 
@@ -60,11 +82,20 @@ def test_projection_models_fix_identity_rebuild_and_sort_contracts() -> None:
   assert checkpoint_columns["cursor_source_id"].nullable is True
   assert checkpoint_columns["processed_count"].nullable is False
   assert checkpoint_columns["attempt_count"].nullable is False
+  assert isinstance(checkpoint_columns["processed_count"].type, BigInteger)
 
   # Actor-specific policy stays request-time; full business bodies stay in source tables.
   assert "available_actions" not in TaskCenterItem.__table__.columns
   assert "content" not in NodeTimelineEntry.__table__.columns
   assert "attachment_ids" not in NodeTimelineEntry.__table__.columns
+
+  # Shadow evidence stores only field names and fingerprints, never compared values.
+  shadow_columns = ProjectionShadowObservation.__table__.columns
+  assert "mismatch_fields" in shadow_columns
+  assert "expected_fingerprint" in shadow_columns
+  assert "actual_fingerprint" in shadow_columns
+  for forbidden in ("expected_payload", "actual_payload", "content", "description", "email"):
+    assert forbidden not in shadow_columns
 
 
 @pytest.mark.asyncio

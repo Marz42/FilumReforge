@@ -1,7 +1,7 @@
 ---
 type: paradigma-contract
 title: "图引擎 Schema"
-description: "图引擎十五张运行时/治理表与四张 Iteration 5 投影基础表。"
+description: "图引擎十五张运行时/治理表与五张 Iteration 5 投影/观察表。"
 tags: ["contract", "database", "schema", "graph-engine"]
 timestamp: 2026-08-12T12:05:50+08:00
 paradigma:
@@ -19,7 +19,7 @@ paradigma:
 ---
 # 图引擎 Schema
 
-> WARM — **十五张运行时/治理表 + Iteration 5 四张投影基础表**：除 Task Center、Run 摘要、节点时间线读模型外，5-B 增加独立源流 checkpoint。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。投影细契约见 [`projection-contract.md`](../projection-contract.md)。
+> WARM — **十五张运行时/治理表 + Iteration 5 五张投影/观察表**：除 Task Center、Run 摘要、节点时间线读模型外，5-B 增加独立源流 checkpoint，5-C 增加隐私安全 shadow observation。领域总览见 [`domains/workflow-graph-engine.md`](../../domains/workflow-graph-engine.md)。投影细契约见 [`projection-contract.md`](../projection-contract.md)。
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
@@ -47,12 +47,14 @@ paradigma:
 | `process_run_summaries` | Run 摘要派生读模型（I5-A Expand） | Run 唯一、父子/来源/部门/发起人、节点计数/进度、audience 与投影版本 |
 | `node_timeline_entries` | Run/Task 统一时间线派生读模型（I5-A Expand） | source identity 唯一、Run/Node/Task 引用、visibility、摘要/payload、稳定事件时间与投影版本 |
 | `projection_checkpoints` | Projector 独立源流进度（I5-B Expand） | projection+stream 唯一、时间+UUID cursor 成对、idle/running/failed、累计处理/尝试与错误摘要 |
+| `projection_shadow_observations` | 新旧查询影子证据（I5-C Expand） | scan+comparison+subject 唯一；outcome/severity、差异字段名、双方指纹/revision、lag 和安全计数；不保存比较值/正文/payload |
 
 **关系补充**
 
 - `workflow_graph_templates 1:N workflow_graph_template_nodes / edges / instances / schedules / scope_events`
 - `workflow_graph_instances 1:N workflow_node_instances / edge_traversals / activation_dependencies / human_task_links / operational_incidents / outbox_events / run_events`
 - `projection_checkpoints` 不拥有业务事实；Run Event、Task Log、Task Comment 各自独立推进，失败不改变业务命令结果
+- `projection_shadow_observations` 是 30 天可再生诊断证据；recent/full 比较不参与用户请求、对象授权或业务事务
 - `workflow_graph_instances N:1 workflow_graph_instances`（`parent_instance_id` 子 Run fork）
 - `workflow_node_instances 1:1 workflow_deliverables`（按节点快照）
 - 新写 HumanTask 投影同时写 `workflow_human_task_links` 与兼容 `Task.extra_metadata` / `Node.config.task_id`；读取 Link-first、JSON fallback。Link 存在而 JSON 不一致时以 Link 为准并登记 `link_mismatch`；fallback/回填歧义进入 operational incident。存量回填须三锚点交叉校验，不猜测修复（见 [`core-workflows.md`](../../domains/architecture/core-workflows.md) §6.13B）

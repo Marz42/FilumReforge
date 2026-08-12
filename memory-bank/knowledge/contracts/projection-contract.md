@@ -27,7 +27,7 @@ paradigma:
 
 # Iteration 5 投影与查询契约
 
-> **实现阶段：Iteration 5-B ENGINEERING COMPLETE / PostgreSQL EVIDENCE PENDING**。三类读模型和独立 checkpoint 已落地，projector、增量消费与三种重建入口已实现；5-C 才做 shadow comparison，5-E 获批前不得切换 Task Center 正式读路径。
+> **实现阶段：Iteration 5-C ENGINEERING COMPLETE / TARGET EVIDENCE PENDING**。三类读模型、独立 checkpoint、projector/rebuild 与隐私安全 shadow comparison 已落地；5-D 建设运维入口，5-E 获批前不得切换 Task Center 正式读路径。
 
 ## 1. 通用不变量
 
@@ -102,7 +102,7 @@ paradigma:
 - `last_event_id` 是幂等/诊断锚点，不建立跨多种事件表的 FK。
 - 5-B rebuild 已支持单 Task、单 Run 和全量三种范围；单对象先清理对应时间线再幂等重投，全量在同一事务清空/重投，不修改源业务表。
 - 全量重建开始时分别捕获 Run Event、Task Log、Task Comment 的高水位，成功后 checkpoint 定位到该高水位；之后到达的数据由增量消费补齐，重建窗口不丢事件。
-- schema 升级采用 expand → projector/shadow → cutover → contract；`20260812_01` 新增三类读模型，`20260812_02` 新增 checkpoint，二者 downgrade 均只删除派生结构。
+- schema 升级采用 expand → projector/shadow → cutover → contract；`20260812_01` 新增三类读模型，`20260812_02` 新增 checkpoint，`20260812_03` 新增 shadow observation 并将微秒 revision/累计计数提升为 `BIGINT`。downgrade 不触碰业务源表；`03` 降级会清空可重建投影行后恢复旧整数类型。
 
 ## 8. Checkpoint 与消费实现
 
@@ -110,4 +110,11 @@ paradigma:
 - 当前 projection 名为 `workflow_query_v1`；三个独立源流为 `workflow_run_events`、`task_logs`、`task_comments`，均按来源业务时间 + UUID 稳定推进。
 - `WorkflowProjectionService` 和 `WorkflowProjectionRebuildService` 是唯一写 owner，均为 flush-only；ARQ 的 `process_workflow_projection_events_job` 每 30 秒在独立事务中逐流消费。
 - 某一源流失败时只回滚该流当批投影/checkpoint，并在新事务记录 `failed`；其他流继续推进。原 Task、Run、Log、Comment 与 Run Event 不被 projector 修改。
-- 5-B 暂时复用 `TaskService` 已验证的动态图任务派生逻辑作为过渡适配器；5-C 以 shadow comparison 证明字段一致后，才允许规划读侧替换或进一步解耦。
+- 5-B 暂时复用 `TaskService` 已验证的动态图任务派生逻辑作为过渡适配器；5-C 已实现独立源事实快照与投影快照比较，但只有目标环境持续样本达到门禁且 5-E 单独获批后，才允许读侧替换或进一步解耦。
+
+## 9. Shadow Comparison 实现
+
+- `projection_shadow_observations` 以 scan+comparison+subject 唯一，保存 match/difference/lagging/missing/orphan、严重级别、差异字段名、双方 SHA-256 指纹、revision 与 lag；不保存字段值、正文、邮箱、附件或业务 payload。
+- Task Center 对照 work item 与 Run shell，Run summary 对照现行动态计数，Timeline 对照三类源事实的身份/父对象/actor/visibility/事件语义；最终授权仍不在 shadow 层判定。
+- 周期 worker 每 5 分钟 recent 抽样，60 秒为默认 lag 容忍；观察证据保留 30 天。全量审计必须显式运行 `python -m app.scripts.scan_workflow_projection_shadow --full`。
+- 5-C 已把 Run progress 固定为与现行详情 API 一致的整数向下取整；确定性差异必须修 projector/契约，不得通过忽略字段消音。

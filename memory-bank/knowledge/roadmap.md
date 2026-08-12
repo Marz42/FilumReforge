@@ -33,8 +33,8 @@ paradigma:
 |------|------|
 | **最新试用候选** | `v0.93.0-rc.2`（不可变标签；主开发线位于其后） |
 | **版本主题** | 工作流图引擎 Iteration 4 · 模板领域中立与稳定化 |
-| **阶段** | **主开发线 Iteration 5-C → 5-E → 稳定观察 → Iteration 6**；RC2/I4/设计器/S-01 复测与 I3-F/5-A-B PostgreSQL 证据并行推进 |
-| **最后整理** | 2026-08-12 — Iteration 5-A/B 工程完成、PostgreSQL 证据待补；下一批 5-C Shadow Comparison；KI-011 继续延后 |
+| **阶段** | **主开发线 Iteration 5-D → 5-E → 稳定观察 → Iteration 6**；RC2/I4/设计器/S-01 复测与 I3-F/5-A-C PostgreSQL/shadow 证据并行推进 |
+| **最后整理** | 2026-08-12 — Iteration 5-A/B/C 工程完成、目标环境证据待补；下一批 5-D 运维与可观测性；KI-011 继续延后 |
 
 ---
 
@@ -68,6 +68,7 @@ paradigma:
 | **F-05 详情壳层拆分收口批** | done | `TaskDetailWorkflowPresentation` · `TaskDetailGraphTelemetry` · Shell 838 行 · 73 files / 211 tests @ 2026-08-12 |
 | **Iteration 5-A 投影契约与加法迁移** | engineering done / PG gate | 三类投影契约 · ORM · `20260812_01` Expand-only · SQLite expand/downgrade · 无回填/切读 @ 2026-08-12 |
 | **Iteration 5-B Projector 与重建基座** | engineering done / PG gate | `20260812_02` checkpoint · 三源流幂等消费 · 失败隔离 · 单 Task/Run/全量高水位重建 · ARQ 周期任务 · 无切读 @ 2026-08-12 |
+| **Iteration 5-C Shadow Comparison** | engineering done / target observation gate | `20260812_03` · work item/Run shell/Run summary/Timeline 独立对照 · 隐私安全差异记录 · lag/孤儿/30 天保留 · recent/full 扫描 · 无切读 @ 2026-08-12 |
 | **RC2 模板可见性热修** | done / trial retest | 可读/可管理双查询去重 · 逐模板动作授权 · test-first @ 2026-08-11 |
 
 ---
@@ -168,7 +169,7 @@ paradigma:
 1. **目标环境验收前置**：在“任务模板”先运行“数据检查”，清零确定错误；再运行“验收准备”，处理 P-01～P-04 阻断并记录 warning。工具只判断可测，不自动判定验收通过。
 2. **Iteration 4 / 设计器 Phase 2 / S-01 人工 UAT**：由员工按 checklist 验证非视频模板、参与者重叠语义、结构化 authoring、视频兼容黄金路径与周期统计，记录账号、模板、Run ID 和反馈。
 3. **F-05 已完成**：capability 工作流面板、Run Event 与图节点追踪已提取，Shell 只保留详情壳层编排；KI-010 未混入。
-4. **Iteration 5（5-A/B 工程完成）**：三类投影、独立 checkpoint、幂等 projector、三种 rebuild 和失败隔离已落地，PostgreSQL head↔base 证据待补；下一开发批为 5-C shadow comparison，再进入运维/指标与受控读侧切换。5-A～D 可与外部门禁并行，切流须单独批准。
+4. **Iteration 5（5-A/B/C 工程完成）**：三类投影、独立 checkpoint、幂等 projector/rebuild 和隐私安全 shadow comparison 已落地；PostgreSQL head↔base 与目标环境持续样本待补。下一开发批为 5-D 运维/指标，之后才评估 5-E 受控读侧切换。5-A～D 可与外部门禁并行，切流须单独批准。
 5. **稳定观察期**：确认 fallback、ROOT shell 新增量、投影差异和 lag 达到 Iteration 6 前置标准。
 6. **Iteration 6**：单独批准后停止 JSON/双写锚点，归档并清理动态 graph-first、Legacy E 服务/表/列和 feature flags；不得与观察期重叠。
 7. **员工 RC 复测**：升级至不可变 `v0.93.0-rc.2` 并核对 health version；用真实部门负责人验证共享模板可见/可发起且无越权管理动作。
@@ -176,7 +177,7 @@ paradigma:
 9. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
 10. **后续专项**：KI-011 按用户决定暂不推进；M-09 与 `run_kind` dual-read 收窄继续等待策略和生产证据。
 
-**下一 actionable**：先为 Iteration 5-C 固定新旧查询的字段映射、差异分级、采样范围、lag 口径和隐私边界，再实现只记录不切流的 shadow comparison；目标环境并行补跑 `20260812_01/02` PostgreSQL Alembic head↔base，并执行“数据检查”→“验收准备”→人工 UAT checklist。数据库证据不得由 SQLite 代替，但不阻止 5-C 加法开发；Iteration 5-E 读侧切流、Iteration 6 和生产准入仍须独立批准。
+**下一 actionable**：进入 Iteration 5-D，先固定运维对象、动作授权、重放幂等和指标口径，再建设 Outbox FAILED/重放、卡死 Run/no-route/Join wait/Context conflict 与 projection lag/backlog/trace 工作台。目标环境并行补跑至 `20260812_03` 的 PostgreSQL head↔base、rebuild + full shadow 与持续样本，并执行“数据检查”→“验收准备”→人工 UAT checklist。Iteration 5-E 读侧切流、Iteration 6 和生产准入仍须独立批准。
 
 ---
 

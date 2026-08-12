@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import (
   Boolean,
+  BigInteger,
   CheckConstraint,
   DateTime,
   ForeignKey,
@@ -27,7 +28,7 @@ class ProjectionMetadataMixin:
   """Version and replay anchors shared by rebuildable read models."""
 
   projection_schema_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-  source_revision: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+  source_revision: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
   last_event_id: Mapped[UUID | None] = mapped_column(nullable=True)
   projected_at: Mapped[datetime] = mapped_column(
     DateTime(timezone=True),
@@ -74,7 +75,7 @@ class ProjectionCheckpoint(
     nullable=True,
   )
   cursor_source_id: Mapped[UUID | None] = mapped_column(nullable=True)
-  processed_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+  processed_count: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
   attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
   last_success_at: Mapped[datetime | None] = mapped_column(
     DateTime(timezone=True),
@@ -402,3 +403,71 @@ class NodeTimelineEntry(
   summary: Mapped[str | None] = mapped_column(Text, nullable=True)
   payload: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)
   occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ProjectionShadowObservation(
+  UUIDPrimaryKeyMixin,
+  TimestampMixin,
+  Base,
+):
+  """Privacy-safe evidence from one old-vs-projection comparison."""
+
+  __tablename__ = "projection_shadow_observations"
+  __table_args__ = (
+    UniqueConstraint(
+      "scan_id",
+      "comparison_name",
+      "subject_type",
+      "subject_id",
+      name="uq_projection_shadow_scan_subject",
+    ),
+    CheckConstraint(
+      "sample_mode in ('recent', 'full')",
+      name=conv("projection_shadow_sample_mode_chk"),
+    ),
+    CheckConstraint(
+      "outcome in ('match', 'difference', 'missing_projection', 'lagging', "
+      "'orphan_projection', 'error')",
+      name=conv("projection_shadow_outcome_chk"),
+    ),
+    CheckConstraint(
+      "severity in ('info', 'warning', 'error', 'critical')",
+      name=conv("projection_shadow_severity_chk"),
+    ),
+    CheckConstraint(
+      "lag_ms IS NULL OR lag_ms >= 0",
+      name=conv("projection_shadow_lag_chk"),
+    ),
+    Index("idx_projection_shadow_scan_outcome", "scan_id", "outcome"),
+    Index("idx_projection_shadow_subject", "subject_type", "subject_id", "created_at"),
+    Index("idx_projection_shadow_severity", "severity", "created_at"),
+    Index("idx_projection_shadow_created_at", "created_at"),
+  )
+
+  scan_id: Mapped[UUID] = mapped_column(nullable=False)
+  comparison_name: Mapped[str] = mapped_column(String(64), nullable=False)
+  subject_type: Mapped[str] = mapped_column(String(32), nullable=False)
+  subject_id: Mapped[UUID] = mapped_column(nullable=False)
+  sample_mode: Mapped[str] = mapped_column(String(16), nullable=False)
+  outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+  severity: Mapped[str] = mapped_column(String(16), nullable=False)
+  mismatch_fields: Mapped[list[Any]] = mapped_column(
+    build_json_type(),
+    default=list,
+    nullable=False,
+  )
+  expected_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+  actual_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+  expected_source_revision: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+  actual_source_revision: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+  lag_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+  details: Mapped[dict[str, Any]] = mapped_column(
+    build_json_type(),
+    default=dict,
+    nullable=False,
+  )
+  observed_at: Mapped[datetime] = mapped_column(
+    DateTime(timezone=True),
+    default=utc_now,
+    nullable=False,
+  )

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import ProjectionCheckpoint, TaskLog
+from app.models import ProjectionCheckpoint, ProjectionShadowObservation, TaskLog
 from app.services.workflow_projection_service import (
   PROJECTION_NAME,
   STREAM_TASK_LOGS,
@@ -12,9 +12,13 @@ from app.services.workflow_projection_service import (
 )
 from app.workers.arq_worker import (
   WORKFLOW_PROJECTION_JOB,
+  WORKFLOW_PROJECTION_SHADOW_JOB,
   WorkerSettings,
   process_workflow_projection_events_job,
+  scan_workflow_projection_shadow_job,
 )
+from app.services.workflow_projection_shadow_service import WorkflowProjectionShadowService
+from app.workers.workflow_projection_shadow_worker import scan_workflow_projection_shadow
 from app.workers.workflow_projection_worker import process_workflow_projection_events
 from tests.test_workflow_projection_service import _seed_projection_sources
 
@@ -61,3 +65,34 @@ async def test_projection_worker_isolates_stream_failure_from_business_sources(
 def test_projection_worker_is_registered_as_an_independent_periodic_job() -> None:
   assert process_workflow_projection_events_job in WorkerSettings.functions
   assert any(job.name == WORKFLOW_PROJECTION_JOB for job in WorkerSettings.cron_jobs)
+
+
+@pytest.mark.asyncio
+async def test_shadow_worker_failure_rolls_back_observations_and_preserves_sources(
+  db_session: AsyncSession,
+  monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  await _seed_projection_sources(db_session)
+  await db_session.commit()
+  session_factory = async_sessionmaker(
+    bind=db_session.bind,
+    class_=AsyncSession,
+    expire_on_commit=False,
+  )
+
+  async def fail_scan(self, **kwargs):
+    raise RuntimeError("simulated shadow failure")
+
+  monkeypatch.setattr(WorkflowProjectionShadowService, "scan", fail_scan)
+  assert await scan_workflow_projection_shadow(session_factory=session_factory) == 0
+  async with session_factory() as verification_session:
+    assert await verification_session.scalar(select(func.count(TaskLog.id))) == 1
+    assert await verification_session.scalar(
+      select(func.count(ProjectionShadowObservation.id))
+    ) == 0
+
+
+def test_shadow_worker_is_registered_separately_from_projection_consumer() -> None:
+  assert scan_workflow_projection_shadow_job in WorkerSettings.functions
+  assert any(job.name == WORKFLOW_PROJECTION_SHADOW_JOB for job in WorkerSettings.cron_jobs)
+  assert WORKFLOW_PROJECTION_SHADOW_JOB != WORKFLOW_PROJECTION_JOB

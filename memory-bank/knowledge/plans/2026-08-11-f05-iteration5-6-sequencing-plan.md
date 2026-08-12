@@ -24,15 +24,15 @@ paradigma:
 
 # F-05 至 Iteration 5/6 实施顺序
 
-> **计划状态：ACTIVE** — F-05、Iteration 5-A/B 工程完成，下一开发批为 Iteration 5-C Shadow Comparison。RC2 复测、Iteration 4/设计器/S-01 人工 UAT 与 Iteration 3-F/5-A-B PostgreSQL 取证作为并行门禁，不改变开发顺序，但会阻止生产切流、停止兼容写入和删除旧结构。
+> **计划状态：ACTIVE** — F-05、Iteration 5-A/B/C 工程完成，下一开发批为 Iteration 5-D 运维与可观测性。RC2 复测、Iteration 4/设计器/S-01 人工 UAT、Iteration 3-F/5-A-C PostgreSQL 取证及目标环境 shadow 观察作为并行门禁，不改变开发顺序，但会阻止生产切流、停止兼容写入和删除旧结构。
 
 ## 1. 已确认的主开发顺序
 
 1. **完成 F-05（已完成）**：数据、动作、任务资料附件、评论与留痕、活动时间线、工作流面板和节点追踪均已拆出；UI、权限、API 与业务语义不变。
 2. **Iteration 5-A — 投影契约与加法迁移（工程完成 / PG 证据待补）**：已固定三类读模型契约并落地 `20260812_01`。
 3. **Iteration 5-B — Projector 基座（工程完成 / PG 证据待补）**：已实现 `20260812_02` checkpoint、三源流幂等消费、失败隔离和单 Task/单 Run/全量高水位重建。
-4. **Iteration 5-C — Shadow Comparison（下一批）**：新旧查询并行，记录字段差异、缺失项和延迟；此阶段不切换用户读路径。
-5. **Iteration 5-D — 运维与可观测性**：建设 Outbox FAILED/重放、卡死 Run、no-route、Join wait、Context conflict 工作台，以及 projection lag、backlog 和统一 trace。
+4. **Iteration 5-C — Shadow Comparison（工程完成 / 目标环境观察待补）**：新旧查询独立并行，记录字段差异、缺失/孤儿项和延迟；不切换用户读路径。
+5. **Iteration 5-D — 运维与可观测性（下一批）**：建设 Outbox FAILED/重放、卡死 Run、no-route、Join wait、Context conflict 工作台，以及 projection lag、backlog 和统一 trace。
 6. **Iteration 5-E — 受控读侧切换**：满足门禁并经批准后，让任务中心读取正式投影；ROOT Task 先降为 projection shell，稳定后才停止新增。
 7. **稳定观察期**：确认 Link fallback、graph-first fallback、ROOT shell 新增量和投影差异达到 Iteration 6 前置标准。
 8. **Iteration 6 — 单独批准的破坏性清理**：停止 JSON/双写锚点、移除跨模块直接写入和动态 graph-first 查询，归档后清理 Legacy E 服务、表、列与 feature flags。
