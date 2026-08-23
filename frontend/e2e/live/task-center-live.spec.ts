@@ -18,9 +18,13 @@ test('logs in with the real backend and creates a task through task center', asy
   await expect(page.getByTestId('task-center-task-dialog')).toBeVisible()
 
   await page.locator('[data-testid="task-center-task-title"] input').fill(taskTitle)
-  await page.locator('[data-testid="task-center-task-description"] textarea').fill('Playwright live scenario validates the real backend integration path.')
+  await page
+    .locator('[data-testid="task-center-task-description"] textarea')
+    .fill('Playwright live scenario validates the real backend integration path.')
 
+  await page.getByTestId('task-center-cross-department-toggle').click()
   await page.getByTestId('task-center-task-assignee').locator('.el-select').click()
+  await page.getByTestId('task-center-task-assignee').locator('input[role="combobox"]').fill('顾晨')
   await page.getByRole('option', { name: /顾晨/ }).click()
 
   await page.getByTestId('task-center-task-submit').click()
@@ -28,6 +32,8 @@ test('logs in with the real backend and creates a task through task center', asy
   await expect(page.getByText('任务已发布')).toBeVisible()
   await page.getByTestId('task-filter-tracking').click()
   await expect(page).toHaveURL(/filter=tracking/)
-  await expect(page.getByTestId('task-center-tracking-panel').getByText(taskTitle)).toBeVisible()
+  const trackingEntry = page.getByTestId('task-center-tracking-panel').getByText(taskTitle)
+  await expect(trackingEntry).toBeVisible()
+  await trackingEntry.click()
   await expect(page.getByTestId('tasks-detail-panel')).toContainText(taskTitle)
 })

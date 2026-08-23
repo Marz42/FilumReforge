@@ -5,7 +5,7 @@ description: "FilumReforge 总体实施计划。"
 tags:
   - plan
   - 实施计划
-timestamp: 2026-08-12T22:25:00+08:00
+timestamp: 2026-08-23T22:55:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -34,7 +34,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **工作流图引擎 Iteration 4 A–E、F-05、Iteration 5-A/B/C/D 与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.2` 已固定并等待员工复测。5-D 已提供 Admin-only 运维工作台、Outbox 重放、incident 处置、节点技术恢复、投影健康和统一 trace，且不赋予管理员业务审批权。下一阶段为 **5-E 受控读侧切换**，但在目标环境 PostgreSQL head↔base、rebuild/full shadow、持续样本和用户单独批准前保持 blocked；其后才是稳定观察和单独批准的 Iteration 6 兼容层清理。F-05 最终将 `TaskDetailShell` 约 1,989 → 838 行，权限与动作语义不变。目标环境 I4/设计器/S-01 人工 UAT、Iteration 3-F 与生产准入仍并行推进。KI-011 按用户决定暂不推进。详见 [`2026-08-12-iteration5d-operations-observability-plan.md`](./2026-08-12-iteration5d-operations-observability-plan.md) 与 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md)。
+**当前执行位置**: **工作流图引擎 Iteration 4 A–E、F-05、Iteration 5-A～E 与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.2` 已固定并等待员工复测。5-E 已提供投影优先读取、动态回退和严格 canary，隔离 PostgreSQL/Redis 上完成 22 项方言测试、97/28/282 最终全量重建、407/407 full shadow、fallback on 8/8 与 strict 9/9 真实 UAT，以及备份恢复和 `04→03→04` 演练。生产关闭 fallback、ROOT shell 收缩和 Iteration 6 仍受真实预发持续观察、I3-F 连续门禁及人工批准约束。目标环境 I4/设计器/S-01/KI-009 人工 UAT与生产 TLS/secret 仍并行推进。KI-011 按用户决定暂不推进。详见 [`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md) 与 [`../contracts/projection-contract.md`](../contracts/projection-contract.md)。
 
 ## 2. 已确认约束
 
@@ -216,10 +216,11 @@ paradigma:
 
 **当前开放项**
 
-1. 完成 RC2、Iteration 4、设计器 Phase 2、S-01 与 KI-009 人工 UAT
-2. 在目标 PostgreSQL 环境补齐 Iteration 3-F 与 5-A～5-D 迁移、重建、shadow 和运维证据
+1. 完成 RC2、Iteration 4、设计器 Phase 2、S-01 与 KI-009 人工 UAT；本地自动化 UAT 不代签
+2. 把已通过的 5-A～E PostgreSQL/rebuild/full shadow/strict canary 流程复制到真实预发并积累持续样本；补齐 Iteration 3-F 7 天与 31/31 证据
 3. `run_kind` / M-09 dual-read 收窄继续等待生产证据与单独策略，不抢跑 Iteration 6
 4. 生命周期规则化默认映射和前端配置入口作为后续业务增强，不回填到 Legacy E
+5. 按风险顺序处理非阻断技术债：先补 KI-015 strict 投影缺口请求侧遥测，再治理 KI-016 logout 在途请求，KI-017 包体优化进入前端性能批次
 
 **测试出口**
 
@@ -241,9 +242,9 @@ paradigma:
 
 **后续深化**
 
-1. 补齐 Iteration 3-F 与 5-A～5-D 的目标环境迁移、重建、shadow 和运维证据
-2. 证据齐全并获单独批准后实施 5-E 受控读侧切流
-3. 完成稳定观察，确认 fallback、差异、lag 与异常 Run 达标
+1. 补齐 Iteration 3-F 与 5-A～E 的真实预发迁移、重建、shadow、严格 canary 和运维持续证据
+2. 生产先以 5-E fallback 开启部署；证据齐全并获单独批准后分批关闭 fallback
+3. 完成稳定观察，确认 fallback 命中、差异、lag 与异常 Run 达标
 4. 仅在再次单独批准后进入 Iteration 6，归档/删除 Legacy E 与兼容锚点
 5. 主线闭环后再排生命周期规则化、设计器增强等新能力
 

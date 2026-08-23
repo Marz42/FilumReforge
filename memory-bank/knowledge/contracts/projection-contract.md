@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "Iteration 5 投影与查询契约"
 description: "三类投影及 projection_checkpoints 的字段来源、身份、授权、排序、所有权、消费与重建边界。"
 tags: [contract, projection, task-center, workflow-graph, iteration-5]
-timestamp: 2026-08-12T14:25:00+08:00
+timestamp: 2026-08-23T22:55:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: hot
@@ -27,7 +27,7 @@ paradigma:
 
 # Iteration 5 投影与查询契约
 
-> **实现阶段：Iteration 5-D ENGINEERING COMPLETE / 5-E BLOCKED**。三类读模型、独立 checkpoint、projector/rebuild、隐私安全 shadow comparison、projection lag/backlog 与 Admin-only 运维入口均已落地；真实 PostgreSQL、rebuild/full shadow、持续样本和人工批准完成前不得切换 Task Center 正式读路径。
+> **实现阶段：Iteration 5-E ENGINEERING COMPLETE / PRODUCTION CUTOVER GATED**。任务中心已支持持久投影优先读取、缺失投影动态回退和严格投影 canary；2026-08-23 隔离 PostgreSQL/Redis 上完成 rebuild、full shadow 与严格模式真实多账号 UAT。生产切流仍须真实预发观察、I3-F 连续门禁和发布负责人批准。
 
 ## 1. 通用不变量
 
@@ -118,3 +118,19 @@ paradigma:
 - Task Center 对照 work item 与 Run shell，Run summary 对照现行动态计数，Timeline 对照三类源事实的身份/父对象/actor/visibility/事件语义；最终授权仍不在 shadow 层判定。
 - 周期 worker 每 5 分钟 recent 抽样，60 秒为默认 lag 容忍；观察证据保留 30 天。全量审计必须显式运行 `python -m app.scripts.scan_workflow_projection_shadow --full`。
 - 5-C 已把 Run progress 固定为与现行详情 API 一致的整数向下取整；确定性差异必须修 projector/契约，不得通过忽略字段消音。
+
+## 10. Iteration 5-E 读取与回退契约
+
+- `TASK_CENTER_PROJECTION_READS_ENABLED=true` 时，graph-backed Task Center 条目先读取 `task_center_items`；关闭时保留原动态 graph-first 路径，作为紧急回滚开关。
+- `TASK_CENTER_PROJECTION_FALLBACK_ENABLED=true` 时，缺失、未知 schema 或非法状态的条目按单 Task 动态派生并补入本次响应；不会写回投影，也不会改变业务源数据。
+- 严格 canary 使用 `PROJECTION_READS=true`、`FALLBACK=false`。进入该模式前必须先全量 rebuild，再执行 full shadow；严格模式出现缺失时不得伪装为 legacy 条目，应回开 fallback 并重建/排障。
+- 投影只缓存 title/priority/due/status/stage/handler/run label/user-facing state 等展示字段；`available_actions` 仍由请求 actor 的实时 policy 计算，不能从投影缓存恢复权限。
+- `process_run` 投影状态映射固定为：active/pending → DOING，completed/cancelled → DONE，failed/terminated → BLOCKED。未知值视为不可用投影并进入回退或严格缺失处理。
+
+### 2026-08-23 本地生产方言证据
+
+- PostgreSQL marker：22 passed，严格要求目标数据库测试不允许 skip。
+- 最终 rebuild：97 Task、28 Run、282 Timeline。
+- full shadow：407 compared / 407 matched；difference、missing、orphan、lagging 均为 0，scan `0d490838-580a-411b-b2b1-bbef0aa8a664`。
+- fallback 开启完成真实后端 Chromium UAT 8/8；严格模式完成核心/工作流 8/8 + KI-009 standalone 三身份 1/1。覆盖新建 standalone、创建/执行/验收授权、批次实例化、三账号采集、fork、交付和独立 N4 审核。
+- 以上为隔离本机证据，不替代生产连续观察与人工批准。

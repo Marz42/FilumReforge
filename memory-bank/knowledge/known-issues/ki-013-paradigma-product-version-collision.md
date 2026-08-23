@@ -39,7 +39,7 @@ Paradigma 0.7 的 `read_distribution_version()` 与 version-upgrade `_recognize_
 - 用 `.paradigma/VERSION`、`installed_distribution_version` 与 `paradigma_upstream_commit` 独立固定协议身份。
 - 使用 `requirements-paradigma.txt` 安装固定 commit 的开发工具。
 - 分别执行 `pd config validate`、`pd runtime verify`、`pd context verify`、`pd index verify`、`pd catalog verify`、`pd agent-adapter check` 和合规子门禁；对聚合版本步骤保留已知失败证据。
-- strict lint 当前只剩既有知识的 63 个 `relations` 缺失 warning；关系应按真实语义逐步补录，不用虚假统一边消警。完成后再启用仓库级 strict CI。
+- strict lint 当前有 64 个 `relations` 缺失 warning（含本次新增 KI-014）；关系应按真实语义逐步补录，不用虚假统一边消警。完成后再启用仓库级 strict CI。
 
 # Permanent Fix
 

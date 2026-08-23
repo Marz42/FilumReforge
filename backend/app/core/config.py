@@ -80,6 +80,8 @@ class Settings(BaseSettings):
   workflow_standalone_manual_tasks_enabled: bool = True
   workflow_graph_template_engine_enabled: bool = False
   task_center_v2_enabled: bool = True
+  task_center_projection_reads_enabled: bool = True
+  task_center_projection_fallback_enabled: bool = True
   workflow_wait_any_enabled: bool = False
   workflow_deep_rejection_enabled: bool = False
   openai_api_key: str | None = None

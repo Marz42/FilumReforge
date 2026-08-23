@@ -3,7 +3,7 @@ type: paradigma-manual
 title: "2026-08-09 生产上线准入 Checklist"
 description: "把本地工程就绪、预发验收与生产变更窗口分开的可勾选上线清单。"
 tags: [manual, release, production, checklist, security, readiness]
-timestamp: 2026-08-12T22:25:00+08:00
+timestamp: 2026-08-23T22:55:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -27,6 +27,22 @@ paradigma:
 > 当前结论：**本地工程候选已就绪，生产准入尚未批准**。只有 A–D 全部完成并记录负责人、时间和证据后，才允许执行 E。
 
 > 员工试用例外：当前复测候选为固定的 `v0.93.0-rc.2`；它取代 RC1 作为后续试用部署目标，但不移动旧标签，也不把 B–D 自动标记为完成。分流与热修规则见 [`RC 员工试用方案`](../plans/2026-08-09-rc-employee-trial-plan.md)。
+
+## 2026-08-23 P0 本地演练证据
+
+以下证据在隔离、临时、生产方言环境完成，用于降低 B/D 执行风险；**不会自动勾选真实预发、生产配置或人工签字项**。
+
+| 项 | 本地结果 |
+|----|----------|
+| PostgreSQL / Redis | pgvector PostgreSQL 16 + Redis 7；PostgreSQL marker 22/22，禁止 skip |
+| Alembic | fresh base → `20260812_04`；恢复库 `04→03→04` 成功；单 head/current 正确 |
+| 5-A～E | 最终 rebuild 97 Task / 28 Run / 282 Timeline；full shadow 407/407，difference/missing/orphan/lagging=0 |
+| 真实浏览器 UAT | fallback 开启 8/8；fallback 关闭严格 canary 为核心/工作流 8/8 + KI-009 三身份 1/1；多账号视频链路 mock 15/15；core mock 35/35 |
+| 数据恢复 | `pg_dump -Fc` 恢复后 tasks=82、runs=24、projections=82、timeline=234；迁移往返后计数不变 |
+| 工程回归 | Backend 499 collected、全量 0 failed；Frontend 75 files/217 tests、type-check、build 通过 |
+| Compose | development / production `docker compose config -q` 通过 |
+
+已知非本批新增阻断：PostgreSQL `alembic check` 仍报告历史 ORM/DDL drift（枚举类型、邀请 token 索引及三列 nullable），必须作为后续 schema hygiene 处理；不影响当前单 head、升级、降级和恢复演练，但不能误报为 schema drift clean。
 
 ## A. 固定发布候选
 

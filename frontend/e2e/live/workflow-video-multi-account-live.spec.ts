@@ -30,12 +30,6 @@ let sharedBatchInstanceId = ''
 let sharedRootTaskId = ''
 const captureTaskIdsByEmail: Record<string, string> = {}
 
-const CAPTURE_ASSIGNEE_LABEL_TO_EMAIL: Record<string, string> = {
-  陆言: ACCOUNTS.copyA,
-  宋遥: ACCOUNTS.copyB,
-  程野: ACCOUNTS.copyC,
-}
-
 async function mapCaptureTasksAfterInstantiate(
   page: Page,
   leadToken: string,
@@ -43,87 +37,24 @@ async function mapCaptureTasksAfterInstantiate(
 ): Promise<void> {
   const headers = { Authorization: `Bearer ${leadToken}` }
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const centerResp = await page.request.get('/api/v1/task-center', { headers })
-    expect(centerResp.ok()).toBeTruthy()
-    const center = (await centerResp.json()) as {
-      task_inbox: Array<TaskCenterEntry & { current_handler_label?: string }>
-      task_tracking: Array<TaskCenterEntry & { current_handler_label?: string }>
+    const [instResp, usersResp] = await Promise.all([
+      page.request.get(`/api/v1/workflow-graph/instances/${instanceId}`, { headers }),
+      page.request.get('/api/v1/workflow-graph/managed-department-member-options', { headers }),
+    ])
+    expect(instResp.ok(), `instance detail failed: ${instResp.status()}`).toBeTruthy()
+    expect(usersResp.ok(), `managed member options failed: ${usersResp.status()}`).toBeTruthy()
+    const inst = (await instResp.json()) as {
+      node_instances: Array<{
+        node_key: string
+        assignee_user_id?: string | null
+        task_id?: string | null
+      }>
     }
-    const captureEntries = [...center.task_inbox, ...center.task_tracking].filter((entry) =>
-      entry.title.includes('提交选题'),
-    )
-    for (const entry of captureEntries) {
-      const label = (entry.current_handler_label ?? '').trim()
-      const email =
-        (label.includes('@') ? label : CAPTURE_ASSIGNEE_LABEL_TO_EMAIL[label]) ?? ''
-      if (email) {
-        captureTaskIdsByEmail[email] = entry.task_id
-      }
-    }
-
-    if (Object.keys(captureTaskIdsByEmail).length >= 3) {
-      return
-    }
-
-    const adminLogin = await page.request.post('/api/v1/auth/login', {
-      data: { email: liveConfig.adminEmail, password: PASSWORD },
-    })
-    if (adminLogin.ok()) {
-      const adminToken = ((await adminLogin.json()) as { access_token: string }).access_token
-      const adminCenterResp = await page.request.get('/api/v1/task-center', {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      })
-      if (adminCenterResp.ok()) {
-        const adminCenter = (await adminCenterResp.json()) as {
-          task_inbox: Array<TaskCenterEntry & { current_handler_label?: string }>
-          task_tracking: Array<TaskCenterEntry & { current_handler_label?: string }>
-        }
-        for (const entry of [...adminCenter.task_inbox, ...adminCenter.task_tracking]) {
-          if (!entry.title.includes('提交选题')) {
-            continue
-          }
-          const label = (entry.current_handler_label ?? '').trim()
-          const email =
-            (label.includes('@') ? label : CAPTURE_ASSIGNEE_LABEL_TO_EMAIL[label]) ?? ''
-          if (email) {
-            captureTaskIdsByEmail[email] = entry.task_id
-          }
-        }
-      }
-    }
-
-    if (Object.keys(captureTaskIdsByEmail).length >= 3) {
-      return
-    }
-
-    if (instanceId) {
-      const [instResp, usersResp] = await Promise.all([
-        page.request.get(`/api/v1/workflow-graph/instances/${instanceId}`, { headers }),
-        page.request.get('/api/v1/users', { headers }),
-      ])
-      if (instResp.ok() && usersResp.ok()) {
-        const inst = (await instResp.json()) as {
-          node_instances: Array<{ node_key: string; assignee_user_id?: string }>
-        }
-        const users = (await usersResp.json()) as Array<{ id: string; email: string }>
-        const n1Nodes = inst.node_instances.filter((node) => node.node_key === 'N1_PROPOSE')
-        for (const node of n1Nodes) {
-          const user = users.find((item) => item.id === node.assignee_user_id)
-          if (!user) {
-            continue
-          }
-          const searchResp = await page.request.get(
-            `/api/v1/tasks/search?q=${encodeURIComponent('提交选题')}&limit=20`,
-            { headers: { Authorization: `Bearer ${leadToken}` } },
-          )
-          if (searchResp.ok()) {
-            const results = (await searchResp.json()) as Array<{ id: string; title: string }>
-            const hit = results.find((item) => item.title.includes('提交选题'))
-            if (hit) {
-              captureTaskIdsByEmail[user.email] = hit.id
-            }
-          }
-        }
+    const users = (await usersResp.json()) as Array<{ id: string; email: string }>
+    for (const node of inst.node_instances.filter((item) => item.node_key === 'N1_PROPOSE')) {
+      const user = users.find((item) => item.id === node.assignee_user_id)
+      if (user && node.task_id) {
+        captureTaskIdsByEmail[user.email] = node.task_id
       }
     }
 
@@ -190,7 +121,7 @@ function listPanelTestId(filter: 'inbox' | 'tracking' | 'history'): string {
   return 'task-center-tracking-panel'
 }
 
-type TaskCenterEntry = { task_id: string; title: string }
+type TaskCenterEntry = { task_id: string; title: string; run_label?: string | null }
 
 async function openCaptureTask(page: Page, accessToken: string, email: string): Promise<void> {
   const taskId = await resolveCaptureTaskIdForEditor(page, accessToken, email)
@@ -233,10 +164,7 @@ async function openBatchRunDashboard(page: Page, accessToken: string): Promise<v
   await expect(page.getByTestId('video-tracking-panel')).toBeVisible({ timeout: 60_000 })
 }
 
-async function dispatchTopicsViaTrackingPanel(
-  page: Page,
-  topicTitles: string[],
-): Promise<void> {
+async function dispatchTopicsViaTrackingPanel(page: Page, topicTitles: string[]): Promise<void> {
   for (const title of topicTitles) {
     await page.getByRole('button', { name: '刷新' }).first().click()
     const row = page
@@ -252,8 +180,12 @@ async function dispatchTopicsViaTrackingPanel(
   }
 }
 
-async function openScriptWriteTask(page: Page, accessToken: string): Promise<void> {
-  const entry = await waitForTaskCenterEntry(page, accessToken, '撰写脚本')
+async function openScriptWriteTask(
+  page: Page,
+  accessToken: string,
+  runLabel: string,
+): Promise<void> {
+  const entry = await waitForTaskCenterEntry(page, accessToken, runLabel)
   await page.goto(`/task-center?filter=inbox&selected=${entry.task_id}`)
   const stepRouter = page.getByTestId('production-root-step-router')
   if (await stepRouter.isVisible().catch(() => false)) {
@@ -262,7 +194,12 @@ async function openScriptWriteTask(page: Page, accessToken: string): Promise<voi
   await expect(page.getByTestId('video-production-panel')).toBeVisible({ timeout: 30_000 })
 }
 
-async function submitScriptDeliverable(page: Page, accessToken: string, summary: string): Promise<void> {
+async function submitScriptDeliverable(
+  page: Page,
+  accessToken: string,
+  summary: string,
+  runLabel: string,
+): Promise<void> {
   await page.getByTestId('video-production-note').fill(summary)
   const fileInput = page.locator('[data-testid="video-production-upload"] input[type="file"]')
   await fileInput.setInputFiles(minimalFixturePath)
@@ -280,7 +217,7 @@ async function submitScriptDeliverable(page: Page, accessToken: string, summary:
   if (upload.ok() && deliver.ok()) {
     return
   }
-  const entry = await waitForTaskCenterEntry(page, accessToken, '撰写脚本')
+  const entry = await waitForTaskCenterEntry(page, accessToken, runLabel)
   const fallback = await page.request.post(`/api/v1/tasks/${entry.task_id}/deliverable`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     data: { summary, attachment_ids: [] },
@@ -336,10 +273,12 @@ async function waitForTaskCenterEntry(
       task_tracking: TaskCenterEntry[]
       task_history?: TaskCenterEntry[]
     }
+    const matches = (entry: TaskCenterEntry) =>
+      entry.title.includes(hint) || entry.run_label?.includes(hint) === true
     const hit =
-      snapshot.task_inbox.find((entry) => entry.title.includes(hint))
-      ?? snapshot.task_tracking.find((entry) => entry.title.includes(hint))
-      ?? snapshot.task_history?.find((entry) => entry.title.includes(hint))
+      snapshot.task_inbox.find(matches) ??
+      snapshot.task_tracking.find(matches) ??
+      snapshot.task_history?.find(matches)
     if (hit) {
       return hit
     }
@@ -433,24 +372,54 @@ test.describe('Workflow Video multi-account live', () => {
       (r) => /\/preview-participants\b/.test(r.url()) && r.request().method() === 'POST',
       { timeout: 60_000 },
     )
-    await page.getByRole('row', { name: /选题会/ }).getByTestId('graph-template-instantiate').click()
+    await page
+      .getByRole('row', { name: /选题会/ })
+      .getByTestId('graph-template-instantiate')
+      .click()
     const dialog = page.getByTestId('template-instantiate-dialog')
     await expect(dialog).toBeVisible()
     const candidatePreviewResp = await candidatePreview
-    expect(candidatePreviewResp.ok(), `preview-participants failed: ${candidatePreviewResp.status()}`).toBeTruthy()
-    await dialog.locator('.el-form-item').filter({ hasText: '征集主题' }).locator('input').fill(THEME)
+    expect(
+      candidatePreviewResp.ok(),
+      `preview-participants failed: ${candidatePreviewResp.status()}`,
+    ).toBeTruthy()
+    await expect(dialog.getByTestId('instantiate-launch-department').locator('input')).toHaveValue(
+      /.+/,
+    )
+    await dialog
+      .locator('.el-form-item')
+      .filter({ hasText: '征集主题' })
+      .locator('input')
+      .fill(THEME)
     await dialog.getByPlaceholder('例如：第 12 周选题会').fill(RUN_LABEL)
-    const managerSelect = dialog.locator('.el-form-item').filter({ hasText: '负责人' }).locator('.el-select')
+    const managerSelect = dialog
+      .locator('.el-form-item')
+      .filter({ hasText: '负责人' })
+      .locator('.el-select')
     await pickElSelectOption(page, managerSelect, ACCOUNTS.copyLead)
     await dialog.getByText('指定成员', { exact: true }).click()
     await selectParticipantEmails(page, dialog, [ACCOUNTS.copyA, ACCOUNTS.copyB, ACCOUNTS.copyC])
     await expect(dialog.getByText(/将展开 3 个采集任务/)).toBeVisible({ timeout: 60_000 })
     const runResp = page.waitForResponse(
-      (r) => /\/workflow-graph\/templates\/.*\/runs\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+      (r) =>
+        /\/workflow-graph\/templates\/.*\/runs\b/.test(r.url()) && r.request().method() === 'POST',
       { timeout: 60_000 },
     )
+    const validationFailure = page
+      .locator('.el-message')
+      .filter({ hasText: /^请/ })
+      .first()
+      .waitFor({ state: 'visible', timeout: 60_000 })
+      .then(async () => {
+        throw new Error(
+          `template instantiate validation failed: ${await page.locator('.el-message').first().innerText()}`,
+        )
+      })
     await page.getByTestId('template-instantiate-submit').click()
-    const runResult = await runResp
+    const runResult = await Promise.race([runResp, validationFailure])
+    if (!runResult.ok()) {
+      throw new Error(`create run failed: ${runResult.status()} ${await runResult.text()}`)
+    }
     const runPayload = (await runResult.json()) as {
       instance_id?: string
       root_task_id?: string
@@ -540,9 +509,9 @@ test.describe('Workflow Video multi-account live', () => {
 
   test('Phase E: copy.a script write deliverable on child run', async ({ page }) => {
     const { accessToken } = await login(page, ACCOUNTS.copyA)
-    await openScriptWriteTask(page, accessToken)
+    await openScriptWriteTask(page, accessToken, `选题A ${RUN_TAG}`)
     await ensureTaskAccepted(page)
-    await submitScriptDeliverable(page, accessToken, `脚本正文 ${RUN_TAG}`)
+    await submitScriptDeliverable(page, accessToken, `脚本正文 ${RUN_TAG}`, `选题A ${RUN_TAG}`)
     await snap(page, 'phase-e-script-deliverable.png')
     await logout(page)
     liveRow({
@@ -556,16 +525,17 @@ test.describe('Workflow Video multi-account live', () => {
 
   test('Phase F: copy lead reviews script (N4)', async ({ page }) => {
     const { accessToken } = await login(page, ACCOUNTS.copyLead)
-    const reviewEntry =
-      (await waitForTaskCenterEntry(page, accessToken, '脚本审核').catch(() => null))
-      ?? (await waitForTaskCenterEntry(page, accessToken, `选题A ${RUN_TAG}`))
+    const reviewEntry = await waitForTaskCenterEntry(page, accessToken, `选题A ${RUN_TAG}`)
     await page.goto(`/task-center?filter=inbox&selected=${reviewEntry.task_id}`)
 
     const approveBtn = page.getByRole('button', { name: '验收通过' })
     const hasApproveUi = await approveBtn.isVisible({ timeout: 30_000 }).catch(() => false)
     if (hasApproveUi) {
       const reviewResp = page.waitForResponse(
-        (r) => /\/api\/v1\/tasks\/.*\/review\b/.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+        (r) =>
+          /\/api\/v1\/tasks\/.*\/review\b/.test(r.url()) &&
+          r.request().method() === 'POST' &&
+          r.ok(),
         { timeout: 60_000 },
       )
       await approveBtn.click()
@@ -575,7 +545,10 @@ test.describe('Workflow Video multi-account live', () => {
         headers: { Authorization: `Bearer ${accessToken}` },
         data: { action: 'approve', comment: `审核通过 ${RUN_TAG}`, quality_score: 5 },
       })
-      expect(reviewResp.ok(), `review failed: ${reviewResp.status()}`).toBeTruthy()
+      expect(
+        reviewResp.ok(),
+        `review failed: ${reviewResp.status()} ${await reviewResp.text()}`,
+      ).toBeTruthy()
     }
     await snap(page, 'phase-f-script-review.png')
     await logout(page)

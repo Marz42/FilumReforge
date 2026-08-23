@@ -18,6 +18,7 @@ from app.core.enums import (
   WorkflowNodeBusinessState,
   WorkflowNodeEngineState,
 )
+from app.core.config import Settings
 from app.models import (
   NodeTimelineEntry,
   ProcessRunSummary,
@@ -34,6 +35,7 @@ from app.models import (
   WorkflowRunEvent,
 )
 from app.services.workflow_projection_rebuild_service import WorkflowProjectionRebuildService
+from app.services.task_service import TaskService
 from app.scripts.rebuild_workflow_projections import parse_args as parse_rebuild_args
 from app.services.workflow_projection_service import (
   PROJECTION_NAME,
@@ -339,3 +341,68 @@ async def test_full_rebuild_removes_stale_rows_and_anchors_high_watermarks(
   assert all(checkpoint.status == "idle" for checkpoint in checkpoints)
   assert all(checkpoint.cursor_occurred_at is not None for checkpoint in checkpoints)
   assert all(checkpoint.cursor_source_id is not None for checkpoint in checkpoints)
+
+
+@pytest.mark.asyncio
+async def test_iteration5e_projection_first_read_and_dynamic_fallback(
+  db_session: AsyncSession,
+) -> None:
+  seeded = await _seed_projection_sources(db_session)
+  task = seeded["task"]
+  assert isinstance(task, Task)
+  await WorkflowProjectionRebuildService(db_session).rebuild_all()
+
+  item = await db_session.scalar(
+    select(TaskCenterItem).where(TaskCenterItem.task_id == task.id)
+  )
+  assert item is not None
+  item.title = "5-E 投影标题"
+  await db_session.flush()
+
+  projection_first = TaskService(
+    db_session,
+    settings=Settings(
+      jwt_secret_key="iteration-5e-projection-read-secret-32-bytes",
+      task_center_projection_reads_enabled=True,
+      task_center_projection_fallback_enabled=True,
+    ),
+  )
+  projected = await projection_first._graph_task_projection_map(tasks=[task])
+  assert projected[task.id].title == "5-E 投影标题"
+
+  item.projection_schema_version = 99
+  await db_session.flush()
+  fallback = await projection_first._graph_task_projection_map(tasks=[task])
+  assert fallback[task.id].title is None
+  assert fallback[task.id].status == TaskStatus.REVIEW
+
+
+@pytest.mark.asyncio
+async def test_iteration5e_can_disable_fallback_for_strict_canary(
+  db_session: AsyncSession,
+) -> None:
+  seeded = await _seed_projection_sources(db_session)
+  task = seeded["task"]
+  creator = seeded["creator"]
+  assert isinstance(task, Task)
+  assert isinstance(creator, User)
+
+  strict_projection = TaskService(
+    db_session,
+    settings=Settings(
+      jwt_secret_key="iteration-5e-strict-read-secret-32-bytes",
+      task_center_projection_reads_enabled=True,
+      task_center_projection_fallback_enabled=False,
+    ),
+  )
+  assert await strict_projection._graph_task_projection_map(tasks=[task]) == {}
+  assert all(
+    entry.task_id != task.id
+    for entry in (await strict_projection.list_task_inbox(actor=creator)).items
+  )
+
+  await WorkflowProjectionRebuildService(db_session).rebuild_task(task.id)
+  assert any(
+    entry.task_id == task.id
+    for entry in (await strict_projection.list_task_inbox(actor=creator)).items
+  )

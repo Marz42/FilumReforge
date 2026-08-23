@@ -20,8 +20,14 @@ paradigma:
 
 ## [Unreleased]
 
+### Added
+
+- 登记 P0 收口后续技术债：KI-015 strict 投影缺口请求侧遥测、KI-016 logout/多账号切换在途 401、KI-017 前端入口 chunk 体积；均保留明确缓解措施和完成标准。
+
 ### Changed
 
+- Iteration 5-E 工程收口：任务中心新增持久投影优先读取、按条目动态回退与严格 canary 开关；隔离 PostgreSQL 完成最终 rebuild 97/28/282、full shadow 407/407、fallback-on 8/8 与 strict 9/9 真实 UAT。
+- Live UAT 改为按本轮 instance/task/run label 精确定位，避免历史 Run 污染账号映射与 N3/N4 选择；新增 KI-009 standalone 创建者/执行人/验收人真实多账号闭环。
 - F-05 第二批：从 `TaskDetailShell` 提取 `useTaskDetailActions` 与 `useTaskAssignmentActions`，集中状态流转、交付验收、接单/转办、集合关闭、延期和动作后刷新；权限/Profile 与页面模板仍由 Shell 管理。
 - F-05 第三批：提取 `useTaskDetailCollaboration`、`TaskDetailAttachmentsPanel` 与 `TaskDetailCommentComposer`，收口附件上传、评论提交和展示板块；Shell 从约 1,569 行降至约 1,285 行。
 - F-05 第四批：提取 `TaskDetailActivityTimeline`，保留活动顺序、评论/内部标记/附件操作和日志摘要；Shell 从约 1,285 行降至约 1,153 行，KI-010 重设计继续独立保留。
@@ -34,6 +40,8 @@ paradigma:
 
 ### Fixed
 
+- 修复图模板实例化弹窗在部门选项异步到达时未回填默认发起部门、导致提交被“请选择发起部门”竞态拦截的问题。
+- 修复专用 review node 将指定 reviewer 误判为任务自身执行人而触发 self-review 的问题；专用评审改以上游交付人作为自审基准，普通模板任务保护保持不变。
 - KI-009：standalone 详情的开始、提交、验收按钮统一读取服务端 `available_actions`，状态命令按阶段复核当前执行人；任务创建者仍可跟踪，但不能代执行人开工，workflow/graph 兼容路径保持不变。
 
 ## [0.93.0-rc.2] — 2026-08-11

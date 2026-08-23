@@ -1,6 +1,6 @@
 # Progress Summary
 
-Source digest: `sha256:92b025376f259ddf729d624c64d738045e8f2064d236f8bde10805e230f60fbc`
+Source digest: `sha256:7567cc2e138ee49b509ffe1e20678fc14da93faced6e5bd7c4c9a5ef4785716b`
 
 This file summarizes progress logs without deleting or rewriting the source session logs.
 
@@ -24,4 +24,6 @@ This file summarizes progress logs without deleting or rewriting the source sess
 | [2026-08-12-iteration5b-projector-rebuild.md](2026-08-12-iteration5b-projector-rebuild.md) | 2026-08-12 Iteration 5-B Projector 与重建基座 | No standard session summary recorded. |
 | [2026-08-12-iteration5c-shadow-comparison.md](2026-08-12-iteration5c-shadow-comparison.md) | Iteration 5-C Shadow Comparison 工程完成 | No standard session summary recorded. |
 | [2026-08-12-iteration5d-workflow-operations.md](2026-08-12-iteration5d-workflow-operations.md) | Iteration 5-D 工作流运维与可观测性工程完成 | No standard session summary recorded. |
+| [2026-08-12-ki009-action-authorization.md](2026-08-12-ki009-action-authorization.md) | KI-009 独立任务动作授权收口 | No standard session summary recorded. |
 | [2026-08-12-paradigma-070-upgrade.md](2026-08-12-paradigma-070-upgrade.md) | Filum Paradigma 0.7 Protocol Upgrade | Pulled and verified Paradigma main at `3422ecf95109d48cfa89036ae96b4085201baef4`; the upstream worktree was already current and its complete 270-test suite passed. |
+| [2026-08-23-p0-closure-iteration5e.md](2026-08-23-p0-closure-iteration5e.md) | 2026-08-23 P0 收口与 Iteration 5-E 严格投影验证 | No standard session summary recorded. |

@@ -9,13 +9,14 @@ import {
 } from '@/api/workflow-graph'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import { useAuthStore } from '@/stores/auth'
-import type { GraphTemplateSummary, ParticipantUserPreview, CreateGraphTemplateRunRequest } from '@/types/workflowVideo'
+import type {
+  GraphTemplateSummary,
+  ParticipantUserPreview,
+  CreateGraphTemplateRunRequest,
+} from '@/types/workflowVideo'
 import { getErrorMessage } from '@/utils/errors'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
-import {
-  resolveLaunchSchema,
-  resolveParticipantPolicyRefs,
-} from '@/utils/workflowVideoSchema'
+import { resolveLaunchSchema, resolveParticipantPolicyRefs } from '@/utils/workflowVideoSchema'
 
 const props = defineProps<{
   modelValue: boolean
@@ -49,13 +50,18 @@ const visible = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 })
 
-const launchSchema = computed(() => resolveLaunchSchema(props.template?.config as Record<string, unknown> | undefined))
+const launchSchema = computed(() =>
+  resolveLaunchSchema(props.template?.config as Record<string, unknown> | undefined),
+)
 const participantPolicyRefs = computed(() =>
   resolveParticipantPolicyRefs(props.template?.config as Record<string, unknown> | undefined),
 )
 const hasParticipantPolicy = computed(() => participantPolicyRefs.value.length > 0)
 const policyRef = computed(() => participantPolicyRefs.value[0] ?? '')
-const scopeDepartmentIds = computed(() => (props.template as unknown as { scope_department_ids?: string[] })?.scope_department_ids ?? [])
+const scopeDepartmentIds = computed(
+  () =>
+    (props.template as unknown as { scope_department_ids?: string[] })?.scope_department_ids ?? [],
+)
 const departmentOptions = computed(() => {
   const options = props.departmentOptions ?? []
   if (scopeDepartmentIds.value.length === 0) {
@@ -76,8 +82,8 @@ const selectedDepartmentLabel = computed(() => {
 function resolveInitialDepartmentId(): string {
   const options = departmentOptions.value
   if (
-    props.defaultDepartmentId
-    && options.some((option) => option.id === props.defaultDepartmentId)
+    props.defaultDepartmentId &&
+    options.some((option) => option.id === props.defaultDepartmentId)
   ) {
     return props.defaultDepartmentId
   }
@@ -298,6 +304,13 @@ watch(
   },
 )
 
+watch([() => props.defaultDepartmentId, departmentOptions], () => {
+  if (!props.modelValue || departmentId.value) {
+    return
+  }
+  departmentId.value = resolveInitialDepartmentId()
+})
+
 watch(participantMode, () => {
   if (props.modelValue && hasParticipantPolicy.value) {
     void loadParticipantPreview()
@@ -339,7 +352,11 @@ watch(includeInitiator, () => {
         <el-form-item label="运行标题（可选）">
           <el-input v-model="runLabel" placeholder="例如：第 12 周选题会" />
         </el-form-item>
-        <el-form-item v-if="showDepartmentField" label="发起部门" data-testid="instantiate-launch-department">
+        <el-form-item
+          v-if="showDepartmentField"
+          label="发起部门"
+          data-testid="instantiate-launch-department"
+        >
           <el-select
             v-if="!departmentFieldReadonly"
             v-model="departmentId"
@@ -417,47 +434,57 @@ watch(includeInitiator, () => {
 
         <el-divider v-if="hasParticipantPolicy">参与人（{{ policyRef }}）</el-divider>
         <template v-if="hasParticipantPolicy">
-        <el-form-item label="参与范围">
-          <el-radio-group v-model="participantMode">
-            <el-radio-button value="subset">指定成员</el-radio-button>
-            <el-radio-button value="all">部门全员</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item v-if="participantMode === 'subset'" label="文案参与人">
-          <el-select
-            v-model="selectedParticipantIds"
-            multiple
-            filterable
-            placeholder="选择参与人"
-            style="width: 100%"
-            @change="loadParticipantPreview"
+          <el-form-item label="参与范围">
+            <el-radio-group v-model="participantMode">
+              <el-radio-button value="subset">指定成员</el-radio-button>
+              <el-radio-button value="all">部门全员</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item v-if="participantMode === 'subset'" label="文案参与人">
+            <el-select
+              v-model="selectedParticipantIds"
+              multiple
+              filterable
+              placeholder="选择参与人"
+              style="width: 100%"
+              @change="loadParticipantPreview"
+            >
+              <el-option
+                v-for="option in participantUserOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-checkbox v-model="includeInitiator" data-testid="template-include-initiator">
+              发起人参与采集
+            </el-checkbox>
+          </el-form-item>
+          <p v-if="effectivePreviewUsers.length" class="workflow-dialog__preview">
+            将展开 {{ effectivePreviewUsers.length }} 个采集任务<span v-if="previewUserSummary"
+              >：{{ previewUserSummary }}</span
+            >
+          </p>
+          <p
+            v-else-if="previewUsers.length && !includeInitiator"
+            class="workflow-dialog__preview workflow-dialog__preview--warn"
           >
-            <el-option
-              v-for="option in participantUserOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-checkbox v-model="includeInitiator" data-testid="template-include-initiator">
-            发起人参与采集
-          </el-checkbox>
-        </el-form-item>
-        <p v-if="effectivePreviewUsers.length" class="workflow-dialog__preview">
-          将展开 {{ effectivePreviewUsers.length }} 个采集任务<span v-if="previewUserSummary">：{{ previewUserSummary }}</span>
-        </p>
-        <p v-else-if="previewUsers.length && !includeInitiator" class="workflow-dialog__preview workflow-dialog__preview--warn">
-          当前选择排除发起人后将无采集任务，请增选参与人或勾选「发起人参与采集」
-        </p>
+            当前选择排除发起人后将无采集任务，请增选参与人或勾选「发起人参与采集」
+          </p>
         </template>
       </el-form>
     </template>
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="submitting" data-testid="template-instantiate-submit" @click="handleSubmit">
+      <el-button
+        type="primary"
+        :loading="submitting"
+        data-testid="template-instantiate-submit"
+        @click="handleSubmit"
+      >
         创建运行
       </el-button>
     </template>

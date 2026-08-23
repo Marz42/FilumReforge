@@ -38,6 +38,7 @@ from app.models import (
   Profile,
   ReportingLine,
   Task,
+  TaskCenterItem,
   TaskComment,
   TaskDependency,
   TaskLog,
@@ -340,6 +341,11 @@ class GraphTaskProjection:
   completed_at: datetime | None
   business_state: WorkflowNodeBusinessState | None = None
   node_key: str | None = None
+  title: str | None = None
+  priority: TaskPriority | None = None
+  due_date: datetime | None = None
+  run_label: str | None = None
+  user_facing_state: str | None = None
 
 
 ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
@@ -426,6 +432,18 @@ class TaskService:
 
   def _task_center_v2_enabled(self) -> bool:
     return bool(self._settings is not None and self._settings.task_center_v2_enabled)
+
+  def _task_center_projection_reads_enabled(self) -> bool:
+    return bool(
+      self._settings is not None
+      and self._settings.task_center_v2_enabled
+      and self._settings.task_center_projection_reads_enabled
+    )
+
+  def _task_center_projection_fallback_enabled(self) -> bool:
+    return bool(
+      self._settings is None or self._settings.task_center_projection_fallback_enabled
+    )
 
   @staticmethod
   def _read_payload_datetime(payload: dict[str, Any], key: str) -> datetime | None:
@@ -627,7 +645,94 @@ class TaskService:
       return finished_nodes[0]
     return None
 
-  async def _graph_task_projection_map(self, *, tasks: list[Task]) -> dict[UUID, GraphTaskProjection]:
+  @staticmethod
+  def _projection_item_status(item: TaskCenterItem) -> TaskStatus | None:
+    if item.subject_type == "process_run":
+      if item.raw_status in {"completed", "cancelled"}:
+        return TaskStatus.DONE
+      if item.raw_status in {"failed", "terminated"}:
+        return TaskStatus.BLOCKED
+      if item.raw_status in {"active", "pending"}:
+        return TaskStatus.DOING
+      return None
+    try:
+      return TaskStatus(item.raw_status)
+    except ValueError:
+      return None
+
+  @staticmethod
+  def _projection_item_business_state(
+    item: TaskCenterItem,
+  ) -> WorkflowNodeBusinessState | None:
+    if not item.business_state:
+      return None
+    try:
+      return WorkflowNodeBusinessState(item.business_state)
+    except ValueError:
+      return None
+
+  def _projection_item_to_graph_projection(
+    self,
+    *,
+    item: TaskCenterItem,
+  ) -> GraphTaskProjection | None:
+    if item.projection_schema_version != 1 or item.task_id is None:
+      return None
+    if item.item_kind not in {"human_task", "approval", "process_run"}:
+      return None
+    status = self._projection_item_status(item)
+    if status is None:
+      return None
+    try:
+      priority = TaskPriority(item.priority)
+    except ValueError:
+      priority = None
+    return GraphTaskProjection(
+      task_id=item.task_id,
+      status=status,
+      current_stage_label=item.current_stage_label or _task_status_label(status),
+      current_handler_id=item.current_action_owner_user_id,
+      current_handler_label=item.current_handler_label,
+      latest_deliverable_submitted_at=item.latest_deliverable_submitted_at,
+      rework_count=item.rework_count,
+      review_quality_score=item.review_quality_score,
+      completed_at=item.completed_at,
+      business_state=self._projection_item_business_state(item),
+      node_key=None,
+      title=item.title,
+      priority=priority,
+      due_date=item.due_at,
+      run_label=item.run_label,
+      user_facing_state=item.user_facing_state,
+    )
+
+  async def _stored_graph_task_projection_map(
+    self,
+    *,
+    tasks: list[Task],
+  ) -> dict[UUID, GraphTaskProjection]:
+    if not tasks:
+      return {}
+    items = list(
+      await self._session.scalars(
+        select(TaskCenterItem).where(
+          TaskCenterItem.task_id.in_([task.id for task in tasks]),
+          TaskCenterItem.is_archived.is_(False),
+        )
+      )
+    )
+    projections: dict[UUID, GraphTaskProjection] = {}
+    for item in items:
+      projection = self._projection_item_to_graph_projection(item=item)
+      if projection is not None:
+        projections[projection.task_id] = projection
+    return projections
+
+  async def _dynamic_graph_task_projection_map(
+    self,
+    *,
+    tasks: list[Task],
+  ) -> dict[UUID, GraphTaskProjection]:
     if not tasks:
       return {}
 
@@ -716,6 +821,23 @@ class TaskService:
           node_instance=node_instance,
         )
 
+    return projections
+
+  async def _graph_task_projection_map(self, *, tasks: list[Task]) -> dict[UUID, GraphTaskProjection]:
+    if not tasks:
+      return {}
+    if not self._task_center_projection_reads_enabled():
+      return await self._dynamic_graph_task_projection_map(tasks=tasks)
+
+    projections = await self._stored_graph_task_projection_map(tasks=tasks)
+    if not self._task_center_projection_fallback_enabled():
+      return projections
+
+    missing_tasks = [task for task in tasks if task.id not in projections]
+    if missing_tasks:
+      projections.update(
+        await self._dynamic_graph_task_projection_map(tasks=missing_tasks)
+      )
     return projections
 
   @staticmethod
@@ -886,15 +1008,15 @@ class TaskService:
     )
     entry = TaskInboxEntry(
       task_id=task.id,
-      title=task.title,
-      priority=task.priority,
+      title=projection.title or task.title,
+      priority=projection.priority or task.priority,
       status=projection.status,
-      due_date=task.due_date,
+      due_date=projection.due_date if projection.due_date is not None else task.due_date,
       department_name=task.department.name if task.department is not None else None,
       current_stage_label=projection.current_stage_label,
       current_handler_label=projection.current_handler_label,
-      run_label=run_label,
-      user_facing_state=user_facing_state,
+      run_label=projection.run_label or run_label,
+      user_facing_state=projection.user_facing_state or user_facing_state,
     )
     self._apply_action_context(
       entry,
@@ -920,10 +1042,10 @@ class TaskService:
     )
     entry = TaskTrackingEntry(
       task_id=task.id,
-      title=task.title,
-      priority=task.priority,
+      title=projection.title or task.title,
+      priority=projection.priority or task.priority,
       status=projection.status,
-      due_date=task.due_date,
+      due_date=projection.due_date if projection.due_date is not None else task.due_date,
       department_name=task.department.name if task.department is not None else None,
       relation_types=relation_types,
       current_stage_label=projection.current_stage_label,
@@ -932,8 +1054,8 @@ class TaskService:
       rework_count=projection.rework_count,
       review_quality_score=projection.review_quality_score,
       is_pending_review=projection.status == TaskStatus.REVIEW,
-      run_label=run_label,
-      user_facing_state=user_facing_state,
+      run_label=projection.run_label or run_label,
+      user_facing_state=projection.user_facing_state or user_facing_state,
     )
     self._apply_action_context(
       entry,
@@ -958,16 +1080,16 @@ class TaskService:
     )
     return TaskHistoryEntry(
       task_id=task.id,
-      title=task.title,
-      priority=task.priority,
-      due_date=task.due_date,
+      title=projection.title or task.title,
+      priority=projection.priority or task.priority,
+      due_date=projection.due_date if projection.due_date is not None else task.due_date,
       completed_at=projection.completed_at,
       department_name=task.department.name if task.department is not None else None,
       relation_types=relation_types,
       source_type=task.source_type,
       status=projection.status,
-      run_label=run_label,
-      user_facing_state=user_facing_state,
+      run_label=projection.run_label or run_label,
+      user_facing_state=projection.user_facing_state or user_facing_state,
     )
 
   async def _create_single_node_workflow_projection(
@@ -1973,6 +2095,19 @@ class TaskService:
       and self._read_uuid_metadata(metadata, "workflow_node_instance_id") is not None
     )
 
+  def _strict_projection_missing(
+    self,
+    *,
+    task: Task,
+    graph_projection_map: dict[UUID, GraphTaskProjection],
+  ) -> bool:
+    return (
+      self._task_center_projection_reads_enabled()
+      and not self._task_center_projection_fallback_enabled()
+      and self._uses_graph_projection(task=task)
+      and task.id not in graph_projection_map
+    )
+
   async def _load_template_graph_node_context(
     self,
     *,
@@ -2307,6 +2442,22 @@ class TaskService:
       and bool(metadata.get("workflow_node_instance_id"))
     )
 
+  @staticmethod
+  def _template_review_executor_id(task: Task) -> UUID:
+    """Resolve whose own deliverable must not be self-reviewed.
+
+    Dedicated review nodes assign the Task to the reviewer and retain the
+    upstream executor as creator. Other template tasks are executed by their
+    assignee and only enter review after that assignee submits a deliverable.
+    """
+    metadata = task.extra_metadata if isinstance(task.extra_metadata, dict) else {}
+    capability = metadata.get("task_capability")
+    if isinstance(capability, dict) and (
+      capability.get("surface") == "review" or capability.get("submit_mode") == "review"
+    ):
+      return task.creator_id
+    return task.assignee_id
+
   async def _review_fallback_candidates(
     self,
     *,
@@ -2314,11 +2465,12 @@ class TaskService:
     initial_reviewer_ids: list[UUID],
   ) -> list[tuple[str, UUID]]:
     candidates = [("configured_reviewer", reviewer_id) for reviewer_id in initial_reviewer_ids]
+    executor_id = self._template_review_executor_id(task)
     effective_date = date.today()
     supervisor_id = await self._session.scalar(
       select(ReportingLine.manager_user_id)
       .where(
-        ReportingLine.user_id == task.assignee_id,
+        ReportingLine.user_id == executor_id,
         ReportingLine.line_type == ReportingLineType.SOLID,
         ReportingLine.is_primary.is_(True),
         ReportingLine.starts_at <= effective_date,
@@ -2371,7 +2523,7 @@ class TaskService:
     ):
       candidate = await self._session.get(User, candidate_id)
       exclusion_reason: str | None = None
-      if candidate_id == task.assignee_id:
+      if candidate_id == self._template_review_executor_id(task):
         exclusion_reason = "excluded: self-review not permitted"
       elif candidate is None:
         exclusion_reason = "excluded: reviewer account not found"
@@ -2451,7 +2603,7 @@ class TaskService:
       if actor.role == UserRole.ADMIN:
         return
       metadata = self._copy_task_metadata(task)
-      if actor.id == task.assignee_id:
+      if actor.id == self._template_review_executor_id(task):
         raise ConflictError("Self-review is not permitted for template tasks")
       reviewer_id = self._read_uuid_metadata(metadata, "reviewer_id")
       if reviewer_id is not None and actor.id == reviewer_id:
@@ -2708,6 +2860,11 @@ class TaskService:
         continue
       if self._is_graph_run_root_shell_task(task):
         continue
+      if self._strict_projection_missing(
+        task=task,
+        graph_projection_map=graph_projection_map,
+      ):
+        continue
       projection = graph_projection_map.get(task.id)
       if projection is not None:
         action_context = self._work_item_action_context(
@@ -2876,6 +3033,11 @@ class TaskService:
         continue
       if not is_management and self._is_hidden_graph_root_for_non_management(task):
         continue
+      if self._strict_projection_missing(
+        task=task,
+        graph_projection_map=graph_projection_map,
+      ):
+        continue
       relation_types: list[str] = []
       if task.creator_id == actor.id:
         relation_types.append("发起")
@@ -3005,6 +3167,11 @@ class TaskService:
     entries: list[TaskHistoryEntry] = []
     for task in tasks:
       if self._is_admin_archived_task(task):
+        continue
+      if self._strict_projection_missing(
+        task=task,
+        graph_projection_map=graph_projection_map,
+      ):
         continue
       relation_types: list[str] = []
       if task.creator_id == actor.id:
@@ -3886,7 +4053,7 @@ class TaskService:
       raise ConflictError("仅模板图任务支持重新指派验收人。")
     if task.status not in {TaskStatus.BLOCKED, TaskStatus.REVIEW}:
       raise ConflictError("仅阻塞或评审中的模板任务可以重新指派验收人。")
-    if reviewer_id == task.assignee_id:
+    if reviewer_id == self._template_review_executor_id(task):
       raise ConflictError("Self-review is not permitted for template tasks")
     reviewer = await self._session.get(User, reviewer_id)
     if reviewer is None:

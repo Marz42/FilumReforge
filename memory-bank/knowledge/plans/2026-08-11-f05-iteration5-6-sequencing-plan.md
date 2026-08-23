@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "F-05 至工作流图引擎 Iteration 5/6 实施顺序"
 description: "记录已完成的 F-05，并固定 Iteration 5 投影运维建设、稳定观察与 Iteration 6 兼容层清理的顺序和门禁。"
 tags: [plan, active, f-05, workflow-graph, iteration-5, iteration-6, sequencing]
-timestamp: 2026-08-12T14:25:00+08:00
+timestamp: 2026-08-23T22:55:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -25,16 +25,16 @@ paradigma:
 
 # F-05 至 Iteration 5/6 实施顺序
 
-> **计划状态：ACTIVE / 5-E BLOCKED** — F-05、Iteration 5-A/B/C/D 工程完成。下一阶段是 5-E 受控读侧切换，但 RC2 复测、Iteration 4/设计器/S-01 人工 UAT、Iteration 3-F/5-A-D PostgreSQL 取证及目标环境 shadow 观察仍是并行门禁；未完成且未单独批准前不得生产切流、停止兼容写入或删除旧结构。
+> **计划状态：ACTIVE / 5-E ENGINEERING COMPLETE / PRODUCTION CUTOVER GATED** — F-05、Iteration 5-A～E 工程实现与隔离 PostgreSQL 严格 canary 已完成。真实预发持续观察、Iteration 3-F 连续门禁和人工签字仍未被本地证据替代；未完成且未单独批准前不得生产关闭回退、停止兼容写入或删除旧结构。
 
 ## 1. 已确认的主开发顺序
 
 1. **完成 F-05（已完成）**：数据、动作、任务资料附件、评论与留痕、活动时间线、工作流面板和节点追踪均已拆出；UI、权限、API 与业务语义不变。
-2. **Iteration 5-A — 投影契约与加法迁移（工程完成 / PG 证据待补）**：已固定三类读模型契约并落地 `20260812_01`。
-3. **Iteration 5-B — Projector 基座（工程完成 / PG 证据待补）**：已实现 `20260812_02` checkpoint、三源流幂等消费、失败隔离和单 Task/单 Run/全量高水位重建。
+2. **Iteration 5-A — 投影契约与加法迁移（完成）**：已固定三类读模型契约并落地 `20260812_01`；2026-08-23 在隔离 PostgreSQL 上验证 fresh base 到 head。
+3. **Iteration 5-B — Projector 基座（完成）**：已实现 `20260812_02` checkpoint、三源流幂等消费、失败隔离和单 Task/单 Run/全量高水位重建；最终全量重建为 97 Task / 28 Run / 282 timeline。
 4. **Iteration 5-C — Shadow Comparison（工程完成 / 目标环境观察待补）**：新旧查询独立并行，记录字段差异、缺失/孤儿项和延迟；不切换用户读路径。
-5. **Iteration 5-D — 运维与可观测性（工程完成 / PG 证据待补）**：已建设 Outbox FAILED/重放、incident 处置、卡死 Run、no-route、Join wait、Context conflict、节点重试/挂起/恢复工作台，以及 projection lag/backlog、shadow 摘要和统一 trace；仅 Admin 可见且不赋予业务审批权。
-6. **Iteration 5-E — 受控读侧切换**：满足门禁并经批准后，让任务中心读取正式投影；ROOT Task 先降为 projection shell，稳定后才停止新增。
+5. **Iteration 5-D — 运维与可观测性（完成）**：已建设 Outbox FAILED/重放、incident 处置、卡死 Run、no-route、Join wait、Context conflict、节点重试/挂起/恢复工作台，以及 projection lag/backlog、shadow 摘要和统一 trace；隔离 PostgreSQL/Redis 上 22 项方言用例通过，final full shadow 407/407 一致；仅 Admin 可见且不赋予业务审批权。
+6. **Iteration 5-E — 受控读侧切换（工程完成 / 生产门禁开放）**：任务中心已支持投影优先读取、动态回退与严格 canary；本地严格模式真实 UAT 9/9，缺失投影在 strict 模式下 fail-closed，不伪装为 legacy 条目。生产先以 fallback 开启部署，完成 rebuild/full shadow 和观察后才允许 canary 关闭 fallback；ROOT Task 收缩仍未执行。
 7. **稳定观察期**：确认 Link fallback、graph-first fallback、ROOT shell 新增量和投影差异达到 Iteration 6 前置标准。
 8. **Iteration 6 — 单独批准的破坏性清理**：停止 JSON/双写锚点、移除跨模块直接写入和动态 graph-first 查询，归档后清理 Legacy E 服务、表、列与 feature flags。
 
@@ -46,9 +46,9 @@ paradigma:
 | Iteration 4 / 设计器 / S-01 人工 UAT | F-05、Iteration 5-A～D | 未签字不得标记业务验收通过 |
 | Iteration 3-F 目标环境证据 | F-05、Iteration 5-A～D | 未完成 7 天观测和 31/31 报告，不得生产切流或收缩兼容层 |
 | secret/TLS/备份恢复/迁移与回滚演练 | 可与开发并行 | 未通过不得进入生产变更窗口 |
-| Iteration 5-A～D PostgreSQL + shadow 证据 | 目标环境取证可与 RC/UAT 并行 | 未完成不得进入 5-E 正式读侧切流 |
+| Iteration 5-A～E PostgreSQL + shadow/canary 证据 | 隔离生产方言证据已完成；目标环境取证可与 RC/UAT 并行 | 未完成目标环境观察不得关闭生产 fallback 或宣布正式切流 |
 
-Iteration 5-A～D 是加法、影子和运维建设，可以在外部门禁执行期间开发。Iteration 5-E 涉及生产读路径与 ROOT shell 行为，必须在对应目标环境证据齐全后单独批准。Iteration 6 不与稳定观察期重叠。
+Iteration 5-A～E 工程已经完成。5-E 的两个开关让部署、投影优先、严格 canary 与紧急回滚可分步执行；生产关闭 fallback 和 ROOT shell 行为收缩仍必须在目标环境证据齐全后单独批准。Iteration 6 不与稳定观察期重叠。
 
 ## 3. Iteration 6 的进入条件
 

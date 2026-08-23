@@ -26,6 +26,8 @@ def test_default_settings_align_with_phase_a_baseline() -> None:
   assert settings.workflow_graph_engine_enabled is True
   assert settings.workflow_standalone_manual_tasks_enabled is True
   assert settings.task_center_v2_enabled is True
+  assert settings.task_center_projection_reads_enabled is True
+  assert settings.task_center_projection_fallback_enabled is True
   assert settings.workflow_wait_any_enabled is False
   assert settings.workflow_deep_rejection_enabled is False
   assert settings.openai_chat_model == "gpt-5-mini"
@@ -84,6 +86,8 @@ def test_settings_parse_workflow_feature_flags() -> None:
     workflow_standalone_manual_tasks_enabled=False,
     workflow_graph_template_engine_enabled=False,
     task_center_v2_enabled=True,
+    task_center_projection_reads_enabled=True,
+    task_center_projection_fallback_enabled=False,
     workflow_wait_any_enabled=True,
     workflow_deep_rejection_enabled=True,
   )
@@ -92,6 +96,8 @@ def test_settings_parse_workflow_feature_flags() -> None:
   assert settings.workflow_standalone_manual_tasks_enabled is False
   assert settings.workflow_graph_template_engine_enabled is False
   assert settings.task_center_v2_enabled is True
+  assert settings.task_center_projection_reads_enabled is True
+  assert settings.task_center_projection_fallback_enabled is False
   assert settings.workflow_wait_any_enabled is True
   assert settings.workflow_deep_rejection_enabled is True
 

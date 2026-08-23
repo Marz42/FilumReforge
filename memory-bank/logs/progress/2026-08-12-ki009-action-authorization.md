@@ -1,14 +1,15 @@
 ---
-type: paradigma-progress
+type: paradigma-progress-log
 title: "KI-009 独立任务动作授权收口"
 description: "统一 standalone 详情与后端状态命令的 available_actions 契约，保留 workflow 兼容路径。"
 tags: [progress, task-center, standalone, authorization, ki-009]
 timestamp: 2026-08-12T22:35:00+08:00
 paradigma:
   schema_version: "0.5.0"
+  layer: log
   temperature: warm
-  lifecycle: stable
-  update_policy: agent-editable
+  lifecycle: append-only
+  update_policy: append-only
   epistemic_status: verified
   relations:
     depends_on:

@@ -186,6 +186,41 @@ async def test_template_review_excludes_assignee_and_uses_supervisor(db_session)
 
 
 @pytest.mark.asyncio
+async def test_dedicated_review_node_allows_assignee_to_review_upstream_creator(db_session) -> None:
+  admin = await _user(db_session, email="dedicated-review-admin@example.com", role=UserRole.ADMIN)
+  executor = await _user(db_session, email="dedicated-review-executor@example.com")
+  reviewer = await _user(db_session, email="dedicated-reviewer@example.com")
+  task = await _template_review_task(
+    db_session,
+    assignee=reviewer,
+    creator=executor,
+    workflow_admin=admin,
+    department=None,
+  )
+  task.extra_metadata = {
+    **task.extra_metadata,
+    "task_capability": {
+      "schema_version": 1,
+      "surface": "review",
+      "submit_mode": "review",
+    },
+  }
+  service = TaskService(db_session)
+
+  reviewer_id = await service.activate_template_review_projection(
+    actor=executor,
+    task=task,
+    initial_reviewer_ids=[reviewer.id],
+  )
+
+  assert reviewer_id == reviewer.id
+  with pytest.raises(ConflictError, match="Self-review is not permitted for template tasks"):
+    await service.review_task_deliverable(actor=executor, task_id=task.id, approve=True)
+  reviewed = await service.review_task_deliverable(actor=reviewer, task_id=task.id, approve=True)
+  assert reviewed.status == TaskStatus.DONE
+
+
+@pytest.mark.asyncio
 async def test_no_eligible_reviewer_blocks_until_admin_reassignment(db_session) -> None:
   admin_assignee = await _user(db_session, email="only-admin@example.com", role=UserRole.ADMIN)
   task = await _template_review_task(

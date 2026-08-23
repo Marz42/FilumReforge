@@ -1,9 +1,9 @@
 ---
 type: paradigma-known-issue
 title: "KI-009: Standalone Work Item 动作授权双轨"
-description: "Standalone 详情和状态命令曾绕过 available_actions；主线已完成工程修复，等待多账号人工复测。"
+description: "Standalone 详情和状态命令曾绕过 available_actions；工程修复与真实多账号 live UAT 已通过。"
 tags: ["known-issue", "standalone", "available_actions", "task-center", "E2E"]
-timestamp: "2026-08-12T22:25:00+08:00"
+timestamp: "2026-08-23T22:55:00+08:00"
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -17,7 +17,7 @@ paradigma:
 
 # KI-009: Standalone Work Item 动作授权双轨
 
-> **当前状态**：🟢 **工程已修复，等待多账号人工复测**。
+> **当前状态**：🟢 **工程已修复，真实多账号 live UAT 已通过；业务人工签字仍按发布 checklist 执行**。
 > **范围**：只收紧 **standalone** 路径；workflow / graph handshake 继续兼容，不纳入本 KI 的强制迁移。现行 Admin/HR override 不在本项修改，继续由 KI-011 单独治理。
 
 ## 现象（C1.1）
@@ -72,6 +72,17 @@ P0 已落地：
 4. 抽样一个 workflow 模板任务，确认接单、交付、验收按钮没有因空 `available_actions` 消失
 
 工程修复部署后不再需要“创建者避免点击”的临时规避。
+
+## 2026-08-23 自动化实证
+
+隔离 PostgreSQL/Redis + 真实后端 + Chromium 串行切换 `demo.platform.lead`（创建者/验收人）与 `demo.engineer.a`（执行人），完成以下闭环：
+
+1. 创建者发布并在 Tracking 可见，`available_actions=[]`，详情无“开始处理”按钮；
+2. 执行人在 Inbox 可见并开始处理、提交交付物；
+3. 任务进入 REVIEW 后创建者出现“验收通过”并完成任务；
+4. 用例 `standalone-action-authorization-live.spec.ts` 1/1 通过，且运行在 5-E 严格投影模式（fallback=false）。
+
+这条自动化已关闭工程复测缺口；真实员工业务语义确认仍不能由自动化代签。
 
 ## 关联
 
