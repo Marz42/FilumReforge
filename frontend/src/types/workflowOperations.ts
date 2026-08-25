@@ -9,6 +9,8 @@ export type WorkflowOperationsIssue = {
   severity: string
   instance_id: string | null
   node_instance_id: string | null
+  task_id: string | null
+  request_id: string | null
   title: string
   message: string
   age_seconds: number | null
@@ -70,6 +72,31 @@ export type WorkflowShadowHealth = {
   severities: Record<string, number>
 }
 
+export type WorkflowStrictProjectionGapDimension = {
+  surface: string
+  reason: string
+  projection_schema_version: number | null
+  count: number
+}
+
+export type WorkflowStrictProjectionGapSample = {
+  surface: string
+  reason: string
+  projection_schema_version: number | null
+  task_id: string
+  request_id: string | null
+  occurred_at: string
+  checkpoint_stream_name: string | null
+  checkpoint_status: string | null
+  checkpoint_last_success_at: string | null
+}
+
+export type WorkflowStrictProjectionGapHealth = {
+  total_count: number
+  dimensions: WorkflowStrictProjectionGapDimension[]
+  recent: WorkflowStrictProjectionGapSample[]
+}
+
 export type WorkflowOperationsDashboard = {
   generated_at: string
   stalled_minutes: number
@@ -83,8 +110,10 @@ export type WorkflowOperationsDashboard = {
     outbox_backlog_count: number
     oldest_outbox_backlog_seconds: number
     projection_failed_stream_count: number
+    strict_projection_gap_count: number
   }
   projection_streams: WorkflowProjectionStreamHealth[]
+  strict_projection_gaps: WorkflowStrictProjectionGapHealth
   shadow: WorkflowShadowHealth | null
   issues: WorkflowOperationsIssue[]
   failed_outbox: WorkflowOutboxOperation[]

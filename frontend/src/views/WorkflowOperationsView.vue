@@ -179,6 +179,7 @@ onMounted(() => {
       <el-card shadow="never" class="filum-metric-card"><span>挂起节点</span><strong>{{ metrics?.suspended_node_count ?? 0 }}</strong></el-card>
       <el-card shadow="never" class="filum-metric-card"><span>Outbox 积压</span><strong>{{ metrics?.outbox_backlog_count ?? 0 }}</strong></el-card>
       <el-card shadow="never" class="filum-metric-card"><span>投影失败流</span><strong>{{ metrics?.projection_failed_stream_count ?? 0 }}</strong></el-card>
+      <el-card shadow="never" class="filum-metric-card"><span>Strict 投影缺口</span><strong>{{ metrics?.strict_projection_gap_count ?? 0 }}</strong></el-card>
     </div>
 
     <el-card shadow="never" class="filum-panel-card" v-loading="loading">
@@ -244,6 +245,31 @@ onMounted(() => {
           <template #default="{ row }">{{ formatAge(row.lag_seconds) }}</template>
         </el-table-column>
         <el-table-column prop="last_error" label="最后错误" min-width="220" show-overflow-tooltip />
+      </el-table>
+    </el-card>
+
+    <el-card shadow="never" class="filum-panel-card" v-loading="loading">
+      <template #header><strong>Strict 请求侧投影缺口</strong></template>
+      <div class="workflow-operations__gap-dimensions">
+        <el-tag
+          v-for="item in dashboard?.strict_projection_gaps?.dimensions ?? []"
+          :key="`${item.surface}-${item.reason}-${item.projection_schema_version}`"
+          type="danger"
+          effect="plain"
+        >
+          {{ item.surface }} / {{ item.reason }} / schema {{ item.projection_schema_version ?? 'missing' }}：{{ item.count }}
+        </el-tag>
+        <span v-if="!dashboard?.strict_projection_gaps?.total_count" class="workflow-operations__empty-hint">当前进程未记录缺口</span>
+      </div>
+      <el-table :data="dashboard?.strict_projection_gaps?.recent ?? []" empty-text="没有最近缺口样本">
+        <el-table-column prop="occurred_at" label="时间" min-width="180" />
+        <el-table-column prop="surface" label="Surface" width="100" />
+        <el-table-column prop="reason" label="原因" min-width="170" />
+        <el-table-column prop="projection_schema_version" label="Schema" width="90" />
+        <el-table-column prop="task_id" label="Task ID" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="request_id" label="Request ID" min-width="190" show-overflow-tooltip />
+        <el-table-column prop="checkpoint_stream_name" label="最近 Checkpoint" min-width="180" />
+        <el-table-column prop="checkpoint_status" label="状态" width="100" />
       </el-table>
     </el-card>
 
@@ -317,7 +343,7 @@ onMounted(() => {
 
 .workflow-operations__metrics {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -328,6 +354,17 @@ onMounted(() => {
 
 .workflow-operations__metrics strong {
   font-size: 26px;
+}
+
+.workflow-operations__gap-dimensions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.workflow-operations__empty-hint {
+  color: var(--el-text-color-secondary);
 }
 
 .workflow-operations__two-column {

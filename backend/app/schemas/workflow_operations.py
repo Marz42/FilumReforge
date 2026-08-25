@@ -26,6 +26,8 @@ class WorkflowOperationsIssueRead(BaseModel):
   severity: str
   instance_id: UUID | None
   node_instance_id: UUID | None
+  task_id: UUID | None = None
+  request_id: str | None = None
   title: str
   message: str
   age_seconds: int | None
@@ -97,6 +99,32 @@ class WorkflowOperationsMetricsRead(BaseModel):
   outbox_backlog_count: int
   oldest_outbox_backlog_seconds: int
   projection_failed_stream_count: int
+  strict_projection_gap_count: int
+
+
+class WorkflowStrictProjectionGapDimensionRead(BaseModel):
+  surface: str
+  reason: str
+  projection_schema_version: int | None
+  count: int
+
+
+class WorkflowStrictProjectionGapSampleRead(BaseModel):
+  surface: str
+  reason: str
+  projection_schema_version: int | None
+  task_id: UUID
+  request_id: str | None
+  occurred_at: datetime
+  checkpoint_stream_name: str | None
+  checkpoint_status: str | None
+  checkpoint_last_success_at: datetime | None
+
+
+class WorkflowStrictProjectionGapHealthRead(BaseModel):
+  total_count: int
+  dimensions: list[WorkflowStrictProjectionGapDimensionRead] = Field(default_factory=list)
+  recent: list[WorkflowStrictProjectionGapSampleRead] = Field(default_factory=list)
 
 
 class WorkflowOperationsDashboardRead(BaseModel):
@@ -104,6 +132,7 @@ class WorkflowOperationsDashboardRead(BaseModel):
   stalled_minutes: int
   metrics: WorkflowOperationsMetricsRead
   projection_streams: list[WorkflowProjectionStreamHealthRead] = Field(default_factory=list)
+  strict_projection_gaps: WorkflowStrictProjectionGapHealthRead
   shadow: WorkflowShadowHealthRead | None
   issues: list[WorkflowOperationsIssueRead] = Field(default_factory=list)
   failed_outbox: list[WorkflowOutboxOperationRead] = Field(default_factory=list)

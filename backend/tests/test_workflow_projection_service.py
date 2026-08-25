@@ -19,6 +19,7 @@ from app.core.enums import (
   WorkflowNodeEngineState,
 )
 from app.core.config import Settings
+from app.core.request_context import bind_request_context, reset_request_context
 from app.models import (
   NodeTimelineEntry,
   ProcessRunSummary,
@@ -36,6 +37,7 @@ from app.models import (
 )
 from app.services.workflow_projection_rebuild_service import WorkflowProjectionRebuildService
 from app.services.task_service import TaskService
+from app.services.strict_projection_telemetry import strict_projection_telemetry
 from app.scripts.rebuild_workflow_projections import parse_args as parse_rebuild_args
 from app.services.workflow_projection_service import (
   PROJECTION_NAME,
@@ -396,13 +398,55 @@ async def test_iteration5e_can_disable_fallback_for_strict_canary(
     ),
   )
   assert await strict_projection._graph_task_projection_map(tasks=[task]) == {}
-  assert all(
-    entry.task_id != task.id
-    for entry in (await strict_projection.list_task_inbox(actor=creator)).items
+  request_token = bind_request_context(
+    request_id="ki-015-strict-request",
+    http_method="GET",
+    path="/api/v1/task-center",
   )
+  try:
+    inbox = await strict_projection.list_task_inbox(actor=creator)
+    tracking = await strict_projection.list_task_tracking(actor=creator)
+    history = await strict_projection.list_task_history(actor=creator)
+  finally:
+    reset_request_context(request_token)
+
+  assert all(entry.task_id != task.id for entry in inbox.items)
+  assert all(entry.task_id != task.id for entry in tracking.items)
+  assert all(entry.task_id != task.id for entry in history.items)
+  snapshot = strict_projection_telemetry.snapshot()
+  assert {item.surface for item in snapshot.dimensions} == {"inbox", "tracking", "history"}
+  assert {item.reason for item in snapshot.dimensions} == {"missing"}
+  assert all(item.projection_schema_version is None for item in snapshot.dimensions)
+  assert all(item.task_id == task.id for item in snapshot.recent)
+  assert all(item.request_id == "ki-015-strict-request" for item in snapshot.recent)
+
+  strict_projection_telemetry.reset()
+  outsider = User(
+    email="projection-outsider@example.com",
+    password_hash="test",
+    role=UserRole.EMPLOYEE,
+    status=UserStatus.ACTIVE,
+  )
+  db_session.add(outsider)
+  await db_session.flush()
+  await strict_projection.list_task_inbox(actor=outsider)
+  assert strict_projection_telemetry.snapshot().total_count == 0
 
   await WorkflowProjectionRebuildService(db_session).rebuild_task(task.id)
   assert any(
     entry.task_id == task.id
     for entry in (await strict_projection.list_task_inbox(actor=creator)).items
   )
+
+  item = await db_session.scalar(
+    select(TaskCenterItem).where(TaskCenterItem.task_id == task.id)
+  )
+  assert item is not None
+  item.projection_schema_version = 99
+  await db_session.flush()
+  strict_projection_telemetry.reset()
+  await strict_projection.list_task_inbox(actor=creator)
+  invalid_snapshot = strict_projection_telemetry.snapshot()
+  assert invalid_snapshot.total_count == 1
+  assert invalid_snapshot.dimensions[0].reason == "unsupported_schema"
+  assert invalid_snapshot.dimensions[0].projection_schema_version == 99

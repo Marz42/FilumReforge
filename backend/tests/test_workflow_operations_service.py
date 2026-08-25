@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -33,6 +34,7 @@ from app.services.workflow_graph_service import WorkflowGraphService
 from app.services.workflow_operational_incident_service import WorkflowOperationalIncidentService
 from app.services.workflow_operations_service import WorkflowOperationsService
 from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.strict_projection_telemetry import strict_projection_telemetry
 
 
 async def _seed_runtime(db_session: AsyncSession) -> dict[str, object]:
@@ -203,6 +205,53 @@ async def test_operations_dashboard_aggregates_actionable_health_without_payload
   }
   assert dashboard["failed_outbox"][0]["id"] == str(seeded["outbox"].id)
   assert "payload" not in dashboard["failed_outbox"][0]
+
+
+@pytest.mark.asyncio
+async def test_operations_dashboard_surfaces_strict_projection_gap_with_trace_and_checkpoint(
+  db_session: AsyncSession,
+) -> None:
+  await _seed_runtime(db_session)
+  checkpoint = await db_session.scalar(select(ProjectionCheckpoint))
+  assert checkpoint is not None
+  checkpoint.last_success_at = datetime.now(UTC) - timedelta(seconds=30)
+  task_id = uuid4()
+  request_token = bind_request_context(
+    request_id="ki-015-operations-trace",
+    http_method="GET",
+    path="/api/v1/task-center/inbox",
+  )
+  try:
+    strict_projection_telemetry.record(
+      surface="inbox",
+      reason="unsupported_schema",
+      projection_schema_version=99,
+      task_id=task_id,
+    )
+  finally:
+    reset_request_context(request_token)
+
+  dashboard = await WorkflowOperationsService(db_session).build_dashboard()
+
+  assert dashboard["metrics"]["strict_projection_gap_count"] == 1
+  assert dashboard["strict_projection_gaps"]["dimensions"] == [
+    {
+      "surface": "inbox",
+      "reason": "unsupported_schema",
+      "projection_schema_version": 99,
+      "count": 1,
+    }
+  ]
+  recent = dashboard["strict_projection_gaps"]["recent"][0]
+  assert recent["task_id"] == str(task_id)
+  assert recent["request_id"] == "ki-015-operations-trace"
+  assert recent["checkpoint_stream_name"] == "workflow_run_events"
+  assert recent["checkpoint_status"] == "failed"
+  assert recent["checkpoint_last_success_at"] == checkpoint.last_success_at
+  alert = dashboard["issues"][0]
+  assert alert["category"] == "strict_projection_gap"
+  assert alert["task_id"] == str(task_id)
+  assert alert["request_id"] == "ki-015-operations-trace"
 
 
 @pytest.mark.asyncio

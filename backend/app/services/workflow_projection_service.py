@@ -33,7 +33,11 @@ from app.models import (
   WorkflowRunEvent,
 )
 from app.services.task_action_policy import derive_execution_mode, standalone_action_owner_id
-from app.services.task_service import GraphTaskProjection, TaskService
+from app.services.task_service import (
+  TASK_CENTER_PROJECTION_SCHEMA_VERSION,
+  GraphTaskProjection,
+  TaskService,
+)
 from app.services.task_user_facing_state import resolve_task_run_label, resolve_task_user_facing_state
 from app.services.user_display import user_display_label
 from app.services.workflow_template_capability_contract import (
@@ -43,7 +47,7 @@ from app.services.workflow_template_capability_contract import (
 
 
 PROJECTION_NAME = "workflow_query_v1"
-PROJECTION_SCHEMA_VERSION = 1
+PROJECTION_SCHEMA_VERSION = TASK_CENTER_PROJECTION_SCHEMA_VERSION
 STREAM_WORKFLOW_RUN_EVENTS = "workflow_run_events"
 STREAM_TASK_LOGS = "task_logs"
 STREAM_TASK_COMMENTS = "task_comments"

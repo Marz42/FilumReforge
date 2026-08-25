@@ -1,9 +1,9 @@
 ---
 type: paradigma-known-issue
 title: "KI-015: Strict 投影缺口缺少请求侧显式遥测"
-description: "Task Center strict 模式会 fail-closed 隐藏缺投影的图任务，但请求侧尚无结构化计数、日志或用户可见降级提示。"
+description: "Task Center strict 模式的 fail-closed 缺口现已具备请求侧结构化日志、维度计数和 Admin Operations 诊断。"
 tags: [known-issue, task-center, projection, observability, iteration-5e]
-timestamp: 2026-08-23T23:25:00+08:00
+timestamp: 2026-08-26T00:10:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -24,13 +24,15 @@ paradigma:
 
 ## 状态与优先级
 
-**开放 / 中优先级（P1）/ 不阻断 5-E 工程交付。** Strict 模式已经正确停止动态回退，缺失或 schema 无效的图任务也不会伪装成 legacy 条目；但列表请求当前只是跳过条目，没有同步产生结构化事件或指标。
+**已解决（P1 engineering complete）@ 2026-08-26。** Strict 模式继续停止动态回退，缺失或 schema 无效的图任务不会伪装成 legacy 条目；inbox、tracking、history 现在会同步记录请求侧缺口，并由 Admin-only Operations Dashboard 展示。
 
 ## 现象与证据
 
-- `TaskService._strict_projection_missing()` 在 inbox、tracking、history 三个列表入口统一 fail-closed。
-- 列表层命中该条件后直接 `continue`，调用方只能看到条目减少，无法从响应或日志区分“没有业务任务”和“投影缺口”。
-- Full shadow、rebuild 与 Operations 指标能够离线发现差异，但尚未形成请求侧的即时缺口信号。
+- `TaskService._strict_projection_missing()` 在 inbox、tracking、history 三个列表入口继续统一 fail-closed。
+- `TaskService._graph_task_projection_state()` 将缺口分类为 `missing`、`unsupported_schema`、`invalid_projection`，并携带实际 schema version（若存在）。
+- `StrictProjectionTelemetry` 记录 `surface/reason/projection_schema_version/task_id/request_id`；error 级结构化日志供跨进程采集与告警，进程内有界计数和最近样本供 Operations 页面读取。
+- Operations Dashboard 增加 `strict_projection_gap_count`、维度聚合、最近样本和最近成功 checkpoint，并在存在缺口时生成 `strict_projection_gap` error issue。
+- Task Center 的成功响应和 fail-closed 语义没有变化；Task ID 只会在列表可见性查询通过后记录，并且详细样本只通过 Admin-only Operations API 暴露。
 
 ## 风险
 
@@ -38,14 +40,28 @@ paradigma:
 - 若仅观察 HTTP 成功率，接口仍返回 200，常规可用性监控无法识别数据不完整。
 - 直接在业务响应中回退会破坏 strict 语义，因此不能用恢复 legacy 展示来掩盖该问题。
 
-## 当前缓解
+## 已落地设计
 
-1. 生产首次部署保持 `TASK_CENTER_PROJECTION_FALLBACK_ENABLED=true`。
-2. 关闭 fallback 前执行全量 rebuild 和 full shadow，并持续观察 lag/backlog。
-3. Strict canary 出现条目缺失时立即恢复 fallback，随后按 Task/Run 重建和排障。
+1. 每次 strict 缺口都产生 `strict_projection_gap` error 日志，可按 surface、reason、schema version 建立目标环境告警。
+2. Operations 页面展示进程累计值、最近 100 个样本、Task/Request ID 与最新 checkpoint 状态，支持从用户反馈回溯到重建进度。
+3. 生产首次部署仍保持 `TASK_CENTER_PROJECTION_FALLBACK_ENABLED=true`；关闭前执行全量 rebuild/full shadow 并验证目标环境日志告警。
+4. Strict canary 出现条目缺失时仍应立即恢复 fallback，随后按 Task/Run 重建和排障，不能通过 legacy 内容掩盖。
+
+## 验证证据
+
+- 后端针对性回归覆盖三类 surface、missing/unsupported schema 分类、request ID、最近 checkpoint 和 Operations error issue。
+- 回归证明非关联用户的列表请求不会为不可见 Task 生成遥测样本。
+- 2026-08-26 本地全量 backend pytest 通过；frontend 75 files / 217 tests、type-check 与 production build 通过。
+- 本轮没有执行真实预发日志采集器、告警路由或生产 canary；这些仍属于发布门禁，不作为本地工程完成证据。
 
 ## 完成标准
 
-- 增加按列表 surface、缺失原因和 projection schema version 分类的计数器或结构化日志。
-- Operations 页面/告警能显示 strict 请求侧缺口，并关联 Task ID、trace ID 与最近 checkpoint。
-- 增加“缺投影仍返回 200，但监控必然记录缺口”的回归测试；不得泄露无权查看的 Task 标识。
+- [x] 增加按列表 surface、缺失原因和 projection schema version 分类的计数器与结构化日志。
+- [x] Operations 页面显示 strict 请求侧缺口，并关联 Task ID、request/trace ID 与最近 checkpoint。
+- [x] 增加“缺投影仍正常返回列表，但监控必然记录缺口”的回归测试。
+- [x] 非关联用户不会为不可见 Task 产生遥测；详细样本仅在 Admin-only Operations 边界返回。
+
+## 运行边界
+
+- Operations 计数与最近样本是进程级、有界内存视图，进程重启后归零，也不负责多 worker 聚合。
+- 生产的跨 worker 持久告警应消费 `strict_projection_gap` 结构化日志；在真实预发完成采集规则和通知路由验证前，不能宣称生产告警已经生效。

@@ -36,6 +36,12 @@
 | Task Center P1-10 (`4398439`) | ✅ Resolved | Self-review prevention with fallback reviewer chain and audited admin reassignment |
 | Task Center P2-11/P2-13 (`0.92.1`) | ✅ Resolved | Graph source-type collision guard and historical permission-branch documentation |
 
+## Resolved — Strict projection request telemetry
+
+| ID | Status | Note |
+|----|--------|------|
+| [KI-015](ki-015-strict-projection-missing-telemetry.md) | ✅ Engineering resolved | 三 surface 缺口分类、结构化 error 日志、Admin Operations 维度/样本/checkpoint 与隐私回归已完成；真实预发日志告警接入仍属发布门禁 |
+
 ## Verification pending — Standalone action dual-track
 
 | ID | Status | Note |

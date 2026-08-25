@@ -127,6 +127,13 @@ paradigma:
 - 投影只缓存 title/priority/due/status/stage/handler/run label/user-facing state 等展示字段；`available_actions` 仍由请求 actor 的实时 policy 计算，不能从投影缓存恢复权限。
 - `process_run` 投影状态映射固定为：active/pending → DOING，completed/cancelled → DONE，failed/terminated → BLOCKED。未知值视为不可用投影并进入回退或严格缺失处理。
 
+### Strict 请求侧缺口遥测
+
+- strict 列表读取把不可用投影分为 `missing`、`unsupported_schema`、`invalid_projection`，按 inbox/tracking/history surface、原因和实际 schema version 计数。
+- 每次命中产生 `strict_projection_gap` error 级结构化日志，字段只包含 surface、reason、schema version、已通过当前列表可见性筛选的 Task ID 和 `X-Request-ID`；不得写入标题、正文、人员邮箱或业务 payload。
+- Admin-only Operations Dashboard 返回进程累计计数、最多 100 个最近样本，并关联当前最新成功 projection checkpoint；存在缺口时同步生成 error 级 Operations issue。Task Center 响应保持原样，不返回遥测标识，也不恢复 legacy 内容。
+- Dashboard 计数是进程级诊断视图，重启后归零且不聚合多个 worker；真实环境的跨进程持久告警必须消费结构化日志，并在关闭 fallback 前验证采集、阈值、通知和恢复链路。
+
 ### 2026-08-23 本地生产方言证据
 
 - PostgreSQL marker：22 passed，严格要求目标数据库测试不允许 skip。
@@ -134,3 +141,9 @@ paradigma:
 - full shadow：407 compared / 407 matched；difference、missing、orphan、lagging 均为 0，scan `0d490838-580a-411b-b2b1-bbef0aa8a664`。
 - fallback 开启完成真实后端 Chromium UAT 8/8；严格模式完成核心/工作流 8/8 + KI-009 standalone 三身份 1/1。覆盖新建 standalone、创建/执行/验收授权、批次实例化、三账号采集、fork、交付和独立 N4 审核。
 - 以上为隔离本机证据，不替代生产连续观察与人工批准。
+
+### 2026-08-26 KI-015 本地工程证据
+
+- inbox、tracking、history 缺口分类、request ID、可见性边界和 unsupported schema 回归通过。
+- Operations 聚合、Task/Request ID、最近 checkpoint 与 error issue 回归通过。
+- backend 全量 pytest、frontend 75 files / 217 tests、type-check 与 production build 通过；未执行真实预发日志告警接入或生产 canary。

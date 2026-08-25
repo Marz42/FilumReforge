@@ -80,6 +80,7 @@ from app.services.access_control import (
 )
 from app.services.cross_department_routing_service import resolve_cross_department_boundary_cc_user_ids
 from app.services.notification_service import NotificationService
+from app.services.strict_projection_telemetry import strict_projection_telemetry
 from app.services.condition_evaluator import evaluate_routing_rules
 from app.services.task_action_policy import (
   ACTION_APPROVE_DELIVERABLE,
@@ -98,6 +99,7 @@ from app.services.task_user_facing_state import resolve_task_run_label, resolve_
 MAX_BATCH_TASK_IDS = 100
 TASK_STATS_TIMEZONE = ZoneInfo("Asia/Shanghai")
 TASK_STATS_MAX_RANGE_DAYS = 366
+TASK_CENTER_PROJECTION_SCHEMA_VERSION = 1
 
 TTaskCenterEntry = TypeVar("TTaskCenterEntry")
 
@@ -346,6 +348,12 @@ class GraphTaskProjection:
   due_date: datetime | None = None
   run_label: str | None = None
   user_facing_state: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class GraphProjectionGap:
+  reason: str
+  projection_schema_version: int | None
 
 
 ALLOWED_TASK_STATUS_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
@@ -676,7 +684,10 @@ class TaskService:
     *,
     item: TaskCenterItem,
   ) -> GraphTaskProjection | None:
-    if item.projection_schema_version != 1 or item.task_id is None:
+    if (
+      item.projection_schema_version != TASK_CENTER_PROJECTION_SCHEMA_VERSION
+      or item.task_id is None
+    ):
       return None
     if item.item_kind not in {"human_task", "approval", "process_run"}:
       return None
@@ -711,8 +722,16 @@ class TaskService:
     *,
     tasks: list[Task],
   ) -> dict[UUID, GraphTaskProjection]:
+    projections, _gaps = await self._stored_graph_task_projection_state(tasks=tasks)
+    return projections
+
+  async def _stored_graph_task_projection_state(
+    self,
+    *,
+    tasks: list[Task],
+  ) -> tuple[dict[UUID, GraphTaskProjection], dict[UUID, GraphProjectionGap]]:
     if not tasks:
-      return {}
+      return {}, {}
     items = list(
       await self._session.scalars(
         select(TaskCenterItem).where(
@@ -721,12 +740,32 @@ class TaskService:
         )
       )
     )
+    items_by_task_id = {item.task_id: item for item in items if item.task_id is not None}
     projections: dict[UUID, GraphTaskProjection] = {}
-    for item in items:
+    gaps: dict[UUID, GraphProjectionGap] = {}
+    for task in tasks:
+      if not self._uses_graph_projection(task=task):
+        continue
+      item = items_by_task_id.get(task.id)
+      if item is None:
+        gaps[task.id] = GraphProjectionGap(
+          reason="missing",
+          projection_schema_version=None,
+        )
+        continue
       projection = self._projection_item_to_graph_projection(item=item)
       if projection is not None:
         projections[projection.task_id] = projection
-    return projections
+        continue
+      gaps[task.id] = GraphProjectionGap(
+        reason=(
+          "unsupported_schema"
+          if item.projection_schema_version != TASK_CENTER_PROJECTION_SCHEMA_VERSION
+          else "invalid_projection"
+        ),
+        projection_schema_version=item.projection_schema_version,
+      )
+    return projections, gaps
 
   async def _dynamic_graph_task_projection_map(
     self,
@@ -824,21 +863,30 @@ class TaskService:
     return projections
 
   async def _graph_task_projection_map(self, *, tasks: list[Task]) -> dict[UUID, GraphTaskProjection]:
-    if not tasks:
-      return {}
-    if not self._task_center_projection_reads_enabled():
-      return await self._dynamic_graph_task_projection_map(tasks=tasks)
+    projections, _gaps = await self._graph_task_projection_state(tasks=tasks)
+    return projections
 
-    projections = await self._stored_graph_task_projection_map(tasks=tasks)
+  async def _graph_task_projection_state(
+    self,
+    *,
+    tasks: list[Task],
+  ) -> tuple[dict[UUID, GraphTaskProjection], dict[UUID, GraphProjectionGap]]:
+    if not tasks:
+      return {}, {}
+    if not self._task_center_projection_reads_enabled():
+      return await self._dynamic_graph_task_projection_map(tasks=tasks), {}
+
+    projections, gaps = await self._stored_graph_task_projection_state(tasks=tasks)
     if not self._task_center_projection_fallback_enabled():
-      return projections
+      return projections, gaps
 
     missing_tasks = [task for task in tasks if task.id not in projections]
     if missing_tasks:
-      projections.update(
-        await self._dynamic_graph_task_projection_map(tasks=missing_tasks)
-      )
-    return projections
+      dynamic_projections = await self._dynamic_graph_task_projection_map(tasks=missing_tasks)
+      projections.update(dynamic_projections)
+      for task_id in dynamic_projections:
+        gaps.pop(task_id, None)
+    return projections, gaps
 
   @staticmethod
   def _list_scan_limit(*, limit: int, multiplier: int = 10, ceiling: int = 500) -> int:
@@ -2108,6 +2156,22 @@ class TaskService:
       and task.id not in graph_projection_map
     )
 
+  @staticmethod
+  def _record_strict_projection_gap(
+    *,
+    surface: str,
+    task: Task,
+    gap: GraphProjectionGap | None,
+  ) -> None:
+    strict_projection_telemetry.record(
+      surface=surface,
+      reason=gap.reason if gap is not None else "missing",
+      projection_schema_version=(
+        gap.projection_schema_version if gap is not None else None
+      ),
+      task_id=task.id,
+    )
+
   async def _load_template_graph_node_context(
     self,
     *,
@@ -2843,10 +2907,10 @@ class TaskService:
         )
       )
       tasks = [*tasks, *extra_tasks]
-    graph_projection_map = (
-      await self._graph_task_projection_map(tasks=tasks)
+    graph_projection_map, graph_projection_gaps = (
+      await self._graph_task_projection_state(tasks=tasks)
       if self._task_center_v2_enabled()
-      else {}
+      else ({}, {})
     )
     graph_run_labels = await self._load_graph_run_label_by_task_id(tasks=tasks)
     step_context_map = await self._task_step_context_map(
@@ -2864,6 +2928,11 @@ class TaskService:
         task=task,
         graph_projection_map=graph_projection_map,
       ):
+        self._record_strict_projection_gap(
+          surface="inbox",
+          task=task,
+          gap=graph_projection_gaps.get(task.id),
+        )
         continue
       projection = graph_projection_map.get(task.id)
       if projection is not None:
@@ -3016,10 +3085,10 @@ class TaskService:
     else:
       inbox_task_ids = set(exclude_inbox_task_ids)
 
-    graph_projection_map = (
-      await self._graph_task_projection_map(tasks=tasks)
+    graph_projection_map, graph_projection_gaps = (
+      await self._graph_task_projection_state(tasks=tasks)
       if self._task_center_v2_enabled()
-      else {}
+      else ({}, {})
     )
     graph_run_labels = await self._load_graph_run_label_by_task_id(tasks=tasks)
     step_context_map = await self._task_step_context_map(
@@ -3037,6 +3106,11 @@ class TaskService:
         task=task,
         graph_projection_map=graph_projection_map,
       ):
+        self._record_strict_projection_gap(
+          surface="tracking",
+          task=task,
+          gap=graph_projection_gaps.get(task.id),
+        )
         continue
       relation_types: list[str] = []
       if task.creator_id == actor.id:
@@ -3157,10 +3231,10 @@ class TaskService:
       )
     )
 
-    graph_projection_map = (
-      await self._graph_task_projection_map(tasks=tasks)
+    graph_projection_map, graph_projection_gaps = (
+      await self._graph_task_projection_state(tasks=tasks)
       if self._task_center_v2_enabled()
-      else {}
+      else ({}, {})
     )
     graph_run_labels = await self._load_graph_run_label_by_task_id(tasks=tasks)
 
@@ -3172,6 +3246,11 @@ class TaskService:
         task=task,
         graph_projection_map=graph_projection_map,
       ):
+        self._record_strict_projection_gap(
+          surface="history",
+          task=task,
+          gap=graph_projection_gaps.get(task.id),
+        )
         continue
       relation_types: list[str] = []
       if task.creator_id == actor.id:

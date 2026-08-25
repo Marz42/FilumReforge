@@ -35,6 +35,7 @@ describe('Workflow operations view', () => {
         outbox_backlog_count: 1,
         oldest_outbox_backlog_seconds: 3600,
         projection_failed_stream_count: 1,
+        strict_projection_gap_count: 1,
       },
       projection_streams: [
         {
@@ -49,6 +50,30 @@ describe('Workflow operations view', () => {
           sampled_at: '2026-08-12T10:00:00Z',
         },
       ],
+      strict_projection_gaps: {
+        total_count: 1,
+        dimensions: [
+          {
+            surface: 'inbox',
+            reason: 'unsupported_schema',
+            projection_schema_version: 99,
+            count: 1,
+          },
+        ],
+        recent: [
+          {
+            surface: 'inbox',
+            reason: 'unsupported_schema',
+            projection_schema_version: 99,
+            task_id: 'task-1',
+            request_id: 'request-1',
+            occurred_at: '2026-08-12T09:59:00Z',
+            checkpoint_stream_name: 'workflow_run_events',
+            checkpoint_status: 'failed',
+            checkpoint_last_success_at: '2026-08-12T09:58:00Z',
+          },
+        ],
+      },
       shadow: null,
       issues: [
         {
@@ -56,6 +81,8 @@ describe('Workflow operations view', () => {
           severity: 'error',
           instance_id: 'run-1',
           node_instance_id: null,
+          task_id: null,
+          request_id: null,
           title: '流程无可用路径',
           message: '没有匹配路径',
           age_seconds: 120,
@@ -99,6 +126,8 @@ describe('Workflow operations view', () => {
     expect(wrapper.text()).toContain('卡死 Run')
     expect(wrapper.text()).toContain('流程无可用路径')
     expect(wrapper.text()).toContain('workflow_run_events')
+    expect(wrapper.text()).toContain('unsupported_schema')
+    expect(wrapper.text()).toContain('request-1')
     expect(wrapper.text()).toContain('delivery failed')
     expect(wrapper.text()).not.toContain('payload')
 

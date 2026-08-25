@@ -32,6 +32,7 @@ os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret-key-for-suite-123456")
 from app.core.config import get_settings
 from app.core.database import get_async_engine, get_session_factory
 from app.models import Base
+from app.services.strict_projection_telemetry import strict_projection_telemetry
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -65,6 +66,13 @@ def clear_cached_settings(monkeypatch: pytest.MonkeyPatch) -> None:
   get_settings.cache_clear()
   get_async_engine.cache_clear()
   get_session_factory.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def clear_strict_projection_telemetry() -> None:
+  strict_projection_telemetry.reset()
+  yield
+  strict_projection_telemetry.reset()
 
 
 @pytest_asyncio.fixture

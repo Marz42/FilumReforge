@@ -27,6 +27,7 @@ from app.models import (
   WorkflowRunEvent,
 )
 from app.services.workflow_run_event_service import WorkflowRunEventService
+from app.services.strict_projection_telemetry import strict_projection_telemetry
 
 
 def _utc(value: datetime | None) -> datetime | None:
@@ -291,6 +292,28 @@ class WorkflowOperationsService:
 
     projection_streams = await self._projection_health(now=now)
     shadow = await self._latest_shadow_summary()
+    strict_projection_gaps = self._strict_projection_gap_health(
+      projection_streams=projection_streams
+    )
+    if strict_projection_gaps["total_count"]:
+      latest_gap = strict_projection_gaps["recent"][0]
+      issues.insert(
+        0,
+        {
+          "category": "strict_projection_gap",
+          "severity": "error",
+          "instance_id": None,
+          "node_instance_id": None,
+          "task_id": latest_gap["task_id"],
+          "request_id": latest_gap["request_id"],
+          "title": "Task Center strict 投影缺口",
+          "message": (
+            f"当前进程累计 {strict_projection_gaps['total_count']} 次；"
+            f"最近命中 {latest_gap['surface']}/{latest_gap['reason']}。"
+          ),
+          "age_seconds": _seconds_since(latest_gap["occurred_at"], now=now),
+        },
+      )
     return {
       "generated_at": now,
       "stalled_minutes": normalized_minutes,
@@ -306,8 +329,10 @@ class WorkflowOperationsService:
         "projection_failed_stream_count": sum(
           1 for item in projection_streams if item["status"] == "failed"
         ),
+        "strict_projection_gap_count": strict_projection_gaps["total_count"],
       },
       "projection_streams": projection_streams,
+      "strict_projection_gaps": strict_projection_gaps,
       "shadow": shadow,
       "issues": issues[:normalized_limit],
       "failed_outbox": [self._outbox_read(item) for item in failed_outbox_rows],
@@ -498,6 +523,54 @@ class WorkflowOperationsService:
         }
       )
     return result
+
+  @staticmethod
+  def _strict_projection_gap_health(
+    *,
+    projection_streams: list[dict[str, Any]],
+  ) -> dict[str, Any]:
+    snapshot = strict_projection_telemetry.snapshot()
+    latest_checkpoint = max(
+      (
+        item
+        for item in projection_streams
+        if item.get("last_success_at") is not None
+      ),
+      key=lambda item: _utc(item["last_success_at"]) or datetime.min.replace(tzinfo=UTC),
+      default=None,
+    )
+    return {
+      "total_count": snapshot.total_count,
+      "dimensions": [
+        {
+          "surface": item.surface,
+          "reason": item.reason,
+          "projection_schema_version": item.projection_schema_version,
+          "count": item.count,
+        }
+        for item in snapshot.dimensions
+      ],
+      "recent": [
+        {
+          "surface": item.surface,
+          "reason": item.reason,
+          "projection_schema_version": item.projection_schema_version,
+          "task_id": str(item.task_id),
+          "request_id": item.request_id,
+          "occurred_at": item.occurred_at,
+          "checkpoint_stream_name": (
+            latest_checkpoint["stream_name"] if latest_checkpoint is not None else None
+          ),
+          "checkpoint_status": (
+            latest_checkpoint["status"] if latest_checkpoint is not None else None
+          ),
+          "checkpoint_last_success_at": (
+            latest_checkpoint["last_success_at"] if latest_checkpoint is not None else None
+          ),
+        }
+        for item in snapshot.recent
+      ],
+    }
 
   async def _latest_shadow_summary(self) -> dict[str, Any] | None:
     latest = await self._session.scalar(
