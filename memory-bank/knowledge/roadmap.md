@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-08-23T22:55:00+08:00
+timestamp: 2026-08-26T00:22:00+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -32,10 +32,10 @@ paradigma:
 
 | 字段 | 内容 |
 |------|------|
-| **最新试用候选** | `v0.93.0-rc.2`（不可变标签；主开发线位于其后） |
+| **最新试用候选** | `v0.93.0-rc.3`（不可变注释标签，固定 `21975a6`；主开发线位于其后） |
 | **版本主题** | 工作流图引擎 Iteration 4 · 模板领域中立与稳定化 |
 | **阶段** | **Iteration 5-E 工程完成；目标环境观察/人工签字 → 生产 canary → 稳定观察 → Iteration 6**；隔离 PostgreSQL/Redis、rebuild/full shadow、严格投影 UAT 已补证 |
-| **最后整理** | 2026-08-26 — KI-015 strict 请求侧缺口遥测完成：三 surface 分类日志/计数、Admin Operations 诊断与隐私回归已落地；生产日志告警接入、TLS/secret、I3-F 连续观察与人工签字仍为外部门禁 |
+| **最后整理** | 2026-08-26 — `v0.93.0-rc.3` 固定 `21975a6`；KI-014 只读 Schema Drift 审计与迁移设计已启动，代码/历史 DDL 根因已确认，目标 PostgreSQL 实时统计待只读连接 |
 
 ---
 
@@ -173,16 +173,17 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-1. **真实预发与人工签字**：完成 RC2、Iteration 4、设计器 Phase 2、S-01 与 KI-009 的业务账号验收；2026-08-23 自动化多账号 UAT 是工程证据，不代替业务签字。
-2. **Iteration 3-F 连续门禁**：补齐 Link/reconciliation 7 天与 31/31 报告；当前隔离环境 readiness 无 blocker 不能替代连续观察。
-3. **生产准备**：注入真实 secret、TLS/域名/可信代理，记录附件与数据库备份 RPO/RTO、负责人、通知和维护窗口。
-4. **5-E 生产 canary**：先保持 projection reads + fallback，目标环境 rebuild/full shadow 达标并验证 `strict_projection_gap` 日志采集/通知后分批关闭 fallback；异常时立即回开 fallback。
-5. **稳定观察期**：确认 fallback 命中、ROOT shell 新增量、投影差异、lag 和异常 Run 达标。
-6. **Iteration 6**：再次单独批准后停止兼容写入并清理 Legacy E/JSON/feature flags；不得与观察期重叠。
-7. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
-8. **后续专项**：KI-011 按用户决定暂不推进；M-09 与 `run_kind` dual-read 收窄等待策略和生产证据。
+1. **KI-014 只读审计**：在目标 PostgreSQL 只读事务中补齐状态 distinct、NULL、约束和索引证据，确认迁移门禁；未完成前不生成或应用自动 DDL。
+2. **真实预发与人工签字**：完成 RC3、Iteration 4、设计器 Phase 2、S-01 与 KI-009 的业务账号验收；2026-08-23 自动化多账号 UAT 是工程证据，不代替业务签字。
+3. **Iteration 3-F 连续门禁**：补齐 Link/reconciliation 7 天与 31/31 报告；当前隔离环境 readiness 无 blocker 不能替代连续观察。
+4. **生产准备**：注入真实 secret、TLS/域名/可信代理，记录附件与数据库备份 RPO/RTO、负责人、通知和维护窗口。
+5. **5-E 生产 canary**：先保持 projection reads + fallback，目标环境 rebuild/full shadow 达标并验证 `strict_projection_gap` 日志采集/通知后分批关闭 fallback；异常时立即回开 fallback。
+6. **稳定观察期**：确认 fallback 命中、ROOT shell 新增量、投影差异、lag 和异常 Run 达标。
+7. **Iteration 6**：再次单独批准后停止兼容写入并清理 Legacy E/JSON/feature flags；不得与观察期重叠。
+8. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
+9. **后续专项**：KI-011 按用户决定暂不推进；M-09 与 `run_kind` dual-read 收窄等待策略和生产证据。
 
-**下一 actionable**：把已通过的隔离 PostgreSQL/严格 5-E 脚本复制到真实预发，接入并触发验证 `strict_projection_gap` 日志告警，保持 fallback 开启完成持续 shadow/运维观察，同时执行“数据检查”→“验收准备”→人工 UAT checklist 和 I3-F 连续门禁。之后提交生产关闭 fallback 的 canary 批准；Iteration 6 和生产准入仍须独立批准。
+**下一 actionable**：先取得目标 PostgreSQL 的只读连接，执行 [`KI-014 审计与迁移设计`](./plans/2026-08-26-ki014-schema-drift-remediation-plan.md) 中的聚合查询并确认状态大小写、NULL、约束和邀请索引；同时把已通过的隔离 PostgreSQL/严格 5-E 脚本复制到真实预发，接入并触发验证 `strict_projection_gap` 日志告警，保持 fallback 开启完成持续 shadow/运维观察。之后再提交 KI-014 expand 批次和生产关闭 fallback 的独立批准；Iteration 6 与生产准入仍须另行批准。
 
 ---
 

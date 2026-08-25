@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "实施计划状态目录"
 description: "区分现行计划、已完成实施记录与已被取代的 Legacy 方案，避免历史计划被误作当前排期。"
 tags: [plan, governance, active, completed, legacy]
-timestamp: 2026-08-12T22:25:00+08:00
+timestamp: 2026-08-26T00:22:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -37,6 +37,7 @@ paradigma:
 | `2026-08-12-iteration5d-operations-observability-plan.md` | 运维工作台、受控动作、指标与 trace 工程完成；保持 active 直到 PostgreSQL/目标环境证据补齐并决定 5-E |
 | `workflow-graph-engine-iteration3f-readiness-gate-plan.md` | 仍开放的目标环境与生产切流门禁 |
 | `2026-08-09-rc-employee-trial-plan.md` | `v0.93.0-rc.2` 员工复测与主线分流 |
+| `2026-08-26-ki014-schema-drift-remediation-plan.md` | KI-014 只读 PostgreSQL 漂移审计、状态兼容迁移与 nullable contract；实时目标库统计待补 |
 
 ## COMPLETED — 已完成的实施记录
 

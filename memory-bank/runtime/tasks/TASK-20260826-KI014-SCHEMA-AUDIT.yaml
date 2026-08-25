@@ -1,0 +1,18 @@
+coding_runtime_schema_version: '0.1'
+kind: coding_task
+snapshot_revision: 1
+task:
+  task_id: TASK-20260826-KI014-SCHEMA-AUDIT
+  repository:
+    workspace_id: filum-reforge
+    repository_id: FilumReforge
+    repository_path: .
+    remote_url: null
+  title: Audit KI-014 PostgreSQL schema drift
+  goal: Perform a read-only PostgreSQL schema drift audit, classify ORM versus DDL authority, and design
+    safe expand-contract remediation without applying database mutations
+  status: active
+  created_at: '2026-08-26T00:20:29.759530+08:00'
+  updated_at: '2026-08-26T00:20:29.759530+08:00'
+  status_reason: null
+  parent_task_id: null
