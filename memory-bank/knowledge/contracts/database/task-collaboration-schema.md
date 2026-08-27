@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "任务与协同 Schema"
 description: "任务、依赖、评论、日志、模板、实例、备忘、watcher、调度。"
 tags: ["contract", "database", "schema", "task", "collaboration"]
-timestamp: 2026-07-09T09:30:00+08:00
+timestamp: 2026-08-27T22:31:00+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -52,6 +52,7 @@ paradigma:
 
 - `idx_tasks_assignee_status (assignee_id, status)`
 - `idx_tasks_department_status (department_id, status)`
+- KI-014 Phase B（`20260827_01`）：`tasks.status` 的物理存储扩为 `VARCHAR(16)`，validated compatibility check 暂时允许合法值的历史大小写形式；应用只写小写。最终小写-only contract 等待目标预发观察。
 - `idx_tasks_due_date (due_date)`
 
 **模板图任务评审约束（P1-10）**
@@ -289,6 +290,7 @@ paradigma:
 
 - `idx_task_logs_task_id_created_at (task_id, created_at DESC)`
 - `idx_task_logs_operator_id (operator_id)`
+- KI-014 Phase B（`20260827_01`）：`from_status/to_status` 物理存储扩为 `VARCHAR(16)`，各自使用独立 validated compatibility check；不在 expand 批次归一化历史值。
 
 
 ### 10.31 `task_comments`

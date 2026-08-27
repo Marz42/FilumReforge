@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db_types import build_enum, build_json_type
+from app.core.db_types import build_compatible_value_enum, build_enum, build_json_type
 from app.core.enums import (
   CommentFormat,
   TaskActionType,
@@ -36,7 +36,7 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   assignee_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
   department_id: Mapped[UUID | None] = mapped_column(ForeignKey("departments.id"), nullable=True)
   status: Mapped[TaskStatus] = mapped_column(
-    build_enum(enum_cls=TaskStatus, name="task_status"),
+    build_compatible_value_enum(enum_cls=TaskStatus, length=16),
     default=TaskStatus.TODO,
     nullable=False,
   )
@@ -134,11 +134,11 @@ class TaskLog(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     nullable=False,
   )
   from_status: Mapped[TaskStatus | None] = mapped_column(
-    build_enum(enum_cls=TaskStatus, name="task_status"),
+    build_compatible_value_enum(enum_cls=TaskStatus, length=16),
     nullable=True,
   )
   to_status: Mapped[TaskStatus | None] = mapped_column(
-    build_enum(enum_cls=TaskStatus, name="task_status"),
+    build_compatible_value_enum(enum_cls=TaskStatus, length=16),
     nullable=True,
   )
   detail: Mapped[dict[str, Any]] = mapped_column(build_json_type(), default=dict, nullable=False)

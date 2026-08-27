@@ -16,6 +16,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
   __tablename__ = "users"
   __table_args__ = (
     Index("idx_users_role_status", "role", "status"),
+    Index("idx_users_invitation_token_hash", "invitation_token_hash"),
   )
 
   email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)

@@ -5,7 +5,7 @@ description: "FilumReforge 总体实施计划。"
 tags:
   - plan
   - 实施计划
-timestamp: 2026-08-23T22:55:00+08:00
+timestamp: 2026-08-27T22:09:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -34,7 +34,7 @@ paradigma:
 
 因此，本文件不再描述“如何实现 Phase 5”，而是从**当前已交付基线**出发，规划下一轮重构、测试与补缺工作。
 
-**当前执行位置**: **工作流图引擎 Iteration 4 A–E、F-05、Iteration 5-A～E、KI-015 请求侧缺口遥测与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.3` 已在 `21975a6` 固定。5-E 已提供投影优先读取、动态回退和严格 canary，隔离 PostgreSQL/Redis 上完成 22 项方言测试、97/28/282 最终全量重建、407/407 full shadow、fallback on 8/8 与 strict 9/9 真实 UAT，以及备份恢复和 `04→03→04` 演练。KI-015 进一步补齐三类列表 surface 的缺口分类、结构化日志、Admin Operations 诊断和隐私回归。KI-014 只读 Schema Drift 审计与迁移设计已启动；当前代码/历史 DDL 根因已整理，目标 PostgreSQL 的实时 distinct/NULL/index 统计仍待只读连接。生产关闭 fallback、真实环境日志告警、ROOT shell 收缩和 Iteration 6 仍受真实预发持续观察、I3-F 连续门禁及人工批准约束。目标环境 I4/设计器/S-01/KI-009 人工 UAT与生产 TLS/secret 仍并行推进。KI-011 按用户决定暂不推进。详见 [`2026-08-26-ki014-schema-drift-remediation-plan.md`](./2026-08-26-ki014-schema-drift-remediation-plan.md)、[`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md) 与 [`../contracts/projection-contract.md`](../contracts/projection-contract.md)。
+**当前执行位置**: **工作流图引擎 Iteration 4 A–E、F-05、Iteration 5-A～E、KI-015 请求侧缺口遥测与 2026-08 安全修复均已完成本地工程实现**；`v0.93.0-rc.3` 已在 `21975a6` 固定。5-E 已提供投影优先读取、动态回退和严格 canary，隔离 PostgreSQL/Redis 上完成 22 项方言测试、97/28/282 最终全量重建、407/407 full shadow、fallback on 8/8 与 strict 9/9 真实 UAT，以及备份恢复和 `04→03→04` 演练。KI-015 进一步补齐三类列表 surface 的缺口分类、结构化日志、Admin Operations 诊断和隐私回归。KI-014 Phase A/B 工程已完成：metadata/index 对齐、TaskStatus 双读/小写写入及 `20260827_01` expand migration 已通过 SQLite/PostgreSQL 往返；真实数据兼容观察与独立 contract migration 仍待目标预发。生产关闭 fallback、真实环境日志告警、ROOT shell 收缩和 Iteration 6 仍受真实预发持续观察、I3-F 连续门禁及人工批准约束。目标环境 I4/设计器/S-01/KI-009 人工 UAT与生产 TLS/secret 仍并行推进。KI-011 按用户决定暂不推进。详见 [`2026-08-26-ki014-schema-drift-remediation-plan.md`](./2026-08-26-ki014-schema-drift-remediation-plan.md)、[`2026-08-11-f05-iteration5-6-sequencing-plan.md`](./2026-08-11-f05-iteration5-6-sequencing-plan.md) 与 [`../contracts/projection-contract.md`](../contracts/projection-contract.md)。
 
 ## 2. 已确认约束
 
@@ -220,7 +220,7 @@ paradigma:
 2. 把已通过的 5-A～E PostgreSQL/rebuild/full shadow/strict canary 流程复制到真实预发并积累持续样本；补齐 Iteration 3-F 7 天与 31/31 证据
 3. `run_kind` / M-09 dual-read 收窄继续等待生产证据与单独策略，不抢跑 Iteration 6
 4. 生命周期规则化默认映射和前端配置入口作为后续业务增强，不回填到 Legacy E
-5. KI-015 strict 投影缺口请求侧遥测已完成；KI-014 只读审计与迁移设计已启动，先补目标 PostgreSQL 实时证据，再按 metadata/compatibility → expand → contract 分批治理；之后处理 KI-016 logout 在途请求，KI-017 包体优化进入前端性能批次
+5. KI-015 strict 投影缺口请求侧遥测已完成；KI-014 Phase A/B 已完成，下一门禁是含真实数据的目标预发只读复核与 compatibility observation，之后才执行独立 contract；再处理 KI-016 logout 在途请求，KI-017 包体优化进入前端性能批次
 
 **测试出口**
 

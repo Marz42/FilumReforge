@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "图引擎 Schema"
 description: "图引擎十五张运行时/治理表、五张 Iteration 5 投影/观察表及 5-D 运维审计扩展。"
 tags: ["contract", "database", "schema", "graph-engine"]
-timestamp: 2026-08-12T14:25:00+08:00
+timestamp: 2026-08-27T22:31:00+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -23,7 +23,7 @@ paradigma:
 
 ### 10.41–10.49 图引擎与运行事件（摘要）
 
-> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3F 迁移见 `20260713_01`、`20260715_01`、`20260715_02`、`20260715_03`、`20260716_01`、`20260716_02`；模板 tags 迁移 `20260722_01`；可用范围审计迁移 `20260730_01`；周期调度 F-24）。
+> **实现状态**: 已实现（工作流重构 Phase 2–11；Iteration 1–3F 迁移见 `20260713_01`、`20260715_01`、`20260715_02`、`20260715_03`、`20260716_01`、`20260716_02`；模板 tags 迁移 `20260722_01`；可用范围审计迁移 `20260730_01`；KI-014 non-null expand 验证迁移 `20260827_01`；周期调度 F-24）。
 > **ORM**: `backend/app/models/workflow_graph.py` · **迁移**: `20260429_04_workflow_graph_core.py` 及后续
 
 | 表 | 职责 | 关键字段 / 约束 |
@@ -66,4 +66,5 @@ paradigma:
 - **运行时路由**用边 `condition`（`condition_evaluator`）；节点 `config.routing_rules` 仅设计时拓扑校验，不驱动图前进
 - Snapshot 内节点按 `(sort_order,node_key)`、边按 `(from_node_key,priority,to_node_key)` 排序；边以 node key 表达运行语义，canonical JSON 使用 UTF-8/排序键/紧凑分隔符后计算 SHA-256
 - `definition_snapshot` 对存量 legacy Run 保持 nullable；不得猜测性回填。只读盘点入口：`python -m app.scripts.report_workflow_legacy_runs`
+- KI-014 Phase B 对 `workflow_graph_templates.scope_mode`、`workflow_graph_instances.engine_version/executor_kind` 完成确定性 NULL 回填，并增加 validated non-null check；列级 `SET NOT NULL` 留给兼容观察后的独立 contract migration。
 - Iteration 3-F 通过 `WorkItemWriteService` / `WorkflowRuntimeWriteService` 和全仓库 AST guard 固化写所有权；五类关键 API command receipt 与 RunEvent 信封保持不变。`notification_messages.deduplication_key=workflow_outbox:{event_id}` 唯一，重复命中登记 `outbox_duplicate`。Admin readiness API 与 CLI 可查询 fallback、冲突、失败、engine version 和未迁移对象；目标环境连续 7 天零 fallback 仍是 Iteration 4 前置闸门。

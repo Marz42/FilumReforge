@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "KI-014 PostgreSQL Schema Drift 审计与迁移设计"
 description: "用只读证据确认历史 ORM/DDL 漂移，并以可回滚的 expand/contract 批次消除 Alembic autogenerate 差异。"
 tags: [plan, active, postgresql, alembic, schema-drift, migration]
-timestamp: 2026-08-26T00:22:00+08:00
+timestamp: 2026-08-27T22:09:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -24,7 +24,7 @@ paradigma:
 
 # KI-014 PostgreSQL Schema Drift 审计与迁移设计
 
-> **计划状态：AUDIT/DESIGN IN PROGRESS / LIVE DB REFRESH PENDING**
+> **计划状态：PHASE B ENGINEERING COMPLETE / COMPATIBILITY OBSERVATION PENDING**
 >
 > 本计划只设计 KI-014，不创建或执行 DDL。2026-08-26 本机没有可连接的 PostgreSQL：默认 `localhost:5432` 拒绝连接，Docker daemon 与本机 PostgreSQL 工具均不可用。因此，下文“已确认漂移”来自 2026-08-23 的真实 PostgreSQL `alembic check`；代码与迁移链分析已在当前提交重新核对，实时数据统计仍待目标环境只读执行。
 
@@ -106,23 +106,49 @@ ROLLBACK;
 
 审计门禁：发现未知状态值、大小写之外的拼写、NULL 数量无法解释、缺失邀请索引或数据库 revision 不是 `20260812_04` 时停止迁移设计落地，先登记数据修复方案。
 
+### 3.1 隔离 PostgreSQL 只读证据（2026-08-27）
+
+- 默认 compose 数据库 revision 为 `20260722_01`，未用于 KI-014 head 审计，也未升级或改写。
+- 复用 Playwright 隔离 PostgreSQL（端口 35432）确认 revision `20260812_04`；事务内 `transaction_read_only=on`。
+- 三类 task status 列均为 `VARCHAR(6)`；status distinct 结果为空，未知值计数为 0。该库没有业务行，因此这里只能证明结构和脚本，不代表生产数据分布。
+- workflow graph 三个目标列的 NULL 计数均为 0；邀请 token hash 索引存在。
+- Phase A 后 `alembic check` 已不再报告 employment trigger 类型或邀请索引差异，只剩 task status 宽度和三个 nullable 差异。
+- 实际 employment trigger check 名为 `ck_employment_events_employment_events_trigger_status_check`；ORM metadata 已按真实物理名修正。
+
 ## 4. Expand / compatibility / contract 设计
 
 ### Phase A — metadata-only 与无损对齐
 
-1. 让 `build_value_enum` 接受显式 `length`，将 `EmploymentEvent.trigger_status` metadata 固定为 32；保留现有显式 check。
-2. 在 `User.__table_args__` 声明 `idx_users_invitation_token_hash`；现存 PostgreSQL 不执行 drop/create，fresh schema 由迁移链继续创建。
-3. 为 task status 引入过渡类型：数据库表现为 `VARCHAR(16)`，读取时接受大小写历史值并映射到 `TaskStatus(value.lower())`，写入只产生小写值。不要立即把线上 check 收窄为小写，也不要在此阶段批量改值。
+1. [x] `build_value_enum` 接受显式 `length` / `create_constraint`；`EmploymentEvent.trigger_status` metadata 固定为 32，并以历史迁移中的原名声明显式 check。
+2. [x] 在 `User.__table_args__` 声明 `idx_users_invitation_token_hash`；现存 PostgreSQL 不执行 drop/create，fresh schema 由迁移链继续创建。
+3. [x] task status 使用 `CompatibleValueEnum(VARCHAR(16))` 过渡类型：读取时接受大小写历史值并映射到 `TaskStatus(value.lower())`，写入只产生小写值。本阶段没有收窄线上 check，也没有批量修改数据。
+
+#### Phase A 工程证据（2026-08-27）
+
+- `backend/app/core/db_types.py`：新增大小写兼容、只写枚举 value 的过渡类型；未知应用值和数据库值 fail-fast。
+- `backend/app/models/task.py`：`tasks.status`、`task_logs.from_status/to_status` 暴露为 `VARCHAR(16)` metadata；旧大写和历史小写均可读取。
+- `backend/app/models/hr_governance.py`：`trigger_status` 长度与数据库 `VARCHAR(32)` 对齐，check 名保持 `employment_events_trigger_status_check`，不制造第二个自动约束。
+- `backend/app/models/user.py`：补齐邀请 token hash 索引声明，不生成删除索引建议。
+- `backend/tests/test_db_types.py`：覆盖小写写入、大写兼容读取、未知值拒绝、索引/约束 metadata 和 Alembic type comparison。
+- 后端全量 `pytest tests -q --cache-clear` 通过；PostgreSQL 测试因本机数据库不可连接而按既有条件跳过。`alembic heads` 仍为 `20260812_04`。
 
 ### Phase B — expand migration
 
-1. 将 `tasks.status`、`task_logs.from_status/to_status` 扩到 `VARCHAR(16)`；约束暂时接受合法状态的大小写两种形式，保证旧应用和新应用可同时运行。
-2. 对三个 nullable 列执行确定性回填：
+1. [x] `20260827_01` 将 `tasks.status`、`task_logs.from_status/to_status` 扩到 `VARCHAR(16)`；validated check 暂时按 `lower(value)` 接受合法状态，保证旧应用和新应用可同时运行。
+2. [x] 对三个 nullable 列执行确定性回填：
    - `scope_mode IS NULL`：`scope_department_ids` 为非空数组时填 `departments`，否则填 `global`；
    - `engine_version IS NULL`：填 `legacy-v1`；
    - `executor_kind IS NULL`：填 `legacy`。
-3. 添加临时 `CHECK (... IS NOT NULL) NOT VALID`，随后 `VALIDATE CONSTRAINT`。先验证再收紧，可缩短强锁持有时间。
-4. 保留既有 server defaults，避免旧部署在滚动窗口中插入 NULL；是否移除 default 不属于 KI-014。
+3. [x] 添加临时 `CHECK (... IS NOT NULL) NOT VALID`，随后 `VALIDATE CONSTRAINT`；隔离 PostgreSQL 上六个 KI-014 check 均为 validated。
+4. [x] 保留既有 server defaults，避免旧部署在滚动窗口中插入 NULL；是否移除 default 不属于 KI-014。
+
+#### Phase B 工程证据（2026-08-27）
+
+- PostgreSQL 离线 SQL 已审阅：只包含三次确定性回填、三列 `VARCHAR(16)` expand、六个 `NOT VALID → VALIDATE` check 和 revision 更新；无 drop/table rewrite/状态归一化。
+- 隔离 PostgreSQL `20260812_04 → 20260827_01 → 20260812_04 → 20260827_01` 通过；最终 revision 为新单 head。
+- 动态临时 PostgreSQL 完成 fresh base→head→base 方言测试并自动销毁。
+- SQLite 使用当前 metadata + stamp 策略完成 `previous→head→previous→head`，第二次 upgrade 实际覆盖 `VARCHAR(6)→16`。
+- 后端全量测试通过。Phase B 后 `alembic check` 只剩三个 nullable diff，符合 Phase D 才执行 `SET NOT NULL` 的设计。
 
 ### Phase C — compatibility deploy 与观察
 
@@ -156,10 +182,10 @@ contract 后不允许直接回滚到只识别大写 Enum 名称的旧二进制�
 
 ## 6. 当前下一步
 
-1. 获取可连接的目标 PostgreSQL 只读 DSN，执行 §3 并归档脱敏结果；
-2. 根据真实 task status 大小写分布确认过渡类型与维护窗口；
-3. 将实现拆为“metadata + compatibility”“expand migration”“contract migration”三个独立 commit；
-4. 未完成目标环境只读审计前，不生成或应用自动迁移。
+1. 将 Phase A 应用与 `20260827_01` 部署到含真实数据的目标预发，部署前重复 §3 只读审计；未知状态或不可解释 NULL 必须停止。
+2. 观察至少一个完整业务周期，确认旧值可读、新写入只产生小写、`BLOCKED` 可落库且三个 workflow 字段不再产生 NULL。
+3. 归档观察结果并单独批准 Phase D contract；没有观察证据时不得执行状态归一化或 `SET NOT NULL`。
+4. Phase D 后再要求真实 PostgreSQL `alembic check` clean 并关闭 KI-014。
 
 # Status
 

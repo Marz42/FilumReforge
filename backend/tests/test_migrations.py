@@ -107,11 +107,49 @@ async def _create_pre_projection_sqlite_schema(dsn: str) -> None:
     await engine.dispose()
 
 
+async def _create_current_sqlite_schema(dsn: str) -> None:
+  engine = create_async_engine(dsn)
+  try:
+    async with engine.begin() as connection:
+      await connection.run_sync(Base.metadata.create_all)
+  finally:
+    await engine.dispose()
+
+
 async def _list_sqlite_tables(dsn: str) -> set[str]:
   engine = create_async_engine(dsn)
   try:
     async with engine.connect() as connection:
       return await connection.run_sync(lambda sync_connection: set(inspect(sync_connection).get_table_names()))
+  finally:
+    await engine.dispose()
+
+
+async def _sqlite_column_lengths(dsn: str, table_name: str) -> dict[str, int | None]:
+  engine = create_async_engine(dsn)
+  try:
+    async with engine.connect() as connection:
+      return await connection.run_sync(
+        lambda sync_connection: {
+          column["name"]: getattr(column["type"], "length", None)
+          for column in inspect(sync_connection).get_columns(table_name)
+        }
+      )
+  finally:
+    await engine.dispose()
+
+
+async def _sqlite_check_names(dsn: str, table_name: str) -> set[str]:
+  engine = create_async_engine(dsn)
+  try:
+    async with engine.connect() as connection:
+      return await connection.run_sync(
+        lambda sync_connection: {
+          constraint["name"]
+          for constraint in inspect(sync_connection).get_check_constraints(table_name)
+          if constraint["name"] is not None
+        }
+      )
   finally:
     await engine.dispose()
 
@@ -150,6 +188,54 @@ def test_iteration5a_projection_expand_and_downgrade_on_sqlite(
 
     command.downgrade(alembic_config, "20260730_01")
     assert PROJECTION_TABLES.isdisjoint(run_async(_list_sqlite_tables(sqlite_dsn)))
+  finally:
+    get_settings.cache_clear()
+
+
+def test_ki014_phase_b_expand_and_downgrade_on_sqlite(
+  monkeypatch: pytest.MonkeyPatch,
+  tmp_path: Path,
+) -> None:
+  database_path = tmp_path / "ki014-phase-b.db"
+  sqlite_dsn = f"sqlite+aiosqlite:///{database_path.as_posix()}"
+  run_async(_create_current_sqlite_schema(sqlite_dsn))
+  monkeypatch.setenv("POSTGRES_DSN", sqlite_dsn)
+  get_settings.cache_clear()
+  alembic_config = Config(str(BASE_DIR / "alembic.ini"))
+  alembic_config.set_main_option("script_location", str(BASE_DIR / "alembic"))
+
+  try:
+    command.stamp(alembic_config, "20260812_04")
+    command.upgrade(alembic_config, "head")
+    assert run_async(_sqlite_column_lengths(sqlite_dsn, "tasks"))["status"] == 16
+    assert run_async(_sqlite_column_lengths(sqlite_dsn, "task_logs"))["from_status"] == 16
+    assert run_async(_sqlite_column_lengths(sqlite_dsn, "task_logs"))["to_status"] == 16
+    assert "ck_tasks_status_compat_ki014" in run_async(
+      _sqlite_check_names(sqlite_dsn, "tasks")
+    )
+    assert {
+      "ck_task_logs_from_status_compat_ki014",
+      "ck_task_logs_to_status_compat_ki014",
+    }.issubset(run_async(_sqlite_check_names(sqlite_dsn, "task_logs")))
+    assert "ck_wf_graph_tpls_scope_mode_nn_ki014" in run_async(
+      _sqlite_check_names(sqlite_dsn, "workflow_graph_templates")
+    )
+    assert {
+      "ck_wf_graph_instances_engine_version_nn_ki014",
+      "ck_wf_graph_instances_executor_kind_nn_ki014",
+    }.issubset(run_async(_sqlite_check_names(sqlite_dsn, "workflow_graph_instances")))
+
+    command.downgrade(alembic_config, "20260812_04")
+    assert run_async(_sqlite_column_lengths(sqlite_dsn, "tasks"))["status"] == 6
+    assert "ck_tasks_status_compat_ki014" not in run_async(
+      _sqlite_check_names(sqlite_dsn, "tasks")
+    )
+
+    command.upgrade(alembic_config, "head")
+    assert run_async(_sqlite_column_lengths(sqlite_dsn, "tasks"))["status"] == 16
+    assert "ck_tasks_status_compat_ki014" in run_async(
+      _sqlite_check_names(sqlite_dsn, "tasks")
+    )
   finally:
     get_settings.cache_clear()
 

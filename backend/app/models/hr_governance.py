@@ -17,6 +17,7 @@ from sqlalchemy import (
   UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.schema import conv
 
 from app.core.db_types import build_enum, build_json_type, build_value_enum
 from app.core.enums import (
@@ -168,6 +169,10 @@ class EmploymentEvent(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
   __table_args__ = (
     Index("idx_employment_events_user_id_date", "user_id", "effective_date"),
     Index("idx_employment_events_type", "event_type"),
+    CheckConstraint(
+      "trigger_status in ('pending', 'processing', 'succeeded', 'failed', 'skipped')",
+      name=conv("ck_employment_events_employment_events_trigger_status_check"),
+    ),
   )
 
   user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
@@ -188,7 +193,12 @@ class EmploymentEvent(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     nullable=True,
   )
   trigger_status: Mapped[EmploymentEventTriggerStatus] = mapped_column(
-    build_value_enum(enum_cls=EmploymentEventTriggerStatus, name="employment_event_trigger_status"),
+    build_value_enum(
+      enum_cls=EmploymentEventTriggerStatus,
+      name="employment_event_trigger_status",
+      length=32,
+      create_constraint=False,
+    ),
     default=EmploymentEventTriggerStatus.SKIPPED,
     nullable=False,
   )

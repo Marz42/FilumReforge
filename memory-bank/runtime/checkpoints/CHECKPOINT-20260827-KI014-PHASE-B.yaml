@@ -1,0 +1,107 @@
+coding_runtime_schema_version: '0.1'
+kind: coding_checkpoint
+snapshot_revision: 1
+checkpoint:
+  checkpoint_id: CHECKPOINT-20260827-KI014-PHASE-B
+  task_id: TASK-20260826-KI014-SCHEMA-AUDIT
+  session_id: SESSION-20260827-KI014-POSTGRES-AUDIT
+  created_at: '2026-08-27T22:37:43.495611+08:00'
+  task_status: active
+  git:
+    repository_id: FilumReforge
+    observed_at: '2026-08-27T22:37:43.495611+08:00'
+    head_commit: af43cc110b369693b72f5f1adab6af09ac8109c2
+    branch: main
+    dirty: true
+    worktree_paths:
+    - backend/app/core/db_types.py
+    - backend/app/models/hr_governance.py
+    - backend/app/models/task.py
+    - backend/app/models/user.py
+    - backend/tests/test_migrations.py
+    - memory-bank/knowledge/contracts/data-contracts.md
+    - memory-bank/knowledge/contracts/database/graph-engine-schema.md
+    - memory-bank/knowledge/contracts/database/task-collaboration-schema.md
+    - memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
+    - memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+    - memory-bank/knowledge/plans/implementation-plan.md
+    - memory-bank/runtime/active-session.yaml
+    - memory-bank/runtime/context-manifest.yaml
+    - memory-bank/runtime/handoff.md
+    - backend/alembic/versions/20260827_01_ki014_phase_b_expand.py
+    - backend/tests/test_db_types.py
+    - memory-bank/runtime/checkpoints/CHECKPOINT-20260827-KI014-PHASE-A.yaml
+    - memory-bank/runtime/sessions/SESSION-20260827-KI014-PHASE-A.yaml
+    - memory-bank/runtime/sessions/SESSION-20260827-KI014-POSTGRES-AUDIT.yaml
+  tests:
+  - command: backend\.venv\Scripts\python.exe -m pytest backend\tests\test_db_types.py backend\tests\test_migrations.py
+      -q --cache-clear --basetemp backend\.test-tmp\ki014-checkpoint-pytest
+    status: passed
+    observed_at: '2026-08-27T22:37:43.495611+08:00'
+    exit_code: 0
+    passed_count: null
+    failed_count: null
+    skipped_count: null
+    duration_seconds: 9.53099999999904
+    report_path: null
+    output_hash: sha256:ffdd801838343d10fe9a955ba32b83d71ca0e5d85d46a79f952167c42dbfc275
+  builds:
+  - command: backend\.venv\Scripts\python.exe -m compileall -q backend\app\core\db_types.py backend\app\models\task.py
+      backend\app\models\user.py backend\app\models\hr_governance.py backend\alembic\versions\20260827_01_ki014_phase_b_expand.py
+      backend\tests\test_db_types.py backend\tests\test_migrations.py
+    status: passed
+    observed_at: '2026-08-27T22:37:43.495611+08:00'
+    exit_code: 0
+    duration_seconds: 0.125
+    artifact_paths: []
+    output_hash: sha256:d8760763be63067f00789fcf42648cb7e89259b37690e733415676ec0b8b6596
+  touched_paths:
+  - backend/app/core/db_types.py
+  - backend/app/models/hr_governance.py
+  - backend/app/models/task.py
+  - backend/app/models/user.py
+  - backend/tests/test_migrations.py
+  - memory-bank/knowledge/contracts/data-contracts.md
+  - memory-bank/knowledge/contracts/database/graph-engine-schema.md
+  - memory-bank/knowledge/contracts/database/task-collaboration-schema.md
+  - memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
+  - memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+  - memory-bank/knowledge/plans/implementation-plan.md
+  - memory-bank/runtime/active-session.yaml
+  - memory-bank/runtime/context-manifest.yaml
+  - memory-bank/runtime/handoff.md
+  - backend/alembic/versions/20260827_01_ki014_phase_b_expand.py
+  - backend/tests/test_db_types.py
+  - memory-bank/runtime/checkpoints/CHECKPOINT-20260827-KI014-PHASE-A.yaml
+  - memory-bank/runtime/sessions/SESSION-20260827-KI014-PHASE-A.yaml
+  - memory-bank/runtime/sessions/SESSION-20260827-KI014-POSTGRES-AUDIT.yaml
+  narrative:
+    summary: KI-014 Phase B expand migration and isolated PostgreSQL verification are complete; compatibility
+      observation remains pending before contract enforcement.
+    completed_work:
+    - Audited an isolated PostgreSQL database at revision 20260812_04 in a read-only transaction and confirmed
+      the remaining Phase B drift set.
+    - Added revision 20260827_01 to widen TaskStatus storage, add validated compatibility checks, backfill
+      workflow metadata deterministically, and validate staged non-null checks without changing physical
+      nullability.
+    - Verified upgrade, downgrade, and re-upgrade on isolated PostgreSQL, plus offline PostgreSQL SQL
+      generation and SQLite migration coverage.
+    - Passed focused migration and enum tests, the dynamic PostgreSQL migration test, and the complete
+      backend test suite.
+    - Updated KI-014 plans, Known Issues, and database/data contracts to record the expand-contract boundary
+      and observed evidence.
+    remaining_work:
+    - Run a read-only aggregate audit and compatibility-write observation against a target environment
+      containing representative business data.
+    - Confirm no legacy writers depend on uppercase TaskStatus values or NULL workflow metadata.
+    - Author the independent Phase D contract migration only after the observation gate is approved.
+    blockers:
+    - The isolated PostgreSQL database contains no business rows, so it proves structure and migration
+      behavior but not production data distribution or writer compatibility.
+    - Existing KI-013 version metadata drift and pre-existing strict compliance findings keep aggregate
+      Paradigma gates non-zero.
+    next_steps:
+    - Deploy revision 20260827_01 to a staging or equivalent target and collect redacted aggregate observations
+      during the compatibility window.
+    - Review the observation evidence before deciding whether to set physical NOT NULL constraints and
+      retire compatibility behavior.

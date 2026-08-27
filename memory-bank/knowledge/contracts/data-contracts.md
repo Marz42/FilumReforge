@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-08-12T22:25:00+08:00
+timestamp: 2026-08-27T22:31:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: hot
@@ -32,7 +32,7 @@ paradigma:
 >
 > **维护规则**: schema / 枚举变更时**必须**同步更新本文件；宏观流程与模块职责见 [`architecture.md`](../architecture.md)。
 
-**版本**: v3.23.0（与 [`architecture.md`](../architecture.md) 同步）
+**版本**: v3.24.0（KI-014 Phase B schema expand）
 **最后同步**: 2026-08-12 · Iteration 5-D 运维/trace + KI-009 standalone 动作授权契约 · 最新试用候选 `v0.93.0-rc.2`
 
 **事实来源**: `backend/app/models/`、`backend/alembic/versions/`、OpenAPI `/docs`
@@ -135,6 +135,8 @@ paradigma:
 | `workflow_node_business_state` | `draft`, `assigned`, `accepted`, `rejected`, `delegated`, `doing`, `pending_review`, `done`, `returned_for_rework`, `cancelled` | 已实现 |
 | `workflow_outbox_event_status` | `pending`, `retrying`, `dispatched`, `failed` | 已实现（Phase 11-C） |
 
+`20260827_01` 将 `tasks.status`、`task_logs.from_status/to_status` 从历史 `VARCHAR(6)` 扩到 `VARCHAR(16)`，并以 validated compatibility check 接受合法状态的历史大小写形式。应用层读取时大小写兼容、写入固定为上表的小写 value；大小写归一化与只接受小写的最终约束属于后续 KI-014 contract，不在 expand 批次执行。`workflow_graph_templates.scope_mode` 与 `workflow_graph_instances.engine_version/executor_kind` 当前仍保持 nullable column flag，但已有 validated non-null check；正式 `SET NOT NULL` 同样等待兼容观察。
+
 ## 10. 全量数据库 Schema
 
 > 完整 schema 已按业务域拆分为独立文件。新表/变更请更新对应子文件：
@@ -208,7 +210,7 @@ paradigma:
 
 最新权威结果见 [`progress summary`](../../logs/progress/summary.md) 与最近独立 session log（2026-08-09 @ 安全与上线准备）：
 
-- backend：KI-009 收口后基线 **496 collected / 464 passed / 32 skipped / 0 failed**；skip 为登记的 PostgreSQL/Redis 等环境条件用例；Alembic 单 head `20260812_04`
+- backend：KI-014 Phase B 后全量 pytest 通过；SQLite `previous→head→previous→head`、隔离 PostgreSQL `20260812_04→20260827_01→20260812_04→20260827_01`、动态 fresh PostgreSQL base→head→base 均通过；Alembic 单 head `20260827_01`
 - Iteration 4-E / Handler / 视频黄金流程定向：**66 PASS**
 - frontend：Vitest **75 文件 / 217 用例 PASS**；`vue-tsc --build`、ESLint、Oxlint 与 production build PASS
 - 模板解耦 Phase 2：Backend DB-backed **11/11**、TemplateCapabilities **6/6**、视频 mock E2E **2/2**
