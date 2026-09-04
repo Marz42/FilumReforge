@@ -16,6 +16,8 @@ paradigma:
   relations:
     planned_by:
       - ../plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+    related_to:
+      - ../manuals/2026-09-04-ki014-phase-c-observation-checklist.md
 ---
 
 # KI-014: PostgreSQL Alembic autogenerate schema drift
@@ -42,5 +44,5 @@ paradigma:
 
 1. 按 [`KI-014 PostgreSQL Schema Drift 审计与迁移设计`](../plans/2026-08-26-ki014-schema-drift-remediation-plan.md) §3，以只读事务统计 nullable 列、状态 distinct 值、约束与索引。
 2. metadata/index、双读兼容和 expand migration 已完成；不得把 enum 大小写归一化和 nullable contract 混入当前批次。
-3. 在含真实数据的目标预发观察新应用只写小写状态且不再产生 NULL 后，独立执行 contract migration。
+3. 在含真实数据的目标预发按 [`Phase C 观察清单`](../manuals/2026-09-04-ki014-phase-c-observation-checklist.md) 观察新应用只写小写状态且不再产生 NULL 后，独立执行 contract migration。
 4. PostgreSQL base→head、head→previous→head、备份恢复和 `alembic check` 全部通过后关闭本项。

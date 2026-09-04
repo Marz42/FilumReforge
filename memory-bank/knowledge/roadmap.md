@@ -76,7 +76,7 @@ paradigma:
 | **Iteration 5-E 受控投影读取** | engineering done / production gated | 投影优先 · 动态回退 · 严格 canary · PostgreSQL rebuild 97/28/282 · full shadow 407/407 · strict live UAT 9/9 @ 2026-08-23 |
 | **KI-015 Strict 投影缺口遥测** | engineering done / staging alert gated | inbox/tracking/history 缺口分类 · request/Task ID · 最近 checkpoint · Admin Operations error issue · 非授权 Task 不记录 @ 2026-08-26 |
 | **N4 专用评审自审边界** | done | 专用 review node 以真实上游交付人作为自审基准，指定 reviewer 可验收；普通模板交付任务保护不变 @ 2026-08-23 |
-| **P0 收口后续非阻断债务** | tracked | KI-015 已完成；KI-014 PostgreSQL drift · KI-016 logout 在途 401（P2）· KI-017 入口 chunk 体积（P2）仍开放 @ 2026-08-26 |
+| **P0 收口后续非阻断债务** | tracked | KI-014 Phase B（`20260827_01`）工程完成、目标 Phase C 观察与 Phase D 待补；KI-015 已完成；KI-016 logout 在途 401（P2）· KI-017 入口 chunk 体积（P2）仍开放 |
 
 ---
 
@@ -173,7 +173,7 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-1. **KI-014 只读审计**：在目标 PostgreSQL 只读事务中补齐状态 distinct、NULL、约束和索引证据，确认迁移门禁；未完成前不生成或应用自动 DDL。
+1. **KI-014 Phase C 目标观察**：在含真实数据的预发部署 Phase A/B（`20260827_01`），按 [`Phase C 观察清单`](./manuals/2026-09-04-ki014-phase-c-observation-checklist.md) 复测；未完成观察前不执行 Phase D contract。
 2. **真实预发与人工签字**：完成 RC3、Iteration 4、设计器 Phase 2、S-01 与 KI-009 的业务账号验收；2026-08-23 自动化多账号 UAT 是工程证据，不代替业务签字。
 3. **Iteration 3-F 连续门禁**：补齐 Link/reconciliation 7 天与 31/31 报告；当前隔离环境 readiness 无 blocker 不能替代连续观察。
 4. **生产准备**：注入真实 secret、TLS/域名/可信代理，记录附件与数据库备份 RPO/RTO、负责人、通知和维护窗口。
@@ -183,7 +183,7 @@ paradigma:
 8. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
 9. **后续专项**：KI-011 按用户决定暂不推进；M-09 与 `run_kind` dual-read 收窄等待策略和生产证据。
 
-**下一 actionable**：先取得目标 PostgreSQL 的只读连接，执行 [`KI-014 审计与迁移设计`](./plans/2026-08-26-ki014-schema-drift-remediation-plan.md) 中的聚合查询并确认状态大小写、NULL、约束和邀请索引；同时把已通过的隔离 PostgreSQL/严格 5-E 脚本复制到真实预发，接入并触发验证 `strict_projection_gap` 日志告警，保持 fallback 开启完成持续 shadow/运维观察。之后再提交 KI-014 expand 批次和生产关闭 fallback 的独立批准；Iteration 6 与生产准入仍须另行批准。
+**下一 actionable**：把已通过的隔离 PostgreSQL Phase B（`20260827_01`）与严格 5-E 脚本复制到真实预发，按 Phase C 清单复测并保持 fallback 开启；接入并验证 `strict_projection_gap` 告警。之后再提交 Phase D contract 与生产关闭 fallback 的独立批准；Iteration 6 与生产准入仍须另行批准。
 
 ---
 
