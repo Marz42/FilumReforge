@@ -20,6 +20,7 @@ paradigma:
     related_to:
       - ./implementation-plan.md
       - ../roadmap.md
+      - ../manuals/2026-09-04-ki014-phase-c-observation-checklist.md
 ---
 
 # KI-014 PostgreSQL Schema Drift 审计与迁移设计
@@ -183,7 +184,7 @@ contract 后不允许直接回滚到只识别大写 Enum 名称的旧二进制�
 ## 6. 当前下一步
 
 1. 将 Phase A 应用与 `20260827_01` 部署到含真实数据的目标预发，部署前重复 §3 只读审计；未知状态或不可解释 NULL 必须停止。
-2. 观察至少一个完整业务周期，确认旧值可读、新写入只产生小写、`BLOCKED` 可落库且三个 workflow 字段不再产生 NULL。
+2. 按 [`Phase C 观察清单`](../manuals/2026-09-04-ki014-phase-c-observation-checklist.md) 观察至少一个完整业务周期，确认旧值可读、新写入只产生小写、`BLOCKED` 可落库且三个 workflow 字段不再产生 NULL。
 3. 归档观察结果并单独批准 Phase D contract；没有观察证据时不得执行状态归一化或 `SET NOT NULL`。
 4. Phase D 后再要求真实 PostgreSQL `alembic check` clean 并关闭 KI-014。
 

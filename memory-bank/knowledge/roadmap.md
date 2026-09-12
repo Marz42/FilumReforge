@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-09-10T23:49:41+08:00
+timestamp: 2026-09-12T20:22:28+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -77,7 +77,7 @@ paradigma:
 | **Iteration 5-E 受控投影读取** | engineering done / production gated | 投影优先 · 动态回退 · 严格 canary · PostgreSQL rebuild 97/28/282 · full shadow 407/407 · strict live UAT 9/9 @ 2026-08-23 |
 | **KI-015 Strict 投影缺口遥测** | engineering done / staging alert gated | inbox/tracking/history 缺口分类 · request/Task ID · 最近 checkpoint · Admin Operations error issue · 非授权 Task 不记录 @ 2026-08-26 |
 | **N4 专用评审自审边界** | done | 专用 review node 以真实上游交付人作为自审基准，指定 reviewer 可验收；普通模板交付任务保护不变 @ 2026-08-23 |
-| **P0 收口后续非阻断债务** | tracked | KI-015 已完成；KI-014 PostgreSQL drift · KI-016 logout 在途 401（P2）· KI-017 入口 chunk 体积（P2）仍开放 @ 2026-08-26 |
+| **P0 收口后续非阻断债务** | tracked | KI-014 Phase B（`20260827_01`）工程完成、目标 Phase C 观察与 Phase D 待补；KI-015 已完成；KI-016 logout 在途 401（P2）· KI-017 入口 chunk 体积（P2）仍开放 |
 
 ---
 
@@ -177,7 +177,7 @@ paradigma:
 详细步骤、工作包与证据模板见 [2026-09-10 整合方案](./plans/2026-09-10-integrated-development-and-human-gates-plan.md)。
 
 1. **W00～W02**：复核已有 Phase C 改动、固定候选范围，修发布检查/CI 与文档版本治理；F-05/I5/S-01 不重复立项。
-2. **W03 兼容观察**：HG-01 目标只读审计；HG-02 指定预发兼容部署；完整业务周期后准备并单独批准 HG-03 的 KI-014 contract。
+2. **W03 兼容观察**：结合 [Phase C 观察清单](./manuals/2026-09-04-ki014-phase-c-observation-checklist.md)，HG-01 目标只读审计；HG-02 指定预发兼容部署；完整业务周期后准备并单独批准 HG-03 的 KI-014 contract。
 3. **W04/W05 目标验收**：I3-F Link/reconciliation 7 天与 31/31，当前全量 rebuild/full shadow/跨 worker 告警；业务角色完成 RC/I4/设计器/S-01/KI-009，HG-04 签字。
 4. **W06 生产准备与批准**：真实 secret/TLS/代理、数据库和附件恢复、Ubuntu 最小回滚、维护窗口与责任人完成后，HG-05 批准所列 SHA/revision 的生产部署，先保持 fallback。
 5. **5-E strict canary**：生产 rebuild/full shadow 与告警验证后 HG-06 单独批准范围及窗口；异常立即按预案回开 fallback。

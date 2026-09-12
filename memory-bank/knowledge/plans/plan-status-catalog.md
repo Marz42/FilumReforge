@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "实施计划状态目录"
 description: "区分现行计划、已完成实施记录与已被取代的 Legacy 方案，避免历史计划被误作当前排期。"
 tags: [plan, governance, active, completed, legacy]
-timestamp: 2026-09-10T23:49:41+08:00
+timestamp: 2026-09-12T20:22:28+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -39,7 +39,7 @@ paradigma:
 | `2026-08-12-iteration5d-operations-observability-plan.md` | 运维实现已有；目标告警/trace/恢复转 W04，5-E 生产批准转 W06 |
 | `workflow-graph-engine-iteration3f-readiness-gate-plan.md` | 仍开放的目标环境与生产切流门禁 |
 | `2026-08-09-rc-employee-trial-plan.md` | RC3 与后续不可变候选的员工复测、热修分流和独立签字；W00/W05 |
-| `2026-08-26-ki014-schema-drift-remediation-plan.md` | A/B 已提交，C 工具完成；目标代表性完整周期与 D contract 转 W03 |
+| `2026-08-26-ki014-schema-drift-remediation-plan.md` | A/B（`20260827_01`）已提交；C 工具与 [Phase C 观察清单](../manuals/2026-09-04-ki014-phase-c-observation-checklist.md) 配套；目标代表性完整周期与 D contract 转 W03 |
 
 ## COMPLETED — 已完成的实施记录
 
