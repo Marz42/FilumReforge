@@ -3,7 +3,7 @@ type: paradigma-manual
 title: "KI-014 Phase C 兼容观察清单"
 description: "Phase A+B 部署后、Phase D contract 前的双读观察与并行门禁清单。"
 tags: [manual, ki-014, observation, phase-c, checklist]
-timestamp: 2026-09-07T10:20:00+08:00
+timestamp: 2026-09-12T20:27:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -14,8 +14,16 @@ paradigma:
 
 # KI-014 Phase C 兼容观察清单
 
-> 部署 Phase A（metadata / `CompatibleValueEnum` 双读）+ Phase B（`20260827_01` expand）之后使用。  
+> 部署 Phase A（metadata / `CompatibleValueEnum` 双读）+ Phase B（`20260827_01` expand）之后使用。
 > **不关闭** Task Center projection fallback；**不开** Iteration 6；**不执行** Phase D contract。
+
+## 配套工具与状态口径（2026-09-12 整合）
+
+工程基线为 `CompatibleValueEnum` + `20260827_01`，配套只读工具为 `backend/app/scripts/audit_ki014_schema_compatibility.py`。部署前旧 revision 按 KI-014 计划 §3 盘点；工具默认检查 post-expand revision 和六个约束，不能通过修改期望值或 `--no-fail` 把未迁移环境标为通过。
+
+在 `backend` 目录设置环境负责人提供的只读 `POSTGRES_DSN` 后运行 `python -m app.scripts.audit_ki014_schema_compatibility`，兼容部署后的观察加带时区的 `--since`。工具只提供自动聚合证据；本清单 C1–C6、完整业务周期与人工批准仍需单独记录。
+
+原远端任务的 completed 仅表示 A/B 工程收尾。统一基线中 KI-014 总任务保持 blocked，原因是目标观察与独立 contract 尚未完成；此状态不阻止独立的工程开发批次。
 
 ## 应用观察（至少一个完整业务周期）
 

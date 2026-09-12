@@ -478,6 +478,8 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 下一步
 
+当前共同开发起点见 [2026-09-12 统一开发基线](memory-bank/knowledge/manuals/2026-09-12-development-baseline.md)，包含远端记录、本地整合方案与已保存的 Phase C 工作；目标观察和发布批准仍待完成。
+
 详细排期、17 个工作包、9 个 Human Gates、全部现有计划映射见 [下一阶段开发与 Human Gates 整合方案](memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md)。该方案为实施建议；编写方案不代表迁移、业务验收或生产部署已批准。
 
 1. **P0 工程与数据收尾**：复核现有 KI-014 Phase C 改动，修发布检查与 CI，处理文档/版本治理漂移；启动目标只读审计和兼容观察。

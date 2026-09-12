@@ -1,13 +1,15 @@
 # Manuals Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 1401b7b48c4ba4aa -->
+<!-- checksum: d890ffda2d8bfde3 -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
 |------|------|-------|-------|---------|-----------|
 | [2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md](2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) | `paradigma-manual` | Iteration 4 · 领域中立 / 运行时 / 设计器 Phase 2 验收 Checklist | Iteration 4 验收<br>领域中立 UAT<br>设计器 Phase 2 ... | - | depends_on:../decisions/adr-018-domain-neutral-workflow-templates.md<br>depends_on:../decisions/adr-019-decision-subject-actor-overlap.md<br>depends_on:../plans/workflow-graph-engine-iteration4-handler-plan.md<br>depends_on:../plans/2026-07-28-template-decouple-phase2-plan.md |
 | [2026-08-09-production-release-checklist.md](2026-08-09-production-release-checklist.md) | `paradigma-manual` | 2026-08-09 生产上线准入 Checklist | 生产上线<br>发布准入<br>安全检查 ... | - | depends_on:../plans/2026-08-09-rc-employee-trial-plan.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>depends_on:../plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md<br>depends_on:2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md ... |
+| [2026-09-04-ki014-phase-c-observation-checklist.md](2026-09-04-ki014-phase-c-observation-checklist.md) | `paradigma-manual` | KI-014 Phase C 兼容观察清单 | - | - | - |
+| [2026-09-12-development-baseline.md](2026-09-12-development-baseline.md) | `paradigma-manual` | 2026-09-12 统一开发基线 | - | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../plans/2026-08-26-ki014-schema-drift-remediation-plan.md<br>related_to:./2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:./manual-database-operations.md |
 | [deployment-runbook-ubuntu-2404.md](deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | - |
 | [e2e-gui-verification-automation-runbook.md](e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | - |
 | [manual-database-operations.md](manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | - |

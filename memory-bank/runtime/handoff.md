@@ -3,7 +3,7 @@ type: paradigma-runtime-state
 title: Coding Handoff
 description: Rebuildable handoff projection of active CodingSession YAML facts.
 tags: [runtime, handoff, generated]
-timestamp: 2026-09-11T00:00:47.536002+08:00
+timestamp: 2026-09-12T20:31:11.509061+08:00
 paradigma:
   layer: runtime
   temperature: hot
@@ -16,44 +16,45 @@ paradigma:
 # Handoff
 
 - Task: `TASK-20260826-KI014-SCHEMA-AUDIT` — Audit KI-014 PostgreSQL schema drift
-- Session: `SESSION-20260910-INTEGRATED-PLAN` (ended)
+- Session: `SESSION-20260912-BASELINE-SYNC` (ended)
 - Repository: `FilumReforge`
 - Agent: codex
-- Last checkpoint: `CHECKPOINT-20260910-INTEGRATED-PLAN`
+- Last checkpoint: `CHECKPOINT-20260912-BASELINE-SYNC`
 
 ## Checkpoint
 
-- Created: 2026-09-11T00:00:19.358217+08:00
-- Task status: active
-- Git commit: `61ea3d34ea1c89b719fcb0a5c322fcd89b9cdb43`
-- Touched paths: README.md, backend/tests/test_migrations.py, memory-bank/README.md, memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md, memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md, memory-bank/knowledge/manuals/manual-database-operations.md, memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md, memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md, memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md, memory-bank/knowledge/plans/implementation-plan.md, memory-bank/knowledge/plans/index.md, memory-bank/knowledge/plans/plan-status-catalog.md, memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md, memory-bank/knowledge/roadmap.md, memory-bank/runtime/active-session.yaml, memory-bank/runtime/active-task.md, memory-bank/runtime/context-manifest.yaml, memory-bank/runtime/handoff.md, memory-bank/runtime/tasks/TASK-20260826-KI014-SCHEMA-AUDIT.yaml, backend/app/scripts/audit_ki014_schema_compatibility.py, backend/tests/test_ki014_schema_audit.py, memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md, memory-bank/runtime/checkpoints/CHECKPOINT-20260827-KI014-PHASE-C.yaml, memory-bank/runtime/sessions/SESSION-20260827-KI014-PHASE-C.yaml, memory-bank/runtime/sessions/SESSION-20260910-INTEGRATED-PLAN.yaml
-- Tests: passed
+- Created: 2026-09-12T20:30:52.906180+08:00
+- Task status: blocked
+- Git commit: `8f98dd4082123b09d767d17bbbf191702eacb71c`
+- Touched paths: README.md, memory-bank/knowledge/known-issues/index.md, memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md, memory-bank/knowledge/manuals/index.md, memory-bank/knowledge/manuals/manual-database-operations.md, memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md, memory-bank/knowledge/plans/index.md, memory-bank/knowledge/roadmap.md, memory-bank/logs/progress/2026-09-04-ki014-gate0-readonly-audit.md, memory-bank/logs/progress/2026-09-04-ki014-schema-drift-remediation.md, memory-bank/logs/progress/summary.md, memory-bank/runtime/active-session.yaml, memory-bank/runtime/active-task.md, memory-bank/runtime/context-manifest.yaml, memory-bank/runtime/handoff.md, memory-bank/runtime/tasks/TASK-20260826-KI014-SCHEMA-AUDIT.yaml, memory-bank/knowledge/manuals/2026-09-12-development-baseline.md, memory-bank/runtime/sessions/SESSION-20260912-BASELINE-SYNC.yaml
+- Tests: not recorded
 
 ## Summary
 
-Delivered the user-requested integrated development proposal with 17 work packages, 9 Human Gates and complete coverage of 41 existing plan documents. Documentation only; no P0 application fix, migration, external notification, production action or Git commit was performed.
+Reconciled local and origin history into a shared development baseline, preserved and separately committed original KI-014 Phase C work, and prepared a normal fast-forward push to origin/main. This is not production or Phase D approval.
 
 ## Completed Work
 
-- Authored memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md with P0 steps, dependencies, owners by role, evidence levels, rollback boundaries, gate templates, phased estimates and deferred capability steps.
-- Mapped all 41 pre-existing non-index plan documents and all 12 findings from the September 6 assessment; verified link targets, YAML metadata, 17 work-package IDs, 9 gate IDs and fenced blocks.
-- Synchronized README, Memory-Bank entry, roadmap, implementation plan, plan catalog, RC plan, I5/I6 sequencing, engine upgrade status and production checklist; retained historical test and release evidence.
-- Distinguished older database pre-expand inventory from Phase C post-expand gates, configuration-level canary switches from per-user rollout, and ROOT-shell prerequisite evidence from cleanup outcomes.
-- Verified indexes, context, runtime, catalog, adapter parity and git diff whitespace; existing aggregate governance failures remain explicitly unresolved.
-- Preserved pre-existing KI-014 Phase C business-code and test changes. The earlier schema-audit task remains active; this planning session does not mark target observation complete.
+- Created codex/backup-before-baseline-sync-20260912 at 4820511 and retained the baseline-sync-20260912 stash containing all nine original modified/untracked files.
+- Merged origin/main 98db3c8 with local 4820511 in bd32fc1; reconciled plan catalog, roadmap and task-state semantics without rewriting remote history.
+- Restored Phase C source and tests byte-equivalently to the backup and committed the reviewed implementation and supporting documents as 8f98dd4.
+- Focused Phase C, enum and SQLite migration tests passed with 12 passed and 1 PostgreSQL test deselected.
+- Full backend non-PostgreSQL regression passed with 478 passed, 10 existing Legacy E skips and 22 PostgreSQL deselections in 215.34 seconds; no frontend or business implementation was changed during reconciliation.
+- Unified KI-014 as engineering/tooling complete but blocked on target observation and separately approved contract, using pd task block rather than directly editing task YAML.
+- Added a development-baseline handoff, connected the remote observation checklist with the local tool, repaired imported log metadata and regenerated the progress summary and indexes.
 
 ## Remaining Work
 
-- Obtain user execution scope for the first implementation batch, then follow W00-W02 and prepare the target-environment evidence packages.
-- Complete the still-pending KI-014 representative-data observation and separately approved contract migration.
-- Execute the P0/P1/P2 work packages and Human Gates in the proposed sequence; this turn only prepared the plan.
+- Finish final context/runtime/document checks, commit this handoff batch, push main to origin/main normally and compare exact local and remote SHAs.
+- Continue W01/W02 engineering work as a separate authorized development batch; keep target, business and release gates distinct.
 
 ## Blockers
 
-- Product/protocol VERSION collision, old KI-015 progress-log metadata, stale progress summary and missing CI workflow remain existing implementation work, not new-document validation failures.
-- Target-environment access, representative data, business acceptance and production approvals have not been supplied or completed in this planning turn.
+- Docker daemon is not available; PostgreSQL migration integration was not rerun in this synchronization. Historical isolated PostgreSQL evidence is not refreshed target evidence.
+- KI-014 representative target data, a complete business cycle and separately approved Phase D contract remain pending.
+- Existing product/protocol version drift, old KI-015 progress-log metadata and missing CI workflow still prevent a green aggregate governance check.
 
 ## Next Steps
 
-- Review the integrated proposal and use HG-00 to record the selected implementation scope without repeating already explicit authorization.
-- Begin W00-W02 and prepare HG-01/HG-02 while independently fixing authorized engineering issues; do not claim target or human evidence from local tests.
+- Use the synchronized main commit containing memory-bank/knowledge/manuals/2026-09-12-development-baseline.md as the next development starting point.
+- Keep the backup branch and stash as recovery references; do not reapply the already integrated stash during ordinary development.

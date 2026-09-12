@@ -1,14 +1,15 @@
 ---
-type: paradigma-progress
+type: paradigma-progress-log
 title: "KI-014 Gate 0 只读 Schema Drift 审计"
 description: "在隔离 Docker PostgreSQL（fresh upgrade 至 20260812_04，含既有卷数据）执行 §3 只读审计并确认迁移门禁。"
 tags: [progress, ki-014, postgresql, alembic, schema-drift, audit]
 timestamp: 2026-09-04T15:45:00+08:00
 paradigma:
+  layer: log
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: stable
-  update_policy: agent-editable
+  lifecycle: append-only
+  update_policy: append-only
   epistemic_status: verified
   relations:
     related_to:

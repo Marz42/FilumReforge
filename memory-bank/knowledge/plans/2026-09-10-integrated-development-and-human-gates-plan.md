@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "Filum 下一阶段开发与 Human Gates 整合方案"
 description: "统一 P0 修复、目标环境验证、RC/UAT、生产切流、P1/P2 开发与延期项目的依赖、实施步骤和人工闸门。"
 tags: [plan, release, human-gates, p0, integration, roadmap]
-timestamp: 2026-09-10T23:49:41+08:00
+timestamp: 2026-09-12T20:27:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -27,6 +27,8 @@ paradigma:
 ---
 
 # Filum 下一阶段开发与 Human Gates 整合方案
+
+> **2026-09-12 基线更新**：本地方案与远端 Phase C 清单已合并，原有 Phase C 代码/测试已单独保存为 `8f98dd4`，详见 [统一开发基线](../manuals/2026-09-12-development-baseline.md)。下方 09-10 HEAD、未提交路径和测试数字保留为历史快照；当前 KI-014 总任务因目标观察/contract 待完成而 blocked。本次同步授权不等于批准实施全部 W00～W16 或关闭任何目标/发布 Gate。
 
 ## 1. 文档用途与范围
 

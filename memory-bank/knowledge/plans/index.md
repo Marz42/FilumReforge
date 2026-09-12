@@ -1,7 +1,7 @@
 # Plans Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 70afdcbd3e4ba54e -->
+<!-- checksum: 0f7db49f980ab0fd -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -26,7 +26,7 @@
 | [2026-08-12-iteration5b-projector-rebuild-plan.md](2026-08-12-iteration5b-projector-rebuild-plan.md) | `paradigma-plan` | Iteration 5-B 投影消费与重建基座计划 | Iteration 5-B<br>投影消费<br>checkpoint ... | - | depends_on:./2026-08-12-iteration5a-projection-contract-plan.md<br>depends_on:../contracts/projection-contract.md<br>related_to:../contracts/database/graph-engine-schema.md<br>related_to:../domains/workflow-graph-engine.md ... |
 | [2026-08-12-iteration5c-shadow-comparison-plan.md](2026-08-12-iteration5c-shadow-comparison-plan.md) | `paradigma-plan` | Iteration 5-C 投影 Shadow Comparison 计划 | Iteration 5-C<br>影子比较<br>投影差异 ... | - | depends_on:./2026-08-12-iteration5b-projector-rebuild-plan.md<br>depends_on:../contracts/projection-contract.md<br>related_to:./2026-08-11-f05-iteration5-6-sequencing-plan.md |
 | [2026-08-12-iteration5d-operations-observability-plan.md](2026-08-12-iteration5d-operations-observability-plan.md) | `paradigma-plan` | Iteration 5-D 工作流运维与可观测性计划 | Iteration 5-D<br>工作流运维<br>Outbox 重放 ... | - | depends_on:./2026-08-12-iteration5c-shadow-comparison-plan.md<br>depends_on:../contracts/projection-contract.md<br>related_to:./2026-08-11-f05-iteration5-6-sequencing-plan.md<br>related_to:../domains/workflow-graph-engine.md |
-| [2026-08-26-ki014-schema-drift-remediation-plan.md](2026-08-26-ki014-schema-drift-remediation-plan.md) | `paradigma-plan` | KI-014 PostgreSQL Schema Drift 审计与迁移设计 | KI-014<br>Schema Drift<br>Alembic check ... | - | resolves:../known-issues/ki-014-postgresql-alembic-schema-drift.md<br>related_to:./implementation-plan.md<br>related_to:../roadmap.md |
+| [2026-08-26-ki014-schema-drift-remediation-plan.md](2026-08-26-ki014-schema-drift-remediation-plan.md) | `paradigma-plan` | KI-014 PostgreSQL Schema Drift 审计与迁移设计 | KI-014<br>Schema Drift<br>Alembic check ... | - | resolves:../known-issues/ki-014-postgresql-alembic-schema-drift.md<br>related_to:./implementation-plan.md<br>related_to:../roadmap.md<br>related_to:../manuals/2026-09-04-ki014-phase-c-observation-checklist.md |
 | [2026-09-10-integrated-development-and-human-gates-plan.md](2026-09-10-integrated-development-and-human-gates-plan.md) | `paradigma-plan` | Filum 下一阶段开发与 Human Gates 整合方案 | 整合方案<br>下一步开发<br>人工闸门 ... | - | related_to:./implementation-plan.md<br>related_to:./plan-status-catalog.md<br>related_to:../roadmap.md<br>depends_on:../contracts/projection-contract.md ... |
 | [implementation-plan.md](implementation-plan.md) | `paradigma-plan` | 实施计划主线 | 实施计划<br>implementation | - | related_to:./2026-09-10-integrated-development-and-human-gates-plan.md |
 | [improvements-stage2-implementation-plan.md](improvements-stage2-implementation-plan.md) | `paradigma-plan` | Stage 2 改进计划 | Stage2<br>stage2 | - | - |

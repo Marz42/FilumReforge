@@ -174,6 +174,8 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
+当前 Git 整合与验证边界见 [2026-09-12 统一开发基线](./manuals/2026-09-12-development-baseline.md)。
+
 详细步骤、工作包与证据模板见 [2026-09-10 整合方案](./plans/2026-09-10-integrated-development-and-human-gates-plan.md)。
 
 1. **W00～W02**：复核已有 Phase C 改动、固定候选范围，修发布检查/CI 与文档版本治理；F-05/I5/S-01 不重复立项。

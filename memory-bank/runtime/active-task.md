@@ -27,7 +27,7 @@ Perform a read-only PostgreSQL schema drift audit, classify ORM versus DDL autho
 
 ## Current Status
 
-active
+blocked
 
 ## Checklist
 
@@ -35,10 +35,10 @@ active
 
 ## Blockers
 
-
+Phase A/B engineering and Phase C tooling are complete. Representative target-data observation, business-cycle evidence and separately approved Phase D contract remain pending; engineering completion does not close these gates.
 
 ## Notes
 
 Generated from YAML facts; do not edit this projection by hand.
 
-Snapshot revision: 3.
+Snapshot revision: 4.

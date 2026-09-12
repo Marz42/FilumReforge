@@ -1,6 +1,6 @@
 # Progress Summary
 
-Source digest: `sha256:7567cc2e138ee49b509ffe1e20678fc14da93faced6e5bd7c4c9a5ef4785716b`
+Source digest: `sha256:a1045bff70ba35ad48138106d2ca7b66f0c255232b19136349fa2aed4209b7ec`
 
 This file summarizes progress logs without deleting or rewriting the source session logs.
 
@@ -27,3 +27,6 @@ This file summarizes progress logs without deleting or rewriting the source sess
 | [2026-08-12-ki009-action-authorization.md](2026-08-12-ki009-action-authorization.md) | KI-009 独立任务动作授权收口 | No standard session summary recorded. |
 | [2026-08-12-paradigma-070-upgrade.md](2026-08-12-paradigma-070-upgrade.md) | Filum Paradigma 0.7 Protocol Upgrade | Pulled and verified Paradigma main at `3422ecf95109d48cfa89036ae96b4085201baef4`; the upstream worktree was already current and its complete 270-test suite passed. |
 | [2026-08-23-p0-closure-iteration5e.md](2026-08-23-p0-closure-iteration5e.md) | 2026-08-23 P0 收口与 Iteration 5-E 严格投影验证 | No standard session summary recorded. |
+| [2026-08-26-ki015-strict-projection-telemetry.md](2026-08-26-ki015-strict-projection-telemetry.md) | KI-015 Strict 投影请求侧遥测工程完成 | No standard session summary recorded. |
+| [2026-09-04-ki014-gate0-readonly-audit.md](2026-09-04-ki014-gate0-readonly-audit.md) | KI-014 Gate 0 只读 Schema Drift 审计 | No standard session summary recorded. |
+| [2026-09-04-ki014-schema-drift-remediation.md](2026-09-04-ki014-schema-drift-remediation.md) | KI-014 Schema Drift 并行轨记录（已与 origin Phase B 对齐） | No standard session summary recorded. |

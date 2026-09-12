@@ -1,14 +1,15 @@
 ---
-type: paradigma-progress
+type: paradigma-progress-log
 title: "KI-014 Schema Drift 并行轨记录（已与 origin Phase B 对齐）"
 description: "记录 2026-09-04 本地并行 expand/contract 轨；2026-09-07 rebase 后以 origin `20260827_01` + CompatibleValueEnum 为权威。"
 tags: [progress, ki-014, postgresql, alembic, schema-drift]
 timestamp: 2026-09-07T10:20:00+08:00
 paradigma:
+  layer: log
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: stable
-  update_policy: agent-editable
+  lifecycle: append-only
+  update_policy: append-only
   epistemic_status: verified
   relations:
     related_to:
@@ -21,8 +22,8 @@ paradigma:
 
 ## 背景
 
-2026-09-04 本地曾并行实现 `20260904_01` expand / `20260904_02` contract 与 `CaseInsensitiveValueEnum`。  
-2026-09-07 与 `origin/main` rebase 时确认远端已落地权威 Phase B：`20260827_01` + `CompatibleValueEnum`。  
+2026-09-04 本地曾并行实现 `20260904_01` expand / `20260904_02` contract 与 `CaseInsensitiveValueEnum`。
+2026-09-07 与 `origin/main` rebase 时确认远端已落地权威 Phase B：`20260827_01` + `CompatibleValueEnum`。
 并行迁移与重复类型实现已丢弃，避免双 head / 双契约。
 
 ## 当前权威状态
