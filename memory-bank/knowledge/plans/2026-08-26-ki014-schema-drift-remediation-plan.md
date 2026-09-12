@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "KI-014 PostgreSQL Schema Drift 审计与迁移设计"
 description: "用只读证据确认历史 ORM/DDL 漂移，并以可回滚的 expand/contract 批次消除 Alembic autogenerate 差异。"
 tags: [plan, active, postgresql, alembic, schema-drift, migration]
-timestamp: 2026-08-27T22:09:00+08:00
+timestamp: 2026-09-12T20:27:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -25,9 +25,9 @@ paradigma:
 
 # KI-014 PostgreSQL Schema Drift 审计与迁移设计
 
-> **计划状态：PHASE B ENGINEERING COMPLETE / COMPATIBILITY OBSERVATION PENDING**
+> **计划状态：PHASE C OBSERVATION TOOLING COMPLETE / TARGET OBSERVATION PENDING**
 >
-> 本计划只设计 KI-014，不创建或执行 DDL。2026-08-26 本机没有可连接的 PostgreSQL：默认 `localhost:5432` 拒绝连接，Docker daemon 与本机 PostgreSQL 工具均不可用。因此，下文“已确认漂移”来自 2026-08-23 的真实 PostgreSQL `alembic check`；代码与迁移链分析已在当前提交重新核对，实时数据统计仍待目标环境只读执行。
+> Phase A/B 已在 `61ea3d3` 固定，隔离 PostgreSQL 已执行 `20260827_01` expand migration。Phase C 的强制只读聚合审计入口已完成并在空隔离库验证；真实数据分布、完整业务周期和人工批准仍必须来自目标预发。
 
 ## 1. 目标与完成定义
 
@@ -161,6 +161,16 @@ ROLLBACK;
 - 邀请 token 查询命中索引，认证行为无回归；
 - 三个 workflow graph 列不再产生 NULL。
 
+#### Phase C 工程入口（2026-08-27）
+
+- [x] 新增 `backend/app/scripts/audit_ki014_schema_compatibility.py`，从环境变量读取 DSN，不接受命令行明文连接串。
+- [x] 审计在 `SET TRANSACTION READ ONLY` 后执行并最终 rollback；输出仅含 revision、schema 元数据、聚合状态计数、NULL 计数、约束及索引健康度。
+- [x] `--since` 必须带时区，用于区分观察窗口内的新写入；窗口内未知或非小写状态、workflow NULL 均使自动门禁失败。
+- [x] 邀请索引以 `pg_index` 的 valid/ready 状态和强制禁用 seqscan 的 `EXPLAIN` 验证“可被规划器使用”；这不宣称真实认证流量已经命中索引。
+- [x] 空隔离库运行自动数据库门禁通过，但报告明确标记 `structure_only_empty_status_tables`、`representative_data_claimed=false` 和 `phase_d_ready=false`。
+- [ ] 在含代表性数据的目标预发执行部署前基线与至少一个完整业务周期的 `--since` 观察。
+- [ ] 完成 `BLOCKED` 创建/读取/日志回放及邀请认证行为 UAT，并由责任人批准 Phase D。
+
 ### Phase D — contract migration
 
 1. 在事务内确认所有 task status `lower(value)` 均属于 `todo/doing/review/blocked/done`，再把合法大写值归一化为小写。
@@ -183,8 +193,8 @@ contract 后不允许直接回滚到只识别大写 Enum 名称的旧二进制�
 
 ## 6. 当前下一步
 
-1. 将 Phase A 应用与 `20260827_01` 部署到含真实数据的目标预发，部署前重复 §3 只读审计；未知状态或不可解释 NULL 必须停止。
-2. 按 [`Phase C 观察清单`](../manuals/2026-09-04-ki014-phase-c-observation-checklist.md) 观察至少一个完整业务周期，确认旧值可读、新写入只产生小写、`BLOCKED` 可落库且三个 workflow 字段不再产生 NULL。
+1. 部署前按 §3 只读审计和 [Phase C 观察清单](../manuals/2026-09-04-ki014-phase-c-observation-checklist.md) 盘点目标预发；旧 revision 的基线不得当成 post-expand 工具通过。未知状态或不可解释 NULL 必须停止。
+2. 经批准部署 Phase A 应用与 `20260827_01` 后，以环境变量配置只读 `POSTGRES_DSN`，运行 `python -m app.scripts.audit_ki014_schema_compatibility`；再以带时区的 `--since` 重复审计至少一个完整业务周期，结合清单验证旧值可读、新写入小写、`BLOCKED` 可落库和三个 workflow 字段无新增 NULL。
 3. 归档观察结果并单独批准 Phase D contract；没有观察证据时不得执行状态归一化或 `SET NOT NULL`。
 4. Phase D 后再要求真实 PostgreSQL `alembic check` clean 并关闭 KI-014。
 

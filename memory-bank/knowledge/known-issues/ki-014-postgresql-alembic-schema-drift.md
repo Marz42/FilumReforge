@@ -3,7 +3,7 @@ type: paradigma-known-issue
 title: "KI-014: PostgreSQL Alembic autogenerate schema drift"
 description: "目标 PostgreSQL 上 alembic check 报告的历史 ORM/DDL 类型、索引与 nullable 漂移。"
 tags: [known-issue, postgresql, alembic, schema, migration]
-timestamp: 2026-08-27T22:09:00+08:00
+timestamp: 2026-09-12T20:27:00+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -24,7 +24,7 @@ paradigma:
 
 ## 状态
 
-**开放 / Phase B 工程完成 / 真实数据兼容观察与 contract 待补**。2026-08-27 已完成 Phase A metadata/compatibility 与 `20260827_01` expand migration。隔离 PostgreSQL 的只读结构审计、离线 SQL、`04→新 head→04→新 head`、动态 fresh base→head→base、SQLite 往返和后端全量均通过；Phase B 后 `alembic check` 只剩预期的三个 nullable diff。隔离库没有业务行，不能替代真实目标库状态分布和一个业务周期的兼容观察，因此仍不能声明 schema drift clean。
+**开放 / Phase C 只读观测工具完成 / 真实数据兼容观察与 contract 待补**。Phase A/B 已由 `61ea3d3` 固定；2026-08-27 又新增强制只读、隐私安全的聚合审计入口，可验证 revision、状态值/大小写、workflow NULL、六个约束及邀请索引可规划性。空隔离库的自动数据库门禁通过但被明确标为 structure-only，不能替代真实目标库状态分布、应用 UAT 和一个完整业务周期，因此仍不能声明 schema drift clean。
 
 ## 当前差异
 

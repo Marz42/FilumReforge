@@ -1,0 +1,93 @@
+coding_runtime_schema_version: '0.1'
+kind: coding_checkpoint
+snapshot_revision: 1
+checkpoint:
+  checkpoint_id: CHECKPOINT-20260827-KI014-PHASE-C
+  task_id: TASK-20260826-KI014-SCHEMA-AUDIT
+  session_id: SESSION-20260827-KI014-PHASE-C
+  created_at: '2026-08-27T22:59:55.745405+08:00'
+  task_status: active
+  git:
+    repository_id: FilumReforge
+    observed_at: '2026-08-27T22:59:55.745405+08:00'
+    head_commit: 61ea3d34ea1c89b719fcb0a5c322fcd89b9cdb43
+    branch: main
+    dirty: true
+    worktree_paths:
+    - backend/tests/test_migrations.py
+    - memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
+    - memory-bank/knowledge/manuals/manual-database-operations.md
+    - memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+    - memory-bank/knowledge/plans/implementation-plan.md
+    - memory-bank/runtime/active-session.yaml
+    - memory-bank/runtime/context-manifest.yaml
+    - memory-bank/runtime/handoff.md
+    - backend/app/scripts/audit_ki014_schema_compatibility.py
+    - backend/tests/test_ki014_schema_audit.py
+    - memory-bank/runtime/sessions/SESSION-20260827-KI014-PHASE-C.yaml
+  tests:
+  - command: backend\.venv\Scripts\python.exe -m pytest backend\tests\test_ki014_schema_audit.py backend\tests\test_migrations.py
+      -q --cache-clear --basetemp backend\.test-tmp\ki014-phase-c-checkpoint
+    status: passed
+    observed_at: '2026-08-27T22:59:55.745405+08:00'
+    exit_code: 0
+    passed_count: null
+    failed_count: null
+    skipped_count: null
+    duration_seconds: 9.65599999999904
+    report_path: null
+    output_hash: sha256:705708ecc23f6b378258d69c34d64a07913de6a1b5fbb0caa02753d91ea8dd06
+  builds:
+  - command: backend\.venv\Scripts\python.exe -m compileall -q backend\app\scripts\audit_ki014_schema_compatibility.py
+      backend\tests\test_ki014_schema_audit.py backend\tests\test_migrations.py
+    status: passed
+    observed_at: '2026-08-27T22:59:55.745405+08:00'
+    exit_code: 0
+    duration_seconds: 0.11000000000058208
+    artifact_paths: []
+    output_hash: sha256:d8760763be63067f00789fcf42648cb7e89259b37690e733415676ec0b8b6596
+  touched_paths:
+  - backend/tests/test_migrations.py
+  - memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
+  - memory-bank/knowledge/manuals/manual-database-operations.md
+  - memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+  - memory-bank/knowledge/plans/implementation-plan.md
+  - memory-bank/runtime/active-session.yaml
+  - memory-bank/runtime/context-manifest.yaml
+  - memory-bank/runtime/handoff.md
+  - backend/app/scripts/audit_ki014_schema_compatibility.py
+  - backend/tests/test_ki014_schema_audit.py
+  - memory-bank/runtime/sessions/SESSION-20260827-KI014-PHASE-C.yaml
+  narrative:
+    summary: KI-014 Phase A/B were committed at 61ea3d3 and Phase C now has a privacy-safe, forced read-only
+      compatibility audit entry point; target-environment observation remains pending.
+    completed_work:
+    - Committed the verified Phase A/B enum compatibility, metadata alignment, expand migration, tests,
+      contracts, and runtime evidence as 61ea3d3.
+    - Added a PostgreSQL-only KI-014 audit command that reads its DSN from an environment variable and
+      never emits task, user, token, or JSON payload data.
+    - Enforced SET TRANSACTION READ ONLY with rollback and automated gates for revision, status values
+      and casing, workflow NULLs, six validated constraints, and invitation-index planner eligibility.
+    - Marked empty or non-representative evidence explicitly and kept phase_d_ready false because automation
+      cannot approve the contract migration.
+    - Added unit and dynamic ephemeral-PostgreSQL coverage, passed the complete backend suite, and updated
+      the remediation plan, Known Issue, implementation plan, and database operations manual.
+    remaining_work:
+    - Run a deployment baseline against a target pre-production database containing representative business
+      data with a read-only DSN.
+    - Deploy the compatibility application and revision 20260827_01, then observe at least one complete
+      business cycle using a timezone-aware --since value.
+    - Complete BLOCKED task create/read/replay and invitation authentication UAT before separately approving
+      Phase D.
+    blockers:
+    - No target pre-production POSTGRES_DSN or repository-local environment configuration is available
+      in the current workspace.
+    - The isolated PostgreSQL contains zero task status rows, so its passing automated gates are structure-only
+      evidence.
+    - Existing KI-013 version metadata drift and pre-existing strict compliance findings keep aggregate
+      Paradigma gates non-zero.
+    next_steps:
+    - Obtain a read-only target POSTGRES_DSN from the environment owner and run the documented baseline
+      audit without storing the DSN in the repository or command output.
+    - Record the deployment timestamp and rerun the audit with --since after a complete business cycle,
+      then review application UAT and aggregate evidence for Phase D approval.

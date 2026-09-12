@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import get_settings
 from app.models import Base
+from app.scripts.audit_ki014_schema_compatibility import collect_audit
 from tests.postgres_migration_support import (
   drop_ephemeral_database,
   list_public_tables,
@@ -121,6 +122,15 @@ async def _list_sqlite_tables(dsn: str) -> set[str]:
   try:
     async with engine.connect() as connection:
       return await connection.run_sync(lambda sync_connection: set(inspect(sync_connection).get_table_names()))
+  finally:
+    await engine.dispose()
+
+
+async def _collect_ki014_audit(dsn: str) -> dict[str, object]:
+  engine = create_async_engine(dsn)
+  try:
+    async with engine.connect() as connection:
+      return await collect_audit(connection, since=None)
   finally:
     await engine.dispose()
 
@@ -262,6 +272,10 @@ def test_alembic_upgrade_and_downgrade(monkeypatch: pytest.MonkeyPatch) -> None:
 
     upgraded_tables = run_async(list_public_tables(sync_dsn))
     assert EXPECTED_UPGRADED_TABLES.issubset(upgraded_tables)
+    audit = run_async(_collect_ki014_audit(async_dsn))
+    assert audit["automated_gate_passed"] is True
+    assert audit["phase_d_ready"] is False
+    assert audit["evidence_scope"]["kind"] == "structure_only_empty_status_tables"
 
     command.downgrade(alembic_config, "base")
 

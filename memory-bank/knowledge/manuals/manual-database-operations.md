@@ -5,7 +5,7 @@ description: "PostgreSQL 手工操作与迁移。"
 tags:
   - manual
   - 数据库
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-12T20:27:00+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: cold
@@ -123,6 +123,28 @@ SELECT id, title, status, assignee_id, created_at FROM tasks ORDER BY created_at
 ```
 
 容器内路径需可写；本机 `psql` 可改为宿主路径。
+
+### 2.4 KI-014 兼容观察（强制只读）
+
+本工具默认用于已完成 `20260827_01` expand 的目标库；部署前旧 revision 按 KI-014 计划 §3 盘点。不要以 `--no-fail` 或改期望 revision 绕过 Phase C 门禁。配套业务检查见 [Phase C 观察清单](./2026-09-04-ki014-phase-c-observation-checklist.md)。
+
+在 `backend` 目录配置目标 PostgreSQL DSN 后运行：
+
+```powershell
+$env:POSTGRES_DSN = '<由环境负责人提供的只读 DSN>'
+.\.venv\Scripts\python.exe -m app.scripts.audit_ki014_schema_compatibility
+```
+
+部署兼容版本后，使用带时区的部署时刻开始观察窗口：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.scripts.audit_ki014_schema_compatibility `
+  --since 2026-08-27T22:40:00+08:00
+```
+
+工具只输出聚合计数和 schema 元数据，不输出用户、任务正文、token 或 JSON 内容。它会在事务第一条语句设置 `READ ONLY` 并最终 rollback；revision、未知状态、窗口内非小写状态、workflow NULL、约束或邀请索引门禁失败时返回非零。
+
+`automated_gate_passed=true` 只代表自动数据库门禁通过。只有报告含代表性数据、观察覆盖至少一个完整业务周期，并完成 `BLOCKED` 流程、邀请认证 UAT 和人工批准后，才可考虑 Phase D；脚本始终保持 `phase_d_ready=false`，避免把自动审计冒充发布批准。
 
 ---
 
