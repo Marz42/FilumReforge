@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-08-26T00:22:00+08:00
+timestamp: 2026-09-10T23:49:41+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -25,6 +25,7 @@ paradigma:
   relations:
     related_to:
       - ./domains/task-center.md
+      - ./plans/2026-09-10-integrated-development-and-human-gates-plan.md
 ---
 # Project Filum 路线图
 
@@ -35,7 +36,7 @@ paradigma:
 | **最新试用候选** | `v0.93.0-rc.3`（不可变注释标签，固定 `21975a6`；主开发线位于其后） |
 | **版本主题** | 工作流图引擎 Iteration 4 · 模板领域中立与稳定化 |
 | **阶段** | **Iteration 5-E 工程完成；目标环境观察/人工签字 → 生产 canary → 稳定观察 → Iteration 6**；隔离 PostgreSQL/Redis、rebuild/full shadow、严格投影 UAT 已补证 |
-| **最后整理** | 2026-08-26 — `v0.93.0-rc.3` 固定 `21975a6`；KI-014 只读 Schema Drift 审计与迁移设计已启动，代码/历史 DDL 根因已确认，目标 PostgreSQL 实时统计待只读连接 |
+| **最后整理** | 2026-09-10 — 新增开发与 Human Gates 整合方案；KI-014 A/B 已提交 `61ea3d3`，C 工具完成，真实周期观察/D contract 待执行；当前写方案不代表批准实施 |
 
 ---
 
@@ -173,24 +174,24 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-1. **KI-014 只读审计**：在目标 PostgreSQL 只读事务中补齐状态 distinct、NULL、约束和索引证据，确认迁移门禁；未完成前不生成或应用自动 DDL。
-2. **真实预发与人工签字**：完成 RC3、Iteration 4、设计器 Phase 2、S-01 与 KI-009 的业务账号验收；2026-08-23 自动化多账号 UAT 是工程证据，不代替业务签字。
-3. **Iteration 3-F 连续门禁**：补齐 Link/reconciliation 7 天与 31/31 报告；当前隔离环境 readiness 无 blocker 不能替代连续观察。
-4. **生产准备**：注入真实 secret、TLS/域名/可信代理，记录附件与数据库备份 RPO/RTO、负责人、通知和维护窗口。
-5. **5-E 生产 canary**：先保持 projection reads + fallback，目标环境 rebuild/full shadow 达标并验证 `strict_projection_gap` 日志采集/通知后分批关闭 fallback；异常时立即回开 fallback。
-6. **稳定观察期**：确认 fallback 命中、ROOT shell 新增量、投影差异、lag 和异常 Run 达标。
-7. **Iteration 6**：再次单独批准后停止兼容写入并清理 Legacy E/JSON/feature flags；不得与观察期重叠。
-8. **生产变更窗口**：完成 secret/TLS/备份恢复/迁移 dry-run/回滚预案后，按上线 checklist 批准部署。
-9. **后续专项**：KI-011 按用户决定暂不推进；M-09 与 `run_kind` dual-read 收窄等待策略和生产证据。
+详细步骤、工作包与证据模板见 [2026-09-10 整合方案](./plans/2026-09-10-integrated-development-and-human-gates-plan.md)。
 
-**下一 actionable**：先取得目标 PostgreSQL 的只读连接，执行 [`KI-014 审计与迁移设计`](./plans/2026-08-26-ki014-schema-drift-remediation-plan.md) 中的聚合查询并确认状态大小写、NULL、约束和邀请索引；同时把已通过的隔离 PostgreSQL/严格 5-E 脚本复制到真实预发，接入并触发验证 `strict_projection_gap` 日志告警，保持 fallback 开启完成持续 shadow/运维观察。之后再提交 KI-014 expand 批次和生产关闭 fallback 的独立批准；Iteration 6 与生产准入仍须另行批准。
+1. **W00～W02**：复核已有 Phase C 改动、固定候选范围，修发布检查/CI 与文档版本治理；F-05/I5/S-01 不重复立项。
+2. **W03 兼容观察**：HG-01 目标只读审计；HG-02 指定预发兼容部署；完整业务周期后准备并单独批准 HG-03 的 KI-014 contract。
+3. **W04/W05 目标验收**：I3-F Link/reconciliation 7 天与 31/31，当前全量 rebuild/full shadow/跨 worker 告警；业务角色完成 RC/I4/设计器/S-01/KI-009，HG-04 签字。
+4. **W06 生产准备与批准**：真实 secret/TLS/代理、数据库和附件恢复、Ubuntu 最小回滚、维护窗口与责任人完成后，HG-05 批准所列 SHA/revision 的生产部署，先保持 fallback。
+5. **5-E strict canary**：生产 rebuild/full shadow 与告警验证后 HG-06 单独批准范围及窗口；异常立即按预案回开 fallback。
+6. **稳定观察 → W15**：满足零 fallback/ROOT shell 新增量等条件后，HG-07 再次批准停兼容写入、归档与清理；不得与 I5 稳定观察混做。
+7. **W07～W14 与 W16**：请求竞态、通知状态、共享限流、HR 图模板/规则 UI、结构化工作台、模块/性能/时间线分批推进；KI-011、M-09 等未选中方向继续延期。
+
+**下一 actionable**：先完成本地可审阅的候选/Phase C 复核和发布检查方案，取得目标只读访问与代表性样本后启动取证。目标门禁阻断时继续独立工程和隔离验证，不以空库代替真实周期。
 
 ---
 
 ## 并行工作线
 
 - 产品/架构：验证 ADR-019 与领域中立模板在真实业务样本中的语义，不新增视频特例
-- 前端：完成 KI-009、RC2、模板解耦 Phase 2 与 S-01 UAT；继续接收试用反馈
+- 前端：按固定候选完成 KI-009、RC、模板解耦 Phase 2 与 S-01 UAT；继续接收试用反馈
 - 工程质量：I3-F 与 Iteration 5 目标环境证据、测试覆盖和可观测性；Legacy E 清理与 KI-011 均延后
 
 历史细计划：[`plans/task-center-enhance.md`](./plans/task-center-enhance.md) · 当前主线：[`plans/implementation-plan.md`](./plans/implementation-plan.md)
@@ -204,7 +205,7 @@ paradigma:
 | 岗位编辑器工作台 | Stage 2 增强 |
 | S3 对象存储 | 附件生产化 |
 | 国际化 | 产品需求后 |
-| Ubuntu 回滚演练 | 暂缓 |
+| Ubuntu 回滚演练 | W06 生产批准前完成，保留此前暂缓的历史事实 |
 
 # Status
 

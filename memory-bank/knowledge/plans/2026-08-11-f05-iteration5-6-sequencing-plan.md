@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "F-05 至工作流图引擎 Iteration 5/6 实施顺序"
 description: "记录已完成的 F-05，并固定 Iteration 5 投影运维建设、稳定观察与 Iteration 6 兼容层清理的顺序和门禁。"
 tags: [plan, active, f-05, workflow-graph, iteration-5, iteration-6, sequencing]
-timestamp: 2026-08-23T22:55:00+08:00
+timestamp: 2026-09-10T23:49:41+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -21,9 +21,12 @@ paradigma:
       - ./workflow-graph-engine-upgrade-iteration-plan.md
       - ./workflow-graph-engine-iteration3f-readiness-gate-plan.md
       - ./2026-08-09-rc-employee-trial-plan.md
+      - ./2026-09-10-integrated-development-and-human-gates-plan.md
 ---
 
 # F-05 至 Iteration 5/6 实施顺序
+
+> **统筹入口**：[2026-09-10 整合方案](./2026-09-10-integrated-development-and-human-gates-plan.md) 补齐 P0、KI-014 与 HG-00～HG-08。既有 F-05→I5→稳定观察→I6 顺序保留；生产保持 fallback 部署、strict 切流、兼容删除分别批准。ROOT shell 新增量若未达零，先独立设计过渡并获批，不能以计划清理来假定门禁已满足。
 
 > **计划状态：ACTIVE / 5-E ENGINEERING COMPLETE / PRODUCTION CUTOVER GATED** — F-05、Iteration 5-A～E 工程实现与隔离 PostgreSQL 严格 canary 已完成。真实预发持续观察、Iteration 3-F 连续门禁和人工签字仍未被本地证据替代；未完成且未单独批准前不得生产关闭回退、停止兼容写入或删除旧结构。
 

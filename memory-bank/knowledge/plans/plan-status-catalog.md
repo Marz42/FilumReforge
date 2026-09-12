@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "实施计划状态目录"
 description: "区分现行计划、已完成实施记录与已被取代的 Legacy 方案，避免历史计划被误作当前排期。"
 tags: [plan, governance, active, completed, legacy]
-timestamp: 2026-08-26T00:22:00+08:00
+timestamp: 2026-09-10T23:49:41+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -18,6 +18,7 @@ paradigma:
     related_to:
       - ../roadmap.md
       - ./implementation-plan.md
+      - ./2026-09-10-integrated-development-and-human-gates-plan.md
 ---
 
 # 实施计划状态目录
@@ -28,16 +29,17 @@ paradigma:
 
 | 计划 | 当前用途 |
 |---|---|
+| `2026-09-10-integrated-development-and-human-gates-plan.md` | proposed：下一轮统筹方案，W00～W16、HG-00～HG-08、P0 修复、全部现有计划映射；待明确开工范围，外部门禁未批准 |
 | `implementation-plan.md` | 总体实施主线 |
 | `workflow-graph-engine-upgrade-iteration-plan.md` | 图引擎 Iteration 0～6 总计划；当前指向 I5/I6 |
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |
-| `2026-08-12-iteration5a-projection-contract-plan.md` | 三类投影契约、ORM 与 Expand-only 迁移工程完成；保持 active 直到 PostgreSQL 严格迁移证据补齐 |
-| `2026-08-12-iteration5b-projector-rebuild-plan.md` | checkpoint、幂等 projector、三种 rebuild 与失败隔离工程完成；保持 active 直到 PostgreSQL 严格迁移证据补齐 |
-| `2026-08-12-iteration5c-shadow-comparison-plan.md` | shadow comparison 工程完成；保持 active 直到目标环境持续样本与 PostgreSQL 严格迁移证据补齐 |
-| `2026-08-12-iteration5d-operations-observability-plan.md` | 运维工作台、受控动作、指标与 trace 工程完成；保持 active 直到 PostgreSQL/目标环境证据补齐并决定 5-E |
+| `2026-08-12-iteration5a-projection-contract-plan.md` | 工程和隔离 PostgreSQL 证据已有；目标 schema/严格验证转整合方案 W04 |
+| `2026-08-12-iteration5b-projector-rebuild-plan.md` | 工程和隔离 rebuild 已有；目标规模、高水位与恢复验证转 W04 |
+| `2026-08-12-iteration5c-shadow-comparison-plan.md` | 工程和隔离 full shadow 已有；目标连续样本转 W04/W06 |
+| `2026-08-12-iteration5d-operations-observability-plan.md` | 运维实现已有；目标告警/trace/恢复转 W04，5-E 生产批准转 W06 |
 | `workflow-graph-engine-iteration3f-readiness-gate-plan.md` | 仍开放的目标环境与生产切流门禁 |
-| `2026-08-09-rc-employee-trial-plan.md` | `v0.93.0-rc.2` 员工复测与主线分流 |
-| `2026-08-26-ki014-schema-drift-remediation-plan.md` | KI-014 只读 PostgreSQL 漂移审计、状态兼容迁移与 nullable contract；实时目标库统计待补 |
+| `2026-08-09-rc-employee-trial-plan.md` | RC3 与后续不可变候选的员工复测、热修分流和独立签字；W00/W05 |
+| `2026-08-26-ki014-schema-drift-remediation-plan.md` | A/B 已提交，C 工具完成；目标代表性完整周期与 D contract 转 W03 |
 
 ## COMPLETED — 已完成的实施记录
 

@@ -5,7 +5,7 @@ description: "FilumReforge 总体实施计划。"
 tags:
   - plan
   - 实施计划
-timestamp: 2026-08-27T22:09:00+08:00
+timestamp: 2026-09-10T23:49:41+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -18,8 +18,13 @@ paradigma:
       - 实施计划
     en:
       - implementation
+  relations:
+    related_to:
+      - ./2026-09-10-integrated-development-and-human-gates-plan.md
 ---
 # Project Filum 实施计划
+
+> **下一轮执行入口（2026-09-10）**：[开发与 Human Gates 整合方案](./2026-09-10-integrated-development-and-human-gates-plan.md) 将本文件 A–F 工作流、P0 审查问题、I3-F/I5/I6、业务验收和延期方向映射为 W00～W16。跨计划顺序、责任、证据和人工批准以整合方案为入口，精确契约继续参照专题。方案编写不表示代码修复或外部 Gate 已完成。
 
 ## 1. 计划定位
 
@@ -55,7 +60,7 @@ paradigma:
 - 认证与会话：JWT access token + HttpOnly refresh cookie、管理员初始化、基础角色；**邀请制注册**（邀请创建 / 预览 / 接受 / 撤销，`backend/app/api/routes/auth.py`）
 - 组织结构：部门树、部门负责人、范围查询
 - 人事档案：一人一档、基础字段、`custom_fields JSONB`
-- HR 治理：生命周期事件、字段级权限、多岗位、虚线汇报、代理授权；生命周期事件**显式绑定**任务模板或审批定义后的 **worker 异步触发**与状态回写（Stage 2 Phase 3）
+- HR 治理：生命周期事件、字段级权限、多岗位、虚线汇报、代理授权；审批定义显式绑定后的 worker 触发与状态回写已有实现。Legacy E 任务模板绑定已被服务拒绝，图模板替代入口由整合方案 W10 补齐，再做规则化 UI。
 - 任务协同：任务、依赖、严格状态机、评论、日志、附件、统计
 - 通知骨架：消息落库、delivery 记录、ARQ 入队、adapter 分发、逾期提醒扫描
 - Workflow & Messaging：模板、审批流、周期调度、消息中心、回执、watcher、多视图
@@ -167,7 +172,7 @@ paradigma:
 - 入职自动生成模板任务
 - 离职自动生成交接 / 回收 / 审批流
 - 晋升 / 转岗驱动权限、岗位、模板和消息联动
-- 把当前仅后端显式绑定的联动目标下沉为可配置规则与前端入口
+- 先补 Legacy E 下线后的图模板显式绑定替代入口，再将联动目标下沉为可配置规则与前端入口（整合方案 W10）
 
 **测试出口**
 

@@ -1,34 +1,21 @@
 manifest_version: '0.2'
 profile: coding
 request:
-  intent: Implement and verify KI-014 Phase B PostgreSQL expand migration after read-only audit
+  intent: Integrated development plan, P0 remediation, all existing plans, human gates and release sequencing;
+    documentation only
   task_id: TASK-20260826-KI014-SCHEMA-AUDIT
   explicit_paths:
-  - memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
-  - memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
-  - memory-bank/knowledge/contracts/data-contracts.md
-  - memory-bank/knowledge/contracts/database/task-collaboration-schema.md
-  - memory-bank/knowledge/contracts/database/graph-engine-schema.md
-  - backend/alembic/versions/20260827_01_ki014_phase_b_expand.py
-  - backend/app/core/db_types.py
-  - backend/app/models/task.py
-  - backend/app/models/user.py
-  - backend/app/models/hr_governance.py
-  - backend/tests/test_db_types.py
-  - backend/tests/test_migrations.py
+  - memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
+  - memory-bank/knowledge/plans/plan-status-catalog.md
   explicit_symbols: []
   keywords:
-  - TaskStatus
-  - PostgreSQL
-  - expand
-  - schema-drift
-  - compatibility
+  - human-gates
   budget_tokens: 36000
   allow_required_over_budget: true
 session_id: null
 checkpoint_id: null
-source_digest: sha256:781b27a0561de00001a77fab34b7644716b7b9925a4c3a83fb986087e03d0cd1
-estimated_tokens: 35934
+source_digest: sha256:5098bf6bc4e063a6e50ec8a729c3258cf6b5e1ba5ddb0cb8fe9be003b4d240e6
+estimated_tokens: 36211
 documents:
 - document_id: memory-bank/knowledge/architecture.md
   path: memory-bank/knowledge/architecture.md
@@ -38,9 +25,6 @@ documents:
   estimated_tokens: 8087
   reasons:
   - mandatory_hot_document
-  - keyword_match:PostgreSQL
-  - keyword_match:expand
-  - relation_from:docs/rfc/paradigma-okf-compatible-runtime.md:informs
 - document_id: memory-bank/knowledge/contracts/data-contracts.md
   path: memory-bank/knowledge/contracts/data-contracts.md
   source_kind: knowledge
@@ -49,15 +33,7 @@ documents:
   estimated_tokens: 5760
   reasons:
   - mandatory_hot_document
-  - path_match:memory-bank/knowledge/contracts/data-contracts.md
-  - keyword_match:PostgreSQL
-  - keyword_match:compatibility
-  - keyword_match:expand
-  - relation_from:memory-bank/knowledge/contracts/database/graph-engine-schema.md:depends_on
-  - relation_from:memory-bank/knowledge/contracts/database/report-schema.md:depends_on
-  - relation_from:memory-bank/knowledge/contracts/database/task-collaboration-schema.md:depends_on
   - relation_from:memory-bank/knowledge/contracts/projection-contract.md:depends_on
-  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md:related_to
 - document_id: memory-bank/knowledge/contracts/projection-contract.md
   path: memory-bank/knowledge/contracts/projection-contract.md
   source_kind: knowledge
@@ -66,11 +42,7 @@ documents:
   estimated_tokens: 3484
   reasons:
   - mandatory_hot_document
-  - keyword_match:PostgreSQL
-  - keyword_match:expand
-  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md:depends_on
-  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5c-shadow-comparison-plan.md:depends_on
-  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5d-operations-observability-plan.md:depends_on
+  - relation_from:memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md:depends_on
 - document_id: memory-bank/knowledge/contracts/repository-contract.md
   path: memory-bank/knowledge/contracts/repository-contract.md
   source_kind: knowledge
@@ -79,7 +51,6 @@ documents:
   estimated_tokens: 347
   reasons:
   - mandatory_hot_document
-  - relation_from:docs/rfc/paradigma-okf-compatible-runtime.md:informs
 - document_id: memory-bank/knowledge/conventions.md
   path: memory-bank/knowledge/conventions.md
   source_kind: knowledge
@@ -88,8 +59,6 @@ documents:
   estimated_tokens: 1989
   reasons:
   - mandatory_hot_document
-  - keyword_match:PostgreSQL
-  - keyword_match:compatibility
 - document_id: memory-bank/knowledge/project-brief.md
   path: memory-bank/knowledge/project-brief.md
   source_kind: knowledge
@@ -98,277 +67,64 @@ documents:
   estimated_tokens: 1962
   reasons:
   - mandatory_hot_document
-  - keyword_match:PostgreSQL
-- document_id: memory-bank/knowledge/contracts/database/graph-engine-schema.md
-  path: memory-bank/knowledge/contracts/database/graph-engine-schema.md
+- document_id: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
+  path: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
   source_kind: knowledge
-  title: 图引擎 Schema
+  title: Filum 下一阶段开发与 Human Gates 整合方案
   priority: required
-  estimated_tokens: 2556
+  estimated_tokens: 13025
   reasons:
-  - path_match:memory-bank/knowledge/contracts/database/graph-engine-schema.md
-  - keyword_match:expand
-  - relation_from:memory-bank/knowledge/contracts/projection-contract.md:depends_on
-  - relation_from:memory-bank/knowledge/manuals/workflow-graph-engine-iteration3f-test-runbook.md:depends_on
-  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md:related_to
-  - relation_from:memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md:related_to
-- document_id: memory-bank/knowledge/contracts/database/task-collaboration-schema.md
-  path: memory-bank/knowledge/contracts/database/task-collaboration-schema.md
+  - path_match:memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
+  - relation_from:memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md:related_to
+  - relation_from:memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md:related_to
+  - relation_from:memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md:related_to
+  - relation_from:memory-bank/knowledge/plans/implementation-plan.md:related_to
+  - relation_from:memory-bank/knowledge/plans/plan-status-catalog.md:related_to
+  - relation_from:memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md:related_to
+  - relation_from:memory-bank/knowledge/roadmap.md:related_to
+- document_id: memory-bank/knowledge/plans/plan-status-catalog.md
+  path: memory-bank/knowledge/plans/plan-status-catalog.md
   source_kind: knowledge
-  title: 任务与协同 Schema
+  title: 实施计划状态目录
   priority: required
-  estimated_tokens: 3341
+  estimated_tokens: 1557
   reasons:
-  - path_match:memory-bank/knowledge/contracts/database/task-collaboration-schema.md
-  - keyword_match:compatibility
-  - keyword_match:expand
-- document_id: memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
-  path: memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
-  source_kind: knowledge
-  title: 'KI-014: PostgreSQL Alembic autogenerate schema drift'
-  priority: required
-  estimated_tokens: 849
-  reasons:
-  - path_match:memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
-  - keyword_match:PostgreSQL
-  - keyword_match:compatibility
-  - keyword_match:expand
-  - keyword_match:schema-drift
-  - relation_from:memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md:resolves
-- document_id: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
-  path: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
-  source_kind: knowledge
-  title: KI-014 PostgreSQL Schema Drift 审计与迁移设计
-  priority: required
-  estimated_tokens: 3183
-  reasons:
-  - path_match:memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
-  - keyword_match:PostgreSQL
-  - keyword_match:TaskStatus
-  - keyword_match:compatibility
-  - keyword_match:expand
-  - relation_from:memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md:planned_by
-- document_id: memory-bank/knowledge/contracts/database/report-schema.md
-  path: memory-bank/knowledge/contracts/database/report-schema.md
-  source_kind: knowledge
-  title: 汇报中心 Schema
-  priority: relevant
-  estimated_tokens: 832
-  reasons:
-  - keyword_match:PostgreSQL
-- document_id: memory-bank/knowledge/decisions/adr-013-edge-traversal-activation-dependency.md
-  path: memory-bank/knowledge/decisions/adr-013-edge-traversal-activation-dependency.md
-  source_kind: knowledge
-  title: 'ADR-013: 路径账本优先于完整 Token 引擎'
-  priority: relevant
-  estimated_tokens: 508
-  reasons:
-  - keyword_match:PostgreSQL
-- document_id: memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md
-  path: memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md
-  source_kind: knowledge
-  title: 'KI-003: 测试基线漂移'
-  priority: relevant
-  estimated_tokens: 662
-  reasons:
-  - keyword_match:PostgreSQL
-- document_id: memory-bank/knowledge/known-issues/ki-004-production-deployment.md
-  path: memory-bank/knowledge/known-issues/ki-004-production-deployment.md
-  source_kind: knowledge
-  title: 'KI-004: 生产与部署注意事项'
-  priority: relevant
-  estimated_tokens: 406
-  reasons:
-  - keyword_match:PostgreSQL
-- document_id: memory-bank/knowledge/known-issues/ki-006-report-center-history.md
-  path: memory-bank/knowledge/known-issues/ki-006-report-center-history.md
-  source_kind: knowledge
-  title: 'KI-006: 汇报中心历史问题'
-  priority: relevant
-  estimated_tokens: 185
-  reasons:
-  - keyword_match:PostgreSQL
-- document_id: memory-bank/knowledge/known-issues/ki-009-standalone-action-dual-track.md
-  path: memory-bank/knowledge/known-issues/ki-009-standalone-action-dual-track.md
-  source_kind: knowledge
-  title: 'KI-009: Standalone Work Item 动作授权双轨'
-  priority: relevant
-  estimated_tokens: 1270
-  reasons:
-  - keyword_match:PostgreSQL
-- document_id: memory-bank/knowledge/known-issues/ki-010-activity-timeline-redesign.md
-  path: memory-bank/knowledge/known-issues/ki-010-activity-timeline-redesign.md
-  source_kind: knowledge
-  title: 'KI-010: 活动时间线需重做为更有指向性的留痕'
-  priority: relevant
-  estimated_tokens: 513
-  reasons:
-  - keyword_match:expand
+  - path_match:memory-bank/knowledge/plans/plan-status-catalog.md
+  - keyword_match:human-gates
+  - relation_from:memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md:related_to
 excluded:
-- document_id: memory-bank/knowledge/plans/2026-07-21-template-self-review-fix-plan.md
-  path: memory-bank/knowledge/plans/2026-07-21-template-self-review-fix-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 4851
-- document_id: memory-bank/knowledge/plans/2026-07-22-template-decouple-phase1-plan.md
-  path: memory-bank/knowledge/plans/2026-07-22-template-decouple-phase1-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 12251
 - document_id: memory-bank/knowledge/plans/2026-08-11-f05-task-detail-action-coordination-plan.md
   path: memory-bank/knowledge/plans/2026-08-11-f05-task-detail-action-coordination-plan.md
   reason: plan_status_filtered:completed
   estimated_tokens: 831
-- document_id: memory-bank/knowledge/plans/2026-08-12-f05-task-detail-workflow-presentation-plan.md
-  path: memory-bank/knowledge/plans/2026-08-12-f05-task-detail-workflow-presentation-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 563
-- document_id: memory-bank/knowledge/plans/task-center-enhance.md
-  path: memory-bank/knowledge/plans/task-center-enhance.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 5637
-- document_id: memory-bank/knowledge/plans/task-center-v2-implementation-plan.md
-  path: memory-bank/knowledge/plans/task-center-v2-implementation-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 3336
-- document_id: memory-bank/knowledge/plans/tc-p2-views-stats-plan.md
-  path: memory-bank/knowledge/plans/tc-p2-views-stats-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 3777
-- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration1-implementation-plan.md
-  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration1-implementation-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 2016
-- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration2-implementation-plan.md
-  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration2-implementation-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 1502
-- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md
-  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 1959
-- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
-  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 2353
-- document_id: memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md
-  path: memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 11556
-- document_id: memory-bank/knowledge/plans/workflow-video-v1-implementation-plan.md
-  path: memory-bank/knowledge/plans/workflow-video-v1-implementation-plan.md
-  reason: plan_status_filtered:archived
-  estimated_tokens: 6456
-- document_id: docs/rfc/paradigma-okf-compatible-runtime.md
-  path: docs/rfc/paradigma-okf-compatible-runtime.md
-  reason: budget_trimmed
-  estimated_tokens: 11343
-- document_id: memory-bank/knowledge/domains/architecture/backend-architecture.md
-  path: memory-bank/knowledge/domains/architecture/backend-architecture.md
-  reason: budget_trimmed
-  estimated_tokens: 9779
-- document_id: memory-bank/knowledge/domains/architecture/core-workflows.md
-  path: memory-bank/knowledge/domains/architecture/core-workflows.md
-  reason: budget_trimmed
-  estimated_tokens: 4411
-- document_id: memory-bank/knowledge/domains/architecture/frontend-architecture.md
-  path: memory-bank/knowledge/domains/architecture/frontend-architecture.md
-  reason: budget_trimmed
-  estimated_tokens: 6646
-- document_id: memory-bank/knowledge/domains/architecture/infra-architecture.md
-  path: memory-bank/knowledge/domains/architecture/infra-architecture.md
-  reason: budget_trimmed
-  estimated_tokens: 5011
-- document_id: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
-  path: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
-  reason: budget_trimmed
-  estimated_tokens: 1218
-- document_id: memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
-  path: memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
-  reason: budget_trimmed
-  estimated_tokens: 768
-- document_id: memory-bank/knowledge/known-issues/known-issues.md
-  path: memory-bank/knowledge/known-issues/known-issues.md
-  reason: budget_trimmed
-  estimated_tokens: 2173
 - document_id: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
   path: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
   reason: budget_trimmed
-  estimated_tokens: 1821
-- document_id: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
-  path: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
-  reason: budget_trimmed
-  estimated_tokens: 7288
-- document_id: memory-bank/knowledge/manuals/manual-database-operations.md
-  path: memory-bank/knowledge/manuals/manual-database-operations.md
-  reason: budget_trimmed
-  estimated_tokens: 2299
-- document_id: memory-bank/knowledge/manuals/project-presentation-guide.md
-  path: memory-bank/knowledge/manuals/project-presentation-guide.md
-  reason: budget_trimmed
-  estimated_tokens: 5072
-- document_id: memory-bank/knowledge/manuals/workflow-graph-engine-iteration3f-test-runbook.md
-  path: memory-bank/knowledge/manuals/workflow-graph-engine-iteration3f-test-runbook.md
-  reason: budget_trimmed
-  estimated_tokens: 2920
-- document_id: memory-bank/knowledge/manuals/workflow-video-v1-docker-runbook.md
-  path: memory-bank/knowledge/manuals/workflow-video-v1-docker-runbook.md
-  reason: budget_trimmed
-  estimated_tokens: 1622
-- document_id: memory-bank/knowledge/manuals/workflow-video-v1-multi-account-e2e-guide.md
-  path: memory-bank/knowledge/manuals/workflow-video-v1-multi-account-e2e-guide.md
-  reason: budget_trimmed
-  estimated_tokens: 3637
+  estimated_tokens: 2024
 - document_id: memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md
   path: memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md
   reason: budget_trimmed
-  estimated_tokens: 1188
+  estimated_tokens: 1343
 - document_id: memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md
   path: memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md
   reason: budget_trimmed
-  estimated_tokens: 1417
-- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
-  path: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 1376
-- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
-  path: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 1625
-- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5c-shadow-comparison-plan.md
-  path: memory-bank/knowledge/plans/2026-08-12-iteration5c-shadow-comparison-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 1488
-- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5d-operations-observability-plan.md
-  path: memory-bank/knowledge/plans/2026-08-12-iteration5d-operations-observability-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 1628
+  estimated_tokens: 1532
 - document_id: memory-bank/knowledge/plans/implementation-plan.md
   path: memory-bank/knowledge/plans/implementation-plan.md
   reason: budget_trimmed
-  estimated_tokens: 3853
-- document_id: memory-bank/knowledge/plans/plan-status-catalog.md
-  path: memory-bank/knowledge/plans/plan-status-catalog.md
-  reason: budget_trimmed
-  estimated_tokens: 1530
-- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
-  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 4730
+  estimated_tokens: 4014
 - document_id: memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
   path: memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
   reason: budget_trimmed
-  estimated_tokens: 6953
+  estimated_tokens: 6990
 - document_id: memory-bank/knowledge/roadmap.md
   path: memory-bank/knowledge/roadmap.md
   reason: budget_trimmed
-  estimated_tokens: 3242
-- document_id: memory-bank/knowledge/decisions/adr-007-paradigma-alignment.md
-  path: memory-bank/knowledge/decisions/adr-007-paradigma-alignment.md
+  estimated_tokens: 3188
+- document_id: memory-bank/knowledge/contracts/database/graph-engine-schema.md
+  path: memory-bank/knowledge/contracts/database/graph-engine-schema.md
   reason: budget_trimmed
-  estimated_tokens: 266
-- document_id: memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
-  path: memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
-  reason: budget_trimmed
-  estimated_tokens: 1027
+  estimated_tokens: 2556
 - document_id: memory-bank/knowledge/domains/task-center.md
   path: memory-bank/knowledge/domains/task-center.md
   reason: budget_trimmed
@@ -377,9 +133,34 @@ excluded:
   path: memory-bank/knowledge/domains/workflow-graph-engine.md
   reason: budget_trimmed
   estimated_tokens: 7467
+- document_id: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
+  path: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
+  reason: budget_trimmed
+  estimated_tokens: 1218
 - document_id: memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
   path: memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
   reason: budget_trimmed
   estimated_tokens: 1757
-warnings: []
-checksum: sha256:831086c3dd6ef1239f80d31afe92db9790cd48bda9d6e5ced16eabd24a5422f9
+- document_id: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
+  path: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
+  reason: budget_trimmed
+  estimated_tokens: 7288
+- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
+  path: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1376
+- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
+  path: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1625
+- document_id: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+  path: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 3455
+- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
+  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 4730
+warnings:
+- 'required context budget override accepted: 211 token(s) over budget'
+checksum: sha256:4d15301a0cace8facff0ad3ddac9b660186651fbb20fee052787915547074196

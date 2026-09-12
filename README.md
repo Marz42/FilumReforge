@@ -478,10 +478,13 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 
 ## 下一步
 
-1. **当前质量线**：恢复可复现 backend/frontend dev 环境，复跑全量测试并补近期变更的直接回归
-2. **S-01 任务统计**：产品立项后补周期、rollup、绩效口径与权限设计（[`implementation-plan.md`](memory-bank/knowledge/plans/implementation-plan.md) · [`active-task.md`](memory-bank/runtime/active-task.md)）
-3. 并行技术债：F-05 `TaskDetailShell` 完整拆分、Legacy E 历史表族迁移/清理策略
-4. 生命周期规则 UI 与默认映射；通知适配器真实外发
-5. **Ubuntu 最小回滚路径演练** — 暂缓，上线前再补
+详细排期、17 个工作包、9 个 Human Gates、全部现有计划映射见 [下一阶段开发与 Human Gates 整合方案](memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md)。该方案为实施建议；编写方案不代表迁移、业务验收或生产部署已批准。
+
+1. **P0 工程与数据收尾**：复核现有 KI-014 Phase C 改动，修发布检查与 CI，处理文档/版本治理漂移；启动目标只读审计和兼容观察。
+2. **目标环境与发布**：I3-F 7 天/31 项、重建/full shadow、日志告警、RC/业务 UAT、备份恢复与 Ubuntu 回滚演练；批准生产部署后再单独批准 strict canary。
+3. **P1/P2 开发**：会话请求竞态、通知真实状态、共享限流、HR 图模板联动、结构化工作台、模块拆分、前端性能和活动时间线。
+4. **后续清理**：稳定观察后单独批准 Iteration 6；KI-011、M-09、项目组、拖拽设计器、S3、i18n 等保留独立决策。
+
+F-05、Iteration 5-A～E 和 S-01 已完成工程实现；S-01 等业务 UAT 与生产批准仍需留证，不重新作为未开发能力排期。
 
 进度与验测记录见 [`memory-bank/logs/progress/summary.md`](memory-bank/logs/progress/summary.md)；源记录位于同目录的独立 session logs。

@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "v0.93.0-rc.x 员工试用与持续开发分流方案"
 description: "固定不可变 RC、隔离员工试用环境，并让后续开发与 RC 热修互不污染。"
 tags: [plan, release-candidate, employee-trial, branching, hotfix]
-timestamp: 2026-08-11T22:50:00+08:00
+timestamp: 2026-09-10T23:49:41+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -20,9 +20,12 @@ paradigma:
       - ../known-issues/ki-012-security-scan-release-blockers.md
     related_to:
       - ../roadmap.md
+      - ./2026-09-10-integrated-development-and-human-gates-plan.md
 ---
 
 # v0.93.0-rc.x 员工试用与持续开发分流方案
+
+> **2026-09-10 当前执行口径**：最新已记录候选为 `v0.93.0-rc.3`（`21975a6`）；KI-014 A/B 提交 `61ea3d3` 及 Phase C 工作区不包含在该旧标签内。后续候选按 [整合方案 W00/W05 与 HG-04/05](./2026-09-10-integrated-development-and-human-gates-plan.md) 重新固定和验收。下文 RC1/RC2 的准入范围保留为历史记录，不能套用到新 SHA。
 
 ## 1. 决策与目标
 
@@ -35,7 +38,7 @@ paradigma:
 - RC 环境拥有独立 PostgreSQL、Redis、附件存储和环境变量，不与继续开发环境共用数据卷或数据库。
 - RC 只使用合成或经批准的试用数据；反馈中不得粘贴 secret、令牌或敏感人事内容。
 - 部署记录必须同时保存标签、解析后的 commit、部署时间、操作者和数据库迁移 head。
-- `health` 返回的 `version` 必须与当次部署标签一致；当前复测目标为 `0.93.0-rc.2`。
+- `health` 返回的 `version` 必须与当次获批候选标签一致；新增修复使用新不可变候选，不移动旧标签。
 
 ## 3. 代码分流与热修规则
 
@@ -71,7 +74,7 @@ paradigma:
 
 ## 6. 执行顺序
 
-1. 每个候选统一固定 `VERSION`、Changelog、应用健康版本、独立 release commit 与注释标签；当前候选为 `v0.93.0-rc.2`。
+1. 每个候选统一固定 `VERSION`、Changelog、应用健康版本、独立 release commit 与注释标签；新候选号在完成变更范围审阅后确定。
 2. 在隔离环境从标签部署，运行 Linux release gate、迁移检查和核心 smoke。
 3. 开放员工试用，按统一反馈协议收集问题；I4/S-01 人工结果单独留证。
 4. P0/P1 走 RC 热修线；其余问题进入主开发线。
@@ -79,8 +82,8 @@ paradigma:
 
 ## 7. 当前状态
 
-- 本地工程门禁：`v0.93.0-rc.1` 与 `v0.93.0-rc.2` 均已按独立 release commit/注释标签固定。
-- 员工试用部署：用户已报告 RC1 开始实际测试；下一步升级 RC2 并复测模板可见性。
+- 已记录版本：RC1/RC2 历史发布保留，RC3 在 `21975a6` 固定；后续提交和未提交改动需新候选及相应回归。
+- 员工试用：RC1 开始实际测试是既有历史；当前目标部署版本、模板可见性复测及 I4/S-01/KI-009 签字按 W05 重新记录，不将历史部署状态写成当前确认。
 - 生产准入：未批准；目标环境与人工证据仍待完成。
 
 # Status

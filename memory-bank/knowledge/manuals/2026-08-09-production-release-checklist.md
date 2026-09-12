@@ -3,7 +3,7 @@ type: paradigma-manual
 title: "2026-08-09 生产上线准入 Checklist"
 description: "把本地工程就绪、预发验收与生产变更窗口分开的可勾选上线清单。"
 tags: [manual, release, production, checklist, security, readiness]
-timestamp: 2026-08-23T22:55:00+08:00
+timestamp: 2026-09-10T23:49:41+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -20,13 +20,15 @@ paradigma:
       - ../plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
       - 2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
       - deployment-runbook-ubuntu-2404.md
+    related_to:
+      - ../plans/2026-09-10-integrated-development-and-human-gates-plan.md
 ---
 
 # 2026-08-09 生产上线准入 Checklist
 
-> 当前结论：**本地工程候选已就绪，生产准入尚未批准**。只有 A–D 全部完成并记录负责人、时间和证据后，才允许执行 E。
+> 当前结论（2026-09-10）：**生产准入尚未批准**。新候选须重新验证发布检查、CI 与 KI-014，不能继承旧 A 表的勾选。只有本候选 A–D 全部完成并经 [整合方案 HG-05](../plans/2026-09-10-integrated-development-and-human-gates-plan.md) 批准才执行 E；关闭 fallback 另走 HG-06，删除兼容结构另走 HG-07。
 
-> 员工试用例外：当前复测候选为固定的 `v0.93.0-rc.2`；它取代 RC1 作为后续试用部署目标，但不移动旧标签，也不把 B–D 自动标记为完成。分流与热修规则见 [`RC 员工试用方案`](../plans/2026-08-09-rc-employee-trial-plan.md)。
+> 员工试用与正式生产分别记录：最新已记录候选为 RC3（`21975a6`），KI-014 和其他后续修复须新候选。试用批准不把 B–D 自动标记完成。分流与热修规则见 [`RC 员工试用方案`](../plans/2026-08-09-rc-employee-trial-plan.md)。
 
 ## 2026-08-23 P0 本地演练证据
 
@@ -42,9 +44,11 @@ paradigma:
 | 工程回归 | Backend 499 collected、全量 0 failed；Frontend 75 files/217 tests、type-check、build 通过 |
 | Compose | development / production `docker compose config -q` 通过 |
 
-已知非本批新增阻断：PostgreSQL `alembic check` 仍报告历史 ORM/DDL drift（枚举类型、邀请 token 索引及三列 nullable），必须作为后续 schema hygiene 处理；不影响当前单 head、升级、降级和恢复演练，但不能误报为 schema drift clean。
+上表是 2026-08-23 的隔离证据。其后 KI-014 A/B 已处理状态列宽、metadata 与索引漂移；C 真实周期与 D contract 尚待执行，最终发布要求按整合方案 W03 验证 `alembic check` clean。迁移往返、兼容阶段预期 diff 与最终 clean 分别留证。
 
 ## A. 固定发布候选
+
+以下 A-01～A-05 为旧 RC 历史记录，不作为新候选自动放行依据：
 
 | ID | 检查 | 结果 |
 |----|------|------|
@@ -54,17 +58,26 @@ paradigma:
 | A-04 | `compileall`、Compose `config -q`、Alembic 单 head `20260730_01`、Paradigma 5/5、`git diff --check` 通过 | [x] |
 | A-05 | 记录剩余非阻断项：32 个目标环境 skip 与 809 KB Element Plus 主包；httpx deprecation、ESLint 21 errors 已在 RC 清理 | [x] |
 
+新候选必须重新填写：
+
+| ID | 检查 | 结果 |
+|---|---|---|
+| A-N1 | 固定新候选 tag、SHA、VERSION/health、迁移 current/target 和脱敏配置指纹 | [ ] |
+| A-N2 | W01 CI/发布检查通过，PG 必测 0 skip，前后端回归与浏览器报告绑定 A-N1 | [ ] |
+| A-N3 | W03 目标兼容周期、contract 批准与最终 schema clean；迁移/恢复兼容边界明确 | [ ] |
+| A-N4 | 已知缺陷、限时治理例外与负责人明确，无未处置发布阻断项 | [ ] |
+
 ## B. 预发环境
 
 | ID | 检查 | 结果 |
 |----|------|------|
-| B-01 | 使用 A-02 的同一 SHA 部署；Linux 原生执行 `bash scripts/check-release.sh` | [ ] |
+| B-01 | 使用 A-N1 的同一 SHA 部署；Linux 原生执行 W01 修复后的 `bash scripts/check-release.sh` | [ ] |
 | B-02 | 生产形态 PostgreSQL/Redis 用例在严格模式运行，不允许登记用例静默 skip | [ ] |
 | B-03 | `alembic current/heads/check` 一致，升级前后抽样核对关键表与 Run | [ ] |
 | B-04 | 真实反向代理只信任明确 peer；外部伪造 XFF 不改变认证限流 identity | [ ] |
 | B-05 | 在“任务模板 → 验收准备”确认 P-01～P-04 无阻断，并由员工完成 I4 / 设计器 Phase 2 / S-01 UAT checklist 全部必过项；自动检查结果不得代替人工记录与签字 | [ ] |
 | B-06 | 在“任务模板 → 数据检查”执行 scope/依赖盘点：intentional global 已由业务负责人确认，空 departments、缺失/停用部门、旧 `child_template_code`、父子范围不兼容均通过草稿或新版本处理；复查 `error=0` | [ ] |
-| B-07 | 若候选包含 Iteration 5：在真实 PostgreSQL 严格执行至 `20260812_04` 的 head↔base 演练；升级后先 `python -m app.scripts.rebuild_workflow_projections --all`，再 `python -m app.scripts.scan_workflow_projection_shadow --full`，保存 scan 统计并确认 critical/error、missing/orphan 与容忍窗外 lag 达标；用 Admin“工作流运维”核对 Outbox backlog、projection failed/lag 和 trace 查询 | [ ] |
+| B-07 | 候选包含 Iteration 5：在独立恢复/测试库严格验证至 A-N1 目标 head 的迁移往返；目标预发仅执行获批升级。随后获批执行 rebuild/full shadow，保存当前全量分母，核对 critical/error、missing/orphan、超窗 lag、Outbox/checkpoint/trace，并实际验证跨 worker 告警 | [ ] |
 | B-08 | 若候选包含 KI-009：创建者指派 standalone 给另一员工后仍可在“跟踪”查看，但无“开始处理/提交”动作；执行人可开始并提交，进入 REVIEW 后创建者可通过或打回；同时抽样确认 workflow 模板任务原握手/交付/验收动作未消失 | [ ] |
 
 ## C. I3-F 硬门禁
@@ -97,7 +110,7 @@ paradigma:
 
 ## 当前阻断
 
-- A 已完成；员工试用环境只允许部署固定标签，不得部署未命名的分支头。
+- 历史 A 已完成；新候选 A-N1～A-N4 仍待填写。员工试用环境只允许部署明确固定标签，不跟随分支头。
 - RC2 部署后必须用真实部门负责人账号验证：可见并可发起 scope 覆盖本部门的 ACTIVE 模板；对全局/跨部门共享模板不出现管理动作。
 - B、C、D 均依赖真实预发/生产环境与人工确认，本地不能代签。
 - 在 C-04 前可以进行向下兼容预发/UAT，但不得据此宣布 I3-F 生产切流完成。
