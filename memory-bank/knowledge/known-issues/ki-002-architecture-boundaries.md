@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-002: 架构边界（易误判非 Bug）"
 description: "Legacy E 历史兼容、TCE 技术债、设计器状态等架构层面的已知状态。"
 tags: ["known-issue", "architecture", "legacy-e", "graph-engine", "tce"]
-timestamp: "2026-07-10T22:00:55+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: evolving

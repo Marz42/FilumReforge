@@ -5,8 +5,11 @@ description: "Docker + Playwright 端到端验证。"
 tags:
   - manual
   - E2E
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - workflow-video-v1-multi-account-e2e-guide.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

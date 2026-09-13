@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-012: 2026-08-09 安全扫描发现与上线阻断项"
 description: "记录 Security Issue(temp) 六项发现的当前代码复核、处置状态、验证和残余风险。"
 tags: [known-issue, security, release, authorization, rate-limit, attachment]
-timestamp: 2026-08-23T22:55:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: evolving

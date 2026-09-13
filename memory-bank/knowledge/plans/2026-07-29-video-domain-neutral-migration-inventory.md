@@ -3,8 +3,11 @@ type: paradigma-plan
 title: "视频模板领域中立迁移清单"
 description: "盘点视频兼容路径，定义通用能力替代契约、黄金回归与退出条件。"
 tags: ["plan", "workflow-graph", "domain-neutral", "video-template", "compatibility"]
-timestamp: 2026-07-30T01:45:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - implementation-plan.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

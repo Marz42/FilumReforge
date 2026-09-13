@@ -6,8 +6,12 @@ tags:
   - plan
   - 视频
   - v1
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../manuals/workflow-video-v1-docker-runbook.md
+      - ../manuals/workflow-video-v1-multi-account-e2e-guide.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

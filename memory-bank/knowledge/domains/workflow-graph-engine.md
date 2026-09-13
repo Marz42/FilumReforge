@@ -8,8 +8,12 @@ tags:
   - 工作流
   - 模板
   - Task投影
-timestamp: 2026-08-12T12:05:50+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../plans/workflow-refactor-implementation-plan.md
+      - ../decisions/adr-005-dual-track-workflow.md
   schema_version: 0.5.0
   temperature: warm
   lifecycle: evolving

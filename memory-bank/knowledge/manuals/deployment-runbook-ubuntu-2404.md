@@ -5,8 +5,11 @@ description: "Ubuntu 24.04 生产部署操作手册。"
 tags:
   - manual
   - 部署
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - 2026-08-09-production-release-checklist.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

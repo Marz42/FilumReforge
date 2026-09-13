@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-004: 生产与部署注意事项"
 description: "FRONTEND_APP_URL、文档漂移、最小回滚等生产部署环境问题。"
 tags: ["known-issue", "production", "deployment"]
-timestamp: "2026-08-23T22:55:00+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: evolving

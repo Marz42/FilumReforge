@@ -24,7 +24,7 @@
 ```sh
 python -m venv .venv
 . .venv/bin/activate
-pip install -e ".[dev]"
+pip install -c constraints-ci.txt -e ".[dev]" -r ../requirements-paradigma.txt
 cp .env.example .env
 # 编辑 .env，至少填入 JWT_SECRET_KEY
 alembic upgrade head

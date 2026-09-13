@@ -35,10 +35,10 @@ blocked
 
 ## Blockers
 
-Phase A/B engineering and Phase C tooling are complete. Representative target-data observation, business-cycle evidence and separately approved Phase D contract remain pending; engineering completion does not close these gates.
+W01/W02 local engineering and isolated checks implemented; KI-014 representative target observation, business-cycle evidence and separately approved Phase D remain pending. Hosted CI first run requires a later source publication.
 
 ## Notes
 
 Generated from YAML facts; do not edit this projection by hand.
 
-Snapshot revision: 4.
+Snapshot revision: 6.

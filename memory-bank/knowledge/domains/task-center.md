@@ -7,8 +7,12 @@ tags:
   - 任务中心
   - Inbox
   - 跟踪
-timestamp: 2026-08-12T00:24:05+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../roadmap.md
+      - ../plans/task-center-enhance.md
   schema_version: 0.5.0
   temperature: warm
   lifecycle: evolving

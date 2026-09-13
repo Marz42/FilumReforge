@@ -6,8 +6,12 @@ tags:
   - architecture
   - modules
   - constraints
-timestamp: 2026-08-12T22:25:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - contracts/data-contracts.md
+      - project-brief.md
   schema_version: 0.5.0
   temperature: hot
   lifecycle: evolving

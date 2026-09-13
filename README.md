@@ -140,7 +140,7 @@ docker compose -f docker-compose.yml logs -f backend worker frontend nginx
 cd backend
 python -m venv .venv
 . .venv/bin/activate
-pip install -e ".[dev]"
+pip install -c constraints-ci.txt -e ".[dev]" -r ../requirements-paradigma.txt
 cp .env.example .env
 # 编辑 backend/.env，至少填入 JWT_SECRET_KEY
 alembic upgrade head
@@ -477,6 +477,8 @@ python -m app.scripts.seed_sample_data --password 'FilumTest123!'
 - UI 信息架构 Phase A–F 已交付；消息主入口为顶栏铃铛，非侧栏一级菜单
 
 ## 下一步
+
+W01/W02 已提供统一检查入口，使用方式见 [开发、隔离 CI 与发布检查](memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md)。治理命令使用 `python scripts/pd.py`，避免上游裸 `pd` 的产品/协议版本冲突。
 
 当前共同开发起点见 [2026-09-12 统一开发基线](memory-bank/knowledge/manuals/2026-09-12-development-baseline.md)，包含远端记录、本地整合方案与已保存的 Phase C 工作；目标观察和发布批准仍待完成。
 

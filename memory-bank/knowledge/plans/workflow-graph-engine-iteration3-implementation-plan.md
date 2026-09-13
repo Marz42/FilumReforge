@@ -8,8 +8,11 @@ tags:
   - iteration-3
   - human-task
   - idempotency
-timestamp: 2026-07-16T21:19:21+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - workflow-graph-engine-iteration3f-readiness-gate-plan.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

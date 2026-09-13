@@ -3,8 +3,11 @@ type: paradigma-plan
 title: "Template Engine Decouple — Phase 1 Implementation Plan"
 description: "Bite-sized tasks for M-01–M-05: archive UI, tags, type removal, ACTIVE edit contract, search/filter."
 tags: ["plan", "workflow-graph", "template-engine", "phase-1", "tags", "capabilities"]
-timestamp: 2026-07-22T15:30:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - implementation-plan.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

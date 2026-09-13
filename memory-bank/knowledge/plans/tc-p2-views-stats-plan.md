@@ -5,8 +5,12 @@ description: "三视图 + 统计 + Shell。"
 tags:
   - plan
   - TC-P2
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - task-center-v2-implementation-plan.md
+      - workflow-video-v1-ui-simplification-design.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

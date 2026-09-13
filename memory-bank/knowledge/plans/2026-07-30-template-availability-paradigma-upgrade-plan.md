@@ -3,8 +3,11 @@ type: paradigma-plan
 title: "已发布模板可用部门治理与 Paradigma 0.5.0 协议升级"
 description: "实现可审计的已发布模板部门范围增量授权，并将 Filum 的 Memory-Bank 运行协议和 Prompt 对齐 Paradigma 0.5.0。"
 tags: [plan, workflow-template, authorization, paradigma]
-timestamp: 2026-07-30T02:11:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - implementation-plan.md
   schema_version: "0.2"
   temperature: cold
   lifecycle: stable

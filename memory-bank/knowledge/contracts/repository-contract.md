@@ -3,8 +3,11 @@ type: paradigma-contract
 title: "Project Filum — 仓库契约"
 description: "仓库级契约边界：目录协议、子项目分工、Git 工作流与 CI/CD 规范。"
 tags: ["contract", "repository", "ci-cd"]
-timestamp: "2026-07-08T17:34:00+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../architecture.md
   schema_version: "0.1"
   temperature: hot
   lifecycle: evolving

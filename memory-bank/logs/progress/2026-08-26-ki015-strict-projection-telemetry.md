@@ -1,14 +1,15 @@
 ---
-type: paradigma-progress
+type: paradigma-progress-log
 title: "KI-015 Strict 投影请求侧遥测工程完成"
 description: "完成 Task Center strict 缺口分类、结构化日志、Operations 诊断、隐私边界和全量回归。"
 tags: [progress, task-center, projection, observability, iteration-5e, known-issue]
 timestamp: 2026-08-26T00:10:00+08:00
 paradigma:
+  layer: log
   schema_version: "0.5.0"
   temperature: warm
-  lifecycle: stable
-  update_policy: agent-editable
+  lifecycle: append-only
+  update_policy: append-only
   epistemic_status: verified
   relations:
     resolves:

@@ -7,8 +7,12 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-08-27T22:31:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../architecture.md
+      - ../domains/workflow-graph-engine.md
   schema_version: 0.5.0
   temperature: hot
   lifecycle: evolving

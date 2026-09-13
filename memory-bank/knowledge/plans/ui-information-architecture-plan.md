@@ -6,8 +6,12 @@ tags:
   - plan
   - UI
   - IA
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ui-refactor-spec-v2.md
+      - ../manuals/user-manual.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

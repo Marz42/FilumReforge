@@ -1,42 +1,43 @@
 manifest_version: '0.2'
 profile: coding
 request:
-  intent: 'Unified development baseline: local/remote history and Phase C tooling integrated; target observation
-    and contract pending'
+  intent: 'W01 W02 local engineering verified: fail-closed checks, isolated CI and governance; hosted
+    CI publication and target gates remain pending'
   task_id: TASK-20260826-KI014-SCHEMA-AUDIT
   explicit_paths:
-  - memory-bank/knowledge/manuals/2026-09-12-development-baseline.md
-  - memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
-  - memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md
+  - memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md
+  - memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
   explicit_symbols: []
   keywords:
-  - KI-014
+  - W01
   budget_tokens: 36000
   allow_required_over_budget: true
 session_id: null
 checkpoint_id: null
-source_digest: sha256:45e07ed96e71feb5a783e53e48554c59f402a6abd61fb6b402ace49770c87be6
-estimated_tokens: 36769
+source_digest: sha256:9b0114af7f6f05311642c8f8e31ef7ffd1421ca59bc27399c8edcddc8392681d
+estimated_tokens: 35204
 documents:
 - document_id: memory-bank/knowledge/architecture.md
   path: memory-bank/knowledge/architecture.md
   source_kind: knowledge
   title: Project Filum — 系统架构
   priority: required
-  estimated_tokens: 8087
+  estimated_tokens: 8051
   reasons:
   - mandatory_hot_document
+  - relation_from:memory-bank/knowledge/contracts/data-contracts.md:related_to
+  - relation_from:memory-bank/knowledge/contracts/repository-contract.md:related_to
+  - relation_from:memory-bank/knowledge/conventions.md:related_to
+  - relation_from:memory-bank/knowledge/project-brief.md:related_to
 - document_id: memory-bank/knowledge/contracts/data-contracts.md
   path: memory-bank/knowledge/contracts/data-contracts.md
   source_kind: knowledge
   title: Project Filum — 数据契约
   priority: required
-  estimated_tokens: 5760
+  estimated_tokens: 5736
   reasons:
   - mandatory_hot_document
-  - keyword_match:KI-014
-  - relation_from:memory-bank/knowledge/contracts/database/graph-engine-schema.md:depends_on
-  - relation_from:memory-bank/knowledge/contracts/database/task-collaboration-schema.md:depends_on
+  - relation_from:memory-bank/knowledge/architecture.md:related_to
   - relation_from:memory-bank/knowledge/contracts/projection-contract.md:depends_on
 - document_id: memory-bank/knowledge/contracts/projection-contract.md
   path: memory-bank/knowledge/contracts/projection-contract.md
@@ -52,7 +53,7 @@ documents:
   source_kind: knowledge
   title: Project Filum — 仓库契约
   priority: required
-  estimated_tokens: 347
+  estimated_tokens: 350
   reasons:
   - mandatory_hot_document
 - document_id: memory-bank/knowledge/conventions.md
@@ -60,7 +61,7 @@ documents:
   source_kind: knowledge
   title: Project Filum — 编码与协作规范
   priority: required
-  estimated_tokens: 1989
+  estimated_tokens: 1947
   reasons:
   - mandatory_hot_document
 - document_id: memory-bank/knowledge/project-brief.md
@@ -68,126 +69,124 @@ documents:
   source_kind: knowledge
   title: Project Filum — 项目身份卡片
   priority: required
-  estimated_tokens: 1962
+  estimated_tokens: 1946
   reasons:
   - mandatory_hot_document
-- document_id: memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md
-  path: memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md
+  - relation_from:memory-bank/knowledge/architecture.md:related_to
+- document_id: memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
+  path: memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
   source_kind: knowledge
-  title: KI-014 Phase C 兼容观察清单
+  title: 'KI-013: Paradigma 与 Filum 根 VERSION 语义冲突'
   priority: required
-  estimated_tokens: 749
+  estimated_tokens: 963
   reasons:
-  - path_match:memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md
-  - keyword_match:KI-014
-  - relation_from:memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md:related_to
-  - relation_from:memory-bank/knowledge/manuals/2026-09-12-development-baseline.md:related_to
-  - relation_from:memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md:related_to
+  - path_match:memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
+  - keyword_match:W01
+  - relation_from:memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md:related_to
+- document_id: memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md
+  path: memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md
+  source_kind: knowledge
+  title: W01/W02 开发、隔离 CI 与发布检查
+  priority: required
+  estimated_tokens: 1802
+  reasons:
+  - path_match:memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md
+  - keyword_match:W01
+- document_id: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
+  path: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
+  source_kind: knowledge
+  title: 2026-08-09 生产上线准入 Checklist
+  priority: relevant
+  estimated_tokens: 2024
+  reasons:
+  - keyword_match:W01
+  - relation_from:memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md:depends_on
 - document_id: memory-bank/knowledge/manuals/2026-09-12-development-baseline.md
   path: memory-bank/knowledge/manuals/2026-09-12-development-baseline.md
   source_kind: knowledge
   title: 2026-09-12 统一开发基线
-  priority: required
-  estimated_tokens: 1252
+  priority: relevant
+  estimated_tokens: 1267
   reasons:
-  - path_match:memory-bank/knowledge/manuals/2026-09-12-development-baseline.md
-  - keyword_match:KI-014
-- document_id: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
-  path: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
-  source_kind: knowledge
-  title: Filum 下一阶段开发与 Human Gates 整合方案
-  priority: required
-  estimated_tokens: 13139
-  reasons:
-  - path_match:memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
-  - keyword_match:KI-014
-  - relation_from:memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md:related_to
-  - relation_from:memory-bank/knowledge/manuals/2026-09-12-development-baseline.md:related_to
-  - relation_from:memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md:related_to
-  - relation_from:memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md:related_to
-  - relation_from:memory-bank/knowledge/plans/implementation-plan.md:related_to
-  - relation_from:memory-bank/knowledge/roadmap.md:related_to
-excluded:
-- document_id: memory-bank/knowledge/plans/2026-08-11-f05-task-detail-action-coordination-plan.md
-  path: memory-bank/knowledge/plans/2026-08-11-f05-task-detail-action-coordination-plan.md
-  reason: plan_status_filtered:completed
-  estimated_tokens: 831
+  - keyword_match:W01
+  - relation_from:memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md:related_to
 - document_id: memory-bank/knowledge/contracts/database/graph-engine-schema.md
   path: memory-bank/knowledge/contracts/database/graph-engine-schema.md
-  reason: budget_trimmed
+  source_kind: knowledge
+  title: 图引擎 Schema
+  priority: related
   estimated_tokens: 2556
-- document_id: memory-bank/knowledge/contracts/database/task-collaboration-schema.md
-  path: memory-bank/knowledge/contracts/database/task-collaboration-schema.md
+  reasons:
+  - relation_from:memory-bank/knowledge/contracts/projection-contract.md:depends_on
+- document_id: memory-bank/knowledge/decisions/adr-007-paradigma-alignment.md
+  path: memory-bank/knowledge/decisions/adr-007-paradigma-alignment.md
+  source_kind: knowledge
+  title: 'ADR-007: Memory-Bank Paradigma 对齐'
+  priority: related
+  estimated_tokens: 266
+  reasons:
+  - relation_from:memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md:caused_by
+- document_id: memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
+  path: memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
+  source_kind: knowledge
+  title: 'ADR-021: 采用 Paradigma 0.7 CLI 运行态并分离产品版本'
+  priority: related
+  estimated_tokens: 1027
+  reasons:
+  - relation_from:memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md:related_to
+- document_id: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
+  path: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
+  source_kind: knowledge
+  title: 'KI-012: 2026-08-09 安全扫描发现与上线阻断项'
+  priority: related
+  estimated_tokens: 1231
+  reasons:
+  - relation_from:memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md:depends_on
+- document_id: memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
+  path: memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
+  source_kind: knowledge
+  title: Iteration 4 · 领域中立 / 运行时 / 设计器 Phase 2 验收 Checklist
+  priority: related
+  estimated_tokens: 1757
+  reasons:
+  - relation_from:memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md:depends_on
+- document_id: memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md
+  path: memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md
+  source_kind: knowledge
+  title: KI-014 Phase C 兼容观察清单
+  priority: related
+  estimated_tokens: 797
+  reasons:
+  - relation_from:memory-bank/knowledge/manuals/2026-09-12-development-baseline.md:related_to
+excluded:
+- document_id: memory-bank/knowledge/plans/task-center-enhance.md
+  path: memory-bank/knowledge/plans/task-center-enhance.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 5661
+- document_id: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
+  path: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
   reason: budget_trimmed
-  estimated_tokens: 3341
-- document_id: memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md
-  path: memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md
+  estimated_tokens: 13208
+- document_id: memory-bank/knowledge/domains/task-center.md
+  path: memory-bank/knowledge/domains/task-center.md
   reason: budget_trimmed
-  estimated_tokens: 662
-- document_id: memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
-  path: memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md
+  estimated_tokens: 6766
+- document_id: memory-bank/knowledge/domains/workflow-graph-engine.md
+  path: memory-bank/knowledge/domains/workflow-graph-engine.md
   reason: budget_trimmed
-  estimated_tokens: 768
-- document_id: memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
-  path: memory-bank/knowledge/known-issues/ki-014-postgresql-alembic-schema-drift.md
+  estimated_tokens: 7409
+- document_id: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
+  path: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
   reason: budget_trimmed
-  estimated_tokens: 883
-- document_id: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
-  path: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
-  reason: budget_trimmed
-  estimated_tokens: 2024
+  estimated_tokens: 7071
 - document_id: memory-bank/knowledge/manuals/manual-database-operations.md
   path: memory-bank/knowledge/manuals/manual-database-operations.md
   reason: budget_trimmed
-  estimated_tokens: 2575
+  estimated_tokens: 2603
 - document_id: memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md
   path: memory-bank/knowledge/plans/2026-08-09-rc-employee-trial-plan.md
   reason: budget_trimmed
   estimated_tokens: 1343
-- document_id: memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md
-  path: memory-bank/knowledge/plans/2026-08-11-f05-iteration5-6-sequencing-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 1532
-- document_id: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
-  path: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 3514
-- document_id: memory-bank/knowledge/plans/implementation-plan.md
-  path: memory-bank/knowledge/plans/implementation-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 4014
-- document_id: memory-bank/knowledge/roadmap.md
-  path: memory-bank/knowledge/roadmap.md
-  reason: budget_trimmed
-  estimated_tokens: 3253
-- document_id: memory-bank/knowledge/decisions/adr-007-paradigma-alignment.md
-  path: memory-bank/knowledge/decisions/adr-007-paradigma-alignment.md
-  reason: budget_trimmed
-  estimated_tokens: 266
-- document_id: memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
-  path: memory-bank/knowledge/decisions/adr-021-paradigma-070-cli-runtime.md
-  reason: budget_trimmed
-  estimated_tokens: 1027
-- document_id: memory-bank/knowledge/domains/task-center.md
-  path: memory-bank/knowledge/domains/task-center.md
-  reason: budget_trimmed
-  estimated_tokens: 6882
-- document_id: memory-bank/knowledge/domains/workflow-graph-engine.md
-  path: memory-bank/knowledge/domains/workflow-graph-engine.md
-  reason: budget_trimmed
-  estimated_tokens: 7467
-- document_id: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
-  path: memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md
-  reason: budget_trimmed
-  estimated_tokens: 1218
-- document_id: memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
-  path: memory-bank/knowledge/manuals/2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md
-  reason: budget_trimmed
-  estimated_tokens: 1757
-- document_id: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
-  path: memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md
-  reason: budget_trimmed
-  estimated_tokens: 7288
 - document_id: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
   path: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
   reason: budget_trimmed
@@ -196,6 +195,14 @@ excluded:
   path: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
   reason: budget_trimmed
   estimated_tokens: 1625
+- document_id: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+  path: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 3514
+- document_id: memory-bank/knowledge/plans/implementation-plan.md
+  path: memory-bank/knowledge/plans/implementation-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 4014
 - document_id: memory-bank/knowledge/plans/plan-status-catalog.md
   path: memory-bank/knowledge/plans/plan-status-catalog.md
   reason: budget_trimmed
@@ -203,11 +210,10 @@ excluded:
 - document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
   path: memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
   reason: budget_trimmed
-  estimated_tokens: 4730
-- document_id: memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
-  path: memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
+  estimated_tokens: 4754
+- document_id: memory-bank/knowledge/roadmap.md
+  path: memory-bank/knowledge/roadmap.md
   reason: budget_trimmed
-  estimated_tokens: 6990
-warnings:
-- 'required context budget override accepted: 769 token(s) over budget'
-checksum: sha256:1ede40bf4ec76fddb67808826ff28300df0a3f121361150e7f909ad41a2fdb04
+  estimated_tokens: 3253
+warnings: []
+checksum: sha256:930719fa981537dd128827b50bf623e76f6b43b498045b1c5be6ae310886d139

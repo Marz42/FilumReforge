@@ -1,3 +1,5 @@
+
+> **Filum CLI 入口（W02）**：本文中的 `pd` 指 `python scripts/pd.py`（Windows 可用 `backend\.venv\Scripts\python.exe scripts/pd.py`）。它只适配固定 Paradigma 0.7.0 的协议版本路径；上游裸 `pd` 不识别 Filum 根产品 VERSION 的区别。所有 dry-run / write 规则保持不变。
 # Paradigma Agent Operation Protocol (IDE-Agnostic Source of Truth)
 
 > 本文件是 IDE 无关的规范原文。IDE 适配器只能压缩或映射本协议，不得复制状态机或改变命令语义。

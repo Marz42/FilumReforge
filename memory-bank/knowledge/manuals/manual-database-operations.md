@@ -5,8 +5,12 @@ description: "PostgreSQL 手工操作与迁移。"
 tags:
   - manual
   - 数据库
-timestamp: 2026-09-12T20:27:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - 2026-09-04-ki014-phase-c-observation-checklist.md
+      - ../architecture.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

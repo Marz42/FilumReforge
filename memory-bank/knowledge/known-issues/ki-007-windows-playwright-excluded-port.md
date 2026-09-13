@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-007: Windows 保留端口导致 Playwright webServer EACCES"
 description: "Windows excluded port range 可能覆盖默认 4173，导致 Vite 无法监听。"
 tags: ["known-issue", "windows", "playwright", "vite", "port"]
-timestamp: "2026-07-10T23:06:39+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: evolving

@@ -7,8 +7,12 @@ tags:
   - 视频工作流
   - 选题会
   - W0
-timestamp: 2026-07-30T01:45:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../plans/workflow-video-v1-ui-simplification-design.md
+      - ../decisions/adr-018-domain-neutral-workflow-templates.md
   schema_version: 0.5.0
   temperature: warm
   lifecycle: evolving

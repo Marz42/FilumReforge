@@ -3,8 +3,11 @@ type: paradigma-plan
 title: "安全问题处置与上线准备计划"
 description: "校准项目文档，复核并修复安全扫描发现，建立可执行的上线门禁与残余风险记录。"
 tags: [plan, security, release, authorization, hardening]
-timestamp: 2026-08-09T22:31:54+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - implementation-plan.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: stable

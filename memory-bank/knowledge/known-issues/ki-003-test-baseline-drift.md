@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-003: 测试基线漂移"
 description: "pytest skip、工作区 mass deletion、Playwright 等测试环境状态。"
 tags: ["known-issue", "testing", "baseline", "playwright"]
-timestamp: "2026-08-23T22:55:00+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: evolving

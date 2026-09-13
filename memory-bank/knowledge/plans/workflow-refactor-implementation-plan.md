@@ -5,8 +5,11 @@ description: "工作流重构 Phase 1–11 实施计划。"
 tags:
   - plan
   - 工作流重构
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - implementation-plan.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

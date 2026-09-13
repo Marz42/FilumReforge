@@ -3,8 +3,12 @@ type: paradigma-manual
 title: "项目讲解说明书"
 description: "按模块顺序演示/onboarding 讲解指南 v1.0。"
 tags: [manual, presentation, onboarding]
-timestamp: "2026-07-08T17:34:00+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - user-manual.md
+      - ../domains/task-center.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: stable

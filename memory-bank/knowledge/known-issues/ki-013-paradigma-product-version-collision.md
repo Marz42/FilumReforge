@@ -3,7 +3,7 @@ type: paradigma-known-issue
 title: "KI-013: Paradigma 与 Filum 根 VERSION 语义冲突"
 description: "Paradigma 0.7 固定升级与版本门禁把根 VERSION 当作协议发行版本，而 Filum 用它表示产品发布版本。"
 tags: [known-issue, paradigma, versioning, migration, compliance]
-timestamp: 2026-08-12T20:59:33+08:00
+timestamp: 2026-09-13T00:21:27+08:00
 paradigma:
   schema_version: "0.1"
   temperature: cold
@@ -20,6 +20,12 @@ paradigma:
       - ../decisions/adr-021-paradigma-070-cli-runtime.md
 ---
 
+# 当前处理（2026-09-13）
+
+W02 新增仓库入口 `python scripts/pd.py`，在不改动 site-packages 和根产品 VERSION 的前提下，让固定 Paradigma 0.7.0 的版本读取使用既有 `.paradigma/VERSION` 配置。协议文件缺失、路径越界、协议版本与 config 不一致、工具版本未经评审升级仍失败。legacy `.paradigma/tools/` 入口采用相同适配。版本门禁已由本地回归证明可通过；CI 文件、日志元数据和文档关联同步修复。
+
+适配范围限于本项目版本读取与检查；**不声称上游累计 version-upgrade Profile 已兼容**，也不自动执行协议升级。该上游能力仍待支持，后续升级必须重新评审适配器。以下是保留的原始问题与背景。
+
 # Symptom
 
 - `pd migration version-upgrade plan --expected-source-version 0.5.0` 拒绝 Filum：检测到根 `VERSION=0.93.0-rc.1`，而不是协议版本。
@@ -27,7 +33,7 @@ paradigma:
 
 # Impact
 
-官方累计升级 Profile 不能直接应用于 Filum，也不能把聚合 `pd check` 作为单一全绿门禁。Task/Session/Checkpoint、runtime、Context、index、catalog、Agent adapter 和日志治理本身不受影响，可独立验证。Filum 当前也没有 `.github/workflows/check.yml`；在聚合门禁可全绿前，不创建一条必然失败的 CI 工作流。
+官方累计升级 Profile 不能直接应用于 Filum，也不能把聚合 `pd check` 作为单一全绿门禁。Task/Session/Checkpoint、runtime、Context、index、catalog、Agent adapter 和日志治理本身不受影响，可独立验证。原审查时尚无 CI；W01 已新增 `.github/workflows/check.yml`，使用项目版本适配入口，不再绕过版本检查。
 
 # Root Cause
 
@@ -52,4 +58,4 @@ Paradigma 0.7 的 `read_distribution_version()` 与 version-upgrade `_recognize_
 
 # Status
 
-**Open upstream compatibility gap; Filum workaround active.** 首次确认于 Paradigma `3422ecf` / 2026-08-12。
+**项目版本检查已适配；上游升级 Profile 兼容缺口仍开放。** 首次确认于 Paradigma `3422ecf` / 2026-08-12。

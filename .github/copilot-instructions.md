@@ -1,3 +1,5 @@
+
+> **Filum CLI 入口（W02）**：本文中的 `pd` 指 `python scripts/pd.py`（Windows 可用 `backend\.venv\Scripts\python.exe scripts/pd.py`）。它只适配固定 Paradigma 0.7.0 的协议版本路径；上游裸 `pd` 不识别 Filum 根产品 VERSION 的区别。所有 dry-run / write 规则保持不变。
 # Copilot Instructions — Project Filum
 
 > 完整协议以 [`AGENT_RULES.md`](../AGENT_RULES.md) 为准；本文件只映射 Paradigma `0.7.0` 最小操作语义。

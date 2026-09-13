@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-009: Standalone Work Item 动作授权双轨"
 description: "Standalone 详情和状态命令曾绕过 available_actions；工程修复与真实多账号 live UAT 已通过。"
 tags: ["known-issue", "standalone", "available_actions", "task-center", "E2E"]
-timestamp: "2026-08-23T22:55:00+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: warm
   lifecycle: evolving

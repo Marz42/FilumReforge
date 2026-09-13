@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-010: 活动时间线需重做为更有指向性的留痕"
 description: "当前任务活动时间线事件粒度与文案不够指向性，暂以默认折叠降低干扰；后续应重做为更准确、可操作的协作留痕。"
 tags: ["known-issue", "activity-timeline", "task-detail", "UX", "E2E"]
-timestamp: "2026-07-20T15:10:00+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: warm
   lifecycle: evolving

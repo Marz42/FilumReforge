@@ -3,8 +3,12 @@ type: paradigma-domain
 title: "Frontend 架构细节"
 description: "前端关键文件与组件职责：路由、视图、API client、测试与 Playwright 基线。"
 tags: ["domain", "architecture", "frontend", "vue"]
-timestamp: 2026-07-09T09:30:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../../contracts/data-contracts.md
+      - ../../project-brief.md
   schema_version: 0.1
   temperature: warm
   lifecycle: evolving

@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-008: Docker 前端依赖命名卷可能滞后于 lockfile"
 description: "开发 Compose 的 node_modules 命名卷会遮蔽镜像依赖，旧卷可能缺少新包。"
 tags: ["known-issue", "docker", "compose", "frontend", "node-modules"]
-timestamp: "2026-07-13T00:19:00+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: evolving

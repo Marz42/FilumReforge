@@ -3,8 +3,12 @@ type: paradigma-plan
 title: "Iteration 4 Preflight — 文档对齐、领域中立与前端稳定化"
 description: "在 I4-B 前完成事实文档收口、视频模板去特殊化设计和前端问题分级；参与者重叠语义已由 ADR-019 固化。"
 tags: ["plan", "workflow-graph", "iteration-4", "alignment", "frontend", "domain-neutral"]
-timestamp: 2026-07-30T01:45:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - workflow-graph-engine-iteration4-handler-plan.md
+      - 2026-07-29-video-domain-neutral-migration-inventory.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

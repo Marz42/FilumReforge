@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-006: 汇报中心历史问题"
 description: "PostgreSQL enum 持久化与 ORM 不一致（已修复）。"
 tags: ["known-issue", "report-center", "postgresql", "enum"]
-timestamp: "2026-07-08T17:34:00+08:00"
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: "0.5.0"
   temperature: cold
   lifecycle: stable

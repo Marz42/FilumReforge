@@ -3,8 +3,12 @@ type: paradigma-domain
 title: "Infra 架构细节"
 description: "Docker Compose、Nginx、生产部署脚本与 CI/CD 配置。"
 tags: ["domain", "architecture", "infra", "docker"]
-timestamp: 2026-07-09T09:30:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../../contracts/data-contracts.md
+      - ../../project-brief.md
   schema_version: 0.1
   temperature: warm
   lifecycle: evolving

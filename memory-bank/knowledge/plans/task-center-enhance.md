@@ -5,8 +5,12 @@ description: "任务中心 TCE Phase 1–5 实施计划。"
 tags:
   - plan
   - TCE
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../roadmap.md
+      - task-center-v2-implementation-plan.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

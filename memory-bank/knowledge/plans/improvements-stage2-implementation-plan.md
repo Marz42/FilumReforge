@@ -5,8 +5,11 @@ description: "Stage 2 功能改进实施计划。"
 tags:
   - plan
   - Stage2
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - implementation-plan.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

@@ -1,6 +1,6 @@
 coding_runtime_schema_version: '0.1'
 kind: coding_task
-snapshot_revision: 4
+snapshot_revision: 6
 task:
   task_id: TASK-20260826-KI014-SCHEMA-AUDIT
   repository:
@@ -13,8 +13,8 @@ task:
     safe expand-contract remediation without applying database mutations
   status: blocked
   created_at: '2026-08-26T00:20:29.759530+08:00'
-  updated_at: '2026-09-12T20:26:11.796184+08:00'
-  status_reason: Phase A/B engineering and Phase C tooling are complete. Representative target-data observation,
-    business-cycle evidence and separately approved Phase D contract remain pending; engineering completion
-    does not close these gates.
+  updated_at: '2026-09-13T10:59:57.113499+08:00'
+  status_reason: W01/W02 local engineering and isolated checks implemented; KI-014 representative target
+    observation, business-cycle evidence and separately approved Phase D remain pending. Hosted CI first
+    run requires a later source publication.
   parent_task_id: null

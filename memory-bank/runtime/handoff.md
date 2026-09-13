@@ -3,7 +3,7 @@ type: paradigma-runtime-state
 title: Coding Handoff
 description: Rebuildable handoff projection of active CodingSession YAML facts.
 tags: [runtime, handoff, generated]
-timestamp: 2026-09-12T20:31:11.509061+08:00
+timestamp: 2026-09-13T11:00:32.572054+08:00
 paradigma:
   layer: runtime
   temperature: hot
@@ -16,45 +16,48 @@ paradigma:
 # Handoff
 
 - Task: `TASK-20260826-KI014-SCHEMA-AUDIT` — Audit KI-014 PostgreSQL schema drift
-- Session: `SESSION-20260912-BASELINE-SYNC` (ended)
+- Session: `SESSION-20260913-W01-W02` (ended)
 - Repository: `FilumReforge`
 - Agent: codex
-- Last checkpoint: `CHECKPOINT-20260912-BASELINE-SYNC`
+- Last checkpoint: `CHECKPOINT-20260913-W01-W02`
 
 ## Checkpoint
 
-- Created: 2026-09-12T20:30:52.906180+08:00
+- Created: 2026-09-13T11:00:29.695091+08:00
 - Task status: blocked
-- Git commit: `8f98dd4082123b09d767d17bbbf191702eacb71c`
-- Touched paths: README.md, memory-bank/knowledge/known-issues/index.md, memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md, memory-bank/knowledge/manuals/index.md, memory-bank/knowledge/manuals/manual-database-operations.md, memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md, memory-bank/knowledge/plans/index.md, memory-bank/knowledge/roadmap.md, memory-bank/logs/progress/2026-09-04-ki014-gate0-readonly-audit.md, memory-bank/logs/progress/2026-09-04-ki014-schema-drift-remediation.md, memory-bank/logs/progress/summary.md, memory-bank/runtime/active-session.yaml, memory-bank/runtime/active-task.md, memory-bank/runtime/context-manifest.yaml, memory-bank/runtime/handoff.md, memory-bank/runtime/tasks/TASK-20260826-KI014-SCHEMA-AUDIT.yaml, memory-bank/knowledge/manuals/2026-09-12-development-baseline.md, memory-bank/runtime/sessions/SESSION-20260912-BASELINE-SYNC.yaml
+- Git commit: `ca0989a788d640849ac786c364f6043ce3cee1c3`
+- Touched paths: .cursor/rules/memory-bank-protocol.mdc, .github/copilot-instructions.md, .paradigma/tools/_bootstrap.py, AGENT_RULES.md, README.md, backend/README.md, frontend/package.json, memory-bank/knowledge/architecture.md, memory-bank/knowledge/contracts/data-contracts.md, memory-bank/knowledge/contracts/index.md, memory-bank/knowledge/contracts/repository-contract.md, memory-bank/knowledge/conventions.md, memory-bank/knowledge/domains/architecture/backend-architecture.md, memory-bank/knowledge/domains/architecture/core-workflows.md, memory-bank/knowledge/domains/architecture/frontend-architecture.md, memory-bank/knowledge/domains/architecture/index.md, memory-bank/knowledge/domains/architecture/infra-architecture.md, memory-bank/knowledge/domains/hr-org.md, memory-bank/knowledge/domains/index.md, memory-bank/knowledge/domains/knowledge-ai.md, memory-bank/knowledge/domains/messaging.md, memory-bank/knowledge/domains/task-center.md, memory-bank/knowledge/domains/workflow-graph-engine.md, memory-bank/knowledge/domains/workflow-video-v1.md, memory-bank/knowledge/glossary.md, memory-bank/knowledge/known-issues/index.md, memory-bank/knowledge/known-issues/ki-001-environment-toolchain.md, memory-bank/knowledge/known-issues/ki-002-architecture-boundaries.md, memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md, memory-bank/knowledge/known-issues/ki-004-production-deployment.md, memory-bank/knowledge/known-issues/ki-005-graph-engine-issues.md, memory-bank/knowledge/known-issues/ki-006-report-center-history.md, memory-bank/knowledge/known-issues/ki-007-windows-playwright-excluded-port.md, memory-bank/knowledge/known-issues/ki-008-docker-frontend-dependency-volume.md, memory-bank/knowledge/known-issues/ki-009-standalone-action-dual-track.md, memory-bank/knowledge/known-issues/ki-010-activity-timeline-redesign.md, memory-bank/knowledge/known-issues/ki-011-system-admin-business-boundary.md, memory-bank/knowledge/known-issues/ki-012-security-scan-release-blockers.md, memory-bank/knowledge/known-issues/ki-013-paradigma-product-version-collision.md, memory-bank/knowledge/known-issues/known-issues.md, memory-bank/knowledge/manuals/2026-09-04-ki014-phase-c-observation-checklist.md, memory-bank/knowledge/manuals/2026-09-12-development-baseline.md, memory-bank/knowledge/manuals/deployment-runbook-ubuntu-2404.md, memory-bank/knowledge/manuals/e2e-gui-verification-automation-runbook.md, memory-bank/knowledge/manuals/index.md, memory-bank/knowledge/manuals/manual-database-operations.md, memory-bank/knowledge/manuals/project-presentation-guide.md, memory-bank/knowledge/manuals/user-manual.md, memory-bank/knowledge/manuals/workflow-video-v1-collaborative-uat-guide.md, memory-bank/knowledge/manuals/workflow-video-v1-docker-runbook.md, memory-bank/knowledge/manuals/workflow-video-v1-multi-account-e2e-guide.md, memory-bank/knowledge/plans/2026-07-21-template-self-review-fix-plan.md, memory-bank/knowledge/plans/2026-07-22-template-decouple-phase1-plan.md, memory-bank/knowledge/plans/2026-07-28-template-decouple-phase2-plan.md, memory-bank/knowledge/plans/2026-07-29-iteration4-preflight-alignment-plan.md, memory-bank/knowledge/plans/2026-07-29-video-domain-neutral-migration-inventory.md, memory-bank/knowledge/plans/2026-07-30-template-availability-paradigma-upgrade-plan.md, memory-bank/knowledge/plans/2026-08-09-security-release-readiness-plan.md, memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md, memory-bank/knowledge/plans/improvements-stage2-implementation-plan.md, memory-bank/knowledge/plans/index.md, memory-bank/knowledge/plans/paradigma-memory-bank-refactor-plan.md, memory-bank/knowledge/plans/s01-task-statistics-plan.md, memory-bank/knowledge/plans/task-center-enhance.md, memory-bank/knowledge/plans/task-center-v2-implementation-plan.md, memory-bank/knowledge/plans/tc-p2-views-stats-plan.md, memory-bank/knowledge/plans/ui-information-architecture-plan.md, memory-bank/knowledge/plans/ui-refactor-spec-v2.md, memory-bank/knowledge/plans/workflow-graph-engine-iteration1-implementation-plan.md, memory-bank/knowledge/plans/workflow-graph-engine-iteration2-implementation-plan.md, memory-bank/knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md, memory-bank/knowledge/plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md, memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md, memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md, memory-bank/knowledge/plans/workflow-video-v1-implementation-plan.md, memory-bank/knowledge/plans/workflow-video-v1-ui-simplification-design.md, memory-bank/knowledge/plans/workflow-video-v1-w0-adr.md, memory-bank/knowledge/project-brief.md, memory-bank/logs/progress/2026-08-26-ki015-strict-projection-telemetry.md, memory-bank/logs/progress/summary.md, memory-bank/runtime/active-session.yaml, memory-bank/runtime/active-task.md, memory-bank/runtime/context-manifest.yaml, memory-bank/runtime/handoff.md, memory-bank/runtime/tasks/TASK-20260826-KI014-SCHEMA-AUDIT.yaml, scripts/check-release.sh, .github/workflows/check.yml, backend/constraints-ci.txt, backend/tests/test_release_checks.py, infra/docker/compose.checks.yml, memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md, memory-bank/runtime/sessions/SESSION-20260913-W01-W02.yaml, scripts/check_release.py, scripts/check_schema.py, scripts/paradigma_adapter.py, scripts/pd.py, scripts/required_postgres_tests.json
 - Tests: not recorded
 
 ## Summary
 
-Reconciled local and origin history into a shared development baseline, preserved and separately committed original KI-014 Phase C work, and prepared a normal fast-forward push to origin/main. This is not production or Phase D approval.
+Implemented the user-authorized W01/W02 local engineering batch: fail-closed checks, isolated CI services, exact schema compatibility validation and project-scoped Paradigma version adaptation. Target and release Human Gates remain pending; no source commit or push was performed in this batch.
 
 ## Completed Work
 
-- Created codex/backup-before-baseline-sync-20260912 at 4820511 and retained the baseline-sync-20260912 stash containing all nine original modified/untracked files.
-- Merged origin/main 98db3c8 with local 4820511 in bd32fc1; reconciled plan catalog, roadmap and task-state semantics without rewriting remote history.
-- Restored Phase C source and tests byte-equivalently to the backup and committed the reviewed implementation and supporting documents as 8f98dd4.
-- Focused Phase C, enum and SQLite migration tests passed with 12 passed and 1 PostgreSQL test deselected.
-- Full backend non-PostgreSQL regression passed with 478 passed, 10 existing Legacy E skips and 22 PostgreSQL deselections in 215.34 seconds; no frontend or business implementation was changed during reconciliation.
-- Unified KI-014 as engineering/tooling complete but blocked on target observation and separately approved contract, using pd task block rather than directly editing task YAML.
-- Added a development-baseline handoff, connected the remote observation checklist with the local tool, repaired imported log metadata and regenerated the progress summary and indexes.
+- Replaced the permissive release shell logic with a shared Python implementation; default release mode is strict, developer mode is explicit, and summaries never claim production readiness.
+- Missing tools, nonzero commands, empty/stale/missing test reports, PG skips or missing required PG coverage fail. Release requires identifiable clean source. Logs redact connection credentials.
+- Added a digest-pinned temporary pgvector PostgreSQL and Redis compose project and a three-job GitHub workflow with constrained Python dependencies, npm ci, read-only lint, smoke and evidence artifacts.
+- Exact revision-bound schema comparison accepts only three reviewed nullable differences at 20260827_01 in compatibility CI, explicitly reports schema not clean, and rejects additional changes and multiple migration heads.
+- Added scripts/pd.py and a pinned 0.7.0 version-path adapter without editing site-packages or the Filum product VERSION; legacy tool entrypoints use the same adapter. Upstream cumulative upgrade profiles are not claimed fixed.
+- Repaired KI-015 log metadata; added semantic relations to 62 old documents while verifying their bodies unchanged; added missing retrieval hints, updated operational entrypoints and regenerated indexes and progress summary.
+- Native checks passed: 495 backend tests with 10 existing Legacy E skips; all 22 PostgreSQL tests without skips; 217 frontend tests, type/lint/build, and 7 browser smoke tests.
+- Fresh Linux Python 3.12 installation from fixed constraints and the pinned Paradigma commit succeeded. Final Linux run passed 499 backend tests with 10 Legacy E skips, all 22 PostgreSQL tests, schema comparison and Redis ping. Later focused release-check regression suite passed all 25 tests.
+- Local strict governance and a clean Linux repository snapshot both passed all 8 gates with zero errors and warnings; CI cache initialization was corrected after the clean snapshot exposed a missing catalog.
+- Two earlier Linux runs were interrupted by Docker runtime shutdown and are not counted as successes. Restarted Docker Desktop, reran with fresh reports, then removed only this batch's temporary test containers and network.
 
 ## Remaining Work
 
-- Finish final context/runtime/document checks, commit this handoff batch, push main to origin/main normally and compare exact local and remote SHAs.
-- Continue W01/W02 engineering work as a separate authorized development batch; keep target, business and release gates distinct.
+- Finalize this checkpoint, end the session, regenerate/verify final context and perform final whitespace and clean-checkout governance verification.
+- Commit and push this reviewed batch only on user instruction, then verify the first actual GitHub hosted CI run and repository branch protection separately.
+- Continue the next authorized engineering batch independently of target-environment KI-014 observation.
 
 ## Blockers
 
-- Docker daemon is not available; PostgreSQL migration integration was not rerun in this synchronization. Historical isolated PostgreSQL evidence is not refreshed target evidence.
-- KI-014 representative target data, a complete business cycle and separately approved Phase D contract remain pending.
-- Existing product/protocol version drift, old KI-015 progress-log metadata and missing CI workflow still prevent a green aggregate governance check.
+- KI-014 target data access, complete business-cycle observation, business acceptance and independent Phase D approval remain pending.
+- Hosted CI has not run because this development batch has not been published; local Linux verification does not establish hosted status.
 
 ## Next Steps
 
-- Use the synchronized main commit containing memory-bank/knowledge/manuals/2026-09-12-development-baseline.md as the next development starting point.
-- Keep the backup branch and stash as recovery references; do not reapply the already integrated stash during ordinary development.
+- Use memory-bank/knowledge/manuals/2026-09-13-w01-w02-checks.md and the project pd entrypoint for further checks.
+- Preserve the original task as blocked on target prerequisites rather than marking the entire KI-014 effort complete.

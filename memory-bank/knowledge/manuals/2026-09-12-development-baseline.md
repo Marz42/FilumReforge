@@ -5,6 +5,8 @@ description: "记录本地整合方案、远端 KI-014 观察清单和原有 Pha
 tags: [baseline, git, ki-014, development, handoff]
 timestamp: 2026-09-12T20:27:00+08:00
 paradigma:
+  retrieval_hints:
+    zh: [统一开发基线, Git, KI-014]
   schema_version: "0.5.0"
   temperature: warm
   lifecycle: evolving

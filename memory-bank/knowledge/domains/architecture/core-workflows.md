@@ -3,8 +3,11 @@ type: paradigma-domain
 title: "核心流程"
 description: "各子系统运行时流程：JWT 会话、任务协同、通知总线、附件绑定、HR 生命周期、审批流、消息中心、AI 路由、Push、图引擎、汇报中心、错误追踪。"
 tags: ["domain", "architecture", "workflows", "runtime"]
-timestamp: 2026-07-09T09:30:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../../architecture.md
   schema_version: 0.1
   temperature: warm
   lifecycle: evolving

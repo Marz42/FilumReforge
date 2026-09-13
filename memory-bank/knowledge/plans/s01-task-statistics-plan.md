@@ -6,8 +6,11 @@ tags:
   - plan
   - task-center
   - statistics
-timestamp: 2026-07-11T23:34:27+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../domains/task-center.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

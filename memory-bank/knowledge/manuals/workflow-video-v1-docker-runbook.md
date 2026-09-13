@@ -6,8 +6,12 @@ tags:
   - manual
   - 视频
   - Docker
-timestamp: 2026-07-08T17:34:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - deployment-runbook-ubuntu-2404.md
+      - workflow-video-v1-collaborative-uat-guide.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

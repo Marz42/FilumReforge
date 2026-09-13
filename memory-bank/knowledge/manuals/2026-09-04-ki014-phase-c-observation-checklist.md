@@ -3,8 +3,14 @@ type: paradigma-manual
 title: "KI-014 Phase C 兼容观察清单"
 description: "Phase A+B 部署后、Phase D contract 前的双读观察与并行门禁清单。"
 tags: [manual, ki-014, observation, phase-c, checklist]
-timestamp: 2026-09-12T20:27:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  retrieval_hints:
+    zh: [KI-014, 兼容观察, Phase C]
+  relations:
+    related_to:
+      - ../plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+      - manual-database-operations.md
   schema_version: "0.5.0"
   temperature: warm
   lifecycle: evolving

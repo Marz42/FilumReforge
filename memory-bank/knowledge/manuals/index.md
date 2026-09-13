@@ -1,23 +1,24 @@
 # Manuals Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: d890ffda2d8bfde3 -->
+<!-- checksum: af3245ed92eee959 -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
 |------|------|-------|-------|---------|-----------|
 | [2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md](2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md) | `paradigma-manual` | Iteration 4 · 领域中立 / 运行时 / 设计器 Phase 2 验收 Checklist | Iteration 4 验收<br>领域中立 UAT<br>设计器 Phase 2 ... | - | depends_on:../decisions/adr-018-domain-neutral-workflow-templates.md<br>depends_on:../decisions/adr-019-decision-subject-actor-overlap.md<br>depends_on:../plans/workflow-graph-engine-iteration4-handler-plan.md<br>depends_on:../plans/2026-07-28-template-decouple-phase2-plan.md |
 | [2026-08-09-production-release-checklist.md](2026-08-09-production-release-checklist.md) | `paradigma-manual` | 2026-08-09 生产上线准入 Checklist | 生产上线<br>发布准入<br>安全检查 ... | - | depends_on:../plans/2026-08-09-rc-employee-trial-plan.md<br>depends_on:../known-issues/ki-012-security-scan-release-blockers.md<br>depends_on:../plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md<br>depends_on:2026-08-09-iteration4-domain-neutral-designer-uat-checklist.md ... |
-| [2026-09-04-ki014-phase-c-observation-checklist.md](2026-09-04-ki014-phase-c-observation-checklist.md) | `paradigma-manual` | KI-014 Phase C 兼容观察清单 | - | - | - |
-| [2026-09-12-development-baseline.md](2026-09-12-development-baseline.md) | `paradigma-manual` | 2026-09-12 统一开发基线 | - | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../plans/2026-08-26-ki014-schema-drift-remediation-plan.md<br>related_to:./2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:./manual-database-operations.md |
-| [deployment-runbook-ubuntu-2404.md](deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | - |
-| [e2e-gui-verification-automation-runbook.md](e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | - |
-| [manual-database-operations.md](manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | - |
-| [project-presentation-guide.md](project-presentation-guide.md) | `paradigma-manual` | 项目讲解说明书 | 讲解<br>演示<br>onboarding ... | - | - |
-| [user-manual.md](user-manual.md) | `paradigma-manual` | 用户说明书 v1.2 | 用户说明<br>user<br>guide | - | - |
+| [2026-09-04-ki014-phase-c-observation-checklist.md](2026-09-04-ki014-phase-c-observation-checklist.md) | `paradigma-manual` | KI-014 Phase C 兼容观察清单 | KI-014<br>兼容观察<br>Phase C | - | related_to:../plans/2026-08-26-ki014-schema-drift-remediation-plan.md<br>related_to:manual-database-operations.md |
+| [2026-09-12-development-baseline.md](2026-09-12-development-baseline.md) | `paradigma-manual` | 2026-09-12 统一开发基线 | 统一开发基线<br>Git<br>KI-014 | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../plans/2026-08-26-ki014-schema-drift-remediation-plan.md<br>related_to:./2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:./manual-database-operations.md |
+| [2026-09-13-w01-w02-checks.md](2026-09-13-w01-w02-checks.md) | `paradigma-manual` | W01/W02 开发、隔离 CI 与发布检查 | 发布检查<br>隔离CI<br>版本适配 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../known-issues/ki-013-paradigma-product-version-collision.md<br>related_to:./2026-09-12-development-baseline.md |
+| [deployment-runbook-ubuntu-2404.md](deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | related_to:2026-08-09-production-release-checklist.md |
+| [e2e-gui-verification-automation-runbook.md](e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | related_to:workflow-video-v1-multi-account-e2e-guide.md |
+| [manual-database-operations.md](manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | related_to:2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:../architecture.md |
+| [project-presentation-guide.md](project-presentation-guide.md) | `paradigma-manual` | 项目讲解说明书 | 讲解<br>演示<br>onboarding ... | - | related_to:user-manual.md<br>related_to:../domains/task-center.md |
+| [user-manual.md](user-manual.md) | `paradigma-manual` | 用户说明书 v1.2 | 用户说明<br>user<br>guide | - | related_to:../plans/ui-refactor-spec-v2.md<br>related_to:../plans/ui-information-architecture-plan.md |
 | [workflow-graph-engine-iteration3f-test-runbook.md](workflow-graph-engine-iteration3f-test-runbook.md) | `paradigma-manual` | 工作流图引擎 Iteration 3-F 测试操作手册 | Iteration 3-F 测试<br>Iteration 4 准入<br>PostgreSQL 强制测试 ... | - | depends_on:../plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md<br>depends_on:../contracts/database/graph-engine-schema.md |
-| [workflow-video-v1-collaborative-uat-guide.md](workflow-video-v1-collaborative-uat-guide.md) | `paradigma-manual` | 视频协同 UAT 指南 | 视频<br>UAT<br>video ... | - | - |
-| [workflow-video-v1-docker-runbook.md](workflow-video-v1-docker-runbook.md) | `paradigma-manual` | 视频 Docker 冒烟手册 | 视频<br>Docker<br>video ... | - | - |
-| [workflow-video-v1-multi-account-e2e-guide.md](workflow-video-v1-multi-account-e2e-guide.md) | `paradigma-manual` | 多账号 E2E 指南 | 多账号<br>E2E<br>multi-account ... | - | - |
+| [workflow-video-v1-collaborative-uat-guide.md](workflow-video-v1-collaborative-uat-guide.md) | `paradigma-manual` | 视频协同 UAT 指南 | 视频<br>UAT<br>video ... | - | related_to:../plans/workflow-video-v1-implementation-plan.md<br>related_to:workflow-video-v1-docker-runbook.md |
+| [workflow-video-v1-docker-runbook.md](workflow-video-v1-docker-runbook.md) | `paradigma-manual` | 视频 Docker 冒烟手册 | 视频<br>Docker<br>video ... | - | related_to:deployment-runbook-ubuntu-2404.md<br>related_to:workflow-video-v1-collaborative-uat-guide.md |
+| [workflow-video-v1-multi-account-e2e-guide.md](workflow-video-v1-multi-account-e2e-guide.md) | `paradigma-manual` | 多账号 E2E 指南 | 多账号<br>E2E<br>multi-account ... | - | related_to:workflow-video-v1-collaborative-uat-guide.md<br>related_to:workflow-video-v1-docker-runbook.md |
 
 <!-- END PARADIGMA AUTO-INDEX -->

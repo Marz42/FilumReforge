@@ -3,8 +3,11 @@ type: paradigma-plan
 title: "Template Engine Decouple — Phase 2 Structured Authoring"
 description: "M-06–M-08 structured authoring rollout and optional M-09 policy gate."
 tags: ["plan", "workflow-graph", "template-engine", "phase-2", "structured-authoring"]
-timestamp: 2026-07-28T10:47:27+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - implementation-plan.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: stable

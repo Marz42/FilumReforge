@@ -3,8 +3,11 @@ type: paradigma-known-issue
 title: "KI-011: 系统管理员与业务参与权限尚未解耦"
 description: "产品定义 Admin 仅负责系统维护，但当前 MANAGEMENT_ROLES、任务/审批 override 与候选链仍允许其参与业务动作。"
 tags: ["known-issue", "admin", "authorization", "workflow", "deferred"]
-timestamp: 2026-07-29T21:42:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - known-issues.md
   schema_version: 0.5.0
   temperature: cold
   lifecycle: evolving

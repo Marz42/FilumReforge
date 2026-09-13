@@ -3,8 +3,12 @@ type: paradigma-domain
 title: "Backend 架构细节"
 description: "后端关键文件与 service 职责：API 路由、业务服务、模型、迁移与 worker。"
 tags: ["domain", "architecture", "backend", "fastapi"]
-timestamp: 2026-07-30T01:45:00+08:00
+timestamp: 2026-09-13T00:20:00+08:00
 paradigma:
+  relations:
+    related_to:
+      - ../../contracts/data-contracts.md
+      - ../../project-brief.md
   schema_version: 0.1
   temperature: warm
   lifecycle: evolving
