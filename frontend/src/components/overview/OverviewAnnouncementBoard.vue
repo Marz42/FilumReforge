@@ -12,7 +12,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import type { OverviewSnapshot } from '@/types/api'
 import { formatDate, formatDateTime } from '@/utils/formatters'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const props = defineProps<{
   overview: OverviewSnapshot | null
@@ -88,7 +88,7 @@ async function submitBoardCard(): Promise<void> {
     resetBoardForm()
     emit('refresh')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     boardSubmitting.value = false
   }
@@ -107,7 +107,7 @@ async function submitAnnouncement(): Promise<void> {
     resetAnnouncementForm()
     emit('refresh')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     announcementSubmitting.value = false
   }
@@ -119,7 +119,7 @@ async function handleArchiveBoardCard(cardId: string): Promise<void> {
     ElMessage.success('看板卡片已归档')
     emit('refresh')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -129,7 +129,7 @@ async function handleWithdrawAnnouncement(announcementId: string): Promise<void>
     ElMessage.success('公告已归档')
     emit('refresh')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 </script>

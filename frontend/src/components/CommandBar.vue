@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 
 import { routeAICommand } from '@/api/ai'
 import type { AIRouterResult } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const dialogVisible = ref(false)
 const loading = ref(false)
@@ -29,7 +29,7 @@ async function handleSubmit(): Promise<void> {
   try {
     result.value = await routeAICommand(normalizedText)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }

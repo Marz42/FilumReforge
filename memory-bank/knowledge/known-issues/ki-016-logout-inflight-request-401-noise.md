@@ -3,7 +3,7 @@ type: paradigma-known-issue
 title: "KI-016: 登出与多账号切换存在在途请求 401 噪声"
 description: "用户登出后，Task Center 等在途请求仍可能触发 refresh 和未处理 Axios 401 rejection，造成控制台噪声与潜在测试抖动。"
 tags: [known-issue, frontend, auth, logout, axios, task-center]
-timestamp: 2026-08-23T23:25:00+08:00
+timestamp: 2026-09-13T16:27:10+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -17,13 +17,16 @@ paradigma:
     related_to:
       - ../domains/architecture/frontend-architecture.md
       - ki-003-test-baseline-drift.md
+      - ../manuals/2026-09-13-w07-session-request-ownership.md
 ---
 
 # KI-016: 登出与多账号切换存在在途请求 401 噪声
 
 ## 状态与优先级
 
-**开放 / 中低优先级（P2）/ 不阻断当前 UAT。** 2026-08-23 真实后端多账号 Chromium UAT 全部通过，但连续 logout/login 时浏览器控制台重复记录 Task Center 刷新请求的未处理 401。
+**本地工程修复 / 原始优先级 P2 / 真实后端复测待完成。** 2026-09-13 的 W07 已补会话代次、JSON/上传取消、refresh 与登录恢复归属、最后一次请求生效、权限缓存及 polling 清理；单元和受控浏览器竞态测试通过，详见 [W07 实施记录](../manuals/2026-09-13-w07-session-request-ownership.md)。下文现象保留为修复前审查记录。
+
+ 2026-08-23 真实后端多账号 Chromium UAT 全部通过，但连续 logout/login 时浏览器控制台重复记录 Task Center 刷新请求的未处理 401。
 
 ## 现象与证据
 

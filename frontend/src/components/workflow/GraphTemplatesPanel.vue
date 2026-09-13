@@ -20,7 +20,7 @@ import Iteration4UatPreflightDialog from '@/components/workflow/Iteration4UatPre
 import TemplateInstantiateDialog from '@/components/workflow/TemplateInstantiateDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { GraphTemplateGovernanceIssue, GraphTemplateSummary } from '@/types/workflowVideo'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { templateSupportsDirectInstantiation } from '@/utils/workflowVideoSchema'
 
 const props = defineProps<{
@@ -129,7 +129,7 @@ async function loadTemplates(): Promise<void> {
       selectedTemplate.value = templates.value[0] ?? null
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     templates.value = []
     manageableTemplateIds.value = new Set()
     selectedTemplate.value = null
@@ -192,7 +192,7 @@ async function handleCreateBlank(): Promise<void> {
     ElMessage.success('已创建空白草稿')
     void router.push({ name: 'task-template-designer', params: { id: created.id } })
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -206,7 +206,7 @@ async function handleClone(template: GraphTemplateSummary): Promise<void> {
     ElMessage.success('已创建草稿副本')
     void router.push({ name: 'task-template-designer', params: { id: forked.id } })
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -225,7 +225,7 @@ async function handleArchive(template: GraphTemplateSummary): Promise<void> {
     await loadTemplates()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     }
   }
 }
@@ -254,7 +254,7 @@ async function handleDelete(template: GraphTemplateSummary): Promise<void> {
     await loadTemplates()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     }
   }
 }
@@ -279,7 +279,7 @@ async function handleGovernanceRepair(issue: GraphTemplateGovernanceIssue): Prom
     void router.push({ name: 'task-template-designer', params: { id: draft.id } })
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     }
   }
 }

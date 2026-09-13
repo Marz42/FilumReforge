@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 
 import { createUser, listUsers, updateUser } from '@/api/users'
 import type { User, UserRole, UserStatus } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -97,7 +97,7 @@ async function loadUsers(): Promise<void> {
   try {
     users.value = await listUsers()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -117,7 +117,7 @@ async function handleCreate(): Promise<void> {
     resetCreateForm()
     await loadUsers()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     createSubmitting.value = false
   }
@@ -141,7 +141,7 @@ async function handleUpdate(): Promise<void> {
     resetEditForm()
     await loadUsers()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     editSubmitting.value = false
   }

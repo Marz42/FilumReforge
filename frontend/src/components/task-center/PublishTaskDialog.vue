@@ -8,7 +8,7 @@ import type { TaskPriority } from '@/types/api'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import ScheduledDispatchForm from '@/components/task-center/ScheduledDispatchForm.vue'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 interface PublishDraftAttachment {
   id: string
@@ -117,7 +117,7 @@ async function handleOrganizationSearch(query: string): Promise<void> {
   } catch (error) {
     organizationCandidates.value = []
     crossDepartmentUnavailable.value = true
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     organizationLoading.value = false
   }
@@ -219,7 +219,7 @@ async function handlePublishDraftFileChange(uploadFile: UploadFile): Promise<voi
     })
     ElMessage.success('附件已加入，将在建立任务时绑定')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     publishAttachmentUploading.value = false
   }
@@ -252,7 +252,7 @@ async function handlePublishTask(): Promise<void> {
     resetPublishForm()
     emit('created')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     publishSubmitting.value = false
   }

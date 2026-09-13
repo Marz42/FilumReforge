@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { uploadAttachment } from '@/api/attachments'
 import { createTaskComment } from '@/api/tasks'
 import type { Task } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 type TaskDetailCollaborationOptions = {
   task: MaybeRefOrGetter<Task | null>
@@ -59,7 +59,7 @@ export function useTaskDetailCollaboration(options: TaskDetailCollaborationOptio
       taskAttachmentResetKey.value += 1
       await options.reloadTask(task.id)
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       taskAttachmentUploading.value = false
     }
@@ -89,7 +89,7 @@ export function useTaskDetailCollaboration(options: TaskDetailCollaborationOptio
       resetCommentForm()
       await options.reloadTask(task.id)
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       commentSubmitting.value = false
     }

@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const props = defineProps<{
   redirectTarget: string
@@ -27,7 +27,7 @@ async function handleSubmit(): Promise<void> {
     ElMessage.success('登录成功')
     await router.replace(props.redirectTarget)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

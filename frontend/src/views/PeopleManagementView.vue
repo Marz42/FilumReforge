@@ -38,7 +38,7 @@ import type {
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import PeopleDetailDrawer from '@/components/people/PeopleDetailDrawer.vue'
 import type { PeopleAnchorId } from '@/components/people/PeopleAnchorNav.vue'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatPasswordValidationMessage, validatePasswordClient } from '@/utils/passwordPolicy'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 
@@ -533,7 +533,7 @@ async function loadSelectedPerson(userId: string): Promise<void> {
     selectedPersonId.value = userId
     hydrateForms(detail)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     detailLoading.value = false
   }
@@ -578,7 +578,7 @@ async function refreshWorkspace(preferredUserId?: string): Promise<void> {
       tab: null,
     })
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -645,7 +645,7 @@ async function handleCreateUser(): Promise<void> {
     resetCreateUserForm()
     await refreshWorkspace(createdUser.id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     createUserSubmitting.value = false
   }
@@ -676,7 +676,7 @@ async function handleSaveAccount(): Promise<void> {
     ElMessage.success('账号信息已更新')
     await refreshWorkspace(selectedDetail.value.account.id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     accountSubmitting.value = false
   }
@@ -705,7 +705,7 @@ async function handleDeleteUser(): Promise<void> {
     if (error === 'cancel' || error === 'close') {
       return
     }
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     deleteUserSubmitting.value = false
   }
@@ -740,7 +740,7 @@ async function handleCreateProfile(): Promise<void> {
       tab: null,
     })
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     createProfileSubmitting.value = false
   }
@@ -766,7 +766,7 @@ async function handleSaveProfile(): Promise<void> {
     ElMessage.success('档案信息已更新')
     await refreshWorkspace(selectedProfile.value.user_id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     profileSubmitting.value = false
   }
@@ -787,7 +787,7 @@ async function handleCreatePositionCatalog(): Promise<void> {
     resetPositionCatalogForm()
     ElMessage.success('岗位目录已更新')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     positionCatalogSubmitting.value = false
   }
@@ -812,7 +812,7 @@ async function handleCreatePositionAssignment(): Promise<void> {
     resetPositionForm()
     await refreshWorkspace(selectedProfile.value.user_id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     relationSubmitting.value = false
   }
@@ -837,7 +837,7 @@ async function handleCreateReportingLine(): Promise<void> {
     resetReportingForm()
     await refreshWorkspace(selectedProfile.value.user_id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     relationSubmitting.value = false
   }
@@ -862,7 +862,7 @@ async function handleCreateEvent(): Promise<void> {
     resetEventForm()
     await refreshWorkspace(selectedProfile.value.user_id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     lifecycleSubmitting.value = false
   }
@@ -889,7 +889,7 @@ async function handleCreateDelegation(): Promise<void> {
     resetDelegationForm()
     await refreshWorkspace(selectedProfile.value.user_id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     delegationSubmitting.value = false
   }
@@ -905,7 +905,7 @@ async function handleRevokeDelegation(delegation: Delegation): Promise<void> {
       await refreshWorkspace(selectedProfile.value.user_id)
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 

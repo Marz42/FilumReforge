@@ -6,7 +6,7 @@ import { dispatchInstanceTopic, listInstanceSubmissions, rejectInstanceCaptures 
 import VideoCaptureProgressPanel from '@/components/workflow/VideoCaptureProgressPanel.vue'
 import type { InstanceSubmissionsResponse } from '@/types/workflowVideo'
 import type { User, WorkflowGraphInstanceDetail } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
 
 const props = withDefaults(
@@ -135,7 +135,7 @@ async function loadSubmissions(): Promise<void> {
     submissions.value = response.submissions
     syncWriterDefaults(response.submissions)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     submissions.value = []
   } finally {
     loading.value = false
@@ -166,7 +166,7 @@ async function handleDispatch(row: TrackingRow): Promise<void> {
     await loadSubmissions()
     await progressPanelRef.value?.reload()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submittingTopicId.value = null
   }
@@ -198,7 +198,7 @@ async function handleRejectConfirm(): Promise<void> {
     await loadSubmissions()
     await progressPanelRef.value?.reload()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     rejectingTopicId.value = null
   }

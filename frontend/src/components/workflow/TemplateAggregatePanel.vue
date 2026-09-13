@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import { finalizeInstanceTopics, listInstanceSubmissions, rejectInstanceCaptures } from '@/api/workflow-graph'
 import type { InstanceSubmissionsResponse } from '@/types/workflowVideo'
 import type { Task, User, WorkflowGraphInstanceDetail } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { resolveAggregateSchema } from '@/utils/workflowVideoSchema'
 
 const props = defineProps<{
@@ -111,7 +111,7 @@ async function loadSubmissions(): Promise<void> {
       }),
     )
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -156,7 +156,7 @@ async function handleFinalize(): Promise<void> {
     ElMessage.success(`已确认 ${result.approved_count} 条选题，fork：${result.fork_status}`)
     emit('finalized')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }
@@ -176,7 +176,7 @@ async function handleRejectRow(row: MatrixRow): Promise<void> {
     emit('rejected')
     await loadSubmissions()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     rejectingTopicId.value = null
   }

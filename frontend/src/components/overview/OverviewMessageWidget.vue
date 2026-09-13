@@ -5,8 +5,7 @@ import { getMessageCenterSnapshot } from '@/api/messages'
 import { useAppStore } from '@/stores/app'
 import type { Message } from '@/types/api'
 import { formatDateTime } from '@/utils/formatters'
-import { getErrorMessage } from '@/utils/errors'
-import { ElMessage } from 'element-plus'
+import { showError } from '@/utils/errors'
 
 const appStore = useAppStore()
 const loading = ref(false)
@@ -18,7 +17,7 @@ async function loadMessages(): Promise<void> {
     const snapshot = await getMessageCenterSnapshot({ state: 'all', sourceType: 'all' })
     messages.value = snapshot.items.slice(0, 5)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }

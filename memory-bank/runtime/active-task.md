@@ -35,10 +35,10 @@ blocked
 
 ## Blockers
 
-W01/W02 local engineering and isolated checks implemented; KI-014 representative target observation, business-cycle evidence and separately approved Phase D remain pending. Hosted CI first run requires a later source publication.
+W01/W02 committed locally as 791a3d5; W07 local frontend implementation and controlled regressions completed. KI-014 representative target observation, business-cycle evidence and separately approved Phase D remain pending.
 
 ## Notes
 
 Generated from YAML facts; do not edit this projection by hand.
 
-Snapshot revision: 6.
+Snapshot revision: 8.

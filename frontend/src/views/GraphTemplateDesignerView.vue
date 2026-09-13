@@ -44,7 +44,7 @@ import {
   type DepartmentTreeSelectNode,
 } from '@/utils/departmentTreeSelect'
 import { analyzeEdgeTopology } from '@/utils/graphTemplateTopology'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 type DepartmentPoolRow = {
   pool_key: string
@@ -246,7 +246,7 @@ async function loadDesigner(): Promise<void> {
     applyDetail(await getGraphTemplateDesigner(templateId.value))
     validationErrors.value = []
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     void router.push({ name: 'task-templates' })
   } finally {
     loading.value = false
@@ -583,7 +583,7 @@ async function handleValidate(): Promise<void> {
       ElMessage.warning(`发现 ${result.errors.length} 项问题`)
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     validating.value = false
   }
@@ -603,7 +603,7 @@ async function handleSave(): Promise<void> {
     applyDetail(await saveGraphTemplateDraft(templateId.value, payload))
     ElMessage.success('草稿已保存')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     saving.value = false
   }
@@ -619,7 +619,7 @@ async function handleSaveTags(): Promise<void> {
     applyDetail(await getGraphTemplateDesigner(templateId.value))
     ElMessage.success('标签已保存')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     saving.value = false
   }
@@ -644,7 +644,7 @@ async function handleArchive(): Promise<void> {
     ElMessage.success('模板已归档')
     void router.push({ name: 'task-templates', query: { status: 'archived' } })
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     archiving.value = false
   }
@@ -676,7 +676,7 @@ async function handlePublish(): Promise<void> {
     applyDetail(await publishGraphTemplate(templateId.value))
     ElMessage.success('模板已发布')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     publishing.value = false
   }
@@ -693,7 +693,7 @@ async function handleForkVersion(): Promise<void> {
     await router.replace({ name: 'task-template-designer', params: { id: forked.id } })
     applyDetail(forked)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     forking.value = false
   }
@@ -718,7 +718,7 @@ async function handleExportJson(): Promise<void> {
     URL.revokeObjectURL(url)
     ElMessage.success('模板 JSON 已导出')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -743,7 +743,7 @@ async function handleImportFile(event: Event): Promise<void> {
     applyDetail(await importGraphTemplateDraft(templateId.value, bundle))
     ElMessage.success('模板 JSON 已导入')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -766,7 +766,7 @@ async function handleDryRun(): Promise<void> {
       ElMessage.warning(`试跑发现 ${result.errors.length} 项问题`)
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     dryRunning.value = false
   }

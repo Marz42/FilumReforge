@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 
 import { getGraphTemplateDetail, updateGraphTemplate } from '@/api/workflow-graph'
 import type { GraphTemplateSummary } from '@/types/workflowVideo'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const props = defineProps<{
   modelValue: boolean
@@ -49,7 +49,7 @@ async function loadDetail(): Promise<void> {
       sort_order: node.sort_order,
     }))
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     visible.value = false
   } finally {
     loading.value = false
@@ -75,7 +75,7 @@ async function handleSave(): Promise<void> {
     visible.value = false
     emit('saved')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     saving.value = false
   }

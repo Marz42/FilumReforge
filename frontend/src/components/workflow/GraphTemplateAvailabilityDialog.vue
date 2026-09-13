@@ -9,7 +9,7 @@ import {
 } from '@/api/workflow-graph'
 import type { Department } from '@/types/api'
 import type { GraphTemplateScopeEvent, GraphTemplateSummary } from '@/types/workflowVideo'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const props = defineProps<{
   modelValue: boolean
@@ -84,7 +84,7 @@ async function loadContext(): Promise<void> {
     departments.value = departmentList
     events.value = history
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -121,7 +121,7 @@ async function submit(): Promise<void> {
     emit('updated')
     visible.value = false
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

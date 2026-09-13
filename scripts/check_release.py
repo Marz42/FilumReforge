@@ -128,7 +128,7 @@ def main(argv=None):
         junit = checks.output / "frontend.xml"
         checks.command("frontend-unit", [npm, "run", "test:unit", "--", "--run", "--reporter=junit", f"--outputFile={junit}"], frontend, junit=junit)
     if args.suite in ("all", "smoke"):
-        checks.command("browser-smoke", [npm, "run", "test:e2e", "--", "e2e/login.spec.ts", "e2e/shell.spec.ts"], frontend)
+        checks.command("browser-smoke", [npm, "run", "test:e2e", "--", "e2e/login.spec.ts", "e2e/shell.spec.ts", "e2e/session-races.spec.ts"], frontend)
     if args.suite in ("all", "governance"):
         checks.command("governance", [py, str(ROOT / "scripts/pd.py"), "compliance", "check", "--profile", "strict", "--format", "json"])
     if args.mode == "release":

@@ -16,7 +16,7 @@ import type {
   WorkflowTrace,
   WorkflowTraceFilters,
 } from '@/types/workflowOperations'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const loading = ref(false)
 const actionLoading = ref(false)
@@ -56,7 +56,7 @@ async function loadDashboard(): Promise<void> {
   try {
     dashboard.value = await getWorkflowOperationsDashboard(stalledMinutes.value)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -81,7 +81,7 @@ async function handleReplay(item: WorkflowOutboxOperation): Promise<void> {
     await loadDashboard()
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     actionLoading.value = false
   }
@@ -106,7 +106,7 @@ async function handleIncident(
     await loadDashboard()
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     actionLoading.value = false
   }
@@ -132,7 +132,7 @@ async function submitNodeAction(): Promise<void> {
     await loadDashboard()
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     actionLoading.value = false
   }
@@ -145,7 +145,7 @@ async function handleTraceSearch(): Promise<void> {
     const filters: WorkflowTraceFilters = value ? { [traceType.value]: value } : {}
     traces.value = (await searchWorkflowTraces(filters)).items
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     traceLoading.value = false
   }

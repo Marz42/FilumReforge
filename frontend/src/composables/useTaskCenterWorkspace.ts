@@ -1,3 +1,5 @@
+import axios from 'axios'
+import { useLatestRequest } from './useLatestRequest'
 import { ref, watch, type Ref } from 'vue'
 
 import { listTasksByIds } from '@/api/tasks'
@@ -114,9 +116,18 @@ export function useTaskCenterWorkspace(options: {
 }) {
   const loading = ref(false)
   const rows = ref<TaskCenterWorkspaceRow[]>([])
+  const error = ref<unknown>(null)
+  const requests = useLatestRequest(() => { rows.value = []; loading.value = false; error.value = null })
 
   async function refresh(): Promise<void> {
-    if (!options.enabled.value) {
+    rows.value = []
+    loading.value = false
+    error.value = null
+    const request = requests.start()
+    if (!request.isCurrent()) return
+    const userId = options.currentUserId.value
+    const snapshot = options.snapshot.value
+    if (!options.enabled.value || !userId) {
       rows.value = []
       return
     }
@@ -127,7 +138,7 @@ export function useTaskCenterWorkspace(options: {
       return
     }
 
-    const ids = extractTaskIdsFromSnapshot(options.snapshot.value, filter)
+    const ids = extractTaskIdsFromSnapshot(snapshot, filter)
     if (ids.length === 0) {
       rows.value = []
       return
@@ -135,15 +146,18 @@ export function useTaskCenterWorkspace(options: {
 
     loading.value = true
     try {
-      const allTasks = await listTasksByIds(ids)
+      const allTasks = await listTasksByIds(ids, request.signal)
+      if (!request.isCurrent()) return
       const taskById = new Map(allTasks.map((task) => [task.id, task]))
       const orderedTasks = ids
         .map((id) => taskById.get(id))
         .filter((task): task is Task => task !== undefined)
-      const projected = projectTasksForWorkspace(orderedTasks, options.currentUserId.value)
-      rows.value = enrichRowsFromSnapshot(projected, options.snapshot.value, filter)
+      const projected = projectTasksForWorkspace(orderedTasks, userId)
+      rows.value = enrichRowsFromSnapshot(projected, snapshot, filter)
+    } catch (cause) {
+      if (request.isCurrent() && !axios.isCancel(cause)) error.value = cause
     } finally {
-      loading.value = false
+      if (request.isCurrent()) loading.value = false
     }
   }
 
@@ -152,12 +166,13 @@ export function useTaskCenterWorkspace(options: {
     () => {
       void refresh()
     },
-    { deep: true, immediate: true },
+    { deep: true, immediate: true, flush: 'sync' },
   )
 
   return {
     rows,
     loading,
+    error,
     refresh,
   }
 }

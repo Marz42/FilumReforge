@@ -4,9 +4,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { listInstanceChildren, listInstanceEvents } from '@/api/workflow-graph'
 import type { WorkflowGraphInstanceSummary, WorkflowRunEventItem } from '@/types/workflowVideo'
 import type { WorkflowGraphInstanceDetail } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
-import { ElMessage } from 'element-plus'
 
 const props = defineProps<{
   graphInstance: WorkflowGraphInstanceDetail | null
@@ -60,7 +59,7 @@ async function loadChildren(): Promise<void> {
     children.value = childRuns
     runEvents.value = eventsPage.items
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     children.value = []
     runEvents.value = []
   } finally {

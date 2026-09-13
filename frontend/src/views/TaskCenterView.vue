@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onScopeDispose, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -12,6 +12,7 @@ import TaskCenterGanttView from '@/components/task-center/TaskCenterGanttView.vu
 import TaskCenterListView from '@/components/task-center/TaskCenterListView.vue'
 import TaskCenterStatsView from '@/components/task-center/TaskCenterStatsView.vue'
 import PublishTaskDialog from '@/components/task-center/PublishTaskDialog.vue'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useTaskCenterWorkspace } from '@/composables/useTaskCenterWorkspace'
 import {
   type TaskCenterFilter,
@@ -30,7 +31,7 @@ import type {
   TaskSourceType,
   TaskStatus,
 } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import {
   TASK_USER_FACING_STATE_LABELS,
   userFacingStateTagType,
@@ -146,12 +147,14 @@ const displayListItems = computed(() => {
 
 const isSearchMode = computed(() => taskSearchQuery.value.trim().length > 0)
 
-const { rows: workspaceRows, loading: workspaceLoading, refresh: refreshWorkspace } = useTaskCenterWorkspace({
+const { rows: workspaceRows, loading: workspaceLoading, refresh: refreshWorkspace, error: workspaceError } = useTaskCenterWorkspace({
   filter: activeFilter,
   snapshot,
   currentUserId: computed(() => authStore.user?.id),
   enabled: computed(() => usesWorkspace.value && !isSearchMode.value),
 })
+
+watch(workspaceError, (error) => { if (error) showError(error) })
 
 const taskListSortLabel = computed(() =>
   taskListSortMode.value === 'completed_desc' ? '最近完成' : '最新发布',
@@ -335,7 +338,14 @@ async function handleTaskCreated(): Promise<void> {
   handleFilterChange('inbox')
 }
 
+const snapshotRequests = useLatestRequest(() => { snapshot.value = null; loading.value = false })
+const searchRequests = useLatestRequest(() => { taskSearchResults.value = []; taskSearchLoading.value = false })
+const pageRequests = useLatestRequest(() => { listLoadMoreLoading.value = false })
+onScopeDispose(() => { if (taskSearchTimer) clearTimeout(taskSearchTimer) })
+watch(activeFilter, () => pageRequests.invalidate(), { flush: 'sync' })
+
 async function runTaskSearch(query: string): Promise<void> {
+  const request = searchRequests.start()
   const trimmed = query.trim()
   if (!trimmed) {
     taskSearchResults.value = []
@@ -343,33 +353,41 @@ async function runTaskSearch(query: string): Promise<void> {
   }
   taskSearchLoading.value = true
   try {
-    taskSearchResults.value = await searchTasks(trimmed)
+    const result = await searchTasks(trimmed, 30, request.signal)
+    if (!request.isCurrent() || taskSearchQuery.value.trim() !== trimmed) return
+    taskSearchResults.value = result
     sanitizeSelectedQuery()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    if (request.isCurrent()) showError(error)
   } finally {
-    taskSearchLoading.value = false
+    if (request.isCurrent()) taskSearchLoading.value = false
   }
 }
 
 watch(taskSearchQuery, (value) => {
+  searchRequests.invalidate()
   if (taskSearchTimer) {
     clearTimeout(taskSearchTimer)
   }
   taskSearchTimer = setTimeout(() => {
     void runTaskSearch(value)
   }, 300)
-})
+}, { flush: 'sync' })
 
 async function loadSnapshot(): Promise<void> {
+  const request = snapshotRequests.start()
+  pageRequests.invalidate()
+  if (!request.isCurrent()) return
   loading.value = true
   try {
-    snapshot.value = await getTaskCenterSnapshot()
+    const result = await getTaskCenterSnapshot(request.signal)
+    if (!request.isCurrent()) return
+    snapshot.value = result
     sanitizeSelectedQuery()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    if (request.isCurrent()) showError(error)
   } finally {
-    loading.value = false
+    if (request.isCurrent()) loading.value = false
   }
 }
 
@@ -379,7 +397,7 @@ async function handleDetailActionDone(): Promise<void> {
 }
 
 async function handleLoadMoreListItems(): Promise<void> {
-  if (!snapshot.value || !activeListPagination.value.has_more) {
+  if (listLoadMoreLoading.value || !snapshot.value || !activeListPagination.value.has_more) {
     return
   }
   const cursor = activeListPagination.value.next_cursor
@@ -387,10 +405,15 @@ async function handleLoadMoreListItems(): Promise<void> {
     return
   }
 
+  const request = pageRequests.start()
+  const previous = snapshot.value
+  const filter = activeFilter.value
+  const current = () => request.isCurrent() && snapshot.value === previous && activeFilter.value === filter
   listLoadMoreLoading.value = true
   try {
     if (activeFilter.value === 'inbox') {
       const page = await fetchTaskCenterInboxPage({ cursor })
+      if (!current()) return
       snapshot.value = {
         ...snapshot.value,
         task_inbox: [...snapshot.value.task_inbox, ...page.items],
@@ -398,6 +421,7 @@ async function handleLoadMoreListItems(): Promise<void> {
       }
     } else if (activeFilter.value === 'history') {
       const page = await fetchTaskCenterHistoryPage({ cursor })
+      if (!current()) return
       snapshot.value = {
         ...snapshot.value,
         task_history: [...snapshot.value.task_history, ...page.items],
@@ -405,6 +429,7 @@ async function handleLoadMoreListItems(): Promise<void> {
       }
     } else {
       const page = await fetchTaskCenterTrackingPage({ cursor })
+      if (!current()) return
       snapshot.value = {
         ...snapshot.value,
         task_tracking: [...snapshot.value.task_tracking, ...page.items],
@@ -413,9 +438,9 @@ async function handleLoadMoreListItems(): Promise<void> {
     }
     await refreshWorkspace()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    if (request.isCurrent()) showError(error)
   } finally {
-    listLoadMoreLoading.value = false
+    if (request.isCurrent()) listLoadMoreLoading.value = false
   }
 }
 
@@ -478,7 +503,7 @@ async function submitExtendDueDate(): Promise<void> {
     await loadSnapshot()
     await refreshWorkspace()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     extendDueDateSubmitting.value = false
   }
@@ -489,8 +514,8 @@ async function handleNudge(taskId: string): Promise<void> {
   try {
     await createTaskComment(taskId, { content: '【催办】请及时处理此任务' })
     ElMessage.success('催办消息已发送')
-  } catch {
-    ElMessage.error('催办失败，请稍后重试')
+  } catch (error) {
+    showError(error, '催办失败，请稍后重试')
   } finally {
     nudgingTaskIds.value = new Set([...nudgingTaskIds.value].filter((id) => id !== taskId))
   }
@@ -535,6 +560,8 @@ watch(
   },
   { immediate: true },
 )
+
+watch(() => authStore.user?.id, (id) => { if (id) void loadSnapshot() })
 
 onMounted(() => {
   void loadSnapshot()

@@ -9,7 +9,7 @@ import {
 } from '@/api/workflow-graph'
 import type { Task, WorkflowGraphInstanceDetail } from '@/types/api'
 import type { CaptureSchema, ParticipantUserPreview } from '@/types/workflowVideo'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
 import { resolveCaptureSchema, isCaptureClosed, resolveUserPoolKey } from '@/utils/workflowVideoSchema'
 
@@ -96,7 +96,7 @@ async function loadManagerOptions(): Promise<void> {
     }
     managerCandidates.value = await listManagedDepartmentMemberOptions()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     managerCandidates.value = []
   } finally {
     managerLoading.value = false
@@ -175,7 +175,7 @@ async function handleSubmit(): Promise<void> {
     ElMessage.success(`已提交 ${filtered.length} 条记录`)
     emit('submitted')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

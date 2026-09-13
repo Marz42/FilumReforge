@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatPasswordValidationMessage, validatePasswordClient } from '@/utils/passwordPolicy'
 
 const authStore = useAuthStore()
@@ -71,7 +71,7 @@ async function handleSubmit(): Promise<void> {
     ElMessage.success('管理员初始化成功')
     await router.replace('/overview')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

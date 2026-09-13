@@ -1,3 +1,5 @@
+import axios from 'axios'
+import { getSessionEpoch, isCurrentSession } from '@/api/session'
 import { computed, ref } from 'vue'
 
 import { getTaskCenterSnapshot } from '@/api/task-center'
@@ -7,9 +9,15 @@ import type { TaskCenterSnapshot } from '@/types/api'
 const snapshot = ref<TaskCenterSnapshot | null>(null)
 const loading = ref(false)
 let loadPromise: Promise<void> | null = null
+let generation = 0
+let controller: AbortController | undefined
 
 export function resetTaskCenterPermissionsCache(): void {
+  generation += 1
+  controller?.abort()
+  controller = undefined
   snapshot.value = null
+  loading.value = false
   loadPromise = null
 }
 
@@ -28,16 +36,18 @@ export function useTaskCenterPermissions() {
       return
     }
 
-    loadPromise = (async () => {
-      loading.value = true
-      try {
-        snapshot.value = await getTaskCenterSnapshot()
-      } finally {
-        loading.value = false
-        loadPromise = null
-      }
-    })()
-    await loadPromise
+    const request = ++generation
+    const epoch = getSessionEpoch()
+    controller = new AbortController()
+    const signal = controller.signal
+    const current = () => request === generation && isCurrentSession(epoch) && !signal.aborted
+    loading.value = true
+    const promise = getTaskCenterSnapshot(signal)
+      .then((value) => { if (current()) snapshot.value = value })
+      .catch((error: unknown) => { if (current() && !axios.isCancel(error)) throw error })
+      .finally(() => { if (current()) { loading.value = false; loadPromise = null } })
+    loadPromise = promise
+    await promise
   }
 
   const canPublishTask = computed(() => snapshot.value?.permissions.can_publish_task ?? false)

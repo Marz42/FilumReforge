@@ -19,8 +19,10 @@ type GetMessageCenterSnapshotParams = {
 
 export async function getMessageCenterSnapshot(
   params: GetMessageCenterSnapshotParams = {},
+  signal?: AbortSignal,
 ): Promise<MessageCenterSnapshot> {
   const { data } = await http.get<MessageCenterSnapshot>('/messages', {
+    signal,
     params: {
       source_type: params.sourceType,
       state: params.state,

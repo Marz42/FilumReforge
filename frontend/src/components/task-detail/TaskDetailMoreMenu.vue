@@ -12,7 +12,7 @@ import { archiveTask } from '@/api/tasks'
 import type { TaskDetailProfile } from '@/domain/task-detail/profile'
 import { TASK_CENTER_V2_UI_ENABLED } from '@/constants/task-center'
 import type { Task, WorkflowGraphInstanceDetail } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { resolveCollectionSourceNodeKey } from '@/domain/task-detail/legacy-profile'
 
 const router = useRouter()
@@ -103,7 +103,7 @@ async function loadRejectTopicOptions(): Promise<void> {
     rejectTopicOptions.value = options
     rejectTopicId.value = options[0]?.value ?? ''
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     rejectTopicOptions.value = []
   } finally {
     rejectTopicsLoading.value = false
@@ -168,7 +168,7 @@ async function submitCaptureReject(): Promise<void> {
     captureRejectVisible.value = false
     emit('actionDone')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     rejectSubmitting.value = false
   }
@@ -192,7 +192,7 @@ async function submitProductionReject(): Promise<void> {
     productionRejectVisible.value = false
     emit('actionDone')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     rejectSubmitting.value = false
   }
@@ -216,7 +216,7 @@ async function submitAdminArchive(): Promise<void> {
     adminArchiveVisible.value = false
     emit('taskArchived')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     adminArchiveSubmitting.value = false
   }

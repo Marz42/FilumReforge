@@ -1,3 +1,4 @@
+import { CanceledError } from 'axios'
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
@@ -13,7 +14,7 @@ import {
   type BootstrapAdminPayload,
   type LoginPayload,
 } from '@/api/auth'
-import { clearAuthSession, getAccessToken, setAccessToken } from '@/api/session'
+import { clearAuthSession, getAccessToken, getSessionEpoch, isCurrentSession, setAccessToken } from '@/api/session'
 import { resetTaskCenterPermissionsCache } from '@/composables/useTaskCenterPermissions'
 import type { AuthSession, User, UserInvitationPreview } from '@/types/api'
 
@@ -29,7 +30,11 @@ export const useAuthStore = defineStore('auth', () => {
     () => user.value?.role === 'admin' || user.value?.role === 'hr',
   )
 
-  function applySession(session: AuthSession) {
+  let pendingLogout: Promise<void> | null = null
+  let restorePromise: Promise<boolean> | null = null
+
+  function applySession(session: AuthSession, epoch: number) {
+    if (!isCurrentSession(epoch)) throw new CanceledError('Session changed')
     resetTaskCenterPermissionsCache()
     accessToken.value = session.access_token
     user.value = session.user
@@ -38,13 +43,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function loginWithPassword(payload: LoginPayload): Promise<User> {
+    clearSession()
+    const epoch = getSessionEpoch()
+    if (pendingLogout) await pendingLogout.catch(() => undefined)
+    if (!isCurrentSession(epoch)) throw new CanceledError('Session changed')
     const session = await login(payload)
-    applySession(session)
+    applySession(session, epoch)
     return session.user
   }
 
   async function bootstrapAdminAccount(payload: BootstrapAdminPayload): Promise<User> {
+    clearSession()
+    const epoch = getSessionEpoch()
     await bootstrapAdmin(payload)
+    if (!isCurrentSession(epoch)) throw new CanceledError('Session changed')
     bootstrapRequired.value = false
     bootstrapStatusLoaded.value = true
     return loginWithPassword({
@@ -61,17 +73,23 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function restoreSession(): Promise<boolean> {
-    if (initialized.value) {
-      return isAuthenticated.value
-    }
-
-    try {
-      applySession(await refreshSession())
-      return true
-    } catch {
-      clearSession()
-      return false
-    }
+    if (initialized.value) return isAuthenticated.value
+    if (restorePromise) return restorePromise
+    const epoch = getSessionEpoch()
+    const promise: Promise<boolean> = Promise.resolve().then(async () => {
+      if (!isCurrentSession(epoch)) return false
+      try {
+        applySession(await refreshSession(), epoch)
+        return true
+      } catch {
+        if (isCurrentSession(epoch)) clearSession()
+        return false
+      } finally {
+        if (restorePromise === promise) restorePromise = null
+      }
+    })
+    restorePromise = promise
+    return promise
   }
 
   async function fetchInvitationPreview(token: string): Promise<UserInvitationPreview> {
@@ -79,12 +97,17 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function acceptInvitationRegistration(payload: AcceptInvitationPayload): Promise<User> {
+    clearSession()
+    const epoch = getSessionEpoch()
+    if (pendingLogout) await pendingLogout.catch(() => undefined)
+    if (!isCurrentSession(epoch)) throw new CanceledError('Session changed')
     const session = await acceptInvitation(payload)
-    applySession(session)
+    applySession(session, epoch)
     return session.user
   }
 
   function clearSession(): void {
+    restorePromise = null
     accessToken.value = null
     user.value = null
     initialized.value = true
@@ -93,11 +116,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout(): Promise<void> {
-    try {
-      await logoutSession()
-    } finally {
-      clearSession()
-    }
+    clearSession()
+    const promise = pendingLogout ?? logoutSession()
+    pendingLogout = promise
+    try { await promise } finally { if (pendingLogout === promise) pendingLogout = null }
   }
 
   return {

@@ -62,11 +62,12 @@ export async function listTasks(): Promise<Task[]> {
   return data
 }
 
-export async function listTasksByIds(taskIds: string[]): Promise<Task[]> {
+export async function listTasksByIds(taskIds: string[], signal?: AbortSignal): Promise<Task[]> {
   if (taskIds.length === 0) {
     return []
   }
   const { data } = await http.get<Task[]>('/tasks', {
+    signal,
     params: { ids: taskIds },
     // FastAPI list query expects ids=a&ids=b; axios default ids[]=a breaks the filter
     // and forces a full org list load for ADMIN/HR (slow / timeout → empty 待处理).
@@ -93,8 +94,9 @@ export interface TaskSearchResult {
   user_facing_state?: TaskUserFacingState | null
 }
 
-export async function searchTasks(query: string, limit = 30): Promise<TaskSearchResult[]> {
+export async function searchTasks(query: string, limit = 30, signal?: AbortSignal): Promise<TaskSearchResult[]> {
   const { data } = await http.get<TaskSearchResult[]>('/tasks/search', {
+    signal,
     params: { q: query, limit },
   })
   return data

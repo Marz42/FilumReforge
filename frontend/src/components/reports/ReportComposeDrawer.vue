@@ -6,7 +6,7 @@ import { createReport } from '@/api/report-center'
 import { uploadAttachment } from '@/api/attachments'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
 import type { ReportDirection, ReportTargetOption, WorkflowDefinitionOption } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 export type ComposeRecipientOption = {
   key: string
@@ -126,7 +126,7 @@ async function handleReportDraftFileChange(uploadFile: UploadFile): Promise<void
     })
     ElMessage.success('附件已加入，将在提交时绑定到汇报')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     reportDraftUploading.value = false
   }
@@ -163,7 +163,7 @@ async function handleSubmit(): Promise<void> {
     emit('created')
     closeDrawer()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

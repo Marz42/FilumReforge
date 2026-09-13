@@ -1,3 +1,4 @@
+import { ElMessage } from 'element-plus'
 import axios, { type AxiosError } from 'axios'
 
 import { extractValidationDetail } from '@/utils/formErrors'
@@ -54,4 +55,9 @@ export function getErrorMessage(error: unknown): string {
   }
 
   return '操作失败，请稍后重试。'
+}
+
+/** Session/request cancellation is expected; actual HTTP failures retain their existing message. */
+export function showError(error: unknown, fallback?: string): void {
+  if (!axios.isCancel(error)) ElMessage.error(fallback ?? getErrorMessage(error))
 }

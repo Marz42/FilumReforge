@@ -1,10 +1,13 @@
+import axios from 'axios'
+import { getSessionEpoch, isCurrentSession, onSessionChange } from '@/api/session'
+import { useLatestRequest } from './useLatestRequest'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 
 import { createMessageReceipt, getMessageCenterSnapshot } from '@/api/messages'
 import type { Message, MessageCenterSnapshot, MessageStateFilter } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 type InboxQuery = {
   sourceType?: string
@@ -19,7 +22,11 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
   const sourceFilter = ref(initialQuery.sourceType ?? 'all')
   const stateFilter = ref<MessageStateFilter>(initialQuery.state ?? 'all')
 
+  let disposed = false
   let pollTimer: ReturnType<typeof setInterval> | null = null
+
+  const requests = useLatestRequest(() => { snapshot.value = null; selectedMessageId.value = ''; loading.value = false })
+  const unsubscribe = onSessionChange(stopPolling)
 
   const messages = computed(() => snapshot.value?.items ?? [])
   const unreadCount = computed(() => snapshot.value?.unread_count ?? 0)
@@ -35,20 +42,24 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
       stateFilter.value = overrides.state
     }
 
+    const request = requests.start()
+    if (!request.isCurrent()) return
     loading.value = true
     try {
-      snapshot.value = await getMessageCenterSnapshot({
+      const result = await getMessageCenterSnapshot({
         sourceType: sourceFilter.value === 'all' ? undefined : sourceFilter.value,
         state: stateFilter.value,
-      })
+      }, request.signal)
+      if (!request.isCurrent()) return
+      snapshot.value = result
       const stillSelected = messages.value.some((message) => message.id === selectedMessageId.value)
       if (!stillSelected) {
         selectedMessageId.value = messages.value[0]?.id ?? ''
       }
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      if (request.isCurrent() && !axios.isCancel(error)) showError(error)
     } finally {
-      loading.value = false
+      if (request.isCurrent()) loading.value = false
     }
   }
 
@@ -58,6 +69,7 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
 
   function startPolling(intervalMs = 60_000): void {
     stopPolling()
+    if (disposed) return
     pollTimer = setInterval(() => {
       void refreshUnreadCount()
     }, intervalMs)
@@ -90,6 +102,7 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
   }
 
   async function navigateToSource(message: Message): Promise<boolean> {
+    const epoch = getSessionEpoch()
     if (!message.source.target.can_navigate || !message.source.target.route_name) {
       ElMessage.warning('当前消息暂不支持回到来源')
       return false
@@ -103,6 +116,7 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
       }
     }
 
+    if (!isCurrentSession(epoch) || disposed) return false
     await router.push({
       name: message.source.target.route_name,
       query: message.source.target.route_query,
@@ -111,7 +125,10 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
   }
 
   onBeforeUnmount(() => {
+    disposed = true
     stopPolling()
+    unsubscribe()
+    requests.dispose()
   })
 
   return {

@@ -14,7 +14,7 @@ import type {
   NotificationDelivery,
   NotificationDeliveryStatus,
 } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
 const router = useRouter()
@@ -85,7 +85,7 @@ async function loadData(): Promise<void> {
       selectedMessageId.value = messages.value[0]?.id ?? ''
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -191,7 +191,7 @@ async function handleReceipt(receiptType: 'read' | 'acknowledged'): Promise<void
     ElMessage.success('消息回执已提交')
     await loadData()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     receiptSubmitting.value = false
   }

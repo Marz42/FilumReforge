@@ -22,7 +22,7 @@ import {
 } from '@/utils/scheduleCron'
 import { resolveLaunchSchema, resolveParticipantPolicyRefs } from '@/utils/workflowVideoSchema'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const props = defineProps<{
   departmentOptions: Array<{ id: string; label: string }>
@@ -177,7 +177,7 @@ async function handleSubmit(): Promise<void> {
     }
     emit('created')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

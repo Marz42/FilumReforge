@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Message, MessageCenterSnapshot } from '@/types/api'
+import { clearAuthSession } from '@/api/session'
 
 vi.mock('@/api/messages', () => ({
   createMessageReceipt: vi.fn(),
@@ -89,5 +90,27 @@ describe('useMessagesInbox', () => {
     expect(getMessageCenterSnapshot).toHaveBeenCalledTimes(2)
 
     wrapper.unmount()
+  })
+
+  it('stops polling on logout and ignores a late inbox response', async () => {
+    vi.useFakeTimers()
+    let finish!: (snapshot: MessageCenterSnapshot) => void
+    vi.mocked(getMessageCenterSnapshot).mockReturnValue(new Promise((done) => { finish = done }))
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
+    let inbox!: ReturnType<typeof useMessagesInbox>
+    const wrapper = mount(defineComponent({ setup() { inbox = useMessagesInbox(); return () => h('div') } }), { global: { plugins: [router] } })
+    try {
+      const load = inbox.loadInbox()
+      inbox.startPolling(1000)
+      clearAuthSession()
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(getMessageCenterSnapshot).toHaveBeenCalledTimes(1)
+      finish(buildSnapshot([buildMessage('old-account')]))
+      await load
+      expect(inbox.messages.value).toEqual([])
+      expect(inbox.loading.value).toBe(false)
+      wrapper.unmount()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally { wrapper.unmount(); vi.useRealTimers() }
   })
 })

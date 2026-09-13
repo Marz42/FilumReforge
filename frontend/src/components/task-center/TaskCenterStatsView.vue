@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
@@ -21,7 +20,7 @@ import type {
   TaskWorkloadRow,
 } from '@/types/api'
 import type { DepartmentRunSummary, WorkflowRunEventItem } from '@/types/workflowVideo'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
 defineProps<{
@@ -203,7 +202,7 @@ async function loadStats(): Promise<void> {
     workloadRows.value = workload
   } catch (error) {
     if (requestId === statsRequestId) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     }
   } finally {
     if (requestId === statsRequestId) {
@@ -235,7 +234,7 @@ async function loadDepartmentRuns(): Promise<void> {
     if (requestId === runsRequestId) {
       departmentRuns.value = []
       runEvents.value = []
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     }
   } finally {
     if (requestId === runsRequestId) {
@@ -254,7 +253,7 @@ async function loadEventsForInstance(instanceId: string): Promise<void> {
     const eventsPage = await listInstanceEvents(instanceId, { limit: 100 })
     runEvents.value = eventsPage.items
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     runEvents.value = []
   }
 }
@@ -288,7 +287,7 @@ async function loadMoreDetails(): Promise<void> {
     detailNextCursor.value = page.next_cursor
     detailHasMore.value = page.has_more
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     detailsLoading.value = false
   }
@@ -333,7 +332,7 @@ onMounted(async () => {
     syncRouteQuery()
     await Promise.all([loadStats(), loadDepartmentRuns()])
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 })
 </script>

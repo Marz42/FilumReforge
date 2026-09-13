@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { clearAuthSession } from '@/api/session'
 
 vi.mock('@/api/task-center', () => ({
   getTaskCenterSnapshot: vi.fn(),
@@ -75,5 +76,23 @@ describe('useTaskCenterPermissions', () => {
 
     expect(permissions.canAdministerTaskTemplates.value).toBe(true)
     expect(permissions.canAccessTaskTemplates.value).toBe(true)
+  })
+
+  it('does not restore stale permissions after cache/session reset', async () => {
+    const store = useAuthStore()
+    store.user = { id: 'old-user' } as never
+    store.accessToken = 'old-token'
+    let resolve!: (value: Awaited<ReturnType<typeof getTaskCenterSnapshot>>) => void
+    vi.mocked(getTaskCenterSnapshot).mockReturnValueOnce(new Promise((done) => { resolve = done }))
+    const permissions = useTaskCenterPermissions()
+    const old = permissions.ensureLoaded()
+    clearAuthSession()
+    resetTaskCenterPermissionsCache()
+    vi.mocked(getTaskCenterSnapshot).mockResolvedValueOnce({ permissions: { can_publish_task: false } } as never)
+    await permissions.ensureLoaded()
+    resolve({ permissions: { can_publish_task: true } } as never)
+    await old
+    expect(permissions.canPublishTask.value).toBe(false)
+    expect(permissions.loading.value).toBe(false)
   })
 })

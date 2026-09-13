@@ -1,7 +1,7 @@
 # Manuals Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: af3245ed92eee959 -->
+<!-- checksum: 1c764ab3416c87ae -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -11,6 +11,7 @@
 | [2026-09-04-ki014-phase-c-observation-checklist.md](2026-09-04-ki014-phase-c-observation-checklist.md) | `paradigma-manual` | KI-014 Phase C 兼容观察清单 | KI-014<br>兼容观察<br>Phase C | - | related_to:../plans/2026-08-26-ki014-schema-drift-remediation-plan.md<br>related_to:manual-database-operations.md |
 | [2026-09-12-development-baseline.md](2026-09-12-development-baseline.md) | `paradigma-manual` | 2026-09-12 统一开发基线 | 统一开发基线<br>Git<br>KI-014 | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../plans/2026-08-26-ki014-schema-drift-remediation-plan.md<br>related_to:./2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:./manual-database-operations.md |
 | [2026-09-13-w01-w02-checks.md](2026-09-13-w01-w02-checks.md) | `paradigma-manual` | W01/W02 开发、隔离 CI 与发布检查 | 发布检查<br>隔离CI<br>版本适配 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../known-issues/ki-013-paradigma-product-version-collision.md<br>related_to:./2026-09-12-development-baseline.md |
+| [2026-09-13-w07-session-request-ownership.md](2026-09-13-w07-session-request-ownership.md) | `paradigma-manual` | W07 会话与请求竞态修复 | 会话代次<br>旧响应<br>退出登录 ... | - | related_to:../known-issues/ki-016-logout-inflight-request-401-noise.md<br>related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/architecture/frontend-architecture.md |
 | [deployment-runbook-ubuntu-2404.md](deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | related_to:2026-08-09-production-release-checklist.md |
 | [e2e-gui-verification-automation-runbook.md](e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | related_to:workflow-video-v1-multi-account-e2e-guide.md |
 | [manual-database-operations.md](manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | related_to:2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:../architecture.md |

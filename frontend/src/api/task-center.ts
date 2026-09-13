@@ -38,8 +38,8 @@ export interface TaskCenterHistoryPage {
   pagination: TaskCenterPagination
 }
 
-export async function getTaskCenterSnapshot(): Promise<TaskCenterSnapshot> {
-  const { data } = await http.get<TaskCenterSnapshot>('/task-center')
+export async function getTaskCenterSnapshot(signal?: AbortSignal): Promise<TaskCenterSnapshot> {
+  const { data } = await http.get<TaskCenterSnapshot>('/task-center', { signal })
   return data
 }
 

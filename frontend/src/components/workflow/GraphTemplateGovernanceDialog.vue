@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 
 import { auditGraphTemplateGovernance } from '@/api/workflow-graph'
 import type {
   GraphTemplateGovernanceAudit,
   GraphTemplateGovernanceIssue,
 } from '@/types/workflowVideo'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const visible = defineModel<boolean>({ required: true })
 
@@ -54,7 +53,7 @@ async function loadReport(): Promise<void> {
     report.value = await auditGraphTemplateGovernance()
   } catch (error) {
     report.value = null
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }

@@ -34,7 +34,7 @@ import type {
   ReportingLineType,
   User,
 } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDate, formatDateTime } from '@/utils/formatters'
 
 type SelectionOption = {
@@ -331,7 +331,7 @@ async function loadSelectedProfile(userId: string): Promise<void> {
     selectedProfile.value = profile
     hydrateBasicForm(profile)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     detailLoading.value = false
   }
@@ -374,7 +374,7 @@ async function loadData(): Promise<void> {
       selectedProfile.value = null
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -411,7 +411,7 @@ async function handleCreateProfile(): Promise<void> {
     selectedProfileId.value = profile.user_id
     await loadData()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     createSubmitting.value = false
   }
@@ -438,7 +438,7 @@ async function handleSaveBasic(): Promise<void> {
     ElMessage.success('档案已更新')
     await loadData()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     basicSubmitting.value = false
   }
@@ -462,7 +462,7 @@ async function handleCreatePositionCatalog(): Promise<void> {
     resetPositionCatalogForm()
     positions.value = await listPositions()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     positionCatalogSubmitting.value = false
   }
@@ -490,7 +490,7 @@ async function handleCreatePositionAssignment(): Promise<void> {
     await loadSelectedProfile(selectedProfile.value.user_id)
     profiles.value = await listProfiles()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     positionSubmitting.value = false
   }
@@ -517,7 +517,7 @@ async function handleCreateReportingLine(): Promise<void> {
     resetReportingForm()
     await loadSelectedProfile(selectedProfile.value.user_id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     reportingSubmitting.value = false
   }
@@ -546,7 +546,7 @@ async function handleCreateEvent(): Promise<void> {
     await loadSelectedProfile(selectedProfile.value.user_id)
     profiles.value = await listProfiles()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     eventSubmitting.value = false
   }
@@ -575,7 +575,7 @@ async function handleCreateDelegation(): Promise<void> {
     resetDelegationForm()
     await loadSelectedProfile(selectedProfile.value.user_id)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     delegationSubmitting.value = false
   }
@@ -591,7 +591,7 @@ async function handleRevokeDelegation(delegation: Delegation): Promise<void> {
       await loadSelectedProfile(selectedProfile.value.user_id)
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 

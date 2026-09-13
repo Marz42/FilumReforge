@@ -1,4 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
+import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthSession, User } from '@/types/api'
@@ -151,5 +152,63 @@ describe('auth store', () => {
     expect(authStore.isAuthenticated).toBe(true)
     expect(authStore.user?.email).toBe('admin@example.com')
     expect(getAccessToken()).toBe('access-token')
+  })
+
+  it('does not let a late restore overwrite a newer login', async () => {
+    let resolve!: (session: AuthSession) => void
+    vi.mocked(refreshSession).mockReturnValue(new Promise((done) => { resolve = done }))
+    const store = useAuthStore()
+    const oldRestore = store.restoreSession()
+    await flushPromises()
+    const newer = { ...mockSession, access_token: 'new-token', user: { ...mockUser, id: 'new-user' } }
+    vi.mocked(login).mockResolvedValue(newer)
+    await store.login({ email: 'new@example.com', password: 'StrongPassword123!' })
+    resolve(mockSession)
+    expect(await oldRestore).toBe(false)
+    expect(store.user?.id).toBe('new-user')
+    expect(getAccessToken()).toBe('new-token')
+  })
+
+  it('does not dispatch a queued restore after a new login has started', async () => {
+    vi.mocked(refreshSession).mockResolvedValue(mockSession)
+    vi.mocked(login).mockResolvedValue({ ...mockSession, access_token: 'new-token' })
+    const store = useAuthStore()
+    const restoring = store.restoreSession()
+    const loggingIn = store.login({ email: 'new@example.com', password: 'StrongPassword123!' })
+    expect(await restoring).toBe(false)
+    await loggingIn
+    expect(refreshSession).not.toHaveBeenCalled()
+    expect(getAccessToken()).toBe('new-token')
+  })
+
+  it('clears immediately and waits for the logout cookie response before the next login', async () => {
+    vi.mocked(login).mockResolvedValue(mockSession)
+    const store = useAuthStore()
+    await store.login({ email: 'old@example.com', password: 'StrongPassword123!' })
+    let finish!: () => void
+    vi.mocked(logout).mockReturnValue(new Promise((done) => { finish = done }))
+    const oldLogout = store.logout()
+    expect(store.isAuthenticated).toBe(false)
+    expect(getAccessToken()).toBeNull()
+    vi.mocked(login).mockClear()
+    const nextLogin = store.login({ email: 'new@example.com', password: 'StrongPassword123!' })
+    await flushPromises()
+    expect(login).not.toHaveBeenCalled()
+    finish()
+    await Promise.all([oldLogout, nextLogin])
+    expect(store.isAuthenticated).toBe(true)
+    expect(getAccessToken()).toBe(mockSession.access_token)
+  })
+
+  it('ignores an older login that completes after another login', async () => {
+    let finish!: (value: AuthSession) => void
+    vi.mocked(login).mockReturnValueOnce(new Promise((done) => { finish = done }))
+      .mockResolvedValueOnce({ ...mockSession, access_token: 'second-token' })
+    const store = useAuthStore()
+    const first = store.login({ email: 'first@example.com', password: 'StrongPassword123!' }).catch((error: unknown) => error)
+    await store.login({ email: 'second@example.com', password: 'StrongPassword123!' })
+    finish(mockSession)
+    expect(await first).toMatchObject({ code: 'ERR_CANCELED' })
+    expect(getAccessToken()).toBe('second-token')
   })
 })

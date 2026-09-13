@@ -3,7 +3,7 @@ import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { changePassword } from '@/api/auth'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatPasswordValidationMessage, validatePasswordClient } from '@/utils/passwordPolicy'
 
 const submitting = ref(false)
@@ -38,7 +38,7 @@ async function handleSubmit(): Promise<void> {
     form.newPassword = ''
     form.confirmPassword = ''
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

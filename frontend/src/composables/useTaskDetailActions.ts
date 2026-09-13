@@ -17,7 +17,7 @@ import type {
   User,
   WorkflowGraphInstanceDetail,
 } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 type StatusAction = {
   label: string
@@ -129,7 +129,7 @@ export function useTaskDetailActions(options: TaskDetailActionOptions) {
       extendDueDateDialogVisible.value = false
       await reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       extendDueDateSubmitting.value = false
     }
@@ -146,7 +146,7 @@ export function useTaskDetailActions(options: TaskDetailActionOptions) {
       ElMessage.success(result.message)
       await reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       closeCaptureSubmitting.value = false
     }
@@ -165,7 +165,7 @@ export function useTaskDetailActions(options: TaskDetailActionOptions) {
       ElMessage.success(`任务已更新为${resolveStatusLabel(statusAction.status)}`)
       await reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       statusSubmitting.value = false
     }
@@ -192,7 +192,7 @@ export function useTaskDetailActions(options: TaskDetailActionOptions) {
       resetDeliverableForm()
       await reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       deliverableSubmitting.value = false
     }
@@ -223,7 +223,7 @@ export function useTaskDetailActions(options: TaskDetailActionOptions) {
       }
       await reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       approvalSubmitting.value = false
     }
@@ -257,7 +257,7 @@ export function useTaskDetailActions(options: TaskDetailActionOptions) {
       rejectCommentText.value = ''
       await reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       approvalSubmitting.value = false
     }

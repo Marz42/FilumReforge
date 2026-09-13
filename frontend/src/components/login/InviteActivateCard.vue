@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import type { UserInvitationPreview } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatPasswordValidationMessage, validatePasswordClient } from '@/utils/passwordPolicy'
 
 const props = defineProps<{
@@ -53,7 +53,7 @@ watch(
       })
       .catch((error) => {
         preview.value = null
-        ElMessage.error(getErrorMessage(error))
+        showError(error)
       })
       .finally(() => {
         loading.value = false
@@ -89,7 +89,7 @@ async function handleSubmit(): Promise<void> {
     ElMessage.success('注册成功')
     await router.replace(props.redirectTarget)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

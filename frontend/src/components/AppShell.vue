@@ -17,6 +17,8 @@ import AppHeader from '@/components/shell/AppHeader.vue'
 import GlobalMemoFloat from '@/components/shell/GlobalMemoFloat.vue'
 import { useTaskCenterPermissions } from '@/composables/useTaskCenterPermissions'
 import { useAppStore } from '@/stores/app'
+import { getSessionEpoch, isCurrentSession } from '@/api/session'
+import { showError } from '@/utils/errors'
 import { useAuthStore } from '@/stores/auth'
 
 const appStore = useAppStore()
@@ -102,8 +104,10 @@ function closeMobileNav(): void {
 }
 
 async function handleLogout(): Promise<void> {
-  await authStore.logout()
+  const pending = authStore.logout()
+  const epoch = getSessionEpoch()
   void router.push({ name: 'login' })
+  try { await pending } catch (error) { if (isCurrentSession(epoch)) showError(error) }
 }
 
 watch(
@@ -117,7 +121,7 @@ onMounted(() => {
   syncViewport()
   window.addEventListener('resize', syncViewport)
   if (authStore.isAuthenticated) {
-    void ensureLoaded()
+    void ensureLoaded().catch(showError)
   }
 })
 

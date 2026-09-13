@@ -7,7 +7,7 @@ import { uploadAttachment } from '@/api/attachments'
 import { submitTaskDeliverable } from '@/api/tasks'
 import type { Task } from '@/types/api'
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/constants/attachments'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const props = withDefaults(
   defineProps<{
@@ -132,7 +132,7 @@ async function submit(): Promise<void> {
     uploadRef.value?.clearFiles()
     emit('submitted')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
     uploadProgress.value = ''

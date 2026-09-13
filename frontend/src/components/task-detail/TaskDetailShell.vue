@@ -31,7 +31,7 @@ import {
 } from '@/domain/task-detail/user-state'
 import { useAuthStore } from '@/stores/auth'
 import type { Task, TaskCenterUserOption } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { isCaptureClosed, resolveAggregateMode } from '@/utils/workflowVideoSchema'
 import { useTaskDetailActions } from '@/composables/useTaskDetailActions'
 import { useTaskDetailCollaboration } from '@/composables/useTaskDetailCollaboration'
@@ -74,7 +74,7 @@ const {
   isManagementRole: () => authStore.isManagementRole,
   currentUser: () => authStore.user,
   onActivityLoadFailure: () => ElMessage.warning('活动时间线暂时无法加载'),
-  onLoadFailure: (error) => ElMessage.error(getErrorMessage(error)),
+  onLoadFailure: (error) => showError(error),
 })
 
 const selectedTask = computed(() => task.value)
@@ -511,7 +511,7 @@ async function handleAddWatcher(): Promise<void> {
     watcherUserId.value = ''
     ElMessage.success('关注人已更新')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     watcherSubmitting.value = false
   }

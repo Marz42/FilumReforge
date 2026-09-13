@@ -3,7 +3,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { createTaskMemo, deleteTaskMemo, getTaskCenterSnapshot, updateTaskMemo } from '@/api/task-center'
 import type { TaskCenterSnapshot, TaskMemo } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 export function memoDisplayTitle(memo: Pick<TaskMemo, 'title'>): string {
   const trimmed = memo.title?.trim()
@@ -89,7 +89,7 @@ export function useTaskMemos() {
     try {
       snapshot.value = await getTaskCenterSnapshot()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       loading.value = false
     }
@@ -125,7 +125,7 @@ export function useTaskMemos() {
       closeCreateDialog()
       await refreshMemos()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       submitting.value = false
     }
@@ -149,7 +149,7 @@ export function useTaskMemos() {
       if (error instanceof Error && (error.message === 'cancel' || error.message === 'close')) {
         return
       }
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     }
   }
 

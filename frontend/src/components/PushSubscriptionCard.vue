@@ -20,7 +20,7 @@ import {
   requestNotificationPermission,
   urlBase64ToUint8Array,
 } from '@/utils/pwa'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const loading = ref(false)
 const subscriptions = ref<PushSubscription[]>([])
@@ -65,7 +65,7 @@ async function loadData(): Promise<void> {
     runtimeConfigLoaded.value = true
     permission.value = getNotificationPermission()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -134,7 +134,7 @@ async function handleSubscribe(): Promise<void> {
     ElMessage.success('浏览器推送订阅已启用')
     await loadData()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -160,7 +160,7 @@ async function handleUnsubscribe(): Promise<void> {
     ElMessage.success('浏览器推送订阅已关闭')
     await loadData()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -172,7 +172,7 @@ async function handleSendTestPush(): Promise<void> {
     const result = await sendPushTestNotification()
     ElMessage.success(result.detail)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }

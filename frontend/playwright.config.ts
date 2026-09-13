@@ -25,6 +25,7 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: [
     '**/login.spec.ts',
+    '**/session-races.spec.ts',
     '**/task-center.spec.ts',
     '**/task-center-stats.spec.ts',
     '**/task-center-extended.spec.ts',

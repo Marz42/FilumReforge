@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 
 import { listInstanceSubmissions } from '@/api/workflow-graph'
 import type { InstanceSubmissionsResponse } from '@/types/workflowVideo'
 import type { WorkflowGraphInstanceDetail } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const props = withDefaults(
   defineProps<{
@@ -68,7 +67,7 @@ async function loadSubmissions(): Promise<void> {
     const response = await listInstanceSubmissions(instanceId, props.sourceNodeKey)
     submissions.value = response.submissions
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }

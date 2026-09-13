@@ -33,7 +33,7 @@ import {
   userFacingStateTagType,
 } from '@/domain/task-detail/user-state'
 import { resolveTaskRunLabel } from '@/domain/task-detail/run-label'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
 interface Props {
@@ -190,7 +190,7 @@ async function loadData(): Promise<void> {
       selectedTaskId.value = taskList[0]?.id ?? ''
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -219,7 +219,7 @@ async function handleCreateTask(): Promise<void> {
     resetTaskForm()
     await loadData()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }

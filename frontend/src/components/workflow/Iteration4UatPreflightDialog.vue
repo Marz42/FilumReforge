@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 
 import { getIteration4UatPreflight } from '@/api/workflow-graph'
 import type {
@@ -8,7 +7,7 @@ import type {
   Iteration4UatPreflight,
   Iteration4UatTemplateCandidate,
 } from '@/types/workflowVideo'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const visible = defineModel<boolean>({ required: true })
 
@@ -54,7 +53,7 @@ async function loadReport(): Promise<void> {
     report.value = await getIteration4UatPreflight()
   } catch (error) {
     report.value = null
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }

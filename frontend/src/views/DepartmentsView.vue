@@ -14,7 +14,7 @@ import DepartmentDetailPanel from '@/components/departments/DepartmentDetailPane
 import DepartmentTreePanel from '@/components/departments/DepartmentTreePanel.vue'
 import { listUsers } from '@/api/users'
 import type { Department, DepartmentTreeNode, PeopleManagementPerson, User } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -62,7 +62,7 @@ async function loadData(): Promise<void> {
       hydrateForm(selectedDepartmentId.value)
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -157,7 +157,7 @@ async function handleSubmit(): Promise<void> {
       hydrateForm(selectedDepartmentId.value)
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }
@@ -187,7 +187,7 @@ async function handleDelete(): Promise<void> {
     if (error === 'cancel' || error === 'close') {
       return
     }
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 

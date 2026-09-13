@@ -13,7 +13,7 @@ import type {
   ReportRecord,
   ReportStatus,
 } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
 type ReportCenterFilter = 'pending' | 'initiated' | 'history'
@@ -137,7 +137,7 @@ async function loadSnapshot(): Promise<void> {
   try {
     snapshot.value = await getReportCenterSnapshot()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -185,7 +185,7 @@ async function handleAction(reportId: string, action: ReportActionOption): Promi
     ElMessage.success(`${action.label}已提交`)
     await loadSnapshot()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     actionKey.value = ''
   }

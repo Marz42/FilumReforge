@@ -3,7 +3,7 @@ type: paradigma-domain
 title: "Frontend 架构细节"
 description: "前端关键文件与组件职责：路由、视图、API client、测试与 Playwright 基线。"
 tags: ["domain", "architecture", "frontend", "vue"]
-timestamp: 2026-09-13T00:20:00+08:00
+timestamp: 2026-09-13T16:27:10+08:00
 paradigma:
   relations:
     related_to:
@@ -110,6 +110,8 @@ paradigma:
 5. refresh token 的 `jti` 落库到 `refresh_tokens`；`/api/v1/auth/refresh` 从 cookie 读取 refresh token 并执行轮换。
 6. 前端由 `http.ts` 只注入内存态 access token，401 时通过 `withCredentials` 自动尝试 refresh。
 7. `/api/v1/auth/logout` 会撤销当前 refresh token，并清理 refresh cookie。
+8. W07 前端会话使用递增 epoch 和 AbortController；退出立即清空本地会话并导航，下一次登录等待旧 logout 响应。refresh 只在发起会话内共享，旧响应不能改写新会话。
+9. Task Center、权限缓存与消息轮询按请求代次提交结果；组件销毁和会话切换时取消旧工作。`showError` 静默预期取消，保留真实授权/网络失败。详见 [W07 实施记录](../../manuals/2026-09-13-w07-session-request-ownership.md)。
 8. 管理员对待处理邀请执行 `/api/v1/auth/invitations/{user_id}/revoke` 时，仅写入 `invitation_revoked_at`，用于表示“管理员手动撤销邀请”；前端账号页据此与“已完成注册”作显式区分。
 
 ### 6.2 任务协同链路（当前）

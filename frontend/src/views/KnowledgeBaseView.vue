@@ -24,7 +24,7 @@ import type {
   DocumentSummary,
   KnowledgeQueryResult,
 } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 import { renderSafeMarkdown } from '@/utils/safe-markdown'
 
@@ -104,7 +104,7 @@ async function loadDocuments(query?: string): Promise<void> {
       selectedDocument.value = null
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     loading.value = false
   }
@@ -115,7 +115,7 @@ async function handleDocumentSelect(documentId: string): Promise<void> {
   try {
     selectedDocument.value = await getDocument(documentId)
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -163,7 +163,7 @@ async function handleSaveDocument(): Promise<void> {
     await handleDocumentSelect(document.id)
     ElMessage.success(wasEditing ? '知识文档已更新' : '知识文档已创建')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     saving.value = false
   }
@@ -180,7 +180,7 @@ async function handlePublishDocument(): Promise<void> {
     await loadDocuments(listQuery.value.trim() || undefined)
     ElMessage.success('知识文档已发布')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -195,7 +195,7 @@ async function handleArchiveDocument(): Promise<void> {
     await loadDocuments(listQuery.value.trim() || undefined)
     ElMessage.success('知识文档已归档')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -231,7 +231,7 @@ async function handleUploadAttachment(): Promise<void> {
     selectedDocument.value = await getDocument(selectedDocument.value.id)
     ElMessage.success('文档附件已上传')
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     attachmentUploading.value = false
   }
@@ -250,7 +250,7 @@ async function handleSemanticSearch(): Promise<void> {
     })
     semanticHits.value = response.items
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 
@@ -266,7 +266,7 @@ async function handleKnowledgeQuery(): Promise<void> {
       limit: 4,
     })
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   }
 }
 

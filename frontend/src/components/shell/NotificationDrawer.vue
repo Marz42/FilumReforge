@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 
 import type { useMessagesInbox } from '@/composables/useMessagesInbox'
 import type { Message } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 import { isMessageUnread, resolveMessageStateLabel } from '@/utils/messagePresentation'
 
@@ -88,7 +88,7 @@ async function handleMarkAllRead(): Promise<void> {
       ElMessage.success(`已将 ${markedCount} 条消息标为已读`)
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     markAllLoading.value = false
   }

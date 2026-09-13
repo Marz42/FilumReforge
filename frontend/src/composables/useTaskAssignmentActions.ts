@@ -9,7 +9,7 @@ import {
 } from '@/api/tasks'
 import { isStandaloneTask as isStandaloneTaskRecord } from '@/domain/task-detail/actions'
 import type { Task, TaskCenterUserOption, User } from '@/types/api'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 
 type TaskAssignmentActionOptions = {
   task: MaybeRefOrGetter<Task | null>
@@ -74,7 +74,7 @@ export function useTaskAssignmentActions(options: TaskAssignmentActionOptions) {
             : candidate.display_name,
         }))
       } catch (error) {
-        ElMessage.error(getErrorMessage(error))
+        showError(error)
         standaloneDelegateCandidates.value = []
       }
     }
@@ -95,7 +95,7 @@ export function useTaskAssignmentActions(options: TaskAssignmentActionOptions) {
       ElMessage.success('任务已接受，可以开始处理')
       await options.reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       handshakeSubmitting.value = false
     }
@@ -121,7 +121,7 @@ export function useTaskAssignmentActions(options: TaskAssignmentActionOptions) {
       handshakeRejectReason.value = ''
       await options.reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       handshakeSubmitting.value = false
     }
@@ -155,7 +155,7 @@ export function useTaskAssignmentActions(options: TaskAssignmentActionOptions) {
       delegateForm.reason = ''
       await options.reloadAfterAction()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error))
+      showError(error)
     } finally {
       handshakeSubmitting.value = false
     }

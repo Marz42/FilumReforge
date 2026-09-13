@@ -14,7 +14,7 @@ import type {
   ParticipantUserPreview,
   CreateGraphTemplateRunRequest,
 } from '@/types/workflowVideo'
-import { getErrorMessage } from '@/utils/errors'
+import { showError } from '@/utils/errors'
 import { formatUserOptionLabel } from '@/utils/userDisplay'
 import { resolveLaunchSchema, resolveParticipantPolicyRefs } from '@/utils/workflowVideoSchema'
 
@@ -178,7 +178,7 @@ async function loadManagerOptions(): Promise<void> {
   try {
     managerCandidates.value = await listManagedDepartmentMemberOptions()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     managerCandidates.value = []
   } finally {
     managerLoading.value = false
@@ -207,7 +207,7 @@ async function loadCandidateUsers(): Promise<void> {
     })
     candidateUsers.value = response.users
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
     candidateUsers.value = []
   }
 }
@@ -232,7 +232,7 @@ async function loadParticipantPreview(): Promise<void> {
       selectedParticipantIds.value = response.user_ids
     }
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     previewLoading.value = false
   }
@@ -288,7 +288,7 @@ async function handleSubmit(): Promise<void> {
     visible.value = false
     emit('created', { instanceId: result.instance_id, rootTaskId: result.root_task_id })
   } catch (error) {
-    ElMessage.error(getErrorMessage(error))
+    showError(error)
   } finally {
     submitting.value = false
   }
