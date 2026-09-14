@@ -78,11 +78,12 @@ describe('GraphTemplatesPanel', () => {
   })
 
   it('loads with working status filter by default', async () => {
-    mount(GraphTemplatesPanel, {
+    const wrapper = mount(GraphTemplatesPanel, {
       props: { canPublish: true, canManage: true },
       global: { plugins: [ElementPlus], stubs: { TemplateInstantiateDialog: true, GraphTemplateEditDialog: true, GraphTemplateAvailabilityDialog: true, GraphTemplateGovernanceDialog: true, Iteration4UatPreflightDialog: true } },
     })
     await flushPromises()
+    expect(wrapper.text()).toContain('模板清单')
     expect(listGraphTemplates).toHaveBeenCalledWith({
       manage: true,
       status: ['draft', 'active'],

@@ -44,6 +44,7 @@ import type { GraphTemplateSummary } from '@/types/workflowVideo'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import RecordFieldsEditor from '@/components/common/RecordFieldsEditor.vue'
 import PeopleDetailDrawer from '@/components/people/PeopleDetailDrawer.vue'
+import PositionWorkbenchPanel from '@/components/people/PositionWorkbenchPanel.vue'
 import type { PeopleAnchorId } from '@/components/people/PeopleAnchorNav.vue'
 import { showError } from '@/utils/errors'
 import { formatPasswordValidationMessage, validatePasswordClient } from '@/utils/passwordPolicy'
@@ -1322,6 +1323,11 @@ watch(
 
           <section id="people-section-relations" class="people-detail-section" data-people-section="relations">
             <h3 class="people-detail-section__title">岗位 / 汇报</h3>
+                    <el-card shadow="never" class="page__section">
+                      <template #header>岗位工作台（影响预览）</template>
+                      <PositionWorkbenchPanel />
+                    </el-card>
+
                     <el-empty v-if="!selectedProfile" description="请先建立档案后再维护任职关系" />
 
                     <template v-else>

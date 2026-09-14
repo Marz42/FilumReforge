@@ -1,7 +1,7 @@
 # Manuals Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: f5b0a94cbf8f9889 -->
+<!-- checksum: 615b4a326d03fe08 -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -16,6 +16,11 @@
 | [2026-09-14-w09-auth-rate-limit.md](2026-09-14-w09-auth-rate-limit.md) | `paradigma-manual` | W09 跨 worker 认证限流 | 认证限流<br>Redis限流<br>W09 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:./deployment-runbook-ubuntu-2404.md |
 | [2026-09-14-w10-hr-graph-template-bind.md](2026-09-14-w10-hr-graph-template-bind.md) | `paradigma-manual` | W10 HR 生命周期显式图模板绑定 | HR生命周期<br>图模板绑定<br>W10 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/hr-org.md |
 | [2026-09-14-w11-structured-profile-fields.md](2026-09-14-w11-structured-profile-fields.md) | `paradigma-manual` | W11 首片：档案/岗位 JSON 改为结构化字段编辑 | W11<br>结构化字段<br>动态字段 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/hr-org.md |
+| [2026-09-14-w11a-position-workbench.md](2026-09-14-w11a-position-workbench.md) | `paradigma-manual` | W11-A 岗位工作台只读影响预览 | 岗位工作台<br>影响预览<br>W11-A ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:./2026-09-14-w11-structured-profile-fields.md |
+| [2026-09-14-w11b-template-ia.md](2026-09-14-w11b-template-ia.md) | `paradigma-manual` | W11-B 模板页六分区信息架构 | 模板清单<br>设计器分区<br>W11-B ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:./2026-09-14-w11-structured-profile-fields.md<br>related_to:./2026-09-14-w11a-position-workbench.md |
+| [2026-09-14-w11bc-template-ia-structured.md](2026-09-14-w11bc-template-ia-structured.md) | `paradigma-manual` | W11-B/C 模板设计器分区与可无损结构化配置 | 模板设计器分区<br>结构化配置<br>W11-B ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:./2026-09-14-w11-structured-profile-fields.md |
+| [2026-09-14-w12-split-perf-regression.md](2026-09-14-w12-split-perf-regression.md) | `paradigma-manual` | W12 职责拆分、组织树测量与关键回归 | W12<br>TaskService拆分<br>组织树性能 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/architecture/backend-architecture.md |
+| [2026-09-14-w13-bundle-test-hygiene.md](2026-09-14-w13-bundle-test-hygiene.md) | `paradigma-manual` | W13 前端包体拆分与测试卫生 | W13<br>包体<br>manualChunks ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../known-issues/ki-017-frontend-entry-chunk-size.md |
 | [deployment-runbook-ubuntu-2404.md](deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | related_to:2026-08-09-production-release-checklist.md |
 | [e2e-gui-verification-automation-runbook.md](e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | related_to:workflow-video-v1-multi-account-e2e-guide.md |
 | [manual-database-operations.md](manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | related_to:2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:../architecture.md |

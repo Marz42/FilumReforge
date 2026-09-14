@@ -37,6 +37,7 @@ from app.services.object_storage_service import ObjectStorageService
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.overview_service import OverviewService
 from app.services.people_management_service import PeopleManagementService
+from app.services.position_workbench_service import PositionWorkbenchService
 from app.services.task_center_service import TaskCenterService
 from app.services.task_memo_service import TaskMemoService
 from app.services.profile_field_policy_service import ProfileFieldPolicyService
@@ -366,6 +367,12 @@ def get_people_management_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PeopleManagementService:
   return PeopleManagementService(session)
+
+
+def get_position_workbench_service(
+  session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> PositionWorkbenchService:
+  return PositionWorkbenchService(session)
 
 
 def get_task_center_service(

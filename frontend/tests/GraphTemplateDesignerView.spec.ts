@@ -123,12 +123,33 @@ describe('GraphTemplateDesignerView', () => {
     await flushPromises()
     expect(wrapper.find('[data-testid="graph-template-designer"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('选题会（批次）')
+    expect(wrapper.find('[data-testid="designer-section-tabs"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('基本信息')
+    expect(wrapper.text()).toContain('步骤/节点')
+    expect(wrapper.text()).toContain('运行态')
+    expect(wrapper.text()).toContain('调度')
+    expect(wrapper.text()).toContain('高级配置')
     expect(wrapper.find('[data-testid="designer-save"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="designer-add-edge"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="designer-launch-schema"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="designer-context-schema"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="designer-node-ui-profile"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="designer-routing-rules"]').exists()).toBe(true)
+  })
+
+  it('shows runtime summary when switching to runtime section', async () => {
+    const wrapper = mount(GraphTemplateDesignerView, {
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+    const runtimeTab = wrapper
+      .findAll('.el-tabs__item')
+      .find((item) => item.text().includes('运行态'))
+    expect(runtimeTab).toBeDefined()
+    await runtimeTab!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="designer-runtime-summary"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="designer-runtime-summary"]').text()).toContain('未锁定')
   })
 
   it('preserves structured authoring values in the draft payload', async () => {

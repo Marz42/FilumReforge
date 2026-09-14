@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -10,9 +11,14 @@ from app.api.dependencies import (
   get_delegation_service,
   get_management_user,
   get_organization_relation_service,
+  get_position_workbench_service,
   get_profile_field_policy_service,
 )
 from app.models import User
+from app.schemas.position_workbench import (
+  PositionWorkbenchCatalogRead,
+  PositionWorkbenchDetailRead,
+)
 from app.schemas.profiles import (
   DelegationCreateRequest,
   DelegationRead,
@@ -28,6 +34,7 @@ from app.schemas.profiles import (
 )
 from app.services.delegation_service import DelegationService
 from app.services.organization_relation_service import OrganizationRelationService
+from app.services.position_workbench_service import PositionWorkbenchService
 from app.services.profile_field_policy_service import ProfileFieldPolicyService
 
 router = APIRouter()
@@ -43,6 +50,35 @@ async def list_positions(
 ) -> list[PositionRead]:
   positions = await organization_relation_service.list_positions()
   return [PositionRead.model_validate(position) for position in positions]
+
+
+@router.get("/positions/workbench", response_model=PositionWorkbenchCatalogRead)
+async def read_position_workbench_catalog(
+  actor: Annotated[User, Depends(get_management_user)],
+  position_workbench_service: Annotated[
+    PositionWorkbenchService,
+    Depends(get_position_workbench_service),
+  ],
+  as_of: date | None = None,
+) -> PositionWorkbenchCatalogRead:
+  return await position_workbench_service.get_catalog(actor=actor, as_of=as_of)
+
+
+@router.get("/positions/{position_id}/workbench", response_model=PositionWorkbenchDetailRead)
+async def read_position_workbench_detail(
+  position_id: UUID,
+  actor: Annotated[User, Depends(get_management_user)],
+  position_workbench_service: Annotated[
+    PositionWorkbenchService,
+    Depends(get_position_workbench_service),
+  ],
+  as_of: date | None = None,
+) -> PositionWorkbenchDetailRead:
+  return await position_workbench_service.get_detail(
+    actor=actor,
+    position_id=position_id,
+    as_of=as_of,
+  )
 
 
 @router.post("/positions", response_model=PositionRead, status_code=status.HTTP_201_CREATED)

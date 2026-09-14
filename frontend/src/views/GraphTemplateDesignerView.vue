@@ -82,6 +82,15 @@ const importInputRef = ref<HTMLInputElement | null>(null)
 const detail = ref<GraphTemplateDesignerDetail | null>(null)
 const validationErrors = ref<string[]>([])
 const tagInput = ref<string[]>([])
+const designerSection = ref<'basics' | 'nodes' | 'runtime' | 'schedule' | 'advanced'>('basics')
+
+const DESIGNER_SECTIONS = [
+  { id: 'basics' as const, label: '基本信息' },
+  { id: 'nodes' as const, label: '步骤/节点' },
+  { id: 'runtime' as const, label: '运行态' },
+  { id: 'schedule' as const, label: '调度' },
+  { id: 'advanced' as const, label: '高级配置' },
+]
 
 const form = reactive({
   name: '',
@@ -911,11 +920,64 @@ onMounted(async () => {
       </ul>
     </el-alert>
 
-    <div class="designer__grid">
-      <el-card shadow="never" class="designer__panel">
-        <template #header><strong>模板信息</strong></template>
+    <el-tabs
+      v-model="designerSection"
+      class="designer__sections"
+      data-testid="designer-section-tabs"
+    >
+      <el-tab-pane
+        v-for="section in DESIGNER_SECTIONS"
+        :key="section.id"
+        :label="section.label"
+        :name="section.id"
+      />
+    </el-tabs>
+
+    <div
+      class="designer__grid"
+      :class="{ 'designer__grid--single': designerSection !== 'nodes' }"
+    >
+      <el-card
+        v-show="designerSection !== 'nodes'"
+        shadow="never"
+        class="designer__panel"
+        :data-designer-section="designerSection"
+      >
+        <template #header>
+          <strong>
+            {{
+              DESIGNER_SECTIONS.find((section) => section.id === designerSection)?.label
+                ?? '基本信息'
+            }}
+          </strong>
+        </template>
         <el-form label-position="top">
-          <el-form-item label="名称" required>
+          <template v-if="designerSection === 'runtime'">
+            <el-descriptions
+              v-if="detail"
+              :column="1"
+              border
+              size="small"
+              class="designer__runtime-summary"
+              data-testid="designer-runtime-summary"
+            >
+              <el-descriptions-item label="模板状态">{{ detail.status }}</el-descriptions-item>
+              <el-descriptions-item label="版本">v{{ detail.version }}</el-descriptions-item>
+              <el-descriptions-item label="已有实例">
+                {{ detail.has_instances ? '是（结构可能已锁定）' : '否' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="结构锁定">
+                {{ structureLocked ? '已锁定' : '未锁定' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="定义只读">
+                {{ definitionLocked ? '是（ACTIVE/归档不可原地改定义）' : '否（草稿可编辑）' }}
+              </el-descriptions-item>
+            </el-descriptions>
+            <p class="designer__hint">
+              试跑仍使用页头「试跑」；此处仅整理运行相关配置与只读状态，不新建 API。
+            </p>
+          </template>
+          <el-form-item v-show="designerSection === 'basics'" label="名称" required>
             <el-input
               v-model="form.name"
               :disabled="definitionLocked"
@@ -923,7 +985,7 @@ onMounted(async () => {
               show-word-limit
             />
           </el-form-item>
-          <el-form-item label="说明">
+          <el-form-item v-show="designerSection === 'basics'" label="说明">
             <el-input
               v-model="form.description"
               :disabled="definitionLocked"
@@ -933,7 +995,7 @@ onMounted(async () => {
               show-word-limit
             />
           </el-form-item>
-          <el-form-item label="标签">
+          <el-form-item v-show="designerSection === 'basics'" label="标签">
             <el-select
               v-model="tagInput"
               multiple
@@ -956,7 +1018,7 @@ onMounted(async () => {
               保存标签
             </el-button>
           </el-form-item>
-          <el-form-item v-if="detail?.capabilities" label="派生能力（只读）">
+          <el-form-item v-show="designerSection === 'basics'" v-if="detail?.capabilities" label="派生能力（只读）">
             <div data-testid="designer-capabilities">
               <el-tag
                 v-for="hint in detail.capabilities.derived_hints"
@@ -969,13 +1031,13 @@ onMounted(async () => {
               <span v-if="!detail.capabilities.derived_hints.length">—</span>
             </div>
           </el-form-item>
-          <el-form-item label="汇总模式">
+          <el-form-item v-show="designerSection === 'runtime'" label="汇总模式">
             <el-radio-group v-model="form.aggregateMode" :disabled="graphLocked">
               <el-radio value="batch">batch（结束采集后汇总）</el-radio>
               <el-radio value="streaming">streaming（增量派发）</el-radio>
             </el-radio-group>
           </el-form-item>
-          <el-form-item label="发起表单（launch_schema）">
+          <el-form-item v-show="designerSection === 'runtime'" label="发起表单（launch_schema）">
             <div class="designer__authoring" data-testid="designer-launch-schema">
               <el-radio-group
                 :model-value="form.launchEditorMode"
@@ -1043,7 +1105,7 @@ onMounted(async () => {
               <p class="designer__hint">常用字段使用结构化表单；复杂扩展可切换到高级 JSON。</p>
             </div>
           </el-form-item>
-          <el-form-item label="运行上下文（context_schema）">
+          <el-form-item v-show="designerSection === 'runtime'" label="运行上下文（context_schema）">
             <div class="designer__authoring" data-testid="designer-context-schema">
               <el-radio-group
                 :model-value="form.contextEditorMode"
@@ -1112,7 +1174,7 @@ onMounted(async () => {
               </p>
             </div>
           </el-form-item>
-          <el-form-item label="根任务执行人变量">
+          <el-form-item v-show="designerSection === 'runtime'" label="根任务执行人变量">
             <el-input
               v-model="form.rootAssigneeVar"
               :disabled="definitionLocked"
@@ -1123,7 +1185,7 @@ onMounted(async () => {
               实例化时从 launch inputs 中读取此键的值作为根任务（ROOT）执行人。空则使用当前用户。
             </p>
           </el-form-item>
-          <el-form-item label="汇总节点键">
+          <el-form-item v-show="designerSection === 'runtime'" label="汇总节点键">
             <el-input
               v-model="form.aggregateNodeKey"
               :disabled="definitionLocked"
@@ -1134,7 +1196,7 @@ onMounted(async () => {
               streaming 模式下分配菜单的控制节点。与对应节点的 node_key 一致。
             </p>
           </el-form-item>
-          <el-form-item label="允许周期定时（F-24 schedulable）">
+          <el-form-item v-show="designerSection === 'schedule'" label="允许周期定时（F-24 schedulable）">
             <el-switch
               v-model="form.schedulable"
               :disabled="definitionLocked"
@@ -1144,10 +1206,14 @@ onMounted(async () => {
               开启后模板可被「建立任务 → 定时派发」选用；须为 batch 采集类模板。
             </p>
           </el-form-item>
-          <el-form-item label="完成后触发下一模板（F-23）">
+          <el-form-item v-show="designerSection === 'schedule'" label="完成后触发下一模板（F-23）">
             <el-switch v-model="form.onCompleteEnabled" :disabled="definitionLocked" />
           </el-form-item>
-          <el-form-item v-if="form.onCompleteEnabled" label="下一模板 code">
+          <el-form-item
+            v-show="designerSection === 'schedule'"
+            v-if="form.onCompleteEnabled"
+            label="下一模板 code"
+          >
             <el-input
               v-model="form.onCompleteNextTemplateCode"
               :disabled="definitionLocked"
@@ -1156,10 +1222,14 @@ onMounted(async () => {
               data-testid="designer-on-complete-code"
             />
           </el-form-item>
-          <el-form-item v-if="form.onCompleteEnabled" label="继承 inputs">
+          <el-form-item
+            v-show="designerSection === 'schedule'"
+            v-if="form.onCompleteEnabled"
+            label="继承 inputs"
+          >
             <el-switch v-model="form.onCompleteCarryInputs" :disabled="definitionLocked" />
           </el-form-item>
-          <el-form-item label="作用范围（部门可见与可发起）">
+          <el-form-item v-show="designerSection === 'basics'" label="作用范围（部门可见与可发起）">
             <el-tree-select
               v-model="form.scopeDepartmentIds"
               :data="departmentTree"
@@ -1179,7 +1249,10 @@ onMounted(async () => {
               选择对此模板可见的部门。留空则所有部门可见。影响模板列表过滤与实例化部门下拉。
             </p>
           </el-form-item>
-          <el-form-item label="参与者策略（participant_policies）">
+          <el-form-item v-show="designerSection === 'advanced'" label="参与者策略（participant_policies）">
+            <p class="designer__hint">
+              导入/导出 JSON 仍使用页头按钮。复杂 launch/context/routing 请在对应分区切换「高级 JSON」，勿静默降级。
+            </p>
             <div class="designer__pool-list">
               <div
                 v-for="(row, index) in participantPolicyRows"
@@ -1229,7 +1302,7 @@ onMounted(async () => {
               对应。留空则实例化时不可选参与者子集。
             </p>
           </el-form-item>
-          <el-form-item label="department_pools（F-26）">
+          <el-form-item v-show="designerSection === 'advanced'" label="department_pools（F-26）">
             <div class="designer__pool-list">
               <div
                 v-for="(row, index) in departmentPoolRows"
@@ -1279,15 +1352,24 @@ onMounted(async () => {
       </el-card>
 
       <el-card
+        v-show="designerSection === 'nodes'"
         shadow="never"
         class="designer__panel designer__panel--wide designer__panel--topology"
+        data-designer-section="nodes"
       >
-        <template #header><strong>拓扑预览</strong></template>
+        <template #header><strong>步骤/节点 · 拓扑预览</strong></template>
         <GraphTemplateDagPreview :nodes="dagNodes" :edges="dagEdges" />
       </el-card>
 
-      <el-card shadow="never" class="designer__panel designer__panel--full">
-        <template #header><strong>节点</strong></template>
+      <el-card
+        v-show="designerSection === 'nodes'"
+        shadow="never"
+        class="designer__panel designer__panel--full"
+        data-designer-section="nodes"
+      >
+        <template #header>
+          <strong>步骤/节点</strong>
+        </template>
         <el-table
           class="designer__data-table"
           :data="nodeRows"
@@ -1500,7 +1582,12 @@ onMounted(async () => {
         </div>
       </el-card>
 
-      <el-card shadow="never" class="designer__panel designer__panel--full">
+      <el-card
+        v-show="designerSection === 'nodes'"
+        shadow="never"
+        class="designer__panel designer__panel--full"
+        data-designer-section="nodes"
+      >
         <template #header>
           <div class="designer__card-header">
             <strong>边与路由</strong>
@@ -1669,6 +1756,14 @@ onMounted(async () => {
   margin-bottom: 16px;
 }
 
+.designer__sections {
+  margin-bottom: 16px;
+}
+
+.designer__runtime-summary {
+  margin-bottom: 12px;
+}
+
 .designer__title {
   margin: 8px 0 4px;
   font-size: 22px;
@@ -1694,6 +1789,10 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: minmax(280px, 360px) 1fr;
   gap: 16px;
+}
+
+.designer__grid--single {
+  grid-template-columns: minmax(280px, 720px);
 }
 
 .designer__card-header {
@@ -1862,7 +1961,8 @@ onMounted(async () => {
 }
 
 @media (max-width: 960px) {
-  .designer__grid {
+  .designer__grid,
+  .designer__grid--single {
     grid-template-columns: 1fr;
   }
 

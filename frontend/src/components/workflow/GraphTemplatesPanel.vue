@@ -304,8 +304,8 @@ onMounted(() => {
       <template #header>
         <div class="graph-templates__header">
           <div>
-            <strong>任务模板</strong>
-            <p class="graph-templates__hint">选模板 → 填写 launch 信息 → 实例化派发。</p>
+            <strong>模板清单</strong>
+            <p class="graph-templates__hint">清单 → 打开设计器分区编辑 → 发布/实例化。</p>
           </div>
           <el-select
             v-model="statusFilter"

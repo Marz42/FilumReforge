@@ -1,7 +1,7 @@
 # Known-Issues Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: f931cae1b5e152d2 -->
+<!-- checksum: 2544feecb6c30467 -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -22,7 +22,7 @@
 | [ki-014-postgresql-alembic-schema-drift.md](ki-014-postgresql-alembic-schema-drift.md) | `paradigma-known-issue` | KI-014: PostgreSQL Alembic autogenerate schema drift | Alembic check<br>schema drift<br>PostgreSQL 漂移 ... | - | planned_by:../plans/2026-08-26-ki014-schema-drift-remediation-plan.md<br>related_to:../manuals/2026-09-04-ki014-phase-c-observation-checklist.md |
 | [ki-015-strict-projection-missing-telemetry.md](ki-015-strict-projection-missing-telemetry.md) | `paradigma-known-issue` | KI-015: Strict 投影缺口缺少请求侧显式遥测 | strict 投影缺失<br>fail-closed<br>任务隐藏 ... | - | related_to:../contracts/projection-contract.md<br>depends_on:../plans/2026-08-12-iteration5d-operations-observability-plan.md |
 | [ki-016-logout-inflight-request-401-noise.md](ki-016-logout-inflight-request-401-noise.md) | `paradigma-known-issue` | KI-016: 登出与多账号切换存在在途请求 401 噪声 | 登出 401<br>多账号切换<br>Axios 未处理拒绝 ... | - | related_to:../domains/architecture/frontend-architecture.md<br>related_to:ki-003-test-baseline-drift.md<br>related_to:../manuals/2026-09-13-w07-session-request-ownership.md |
-| [ki-017-frontend-entry-chunk-size.md](ki-017-frontend-entry-chunk-size.md) | `paradigma-known-issue` | KI-017: 前端入口 Chunk 仍超过 500 KiB | Vite chunk 过大<br>前端包体积<br>入口 JS ... | - | related_to:../domains/architecture/frontend-architecture.md |
+| [ki-017-frontend-entry-chunk-size.md](ki-017-frontend-entry-chunk-size.md) | `paradigma-known-issue` | KI-017: 前端入口 Chunk 仍超过 500 KiB | Vite chunk 过大<br>前端包体积<br>入口 JS ... | - | related_to:../domains/architecture/frontend-architecture.md<br>related_to:../manuals/2026-09-14-w13-bundle-test-hygiene.md |
 | [known-issues.md](known-issues.md) | `paradigma-known-issue` | 已知问题合辑 (已拆分) | 已知问题<br>合辑<br>known issue | - | related_to:../project-brief.md |
 
 <!-- END PARADIGMA AUTO-INDEX -->

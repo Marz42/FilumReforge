@@ -34,6 +34,39 @@ from app.core.database import get_async_engine, get_session_factory
 from app.models import Base
 from app.services.strict_projection_telemetry import strict_projection_telemetry
 
+_CRITICAL_PATH_FILES = {
+  "test_w08_messaging.py",
+  "test_w10_hr_graph_template_bind.py",
+  "test_workers.py",
+  "test_w12_org_tree_perf.py",
+  "test_w11_position_workbench.py",
+}
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+  marker = pytest.mark.critical_path
+  for item in items:
+    path_name = Path(str(item.fspath)).name
+    if "postgres" in path_name:
+      continue
+    if path_name in _CRITICAL_PATH_FILES:
+      item.add_marker(marker)
+    # Knowledge / AI / notification suites still live in large monolithic modules.
+    nodeid = item.nodeid.lower()
+    if any(
+      token in nodeid
+      for token in (
+        "knowledge",
+        "openai",
+        "notification",
+        "web_push",
+        "webpush",
+        "tool_command",
+        "ai_router",
+      )
+    ):
+      item.add_marker(marker)
+
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):

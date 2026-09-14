@@ -332,7 +332,7 @@ expires_when: null
 
 **依赖：W05 现有 authoring 验收；负责人：前端/后端/产品。**
 
-**2026-09-14：首片（人员管理 JSON → 结构化字段）本地完成。** 档案动态字段、岗位扩展配置、生命周期载荷使用 `RecordFieldsEditor`，保留高级 JSON 与未知键 round-trip。岗位工作台读模型与模板页重组仍待后续片。详见 [W11 首片记录](../manuals/2026-09-14-w11-structured-profile-fields.md)。
+**2026-09-14：W11 工程收口（A 岗位工作台、B/C 设计器分区与结构化守卫）本地完成。** 结构化字段首片、岗位影响预览、模板六分区与 launch/context/routing 无损结构化清单已落地。产品业务验收单列。详见 W11 手册。
 
 1. 岗位工作台复用 positions/profile_positions/reporting_lines，先做读模型和引用预览，再做经权限校验的编辑；展示影响人员、汇报链、代理与生效范围。
 2. 人员/档案治理页逐项替代原始 JSON 编辑，保留高级入口；未知字段 round-trip 不丢失，非法输入给可操作提示。
@@ -346,6 +346,8 @@ expires_when: null
 
 **依赖：W01；负责人：后端/前端；拆分不等待 I6 删除。**
 
+**2026-09-14：W12 工程完成。** TaskService/WorkflowGraphService query mixin 拆分；组织树 501 节点样本 <50ms 无需缓存；`critical_path` marker 聚合通知/worker/HR/知识/AI 相关用例。详见 [W12 手册](../manuals/2026-09-14-w12-split-perf-regression.md)。
+
 1. 以调用图和修改频率拆 TaskService/WorkflowGraphService：查询、动作授权、用例编排、兼容适配。已有 WorkItem/Runtime write owner 与 UoW 保持权威，不能因抽文件重新允许跨域写。
 2. 每批先固定行为回归，再迁移一类职责；保留公共 API、锁、flush/commit 和 receipt/outbox 边界。模块行数是定位线索，不作为质量 KPI。
 3. 人员工作台、设计器按数据加载/编辑会话/权限/独立板块抽 composable 与组件；F-05 已完成，不重复立项。
@@ -357,6 +359,8 @@ expires_when: null
 ### W13 — 前端体积和测试质量（P2）
 
 **依赖：W01/W07；负责人：前端/测试。**
+
+**2026-09-14：W13 工程完成。** `manualChunks` 后入口 gzip ≈12.66 kB（基线 255.70）；`test:bundle-budget` + `mountApp` helper；KI-017 降级为监控。详见 [W13 手册](../manuals/2026-09-14-w13-bundle-test-hygiene.md)。
 
 1. 记录当前入口及常用 Task Center 路径的 gzip/brotli、请求数、首屏和运行时开销，分析 Element Plus 与共享组件实际占比。
 2. 按需引入 UI 能力、路由/重型组件 lazy load、文档解析器延迟加载；用安装版本支持的配置拆包，不只上调 warning limit。

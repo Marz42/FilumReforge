@@ -9,6 +9,7 @@ export default mergeConfig(
       environment: 'jsdom',
       exclude: [...configDefaults.exclude, 'e2e/**'],
       root: fileURLToPath(new URL('./', import.meta.url)),
+      // W13-C: prefer shared mount helper under tests/helpers/mountApp.ts
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json-summary'],
