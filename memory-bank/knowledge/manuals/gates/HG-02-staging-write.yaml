@@ -1,0 +1,45 @@
+# Human Gate report — do not put DSN/secrets in this file.
+gate_id: HG-02
+decision: OPEN
+work_packages:
+  - W03
+  - W04
+environment_id: null
+release_tag: null
+commit_sha: null  # pin exact candidate SHA when packaging
+database_revision_before: null
+database_revision_after: null
+config_fingerprint: null
+evidence_scope: L3
+observation_start: null
+observation_end: null
+sample_summary: null
+evidence_refs:
+  - ../2026-09-14-human-gates-playbook.md
+  - ../2026-09-04-ki014-phase-c-observation-checklist.md
+  - ../../plans/2026-09-10-integrated-development-and-human-gates-plan.md
+  - ../../plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
+known_failures: []
+approved_actions: []
+excluded_actions:
+  - KI-014 Phase D contract (requires separate HG-03)
+  - Production deploy (HG-05)
+  - Closing projection fallback (HG-06)
+change_pack_placeholders:
+  exact_sha: null
+  current_revision: null
+  target_revision: null
+  migration_order: []  # step-by-step expand / Link dry-run / apply order
+  link_dry_run: null
+  backup_restore_verified: null
+  lock_budget: null
+  rollback_plan: null
+depends_on_gates:
+  - HG-01
+rollback_trigger: null
+rollback_owner: null
+approver: null
+approved_at: null
+expires_when: null
+prepared_at: '2026-09-14T15:23:19+08:00'
+prepared_by: cursor-agent

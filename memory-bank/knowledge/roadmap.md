@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-09-13T21:47:10+08:00
+timestamp: 2026-09-14T15:23:19+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -174,21 +174,21 @@ paradigma:
 
 ## 🔥 当前执行顺序
 
-**2026-09-13 更新**：W01/W02（`791a3d5`）与 W07（`26e44fb`）已完成本地工程并提交。当前执行 W08 的站内消息中心/Web Push；Email、邀请邮件、WebSocket 接入延期。目标环境观察与生产批准仍独立跟踪。
+**2026-09-14 更新**：W01/W02、W07–W13 本地工程已落地（HEAD `a1eec25`）。独立工程线暂无必做 P2 阻塞；当前主线是 Human Gates：HG-00 批次回写 READY_FOR_REVIEW，HG-01～08 OPEN。Email、邀请邮件、WebSocket 与 W10 规则 UI 仍延期/待 HG-08。
 
-当前 Git 整合与验证边界见 [2026-09-12 统一开发基线](./manuals/2026-09-12-development-baseline.md)。
+当前 Git 整合与验证边界见 [2026-09-12 统一开发基线](./manuals/2026-09-12-development-baseline.md)。门禁签字轨见 [Human Gates playbook](./manuals/2026-09-14-human-gates-playbook.md) 与 [gates/](./manuals/gates/)。
 
 详细步骤、工作包与证据模板见 [2026-09-10 整合方案](./plans/2026-09-10-integrated-development-and-human-gates-plan.md)。
 
-1. **W00～W02**：复核已有 Phase C 改动、固定候选范围，修发布检查/CI 与文档版本治理；F-05/I5/S-01 不重复立项。
-2. **W03 兼容观察**：结合 [Phase C 观察清单](./manuals/2026-09-04-ki014-phase-c-observation-checklist.md)，HG-01 目标只读审计；HG-02 指定预发兼容部署；完整业务周期后准备并单独批准 HG-03 的 KI-014 contract。
-3. **W04/W05 目标验收**：I3-F Link/reconciliation 7 天与 31/31，当前全量 rebuild/full shadow/跨 worker 告警；业务角色完成 RC/I4/设计器/S-01/KI-009，HG-04 签字。
-4. **W06 生产准备与批准**：真实 secret/TLS/代理、数据库和附件恢复、Ubuntu 最小回滚、维护窗口与责任人完成后，HG-05 批准所列 SHA/revision 的生产部署，先保持 fallback。
-5. **5-E strict canary**：生产 rebuild/full shadow 与告警验证后 HG-06 单独批准范围及窗口；异常立即按预案回开 fallback。
-6. **稳定观察 → W15**：满足零 fallback/ROOT shell 新增量等条件后，HG-07 再次批准停兼容写入、归档与清理；不得与 I5 稳定观察混做。
-7. **W07～W14 与 W16**：请求竞态、通知状态、共享限流、HR 图模板/规则 UI、结构化工作台、模块/性能/时间线分批推进；KI-011、M-09 等未选中方向继续延期。
+1. **HG-00**：确认 W01/W02、W07–W13 批次范围回写并签字（见 gates/HG-00）。
+2. **HG-01 → W03**：取得目标只读访问与代表性样本后只读取证；不得用隔离库替代。
+3. **HG-02 预发兼容部署**：expand / Link / rebuild / shadow 写入须单独批准。
+4. **观察窗口**：完整业务周期 + I3-F 7 天 / 31/31（可同环境，不可互替）。
+5. **HG-03 / HG-04**：KI-014 contract 与业务 UAT 分列签字。
+6. **HG-05 → HG-06**：生产部署保持 fallback；strict canary 另批。
+7. **HG-07 / W15**：稳定观察后兼容退出；HG-08 可提前选择延期专项。
 
-**下一 actionable**：先完成本地可审阅的候选/Phase C 复核和发布检查方案，取得目标只读访问与代表性样本后启动取证。目标门禁阻断时继续独立工程和隔离验证，不以空库代替真实周期。
+**下一 actionable**：产品/技术确认 HG-00；环境/数据负责人填 HG-01 接入表并授权只读取证。不以空库或自动化代替真实观察与人工签字。
 
 ---
 

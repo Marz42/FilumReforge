@@ -1,0 +1,42 @@
+# Human Gate report — do not put DSN/secrets in this file.
+gate_id: HG-05
+decision: OPEN
+work_packages:
+  - W06
+environment_id: null
+release_tag: null
+commit_sha: null
+database_revision_before: null
+database_revision_after: null
+config_fingerprint: null
+evidence_scope: L4
+observation_start: null
+observation_end: null
+sample_summary: null
+evidence_refs:
+  - ../2026-08-09-production-release-checklist.md
+  - ../deployment-runbook-ubuntu-2404.md
+  - ../../plans/workflow-graph-engine-iteration3f-readiness-gate-plan.md
+  - ../2026-09-14-human-gates-playbook.md
+known_failures: []
+approved_actions: []
+excluded_actions:
+  - Closing projection fallback (requires HG-06)
+  - Deleting compatibility structures (requires HG-07)
+  - Claiming strict cutover complete while fallback remains on
+prerequisites:
+  - W01–W06 required evidence
+  - I3-F 31/31 and 7-day continuous window
+  - HG-04 approved
+  - schema clean after HG-03 where applicable
+  - TLS / secret / backup RPO-RTO / rollback owner
+depends_on_gates:
+  - HG-03
+  - HG-04
+rollback_trigger: null
+rollback_owner: null
+approver: null
+approved_at: null
+expires_when: null
+prepared_at: '2026-09-14T15:23:19+08:00'
+prepared_by: cursor-agent

@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "Filum 下一阶段开发与 Human Gates 整合方案"
 description: "统一 P0 修复、目标环境验证、RC/UAT、生产切流、P1/P2 开发与延期项目的依赖、实施步骤和人工闸门。"
 tags: [plan, release, human-gates, p0, integration, roadmap]
-timestamp: 2026-09-13T21:47:10+08:00
+timestamp: 2026-09-14T15:23:19+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -117,7 +117,7 @@ Human Gate 是对具体业务结论或变更范围的人工批准，不是每一
 
 | ID | 批准内容与责任人 | 提交前必须准备的材料 | 通过后允许做什么 | 当前状态 |
 |---|---|---|---|---|
-| HG-00 | 产品/技术负责人确认实施批次与候选范围 | W00 清单、优先级、估算、人员与范围 | 开始指定工程批次；用户后续明确要求开工即可记录范围授权，无需重复确认 | APPROVED（W01/W02、W07、调整后的 W08）：用户明确要求 W08 仅优化站内/Web Push 并完成后提交；其余批次另列范围 |
+| HG-00 | 产品/技术负责人确认实施批次与候选范围 | W00 清单、优先级、估算、人员与范围 | 开始指定工程批次；用户后续明确要求开工即可记录范围授权，无需重复确认 | READY_FOR_REVIEW（回写）：W01/W02、W07–W13 工程已落地（`a1eec25`）；W08 仍限站内/Web Push（Email/邀请邮件/WS 排除）；W10 仅显式绑定（规则 UI 待 HG-08）；正式报告见 [gates/HG-00-batch-scope.yaml](../manuals/gates/HG-00-batch-scope.yaml)，待产品/技术负责人确认身份与时间后改 APPROVED |
 | HG-01 | 环境/数据负责人确认目标、样本和访问范围 | 环境标识、只读账号权限、样本代表性、敏感数据处理、证据保存位置 | 在指定环境只读取证；允许的数据准备范围另列 | OPEN |
 | HG-02 | 环境/数据库负责人批准预发写入和试用部署 | 精确 SHA、当前/目标 revision、逐段迁移顺序、Link dry-run、备份恢复、锁预算、回退预案 | 指定预发兼容部署、expand、Link 回填/其 contract、投影 rebuild；每个写操作列入范围 | OPEN |
 | HG-03 | 数据库/技术负责人批准 KI-014 Phase D | 完整周期、旧写入方清单、新写入小写/无 NULL、应用 UAT、精确 SQL、恢复兼容表 | 在明确环境执行该 contract；预发通过不自动授权生产执行 | OPEN |
@@ -130,6 +130,8 @@ Human Gate 是对具体业务结论或变更范围的人工批准，不是每一
 HG-02 的 I3-F Link contract 与 HG-03 的 KI-014 contract 是两件事，必须分列 revision 和允许动作；不能以都叫 contract 为由合并批准。生产执行过的旧步骤先盘点，禁止重放整条迁移链覆盖现状。
 
 HG-08 的产品决策可在相关批次准备时提前完成；决策不等于已取得目标环境或真实外发授权。W16 的实施仍按稳定后的排期推进，W08/W10 中已被选入近期范围的能力按对应候选独立验证。
+
+正式 Gate 报告与操作顺序见 [Human Gates playbook](../manuals/2026-09-14-human-gates-playbook.md) 与 [manuals/gates/](../manuals/gates/)。Agent 可准备 `READY_FOR_REVIEW` 草稿，不得代填 `APPROVED`。
 
 ### 3.2 每次 Gate 使用同一证据模板
 

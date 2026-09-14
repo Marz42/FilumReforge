@@ -1,0 +1,64 @@
+# Human Gate report — do not put DSN/secrets in this file.
+# Template: 2026-09-10-integrated-development-and-human-gates-plan.md §3.2
+gate_id: HG-00
+decision: READY_FOR_REVIEW  # → APPROVED after product/tech owner confirms identity + timestamp
+work_packages:
+  - W01
+  - W02
+  - W07
+  - W08
+  - W09
+  - W10-bind
+  - W11
+  - W12
+  - W13
+environment_id: null
+release_tag: null
+commit_sha: a1eec253fc7db063cd05ea8219c3e856bb0e001f
+database_revision_before: null
+database_revision_after: null
+config_fingerprint: null
+evidence_scope: L0  # docs + git history; not target DB
+observation_start: null
+observation_end: null
+sample_summary: >
+  Engineering batches W01/W02 and W07–W13 landed on main through a1eec25.
+  W08 scope limited to in-app messaging and Web Push.
+  W10 limited to explicit employment↔graph-template bind (BE+FE); rules UI excluded.
+evidence_refs:
+  - ../2026-09-13-w01-w02-checks.md
+  - ../2026-09-13-w07-session-request-ownership.md
+  - ../2026-09-13-w08-inapp-webpush.md
+  - ../2026-09-14-w09-auth-rate-limit.md
+  - ../2026-09-14-w10-hr-graph-template-bind.md
+  - ../2026-09-14-w11-structured-profile-fields.md
+  - ../2026-09-14-w11a-position-workbench.md
+  - ../2026-09-14-w11bc-template-ia-structured.md
+  - ../2026-09-14-w12-split-perf-regression.md
+  - ../2026-09-14-w13-bundle-test-hygiene.md
+  - ../../plans/2026-09-10-integrated-development-and-human-gates-plan.md
+known_failures: []
+approved_actions:
+  - Record engineering batch scope W01/W02 and W07–W13 as authorized local work on main @ a1eec25
+  - Continue independent local engineering only when separately authorized
+  - Prepare HG-01 intake and later gate reports without signing them
+excluded_actions:
+  - Target PostgreSQL write / expand / contract / Link apply
+  - Production deploy or closing projection fallback
+  - W10 rules matching / priority / dry-run UI (requires HG-08)
+  - W14 activity timeline product redesign
+  - W15 / Iteration 6 compatibility exit (requires HG-07)
+  - Email delivery, invitation email, WebSocket realtime
+  - W16 deferred specialties not selected under HG-08
+  - Treating isolated/L2 PostgreSQL evidence as L3 target observation
+rollback_trigger: null
+rollback_owner: null
+approver: null  # fill display name or role, e.g. 产品/技术负责人
+approved_at: null  # fill ISO-8601 after confirmation
+expires_when: null
+notes: >
+  Prior APPROVED text covered W01/W02, W07, and adjusted W08 only.
+  This report refreshes scope to include W09–W13 already delivered under subsequent
+  explicit start authorizations. Agent must not set decision=APPROVED without human confirmation.
+prepared_at: '2026-09-14T15:23:19+08:00'
+prepared_by: cursor-agent

@@ -1,0 +1,39 @@
+# Human Gate report — do not put DSN/secrets in this file.
+gate_id: HG-06
+decision: OPEN
+work_packages:
+  - W06
+environment_id: null
+release_tag: null
+commit_sha: null
+database_revision_before: null
+database_revision_after: null
+config_fingerprint: null
+evidence_scope: L4
+observation_start: null
+observation_end: null
+sample_summary: null
+evidence_refs:
+  - ../2026-08-09-production-release-checklist.md
+  - ../../plans/2026-08-11-f05-iteration5-6-sequencing-plan.md
+  - ../2026-09-14-human-gates-playbook.md
+known_failures: []
+approved_actions: []
+excluded_actions:
+  - Expanding canary beyond approved scope/version without re-review
+  - Treating fallback-on deploy as strict complete
+fallback_close_conditions:
+  - Production rebuild / full shadow verified
+  - Live traffic sample reviewed
+  - Alert drill completed
+  - Canary scope and observation window written
+  - Re-open fallback trigger and owner named
+depends_on_gates:
+  - HG-05
+rollback_trigger: null
+rollback_owner: null
+approver: null
+approved_at: null
+expires_when: null
+prepared_at: '2026-09-14T15:23:19+08:00'
+prepared_by: cursor-agent

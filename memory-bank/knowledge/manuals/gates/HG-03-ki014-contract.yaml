@@ -1,0 +1,40 @@
+# Human Gate report — do not put DSN/secrets in this file.
+gate_id: HG-03
+decision: OPEN
+work_packages:
+  - W03-D
+environment_id: null
+release_tag: null
+commit_sha: null
+database_revision_before: null
+database_revision_after: null
+config_fingerprint: null
+evidence_scope: L3
+observation_start: null
+observation_end: null
+sample_summary: null
+evidence_refs:
+  - ../2026-09-04-ki014-phase-c-observation-checklist.md
+  - ../../plans/2026-08-26-ki014-schema-drift-remediation-plan.md
+  - ../2026-09-14-human-gates-playbook.md
+known_failures: []
+approved_actions: []
+excluded_actions:
+  - Automatic production contract after staging success
+  - Merging with I3-F Link contract approval (HG-02 path; separate revision list)
+entry_conditions:
+  - C1–C6 pass on target DB with real data
+  - Full business cycle observed with --since
+  - No unknown status spellings
+  - Old writers inventory complete; no remaining uppercase writers unexplained
+  - Exact contract SQL + offline recovery compatibility table reviewed
+depends_on_gates:
+  - HG-01
+  - HG-02
+rollback_trigger: null
+rollback_owner: null
+approver: null
+approved_at: null
+expires_when: null
+prepared_at: '2026-09-14T15:23:19+08:00'
+prepared_by: cursor-agent
