@@ -29,7 +29,7 @@ paradigma:
 
 | 计划 | 当前用途 |
 |---|---|
-| `2026-09-10-integrated-development-and-human-gates-plan.md` | in-progress：W01/W02、W07、W08、W09、W10 显式绑定（后端+FE）已提交；规则 UI 仍待 HG-08；外部门禁继续独立 |
+| `2026-09-10-integrated-development-and-human-gates-plan.md` | in-progress：W01/W02、W07、W08、W09、W10 显式绑定已提交；W11 首片（结构化字段）进行中；规则 UI 仍待 HG-08；外部门禁继续独立 |
 | `implementation-plan.md` | 总体实施主线 |
 | `workflow-graph-engine-upgrade-iteration-plan.md` | 图引擎 Iteration 0～6 总计划；当前指向 I5/I6 |
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |

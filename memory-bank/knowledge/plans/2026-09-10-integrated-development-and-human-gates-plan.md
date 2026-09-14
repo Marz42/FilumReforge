@@ -332,6 +332,8 @@ expires_when: null
 
 **依赖：W05 现有 authoring 验收；负责人：前端/后端/产品。**
 
+**2026-09-14：首片（人员管理 JSON → 结构化字段）本地完成。** 档案动态字段、岗位扩展配置、生命周期载荷使用 `RecordFieldsEditor`，保留高级 JSON 与未知键 round-trip。岗位工作台读模型与模板页重组仍待后续片。详见 [W11 首片记录](../manuals/2026-09-14-w11-structured-profile-fields.md)。
+
 1. 岗位工作台复用 positions/profile_positions/reporting_lines，先做读模型和引用预览，再做经权限校验的编辑；展示影响人员、汇报链、代理与生效范围。
 2. 人员/档案治理页逐项替代原始 JSON 编辑，保留高级入口；未知字段 round-trip 不丢失，非法输入给可操作提示。
 3. 模板页按清单、基本信息、步骤、运行态、调度、高级配置组织；复用现有草稿/发布/版本锁定/导入导出/dry-run，不重建 M-06～M-08。

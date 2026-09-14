@@ -1,7 +1,7 @@
 # Manuals Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: 03b09edd7715c217 -->
+<!-- checksum: f5b0a94cbf8f9889 -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -14,7 +14,8 @@
 | [2026-09-13-w07-session-request-ownership.md](2026-09-13-w07-session-request-ownership.md) | `paradigma-manual` | W07 会话与请求竞态修复 | 会话代次<br>旧响应<br>退出登录 ... | - | related_to:../known-issues/ki-016-logout-inflight-request-401-noise.md<br>related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/architecture/frontend-architecture.md |
 | [2026-09-13-w08-inapp-webpush.md](2026-09-13-w08-inapp-webpush.md) | `paradigma-manual` | W08 站内消息中心与 Web Push | 站内消息中心<br>Web Push<br>W08范围 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/messaging.md<br>related_to:../contracts/database/messaging-schema.md |
 | [2026-09-14-w09-auth-rate-limit.md](2026-09-14-w09-auth-rate-limit.md) | `paradigma-manual` | W09 跨 worker 认证限流 | 认证限流<br>Redis限流<br>W09 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:./deployment-runbook-ubuntu-2404.md |
-| [2026-09-14-w10-hr-graph-template-bind.md](2026-09-14-w10-hr-graph-template-bind.md) | `paradigma-manual` | W10 HR 生命周期显式图模板绑定（首片） | HR生命周期<br>图模板绑定<br>W10 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/hr-org.md |
+| [2026-09-14-w10-hr-graph-template-bind.md](2026-09-14-w10-hr-graph-template-bind.md) | `paradigma-manual` | W10 HR 生命周期显式图模板绑定 | HR生命周期<br>图模板绑定<br>W10 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/hr-org.md |
+| [2026-09-14-w11-structured-profile-fields.md](2026-09-14-w11-structured-profile-fields.md) | `paradigma-manual` | W11 首片：档案/岗位 JSON 改为结构化字段编辑 | W11<br>结构化字段<br>动态字段 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/hr-org.md |
 | [deployment-runbook-ubuntu-2404.md](deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | related_to:2026-08-09-production-release-checklist.md |
 | [e2e-gui-verification-automation-runbook.md](e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | related_to:workflow-video-v1-multi-account-e2e-guide.md |
 | [manual-database-operations.md](manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | related_to:2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:../architecture.md |

@@ -34,6 +34,7 @@ vi.mock('@/api/profiles', () => ({
   createProfilePosition: vi.fn(),
   createProfileReportingLine: vi.fn(),
   listPositions: vi.fn(),
+  listProfileFieldDefinitions: vi.fn(),
   updateDelegation: vi.fn(),
   updateProfile: vi.fn(),
 }))
@@ -59,6 +60,7 @@ import {
   createProfile,
   createProfileEvent,
   listPositions,
+  listProfileFieldDefinitions,
   updateProfile,
 } from '@/api/profiles'
 import { createUser, deleteUser, updateUser } from '@/api/users'
@@ -114,7 +116,7 @@ type PeopleManagementViewSetupState = {
     job_title: string
     phone: string
     hire_date: string
-    custom_fields_text: string
+    custom_fields: Record<string, unknown>
   }
   handleSaveAccount: () => Promise<void>
   handleDeleteUser: () => Promise<void>
@@ -126,7 +128,7 @@ type PeopleManagementViewSetupState = {
     effective_date: string
     title: string
     summary: string
-    payload_text: string
+    payload: Record<string, unknown>
     workflow_definition_id: string
     workflow_graph_template_id: string
   }
@@ -338,6 +340,20 @@ describe('PeopleManagementView', () => {
         config: {},
       },
     ])
+    vi.mocked(listProfileFieldDefinitions).mockResolvedValue([
+      {
+        id: 'field-salary',
+        field_key: 'salary',
+        label: '薪资',
+        field_type: 'number',
+        storage_target: 'custom',
+        is_sensitive: true,
+        config: {},
+        is_active: true,
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+      },
+    ])
     vi.mocked(createProfileEvent).mockResolvedValue({
       id: 'event-2',
       user_id: 'user-1',
@@ -471,7 +487,7 @@ describe('PeopleManagementView', () => {
     setupState.createProfileForm.real_name = '待建档员工'
     setupState.createProfileForm.department_id = 'dept-1'
     setupState.createProfileForm.job_title = '测试工程师'
-    setupState.createProfileForm.custom_fields_text = '{\n  "skills": ["qa"]\n}'
+    setupState.createProfileForm.custom_fields = { skills: ['qa'] }
 
     await setupState.handleCreateProfile()
     await flushPromises()
@@ -549,7 +565,7 @@ describe('PeopleManagementView', () => {
     setupState.eventForm.effective_date = '2025-02-01'
     setupState.eventForm.title = '晋升'
     setupState.eventForm.summary = ''
-    setupState.eventForm.payload_text = '{\n  "job_title": "高级工程师"\n}'
+    setupState.eventForm.payload = { job_title: '高级工程师' }
     setupState.eventForm.workflow_definition_id = 'wf-def-1'
     setupState.eventForm.workflow_graph_template_id = 'tpl-1'
 

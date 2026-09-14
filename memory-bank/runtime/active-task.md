@@ -27,7 +27,7 @@ Perform a read-only PostgreSQL schema drift audit, classify ORM versus DDL autho
 
 ## Current Status
 
-blocked
+active
 
 ## Checklist
 
@@ -35,10 +35,10 @@ blocked
 
 ## Blockers
 
-目标预发观察与 Phase D contract 等待 HG-01/HG-02/HG-03
+
 
 ## Notes
 
 Generated from YAML facts; do not edit this projection by hand.
 
-Snapshot revision: 22.
+Snapshot revision: 23.

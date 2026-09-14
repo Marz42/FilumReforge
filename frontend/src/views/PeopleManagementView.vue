@@ -14,6 +14,7 @@ import {
   createProfilePosition,
   createProfileReportingLine,
   listPositions,
+  listProfileFieldDefinitions,
   updateDelegation,
   updateProfile,
 } from '@/api/profiles'
@@ -32,6 +33,7 @@ import type {
   Position,
   PositionAssignmentType,
   ProfileFieldAccess,
+  ProfileFieldDefinition,
   ReportingLineType,
   UserRole,
   UserInvitation,
@@ -40,11 +42,13 @@ import type {
 } from '@/types/api'
 import type { GraphTemplateSummary } from '@/types/workflowVideo'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
+import RecordFieldsEditor from '@/components/common/RecordFieldsEditor.vue'
 import PeopleDetailDrawer from '@/components/people/PeopleDetailDrawer.vue'
 import type { PeopleAnchorId } from '@/components/people/PeopleAnchorNav.vue'
 import { showError } from '@/utils/errors'
 import { formatPasswordValidationMessage, validatePasswordClient } from '@/utils/passwordPolicy'
 import { formatDate, formatDateTime } from '@/utils/formatters'
+import { cloneRecord } from '@/utils/recordFields'
 
 type DetailTab = PeopleAnchorId
 
@@ -153,6 +157,10 @@ const departments = ref<Department[]>([])
 const positions = ref<Position[]>([])
 const workflowDefinitions = ref<WorkflowDefinition[]>([])
 const graphTemplates = ref<GraphTemplateSummary[]>([])
+const fieldDefinitions = ref<ProfileFieldDefinition[]>([])
+const customFieldDefinitions = computed(() =>
+  fieldDefinitions.value.filter((item) => item.storage_target === 'custom' && item.is_active),
+)
 
 const keyword = ref('')
 const roleFilter = ref<'all' | UserRole>('all')
@@ -188,7 +196,7 @@ const createProfileForm = reactive({
   job_title: '',
   phone: '',
   hire_date: '',
-  custom_fields_text: '{\n  "skills": []\n}',
+  custom_fields: { skills: [] } as Record<string, unknown>,
 })
 
 const basicForm = reactive({
@@ -198,14 +206,14 @@ const basicForm = reactive({
   job_title: '',
   phone: '',
   hire_date: '',
-  custom_fields_text: '{}',
+  custom_fields: {} as Record<string, unknown>,
 })
 
 const positionCatalogForm = reactive({
   code: '',
   name: '',
   level: '',
-  extra_metadata_text: '{\n  "band": ""\n}',
+  extra_metadata: { band: '' } as Record<string, unknown>,
 })
 
 const positionForm = reactive({
@@ -231,7 +239,7 @@ const eventForm = reactive({
   effective_date: '',
   title: '',
   summary: '',
-  payload_text: '{\n  "job_title": ""\n}',
+  payload: { job_title: '' } as Record<string, unknown>,
   workflow_definition_id: '' as string,
   workflow_graph_template_id: '' as string,
 })
@@ -437,14 +445,14 @@ function resetCreateProfileForm(userId?: string): void {
   createProfileForm.job_title = ''
   createProfileForm.phone = ''
   createProfileForm.hire_date = ''
-  createProfileForm.custom_fields_text = '{\n  "skills": []\n}'
+  createProfileForm.custom_fields = { skills: [] }
 }
 
 function resetPositionCatalogForm(): void {
   positionCatalogForm.code = ''
   positionCatalogForm.name = ''
   positionCatalogForm.level = ''
-  positionCatalogForm.extra_metadata_text = '{\n  "band": ""\n}'
+  positionCatalogForm.extra_metadata = { band: '' }
 }
 
 function resetPositionForm(): void {
@@ -470,7 +478,7 @@ function resetEventForm(): void {
   eventForm.effective_date = ''
   eventForm.title = ''
   eventForm.summary = ''
-  eventForm.payload_text = '{\n  "job_title": ""\n}'
+  eventForm.payload = { job_title: '' }
   eventForm.workflow_definition_id = ''
   eventForm.workflow_graph_template_id = ''
 }
@@ -496,18 +504,6 @@ function resetDelegationForm(): void {
   delegationForm.ends_at = null
 }
 
-function parseJsonObject(text: string, fieldLabel: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(text) as unknown
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-      throw new Error('not-object')
-    }
-    return parsed as Record<string, unknown>
-  } catch {
-    throw new Error(`${fieldLabel} 需要是合法 JSON 对象`)
-  }
-}
-
 function hydrateForms(detail: PeopleManagementDetail): void {
   accountForm.email = detail.account.email
   accountForm.password = ''
@@ -521,7 +517,7 @@ function hydrateForms(detail: PeopleManagementDetail): void {
     basicForm.job_title = detail.profile.job_title ?? ''
     basicForm.phone = detail.profile.phone ?? ''
     basicForm.hire_date = detail.profile.hire_date ?? ''
-    basicForm.custom_fields_text = JSON.stringify(detail.profile.custom_fields, null, 2)
+    basicForm.custom_fields = cloneRecord(detail.profile.custom_fields)
     createProfileForm.user_id = detail.account.id
     createProfileForm.real_name = detail.profile.real_name ?? ''
     createProfileForm.department_id = detail.profile.department_id ?? ''
@@ -535,7 +531,7 @@ function hydrateForms(detail: PeopleManagementDetail): void {
     basicForm.job_title = ''
     basicForm.phone = ''
     basicForm.hire_date = ''
-    basicForm.custom_fields_text = '{}'
+    basicForm.custom_fields = {}
     resetCreateProfileForm(detail.account.id)
   }
 
@@ -548,16 +544,18 @@ function hydrateForms(detail: PeopleManagementDetail): void {
 async function loadSupportingData(): Promise<void> {
   positionsLoading.value = true
   try {
-    const [departmentList, positionList, definitionList, templateList] = await Promise.all([
+    const [departmentList, positionList, definitionList, templateList, fieldDefinitionList] = await Promise.all([
       listDepartments(),
       listPositions(),
       listWorkflowDefinitions().catch(() => [] as WorkflowDefinition[]),
       listGraphTemplates({ status: ['active'] }).catch(() => [] as GraphTemplateSummary[]),
+      listProfileFieldDefinitions().catch(() => [] as ProfileFieldDefinition[]),
     ])
     departments.value = departmentList
     positions.value = positionList
     workflowDefinitions.value = definitionList
     graphTemplates.value = templateList
+    fieldDefinitions.value = fieldDefinitionList
   } finally {
     positionsLoading.value = false
   }
@@ -757,7 +755,7 @@ async function handleCreateProfile(): Promise<void> {
 
   createProfileSubmitting.value = true
   try {
-    const customFields = parseJsonObject(createProfileForm.custom_fields_text, '动态字段')
+    const customFields = cloneRecord(createProfileForm.custom_fields)
     const profile = await createProfile({
       user_id: createProfileForm.user_id,
       employee_no: createProfileForm.employee_no.trim(),
@@ -791,7 +789,6 @@ async function handleSaveProfile(): Promise<void> {
 
   profileSubmitting.value = true
   try {
-    const customFields = parseJsonObject(basicForm.custom_fields_text, '动态字段')
     await updateProfile(selectedProfile.value.user_id, {
       employee_no: basicForm.employee_no.trim(),
       real_name: basicForm.real_name.trim(),
@@ -799,7 +796,7 @@ async function handleSaveProfile(): Promise<void> {
       job_title: basicForm.job_title.trim() || null,
       phone: basicForm.phone.trim() || null,
       hire_date: basicForm.hire_date || null,
-      custom_fields: customFields,
+      custom_fields: cloneRecord(basicForm.custom_fields),
     })
     ElMessage.success('档案信息已更新')
     await refreshWorkspace(selectedProfile.value.user_id)
@@ -813,12 +810,11 @@ async function handleSaveProfile(): Promise<void> {
 async function handleCreatePositionCatalog(): Promise<void> {
   positionCatalogSubmitting.value = true
   try {
-    const extraMetadata = parseJsonObject(positionCatalogForm.extra_metadata_text, '岗位扩展配置')
     await createPosition({
       code: positionCatalogForm.code.trim(),
       name: positionCatalogForm.name.trim(),
       level: positionCatalogForm.level.trim() || undefined,
-      extra_metadata: extraMetadata,
+      extra_metadata: cloneRecord(positionCatalogForm.extra_metadata),
       is_active: true,
     })
     positions.value = await listPositions()
@@ -888,7 +884,7 @@ async function handleCreateEvent(): Promise<void> {
 
   lifecycleSubmitting.value = true
   try {
-    const payload = parseJsonObject(eventForm.payload_text, '事件载荷')
+    const payload = cloneRecord(eventForm.payload)
     const selectedTemplate = activeGraphTemplates.value.find(
       (item) => item.id === eventForm.workflow_graph_template_id,
     )
@@ -1306,8 +1302,12 @@ watch(
                                 placeholder="请选择日期"
                               />
                             </el-form-item>
-                            <el-form-item label="动态字段(JSON)">
-                              <el-input v-model="basicForm.custom_fields_text" type="textarea" :rows="8" />
+                            <el-form-item label="动态字段">
+                              <RecordFieldsEditor
+                                v-model="basicForm.custom_fields"
+                                :definitions="customFieldDefinitions"
+                                storage-target="custom"
+                              />
                             </el-form-item>
                             <div class="page__actions">
                               <el-button type="primary" :loading="profileSubmitting" @click="handleSaveProfile">
@@ -1389,8 +1389,8 @@ watch(
                             <el-form-item label="岗位级别">
                               <el-input v-model="positionCatalogForm.level" />
                             </el-form-item>
-                            <el-form-item label="扩展配置(JSON)">
-                              <el-input v-model="positionCatalogForm.extra_metadata_text" type="textarea" :rows="4" />
+                            <el-form-item label="扩展配置">
+                              <RecordFieldsEditor v-model="positionCatalogForm.extra_metadata" />
                             </el-form-item>
                             <div class="page__actions">
                               <el-button
@@ -1618,8 +1618,8 @@ watch(
                                 />
                               </el-select>
                             </el-form-item>
-                            <el-form-item label="扩展载荷(JSON)">
-                              <el-input v-model="eventForm.payload_text" type="textarea" :rows="8" />
+                            <el-form-item label="扩展载荷">
+                              <RecordFieldsEditor v-model="eventForm.payload" />
                             </el-form-item>
                             <div class="page__actions">
                               <el-button type="primary" :loading="lifecycleSubmitting" @click="handleCreateEvent">
@@ -1873,8 +1873,12 @@ watch(
             placeholder="请选择日期"
           />
         </el-form-item>
-        <el-form-item label="动态字段(JSON)">
-          <el-input v-model="createProfileForm.custom_fields_text" type="textarea" :rows="8" />
+        <el-form-item label="动态字段">
+          <RecordFieldsEditor
+            v-model="createProfileForm.custom_fields"
+            :definitions="customFieldDefinitions"
+            storage-target="custom"
+          />
         </el-form-item>
       </el-form>
 
