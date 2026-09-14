@@ -8,6 +8,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import Settings, get_settings
 from app.core.enums import (
   EmploymentEventTriggerStatus,
   EmploymentEventType,
@@ -15,21 +16,28 @@ from app.core.enums import (
   ReportingLineType,
   UserStatus,
   WorkflowDefinitionStatus,
+  WorkflowGraphTemplateStatus,
 )
 from app.core.exceptions import ConflictError, NotFoundError
+from app.core.workflow_video_policy import use_graph_template_instantiation
 from app.integrations.notifications.queue import JobQueuePublisher
 from app.models import (
   EmploymentEvent,
   Profile,
   ProfilePosition,
   ReportingLine,
-  TaskTemplate,
   User,
   WorkflowDefinition,
+  WorkflowGraphTemplate,
+  WorkflowGraphTemplateEdge,
+  WorkflowGraphTemplateNode,
 )
+from app.schemas.workflow_video import ParticipantsSnapshotEntry
 from app.services.access_control import ensure_management_role
 from app.services.organization_relation_service import OrganizationRelationService
 from app.services.workflow_engine_service import WorkflowEngineService
+from app.services.workflow_graph_template_capabilities import compute_template_capabilities
+from app.services.workflow_video_instantiation_service import WorkflowTemplateInstantiationService
 
 MAX_EVENT_TRIGGER_ATTEMPTS = 3
 PROCESS_EMPLOYMENT_EVENT_JOB = "process_employment_event_job"
@@ -41,12 +49,16 @@ class HRLifecycleService:
     session: AsyncSession,
     *,
     workflow_engine_service: WorkflowEngineService | None = None,
+    graph_instantiation_service: WorkflowTemplateInstantiationService | None = None,
     job_queue_publisher: JobQueuePublisher | None = None,
+    settings: Settings | None = None,
   ) -> None:
     self._session = session
     self._organization_relation_service = OrganizationRelationService(session)
     self._workflow_engine_service = workflow_engine_service
+    self._graph_instantiation_service = graph_instantiation_service
     self._job_queue_publisher = job_queue_publisher
+    self._settings = settings or get_settings()
 
   async def list_events(self, *, user_id: UUID) -> list[EmploymentEvent]:
     statement = (
@@ -68,6 +80,8 @@ class HRLifecycleService:
     payload: dict[str, Any] | None = None,
     task_template_id: UUID | None = None,
     workflow_definition_id: UUID | None = None,
+    workflow_graph_template_id: UUID | None = None,
+    workflow_graph_template_version: int | None = None,
   ) -> EmploymentEvent:
     ensure_management_role(actor)
 
@@ -79,9 +93,11 @@ class HRLifecycleService:
       raise NotFoundError("档案不存在。")
 
     event_payload = payload or {}
-    await self._validate_trigger_targets(
+    snapped_graph_version = await self._validate_trigger_targets(
       task_template_id=task_template_id,
       workflow_definition_id=workflow_definition_id,
+      workflow_graph_template_id=workflow_graph_template_id,
+      workflow_graph_template_version=workflow_graph_template_version,
     )
     await self._apply_event_side_effects(
       profile=profile,
@@ -95,6 +111,7 @@ class HRLifecycleService:
     has_trigger_targets = self._event_has_trigger_targets(
       task_template_id=task_template_id,
       workflow_definition_id=workflow_definition_id,
+      workflow_graph_template_id=workflow_graph_template_id,
     )
     event = EmploymentEvent(
       user_id=user_id,
@@ -105,6 +122,8 @@ class HRLifecycleService:
       payload=event_payload,
       task_template_id=task_template_id,
       workflow_definition_id=workflow_definition_id,
+      workflow_graph_template_id=workflow_graph_template_id,
+      workflow_graph_template_version=snapped_graph_version,
       trigger_status=(
         EmploymentEventTriggerStatus.PENDING if has_trigger_targets else EmploymentEventTriggerStatus.SKIPPED
       ),
@@ -125,6 +144,7 @@ class HRLifecycleService:
     if not self._event_has_trigger_targets(
       task_template_id=event.task_template_id,
       workflow_definition_id=event.workflow_definition_id,
+      workflow_graph_template_id=event.workflow_graph_template_id,
     ):
       if event.trigger_status != EmploymentEventTriggerStatus.SKIPPED:
         event.trigger_status = EmploymentEventTriggerStatus.SKIPPED
@@ -170,14 +190,24 @@ class HRLifecycleService:
     *,
     task_template_id: UUID | None,
     workflow_definition_id: UUID | None,
+    workflow_graph_template_id: UUID | None,
   ) -> bool:
-    return task_template_id is not None or workflow_definition_id is not None
+    return (
+      task_template_id is not None
+      or workflow_definition_id is not None
+      or workflow_graph_template_id is not None
+    )
 
   @staticmethod
   def _event_trigger_completed(*, event: EmploymentEvent) -> bool:
     if event.task_template_id is not None and event.triggered_template_instance_id is None:
       return False
     if event.workflow_definition_id is not None and event.triggered_workflow_instance_id is None:
+      return False
+    if (
+      event.workflow_graph_template_id is not None
+      and event.triggered_workflow_graph_instance_id is None
+    ):
       return False
     return True
 
@@ -186,10 +216,12 @@ class HRLifecycleService:
     *,
     task_template_id: UUID | None,
     workflow_definition_id: UUID | None,
-  ) -> None:
+    workflow_graph_template_id: UUID | None,
+    workflow_graph_template_version: int | None,
+  ) -> int | None:
     if task_template_id is not None:
       raise ConflictError(
-        "Legacy 工作流 E 任务模板已下线（B-12）。请改用图模板 workflow_graph_template。"
+        "Legacy 工作流 E 任务模板已下线（B-12）。请改用图模板 workflow_graph_template_id。"
       )
 
     if workflow_definition_id is not None:
@@ -198,6 +230,51 @@ class HRLifecycleService:
         raise NotFoundError("审批流定义不存在。")
       if definition.status != WorkflowDefinitionStatus.ACTIVE:
         raise ConflictError("生命周期联动要求审批流定义处于启用状态。")
+
+    if workflow_graph_template_id is None:
+      return None
+
+    if not use_graph_template_instantiation(self._settings):
+      raise ConflictError(
+        "图模板实例化引擎未启用。请设置 WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true。"
+      )
+
+    template = await self._session.get(WorkflowGraphTemplate, workflow_graph_template_id)
+    if template is None:
+      raise NotFoundError("图模板不存在。")
+    if template.status != WorkflowGraphTemplateStatus.ACTIVE:
+      raise ConflictError("生命周期联动要求图模板处于已发布状态。")
+    if (
+      workflow_graph_template_version is not None
+      and workflow_graph_template_version != template.version
+    ):
+      raise ConflictError(
+        f"图模板版本不匹配：事件要求 v{workflow_graph_template_version}，当前为 v{template.version}。"
+      )
+
+    nodes = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateNode).where(
+          WorkflowGraphTemplateNode.template_id == template.id
+        )
+      )
+    )
+    edges = list(
+      await self._session.scalars(
+        select(WorkflowGraphTemplateEdge).where(
+          WorkflowGraphTemplateEdge.template_id == template.id
+        )
+      )
+    )
+    caps = compute_template_capabilities(
+      template=template,
+      nodes=nodes,
+      edges=edges,
+      fork_target_codes=set(),
+    )
+    if not caps.can_instantiate_directly:
+      raise ConflictError("该图模板不支持直接实例化，无法作为生命周期联动目标。")
+    return template.version
 
   async def _enqueue_event_trigger(self, *, event: EmploymentEvent) -> None:
     if self._job_queue_publisher is None:
@@ -237,7 +314,7 @@ class HRLifecycleService:
 
     if event.task_template_id is not None and event.triggered_template_instance_id is None:
       raise ConflictError(
-        "Legacy 工作流 E 任务模板已下线（B-12）。请改用图模板 workflow_graph_template。"
+        "Legacy 工作流 E 任务模板已下线（B-12）。请改用图模板 workflow_graph_template_id。"
       )
 
     if event.workflow_definition_id is not None and event.triggered_workflow_instance_id is None:
@@ -252,6 +329,47 @@ class HRLifecycleService:
       )
       event.triggered_workflow_instance_id = workflow_instance.id
       await self._session.commit()
+
+    if (
+      event.workflow_graph_template_id is not None
+      and event.triggered_workflow_graph_instance_id is None
+    ):
+      await self._run_graph_template_automation(event=event)
+
+  async def _run_graph_template_automation(self, *, event: EmploymentEvent) -> None:
+    if self._graph_instantiation_service is None:
+      raise ConflictError("生命周期联动未注入图模板实例化服务。")
+    if not use_graph_template_instantiation(self._settings):
+      raise ConflictError(
+        "图模板实例化引擎未启用。请设置 WORKFLOW_GRAPH_TEMPLATE_ENGINE_ENABLED=true。"
+      )
+
+    template = await self._session.get(WorkflowGraphTemplate, event.workflow_graph_template_id)
+    if template is None:
+      raise NotFoundError("图模板不存在。")
+    if template.status != WorkflowGraphTemplateStatus.ACTIVE:
+      raise ConflictError("生命周期联动要求图模板处于已发布状态。")
+    if (
+      event.workflow_graph_template_version is not None
+      and event.workflow_graph_template_version != template.version
+    ):
+      raise ConflictError(
+        "在途生命周期事件绑定的图模板版本已变化，拒绝漂移到最新版本。"
+      )
+
+    department_id = await self._resolve_event_department_id(event=event)
+    result = await self._graph_instantiation_service.instantiate_graph_template(
+      actor=event.creator,
+      template_id=template.id,
+      inputs=self._build_graph_launch_inputs(event=event),
+      participants_snapshot=self._build_graph_participants_snapshot(event=event),
+      department_id=department_id,
+      run_label=event.title,
+      skip_publish_permission=True,
+      commit=True,
+    )
+    event.triggered_workflow_graph_instance_id = result.instance.id
+    await self._session.commit()
 
   async def _resolve_event_department_id(self, *, event: EmploymentEvent) -> UUID | None:
     raw_department_id = event.payload.get("department_id")
@@ -273,6 +391,59 @@ class HRLifecycleService:
       "channel": channel,
     }
     return payload
+
+  def _build_graph_launch_inputs(self, *, event: EmploymentEvent) -> dict[str, Any]:
+    reserved = {
+      "participants_snapshot",
+      "position_id",
+      "department_id",
+      "assignment_type",
+      "is_primary",
+      "manager_user_id",
+      "dotted_manager_ids",
+      "job_title",
+    }
+    inputs = {
+      key: value
+      for key, value in dict(event.payload).items()
+      if key not in reserved and value is not None
+    }
+    inputs.setdefault("theme", event.title)
+    inputs["employment_event_id"] = str(event.id)
+    inputs["employment_event_type"] = event.event_type.value
+    inputs["subject_user_id"] = str(event.user_id)
+    return inputs
+
+  def _build_graph_participants_snapshot(
+    self,
+    *,
+    event: EmploymentEvent,
+  ) -> dict[str, ParticipantsSnapshotEntry]:
+    raw = event.payload.get("participants_snapshot")
+    if isinstance(raw, dict) and raw:
+      snapshot: dict[str, ParticipantsSnapshotEntry] = {}
+      for key, value in raw.items():
+        if isinstance(value, ParticipantsSnapshotEntry):
+          snapshot[str(key)] = value
+          continue
+        if not isinstance(value, dict):
+          continue
+        mode = value.get("mode", "subset")
+        user_ids = [UUID(str(item)) for item in value.get("user_ids", [])]
+        snapshot[str(key)] = ParticipantsSnapshotEntry(
+          mode=mode,
+          user_ids=user_ids,
+          include_initiator=bool(value.get("include_initiator", False)),
+        )
+      if snapshot:
+        return snapshot
+    # Default subject-user pool for explicit HR binds when callers omit snapshot.
+    return {
+      "assignees": ParticipantsSnapshotEntry(
+        mode="subset",
+        user_ids=[event.user_id],
+      )
+    }
 
   async def _apply_event_side_effects(
     self,

@@ -297,10 +297,15 @@ async def process_employment_event_automation(
   resolved_event_id = _parse_uuid(event_id, field_name="event_id") if isinstance(event_id, str) else event_id
   notification_service = NotificationService(session, queue_publisher)
   workflow_engine_service = WorkflowEngineService(session, notification_service)
+  settings = get_settings()
+  from app.services.workflow_video_instantiation_service import WorkflowTemplateInstantiationService
+
   lifecycle_service = HRLifecycleService(
     session,
     workflow_engine_service=workflow_engine_service,
+    graph_instantiation_service=WorkflowTemplateInstantiationService(session, settings=settings),
     job_queue_publisher=queue_publisher,
+    settings=settings,
   )
   event = await lifecycle_service.process_event_automation(event_id=resolved_event_id)
   return event.trigger_status.value == "succeeded"

@@ -205,6 +205,8 @@ async def create_profile_event(
     payload=payload.payload,
     task_template_id=payload.task_template_id,
     workflow_definition_id=payload.workflow_definition_id,
+    workflow_graph_template_id=payload.workflow_graph_template_id,
+    workflow_graph_template_version=payload.workflow_graph_template_version,
   )
   return EmploymentEventRead.model_validate(event)
 

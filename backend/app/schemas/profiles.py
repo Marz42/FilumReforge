@@ -83,12 +83,15 @@ class EmploymentEventRead(BaseModel):
   payload: dict[str, Any]
   task_template_id: UUID | None
   workflow_definition_id: UUID | None
+  workflow_graph_template_id: UUID | None
+  workflow_graph_template_version: int | None
   trigger_status: EmploymentEventTriggerStatus
   triggered_at: datetime | None
   trigger_error: str | None
   trigger_attempt_count: int
   triggered_template_instance_id: UUID | None
   triggered_workflow_instance_id: UUID | None
+  triggered_workflow_graph_instance_id: UUID | None
   created_by: UUID
   created_at: datetime
 
@@ -215,6 +218,8 @@ class EmploymentEventCreateRequest(BaseModel):
   payload: dict[str, Any] = Field(default_factory=dict)
   task_template_id: UUID | None = None
   workflow_definition_id: UUID | None = None
+  workflow_graph_template_id: UUID | None = None
+  workflow_graph_template_version: int | None = Field(default=None, ge=1)
 
 
 class DelegationCreateRequest(BaseModel):

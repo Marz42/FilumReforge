@@ -192,6 +192,11 @@ class EmploymentEvent(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     ForeignKey("workflow_definitions.id", name="fk_employment_events_workflow_definition"),
     nullable=True,
   )
+  workflow_graph_template_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey("workflow_graph_templates.id", name="fk_employment_events_graph_template"),
+    nullable=True,
+  )
+  workflow_graph_template_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
   trigger_status: Mapped[EmploymentEventTriggerStatus] = mapped_column(
     build_value_enum(
       enum_cls=EmploymentEventTriggerStatus,
@@ -213,14 +218,29 @@ class EmploymentEvent(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     ForeignKey("workflow_instances.id", name="fk_employment_events_workflow_instance"),
     nullable=True,
   )
+  triggered_workflow_graph_instance_id: Mapped[UUID | None] = mapped_column(
+    ForeignKey(
+      "workflow_graph_instances.id",
+      name="fk_employment_events_graph_instance",
+    ),
+    nullable=True,
+  )
   created_by: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
 
   user = relationship("User", foreign_keys=[user_id], back_populates="employment_events")
   creator = relationship("User", foreign_keys=[created_by], back_populates="created_employment_events")
   task_template = relationship("TaskTemplate", foreign_keys=[task_template_id])
   workflow_definition = relationship("WorkflowDefinition", foreign_keys=[workflow_definition_id])
+  workflow_graph_template = relationship(
+    "WorkflowGraphTemplate",
+    foreign_keys=[workflow_graph_template_id],
+  )
   triggered_template_instance = relationship("TaskTemplateInstance", foreign_keys=[triggered_template_instance_id])
   triggered_workflow_instance = relationship("WorkflowInstance", foreign_keys=[triggered_workflow_instance_id])
+  triggered_workflow_graph_instance = relationship(
+    "WorkflowGraphInstance",
+    foreign_keys=[triggered_workflow_graph_instance_id],
+  )
 
 
 class Delegation(UUIDPrimaryKeyMixin, TimestampMixin, Base):

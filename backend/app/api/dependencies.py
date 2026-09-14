@@ -132,11 +132,16 @@ def get_hr_lifecycle_service(
   session: Annotated[AsyncSession, Depends(get_db_session)],
   workflow_engine_service: Annotated[WorkflowEngineService, Depends(get_workflow_engine_service)],
   job_queue_publisher: Annotated[JobQueuePublisher, Depends(get_job_queue_publisher)],
+  settings: Annotated[Settings, Depends(get_settings)],
 ) -> HRLifecycleService:
+  from app.services.workflow_video_instantiation_service import WorkflowTemplateInstantiationService
+
   return HRLifecycleService(
     session,
     workflow_engine_service=workflow_engine_service,
+    graph_instantiation_service=WorkflowTemplateInstantiationService(session, settings=settings),
     job_queue_publisher=job_queue_publisher,
+    settings=settings,
   )
 
 
