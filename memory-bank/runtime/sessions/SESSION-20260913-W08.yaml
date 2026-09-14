@@ -1,0 +1,17 @@
+coding_runtime_schema_version: '0.1'
+kind: coding_session
+snapshot_revision: 1
+session:
+  session_id: SESSION-20260913-W08
+  task_id: TASK-20260826-KI014-SCHEMA-AUDIT
+  repository:
+    workspace_id: filum-reforge
+    repository_id: FilumReforge
+    repository_path: .
+    remote_url: null
+  status: active
+  started_at: '2026-09-13T21:47:16.850560+08:00'
+  updated_at: '2026-09-13T21:47:16.850560+08:00'
+  ended_at: null
+  agent_id: codex
+  current_checkpoint_id: null

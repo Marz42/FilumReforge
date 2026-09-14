@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElMessage } from 'element-plus'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/api/push', () => ({
@@ -24,6 +24,7 @@ import {
   createPushSubscription,
   getPushSubscriptionConfig,
   listPushSubscriptions,
+  revokePushSubscription,
   sendPushTestNotification,
 } from '@/api/push'
 import {
@@ -49,7 +50,10 @@ const activeSubscription = {
 
 describe('Push subscription card', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
+    vi.mocked(registerPwaServiceWorker).mockResolvedValue({ pushManager: {
+      getSubscription: vi.fn().mockResolvedValue({ endpoint: activeSubscription.endpoint }),
+    } } as unknown as ServiceWorkerRegistration)
     vi.mocked(listPushSubscriptions).mockResolvedValue([])
     vi.mocked(getPushSubscriptionConfig).mockResolvedValue({
       public_key: 'test-public-key',
@@ -146,5 +150,84 @@ describe('Push subscription card', () => {
       auth_key: 'auth',
       user_agent: navigator.userAgent,
     })
+  })
+
+  it('revokes only this browser while another device stays active', async () => {
+    vi.mocked(listPushSubscriptions).mockResolvedValue([activeSubscription, { ...activeSubscription, id: 'other', endpoint: 'https://push.example.com/other' }])
+    const unsubscribe = vi.fn().mockResolvedValue(true)
+    const getSubscription = vi.fn().mockResolvedValueOnce({ endpoint: activeSubscription.endpoint, unsubscribe })
+      .mockResolvedValueOnce({ endpoint: activeSubscription.endpoint, unsubscribe }).mockResolvedValue(null)
+    vi.mocked(registerPwaServiceWorker).mockResolvedValue({ pushManager: { getSubscription } } as unknown as ServiceWorkerRegistration)
+    const wrapper = mount(PushSubscriptionCard, { global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('其他设备 1 个已启用')
+    await wrapper.get('[data-testid="push-disable"]').trigger('click')
+    await flushPromises()
+    expect(revokePushSubscription).toHaveBeenCalledExactlyOnceWith('subscription-1')
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('does not treat another device as the current browser', async () => {
+    vi.mocked(listPushSubscriptions).mockResolvedValue([{ ...activeSubscription, endpoint: 'https://push.example.com/other' }])
+    const wrapper = mount(PushSubscriptionCard, { global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="push-disable"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('本浏览器未启用')
+    wrapper.unmount()
+  })
+
+  it('fails closed when configuration cannot be loaded', async () => {
+    vi.mocked(getPushSubscriptionConfig).mockRejectedValue(new Error('offline'))
+    const wrapper = mount(PushSubscriptionCard, { global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="push-enable"]').attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('reports test queue failure as an error', async () => {
+    vi.mocked(listPushSubscriptions).mockResolvedValue([activeSubscription])
+    vi.mocked(sendPushTestNotification).mockResolvedValue({ message_id: 'm', status: 'failed', detail: '入队失败' })
+    const error = vi.spyOn(ElMessage, 'error')
+    const wrapper = mount(PushSubscriptionCard, { global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    await wrapper.get('[data-testid="push-test"]').trigger('click')
+    await flushPromises()
+    expect(error).toHaveBeenCalledWith('入队失败')
+    error.mockRestore()
+    wrapper.unmount()
+  })
+
+  it('cleans up a newly created browser subscription if server registration fails', async () => {
+    const unsubscribe = vi.fn().mockResolvedValue(true)
+    vi.mocked(getNotificationPermission).mockReturnValue('granted')
+    vi.mocked(registerPwaServiceWorker).mockResolvedValue({ pushManager: {
+      getSubscription: vi.fn().mockResolvedValue(null),
+      subscribe: vi.fn().mockResolvedValue({ endpoint: activeSubscription.endpoint, toJSON: () => ({ keys: { p256dh: 'key', auth: 'auth' } }), unsubscribe }),
+    } } as unknown as ServiceWorkerRegistration)
+    vi.mocked(createPushSubscription).mockRejectedValue(new Error('registration failed'))
+    const wrapper = mount(PushSubscriptionCard, { global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    await wrapper.get('[data-testid="push-enable"]').trigger('click')
+    await flushPromises()
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('本浏览器未启用')
+    wrapper.unmount()
+  })
+
+  it('does not report successful cleanup while the browser subscription still exists', async () => {
+    vi.mocked(listPushSubscriptions).mockResolvedValue([activeSubscription])
+    vi.mocked(registerPwaServiceWorker).mockResolvedValue({ pushManager: {
+      getSubscription: vi.fn().mockResolvedValue({ endpoint: activeSubscription.endpoint, unsubscribe: vi.fn().mockResolvedValue(false) }),
+    } } as unknown as ServiceWorkerRegistration)
+    const error = vi.spyOn(ElMessage, 'error')
+    const success = vi.spyOn(ElMessage, 'success')
+    const wrapper = mount(PushSubscriptionCard, { global: { plugins: [ElementPlus] } })
+    await flushPromises()
+    await wrapper.get('[data-testid="push-disable"]').trigger('click')
+    await flushPromises()
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('未能清理'))
+    expect(success).not.toHaveBeenCalled()
+    error.mockRestore(); success.mockRestore(); wrapper.unmount()
   })
 })

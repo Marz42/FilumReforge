@@ -7,7 +7,7 @@ tags:
   - data
   - schema
   - api
-timestamp: 2026-09-13T00:20:00+08:00
+timestamp: 2026-09-13T22:13:51+08:00
 paradigma:
   relations:
     related_to:
@@ -49,6 +49,7 @@ paradigma:
 - **Pydantic Schemas**: `backend/app/schemas/`
 - **通用错误**: `backend/app/api/error_handlers.py` 返回 `request_id` + 业务错误码
 - **认证**: JWT access token + HttpOnly refresh cookie（`backend/app/api/routes/auth.py`）
+- **消息 W08**：本人消息回执及 WebPush 失败重试 `POST /api/v1/messages/{id}/web-push/retry`；受理、部分失败、回执与订阅隔离语义见 [消息契约](database/messaging-schema.md)。本批无 DDL 变更，Email/WebSocket 接入延期。
 - **附件下载**: `GET /api/v1/attachments/{id}/content`（鉴权后流式返回）
 - **standalone 任务动作契约（KI-009）**：任务详情 `available_actions` 是 standalone 前端按钮的权威来源；`PATCH /api/v1/tasks/{id}/status` 按当前状态映射 `start_work` / `submit_deliverable` / `approve_deliverable` 并复核当前 actor。创建关系只授予跟踪，不授予 TODO/DOING 代执行权限；现行 Admin/HR override 保留，待 KI-011 单独治理。workflow/graph 不把空 `available_actions` 解释为禁止动作，继续走既有 handshake/Handler 兼容路径。
 - **图引擎 + 视频 v1 运行时**: `backend/app/api/routes/workflow_graph_engine.py`（前缀 `/api/v1/workflow-graph`）

@@ -14,6 +14,7 @@ vi.mock('@/api/messages', () => ({
 
 import { createMessageReceipt, getMessageCenterSnapshot } from '@/api/messages'
 import { useMessagesInbox } from '@/composables/useMessagesInbox'
+import { notifyMessageReceiptUpdated } from '@/composables/useMessageUpdates'
 
 function buildMessage(id: string): Message {
   return {
@@ -54,6 +55,22 @@ function buildSnapshot(items: Message[]): MessageCenterSnapshot {
 describe('useMessagesInbox', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('refreshes the header count on another inbox receipt and removes the listener on disposal', async () => {
+    vi.mocked(getMessageCenterSnapshot).mockResolvedValue(buildSnapshot([buildMessage('message-1')]))
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
+    let inbox!: ReturnType<typeof useMessagesInbox>
+    const wrapper = mount(defineComponent({ setup() { inbox = useMessagesInbox(); return () => h('div') } }), { global: { plugins: [router] } })
+    await inbox.loadInbox()
+    expect(inbox.unreadCount.value).toBe(1)
+    vi.mocked(getMessageCenterSnapshot).mockResolvedValue(buildSnapshot([]))
+    notifyMessageReceiptUpdated()
+    await flushPromises()
+    expect(inbox.unreadCount.value).toBe(0)
+    wrapper.unmount()
+    notifyMessageReceiptUpdated()
+    expect(getMessageCenterSnapshot).toHaveBeenCalledTimes(2)
   })
 
   it('marks every unread message in the loaded inbox as read', async () => {

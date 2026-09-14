@@ -21,7 +21,7 @@ from app.models import NotificationMessage as NotificationMessageModel
 from app.models import Document, WorkflowInstance, WorkflowStepRun
 from app.services.board_service import BoardService
 from app.integrations.llm.openai_client import OpenAIClient
-from app.integrations.notifications.base import NotificationAdapter
+from app.integrations.notifications.base import NotificationAdapter, NotificationSendResult
 from app.integrations.notifications.factory import build_notification_adapters
 from app.services.knowledge_retrieval_service import KnowledgeRetrievalService
 from app.services.hr_lifecycle_service import HRLifecycleService
@@ -66,6 +66,8 @@ async def process_notification_message_payload(
     select(NotificationMessageModel)
     .options(selectinload(NotificationMessageModel.deliveries))
     .where(NotificationMessageModel.id == message_id)
+    .with_for_update()
+    .execution_options(populate_existing=True)
   )
   if message is None:
     return None
@@ -106,7 +108,11 @@ async def process_notification_message_payload(
       continue
 
     delivery.status = NotificationDeliveryStatus.SENT
-    delivery.external_message_id = external_message_id
+    if isinstance(external_message_id, NotificationSendResult):
+      delivery.external_message_id = external_message_id.external_message_id
+      delivery.error_message = external_message_id.warning
+    else:
+      delivery.external_message_id = external_message_id
     delivery.delivered_at = now
 
   completion_result = NotificationCapabilityHandler().evaluate(

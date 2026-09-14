@@ -3,7 +3,7 @@ type: paradigma-plan
 title: "实施计划状态目录"
 description: "区分现行计划、已完成实施记录与已被取代的 Legacy 方案，避免历史计划被误作当前排期。"
 tags: [plan, governance, active, completed, legacy]
-timestamp: 2026-09-12T20:22:28+08:00
+timestamp: 2026-09-13T21:47:10+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -29,7 +29,7 @@ paradigma:
 
 | 计划 | 当前用途 |
 |---|---|
-| `2026-09-10-integrated-development-and-human-gates-plan.md` | proposed：下一轮统筹方案，W00～W16、HG-00～HG-08、P0 修复、全部现有计划映射；待明确开工范围，外部门禁未批准 |
+| `2026-09-10-integrated-development-and-human-gates-plan.md` | in-progress：W01/W02 与 W07 已提交；W08 当前仅站内消息中心/Web Push，Email/邀请邮件/WebSocket 延期；外部门禁继续独立 |
 | `implementation-plan.md` | 总体实施主线 |
 | `workflow-graph-engine-upgrade-iteration-plan.md` | 图引擎 Iteration 0～6 总计划；当前指向 I5/I6 |
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |

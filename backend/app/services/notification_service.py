@@ -13,9 +13,10 @@ from app.core.enums import (
   NotificationMessageStatus,
   PushSubscriptionStatus,
 )
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConfigurationError, ConflictError, NotFoundError
 from app.integrations.notifications.queue import NotificationQueuePublisher
-from app.models import NotificationDelivery, NotificationMessage as NotificationMessageModel, PushSubscription
+from app.models import NotificationDelivery, NotificationMessage as NotificationMessageModel, PushSubscription, User
+from app.services.access_control import ensure_active_user
 from app.schemas.messages import NotificationMessage
 from app.services.workflow_delivery_handlers import (
   NotificationCapabilityHandler,
@@ -136,11 +137,45 @@ class NotificationService:
     )
     return notification_message
 
+  async def retry_web_push(self, *, actor: User, message_id: UUID) -> None:
+    """Retry only the recipient's wholly failed Web Push delivery, never other channels."""
+    ensure_active_user(actor)
+    message = await self._session.scalar(
+      select(NotificationMessageModel)
+      .options(selectinload(NotificationMessageModel.deliveries))
+      .where(NotificationMessageModel.id == message_id, NotificationMessageModel.recipient_user_id == actor.id)
+      .with_for_update().execution_options(populate_existing=True)
+    )
+    if message is None:
+      raise NotFoundError("消息不存在。")
+    failed = [item for item in message.deliveries
+              if item.channel == NotificationChannel.WEB_PUSH and item.status == NotificationDeliveryStatus.FAILED]
+    if not failed:
+      await self._session.commit()
+      return
+    if any(item.attempt_count >= 5 for item in failed):
+      raise ConflictError("已达到推送尝试上限，请检查设备设置或联系管理员。")
+    if self._queue_publisher is None:
+      raise ConfigurationError("推送队列暂不可用。")
+    active = await self._session.scalar(select(PushSubscription.id).where(
+      PushSubscription.user_id == actor.id, PushSubscription.status == PushSubscriptionStatus.ACTIVE))
+    if active is None:
+      raise ConflictError("请先在通知设置中启用浏览器推送。")
+    for delivery in failed:
+      delivery.status = NotificationDeliveryStatus.RETRYING
+      delivery.error_message = None
+    message.status = NotificationMessageStatus.QUEUED
+    message.completed_at = None
+    await self._session.commit()
+    await self._publish(notification_message=message, deliveries=failed,
+                        completion_deliveries=list(message.deliveries))
+
   async def _publish(
     self,
     *,
     notification_message: NotificationMessageModel,
     deliveries: list[NotificationDelivery],
+    completion_deliveries: list[NotificationDelivery] | None = None,
   ) -> None:
     if self._queue_publisher is None:
       return
@@ -176,12 +211,14 @@ class NotificationService:
       deliveries = list(refreshed_message.deliveries)
     try:
       await self._queue_publisher.publish(payload)
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
       failure_time = datetime.now(UTC)
-      error_message = f"通知入队失败：{exc}"
+      error_message = "通知入队失败：队列暂不可用，请稍后重试。"
       notification_message.status = NotificationMessageStatus.FAILED
       notification_message.completed_at = failure_time
       for delivery in deliveries:
+        if delivery.status == NotificationDeliveryStatus.SENT:
+          continue
         delivery.status = NotificationDeliveryStatus.FAILED
         delivery.attempt_count += 1
         delivery.attempted_at = failure_time
@@ -193,7 +230,7 @@ class NotificationService:
     completion_result = self._capability_handler.evaluate(
       policy=self._capability_handler.resolve_policy(notification_message.payload),
       enqueued=True,
-      delivery_statuses=[delivery.status for delivery in deliveries],
+      delivery_statuses=[delivery.status for delivery in (completion_deliveries or deliveries)],
     )
     if completion_result.outcome == WorkflowCapabilityOutcome.SUCCEEDED:
       notification_message.status = NotificationMessageStatus.COMPLETED

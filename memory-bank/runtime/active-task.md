@@ -27,7 +27,7 @@ Perform a read-only PostgreSQL schema drift audit, classify ORM versus DDL autho
 
 ## Current Status
 
-blocked
+active
 
 ## Checklist
 
@@ -35,10 +35,10 @@ blocked
 
 ## Blockers
 
-W01/W02 committed locally as 791a3d5; W07 local frontend implementation and controlled regressions completed. KI-014 representative target observation, business-cycle evidence and separately approved Phase D remain pending.
+
 
 ## Notes
 
 Generated from YAML facts; do not edit this projection by hand.
 
-Snapshot revision: 8.
+Snapshot revision: 9.

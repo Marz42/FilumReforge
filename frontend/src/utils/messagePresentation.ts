@@ -22,7 +22,7 @@ export function resolveMessageStateTagType(message: Message): 'success' | 'warni
 
 export function resolveDeliveryStateLabel(deliveryState: NotificationDeliveryStatus | null): string {
   if (deliveryState === 'sent') {
-    return '投递成功'
+    return '渠道已受理'
   }
   if (deliveryState === 'failed') {
     return '投递失败'

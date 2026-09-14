@@ -108,3 +108,5 @@ HOT/WARM/COLD 是检索元数据，不再要求每次固定扫描。新会话先
 | 运维步骤 | `knowledge/manuals/` |
 
 generated runtime、Context、index 与 cache 不手工修改。更新 source 文档后运行 `pd index rebuild` / `pd index verify`，再运行 `pd check`；按需运行 `pd runtime verify`、`pd catalog verify`，最终门禁运行 `pd agent-adapter check` 与 `pd compliance check --profile strict`。Task 完成前先写最终 Checkpoint 并结束 Session，再执行 `pd task complete --write`；YAML runtime 不使用 legacy archive 脚本。
+
+当前工程批次：W01/W02 与 W07 已提交；W08 仅优化站内消息中心/Web Push，Email/邀请邮件/WebSocket 延后。见 [W08 范围](knowledge/manuals/2026-09-13-w08-inapp-webpush.md)。

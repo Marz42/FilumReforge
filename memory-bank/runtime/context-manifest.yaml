@@ -1,22 +1,23 @@
 manifest_version: '0.2'
 profile: coding
 request:
-  intent: W01 W02 committed as 791a3d5; W07 session and task-center races implemented and locally verified;
-    target gates remain pending
+  intent: User revised W08 to in-app message center and WebPush only; defer Email and WebSocket; update
+    document status first, implement, validate and commit
   task_id: TASK-20260826-KI014-SCHEMA-AUDIT
   explicit_paths:
-  - memory-bank/knowledge/manuals/2026-09-13-w07-session-request-ownership.md
-  - memory-bank/knowledge/known-issues/ki-016-logout-inflight-request-401-noise.md
+  - memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
+  - memory-bank/knowledge/domains/messaging.md
+  - memory-bank/knowledge/contracts/data-contracts.md
   - DESIGN.md
   explicit_symbols: []
   keywords:
-  - W07
-  budget_tokens: 42000
+  - notification
+  budget_tokens: 48000
   allow_required_over_budget: true
-session_id: null
+session_id: SESSION-20260913-W08
 checkpoint_id: null
-source_digest: sha256:032970b00970a3275a087943d9efd76550ad8a9e6e13d2c06e3ef8b952a349e4
-estimated_tokens: 41887
+source_digest: sha256:81cffc4f8704d90e4d4906ddfb8db874169e30bb405c78f614436f3377026706
+estimated_tokens: 47854
 documents:
 - document_id: memory-bank/knowledge/architecture.md
   path: memory-bank/knowledge/architecture.md
@@ -26,9 +27,12 @@ documents:
   estimated_tokens: 8051
   reasons:
   - mandatory_hot_document
+  - keyword_match:notification
   - relation_from:memory-bank/knowledge/contracts/data-contracts.md:related_to
   - relation_from:memory-bank/knowledge/contracts/repository-contract.md:related_to
   - relation_from:memory-bank/knowledge/conventions.md:related_to
+  - relation_from:memory-bank/knowledge/domains/architecture/core-workflows.md:related_to
+  - relation_from:memory-bank/knowledge/domains/messaging.md:related_to
   - relation_from:memory-bank/knowledge/project-brief.md:related_to
 - document_id: memory-bank/knowledge/contracts/data-contracts.md
   path: memory-bank/knowledge/contracts/data-contracts.md
@@ -38,9 +42,16 @@ documents:
   estimated_tokens: 5736
   reasons:
   - mandatory_hot_document
+  - path_match:memory-bank/knowledge/contracts/data-contracts.md
+  - keyword_match:notification
   - relation_from:memory-bank/knowledge/architecture.md:related_to
+  - relation_from:memory-bank/knowledge/contracts/database/graph-engine-schema.md:depends_on
+  - relation_from:memory-bank/knowledge/contracts/database/knowledge-media-schema.md:depends_on
+  - relation_from:memory-bank/knowledge/contracts/database/messaging-schema.md:depends_on
   - relation_from:memory-bank/knowledge/contracts/projection-contract.md:depends_on
+  - relation_from:memory-bank/knowledge/domains/architecture/backend-architecture.md:related_to
   - relation_from:memory-bank/knowledge/domains/architecture/frontend-architecture.md:related_to
+  - relation_from:memory-bank/knowledge/domains/architecture/infra-architecture.md:related_to
 - document_id: memory-bank/knowledge/contracts/projection-contract.md
   path: memory-bank/knowledge/contracts/projection-contract.md
   source_kind: knowledge
@@ -66,6 +77,7 @@ documents:
   estimated_tokens: 1947
   reasons:
   - mandatory_hot_document
+  - keyword_match:notification
 - document_id: memory-bank/knowledge/project-brief.md
   path: memory-bank/knowledge/project-brief.md
   source_kind: knowledge
@@ -75,70 +87,79 @@ documents:
   reasons:
   - mandatory_hot_document
   - relation_from:memory-bank/knowledge/architecture.md:related_to
+  - relation_from:memory-bank/knowledge/domains/architecture/backend-architecture.md:related_to
   - relation_from:memory-bank/knowledge/domains/architecture/frontend-architecture.md:related_to
-- document_id: memory-bank/knowledge/known-issues/ki-016-logout-inflight-request-401-noise.md
-  path: memory-bank/knowledge/known-issues/ki-016-logout-inflight-request-401-noise.md
+  - relation_from:memory-bank/knowledge/domains/architecture/infra-architecture.md:related_to
+- document_id: memory-bank/knowledge/domains/messaging.md
+  path: memory-bank/knowledge/domains/messaging.md
   source_kind: knowledge
-  title: 'KI-016: 登出与多账号切换存在在途请求 401 噪声'
+  title: 领域：消息与通知 (Messaging)
   priority: required
-  estimated_tokens: 743
+  estimated_tokens: 543
   reasons:
-  - path_match:memory-bank/knowledge/known-issues/ki-016-logout-inflight-request-401-noise.md
-  - keyword_match:W07
-  - relation_from:memory-bank/knowledge/manuals/2026-09-13-w07-session-request-ownership.md:related_to
-- document_id: memory-bank/knowledge/manuals/2026-09-13-w07-session-request-ownership.md
-  path: memory-bank/knowledge/manuals/2026-09-13-w07-session-request-ownership.md
+  - path_match:memory-bank/knowledge/domains/messaging.md
+  - keyword_match:notification
+- document_id: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
+  path: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
   source_kind: knowledge
-  title: W07 会话与请求竞态修复
+  title: Filum 下一阶段开发与 Human Gates 整合方案
   priority: required
-  estimated_tokens: 1086
+  estimated_tokens: 13265
   reasons:
-  - path_match:memory-bank/knowledge/manuals/2026-09-13-w07-session-request-ownership.md
-  - keyword_match:W07
-  - relation_from:memory-bank/knowledge/known-issues/ki-016-logout-inflight-request-401-noise.md:related_to
-- document_id: memory-bank/knowledge/domains/architecture/frontend-architecture.md
-  path: memory-bank/knowledge/domains/architecture/frontend-architecture.md
-  source_kind: knowledge
-  title: Frontend 架构细节
-  priority: relevant
-  estimated_tokens: 6725
-  reasons:
-  - keyword_match:W07
-  - relation_from:memory-bank/knowledge/known-issues/ki-016-logout-inflight-request-401-noise.md:related_to
-  - relation_from:memory-bank/knowledge/manuals/2026-09-13-w07-session-request-ownership.md:related_to
-- document_id: memory-bank/knowledge/manuals/workflow-video-v1-collaborative-uat-guide.md
-  path: memory-bank/knowledge/manuals/workflow-video-v1-collaborative-uat-guide.md
-  source_kind: knowledge
-  title: 视频协同 UAT 指南
-  priority: relevant
-  estimated_tokens: 1941
-  reasons:
-  - keyword_match:W07
-- document_id: memory-bank/knowledge/roadmap.md
-  path: memory-bank/knowledge/roadmap.md
-  source_kind: knowledge
-  title: Project Filum — 路线图
-  priority: relevant
-  estimated_tokens: 3253
-  reasons:
-  - keyword_match:W07
-  - relation_from:memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md:related_to
+  - path_match:memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
+  - keyword_match:notification
+  - relation_from:memory-bank/knowledge/plans/implementation-plan.md:related_to
+  - relation_from:memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md:related_to
+  - relation_from:memory-bank/knowledge/roadmap.md:related_to
 - document_id: memory-bank/knowledge/contracts/database/graph-engine-schema.md
   path: memory-bank/knowledge/contracts/database/graph-engine-schema.md
   source_kind: knowledge
   title: 图引擎 Schema
-  priority: related
+  priority: relevant
   estimated_tokens: 2556
   reasons:
+  - keyword_match:notification
   - relation_from:memory-bank/knowledge/contracts/projection-contract.md:depends_on
-- document_id: memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md
-  path: memory-bank/knowledge/known-issues/ki-003-test-baseline-drift.md
+- document_id: memory-bank/knowledge/contracts/database/knowledge-media-schema.md
+  path: memory-bank/knowledge/contracts/database/knowledge-media-schema.md
   source_kind: knowledge
-  title: 'KI-003: 测试基线漂移'
-  priority: related
-  estimated_tokens: 669
+  title: 知识库与附件 Schema
+  priority: relevant
+  estimated_tokens: 1144
   reasons:
-  - relation_from:memory-bank/knowledge/known-issues/ki-016-logout-inflight-request-401-noise.md:related_to
+  - keyword_match:notification
+- document_id: memory-bank/knowledge/contracts/database/messaging-schema.md
+  path: memory-bank/knowledge/contracts/database/messaging-schema.md
+  source_kind: knowledge
+  title: 消息与推送 Schema
+  priority: relevant
+  estimated_tokens: 1216
+  reasons:
+  - keyword_match:notification
+- document_id: memory-bank/knowledge/domains/architecture/core-workflows.md
+  path: memory-bank/knowledge/domains/architecture/core-workflows.md
+  source_kind: knowledge
+  title: 核心流程
+  priority: relevant
+  estimated_tokens: 4381
+  reasons:
+  - keyword_match:notification
+- document_id: memory-bank/knowledge/glossary.md
+  path: memory-bank/knowledge/glossary.md
+  source_kind: knowledge
+  title: Project Filum — 术语表
+  priority: relevant
+  estimated_tokens: 903
+  reasons:
+  - keyword_match:notification
+- document_id: memory-bank/knowledge/decisions/adr-005-dual-track-workflow.md
+  path: memory-bank/knowledge/decisions/adr-005-dual-track-workflow.md
+  source_kind: knowledge
+  title: 'ADR-005: 工作流双轨'
+  priority: related
+  estimated_tokens: 308
+  reasons:
+  - relation_from:memory-bank/knowledge/domains/workflow-graph-engine.md:related_to
 - document_id: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
   path: memory-bank/knowledge/manuals/2026-08-09-production-release-checklist.md
   source_kind: knowledge
@@ -147,39 +168,83 @@ documents:
   estimated_tokens: 2024
   reasons:
   - relation_from:memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md:depends_on
-- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
-  path: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
-  source_kind: knowledge
-  title: Iteration 5-A 投影契约与加法迁移计划
-  priority: related
-  estimated_tokens: 1376
-  reasons:
-  - relation_from:memory-bank/knowledge/contracts/projection-contract.md:related_to
 excluded:
+- document_id: memory-bank/knowledge/plans/2026-07-29-video-domain-neutral-migration-inventory.md
+  path: memory-bank/knowledge/plans/2026-07-29-video-domain-neutral-migration-inventory.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 1562
+- document_id: memory-bank/knowledge/plans/improvements-stage2-implementation-plan.md
+  path: memory-bank/knowledge/plans/improvements-stage2-implementation-plan.md
+  reason: plan_status_filtered:archived
+  estimated_tokens: 3507
 - document_id: memory-bank/knowledge/plans/task-center-enhance.md
   path: memory-bank/knowledge/plans/task-center-enhance.md
   reason: plan_status_filtered:completed
   estimated_tokens: 5661
-- document_id: memory-bank/knowledge/plans/workflow-video-v1-implementation-plan.md
-  path: memory-bank/knowledge/plans/workflow-video-v1-implementation-plan.md
-  reason: plan_status_filtered:archived
-  estimated_tokens: 6493
-- document_id: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
-  path: memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md
+- document_id: memory-bank/knowledge/plans/ui-information-architecture-plan.md
+  path: memory-bank/knowledge/plans/ui-information-architecture-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 781
+- document_id: memory-bank/knowledge/plans/ui-refactor-spec-v2.md
+  path: memory-bank/knowledge/plans/ui-refactor-spec-v2.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 7064
+- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md
+  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration3-implementation-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 1982
+- document_id: memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
+  path: memory-bank/knowledge/plans/workflow-graph-engine-iteration4-handler-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 2374
+- document_id: memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md
+  path: memory-bank/knowledge/plans/workflow-refactor-implementation-plan.md
+  reason: plan_status_filtered:completed
+  estimated_tokens: 11571
+- document_id: memory-bank/knowledge/domains/architecture/backend-architecture.md
+  path: memory-bank/knowledge/domains/architecture/backend-architecture.md
   reason: budget_trimmed
-  estimated_tokens: 13265
-- document_id: memory-bank/knowledge/domains/task-center.md
-  path: memory-bank/knowledge/domains/task-center.md
+  estimated_tokens: 9713
+- document_id: memory-bank/knowledge/domains/architecture/frontend-architecture.md
+  path: memory-bank/knowledge/domains/architecture/frontend-architecture.md
   reason: budget_trimmed
-  estimated_tokens: 6766
+  estimated_tokens: 6725
+- document_id: memory-bank/knowledge/domains/architecture/infra-architecture.md
+  path: memory-bank/knowledge/domains/architecture/infra-architecture.md
+  reason: budget_trimmed
+  estimated_tokens: 4982
 - document_id: memory-bank/knowledge/domains/workflow-graph-engine.md
   path: memory-bank/knowledge/domains/workflow-graph-engine.md
   reason: budget_trimmed
   estimated_tokens: 7409
-- document_id: memory-bank/knowledge/manuals/workflow-video-v1-docker-runbook.md
-  path: memory-bank/knowledge/manuals/workflow-video-v1-docker-runbook.md
+- document_id: memory-bank/knowledge/manuals/project-presentation-guide.md
+  path: memory-bank/knowledge/manuals/project-presentation-guide.md
   reason: budget_trimmed
-  estimated_tokens: 1616
+  estimated_tokens: 4955
+- document_id: memory-bank/knowledge/manuals/user-manual.md
+  path: memory-bank/knowledge/manuals/user-manual.md
+  reason: budget_trimmed
+  estimated_tokens: 8437
+- document_id: memory-bank/knowledge/plans/implementation-plan.md
+  path: memory-bank/knowledge/plans/implementation-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 4014
+- document_id: memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
+  path: memory-bank/knowledge/plans/workflow-graph-engine-upgrade-iteration-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 6990
+- document_id: memory-bank/knowledge/roadmap.md
+  path: memory-bank/knowledge/roadmap.md
+  reason: budget_trimmed
+  estimated_tokens: 3253
+- document_id: memory-bank/knowledge/domains/task-center.md
+  path: memory-bank/knowledge/domains/task-center.md
+  reason: budget_trimmed
+  estimated_tokens: 6766
+- document_id: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
+  path: memory-bank/knowledge/plans/2026-08-12-iteration5a-projection-contract-plan.md
+  reason: budget_trimmed
+  estimated_tokens: 1376
 - document_id: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
   path: memory-bank/knowledge/plans/2026-08-12-iteration5b-projector-rebuild-plan.md
   reason: budget_trimmed
@@ -188,10 +253,6 @@ excluded:
   path: memory-bank/knowledge/plans/2026-08-26-ki014-schema-drift-remediation-plan.md
   reason: budget_trimmed
   estimated_tokens: 3514
-- document_id: memory-bank/knowledge/plans/implementation-plan.md
-  path: memory-bank/knowledge/plans/implementation-plan.md
-  reason: budget_trimmed
-  estimated_tokens: 4014
 - document_id: memory-bank/knowledge/plans/plan-status-catalog.md
   path: memory-bank/knowledge/plans/plan-status-catalog.md
   reason: budget_trimmed
@@ -201,4 +262,4 @@ excluded:
   reason: budget_trimmed
   estimated_tokens: 4754
 warnings: []
-checksum: sha256:1fbd5b205ad83823707df40b4146c2f5ebe7868da79317933439c44aa99fb0e3
+checksum: sha256:9d0565c8dd7bcb693682fdfb0317340dac861d6dd63ab317ae1638723aabf755

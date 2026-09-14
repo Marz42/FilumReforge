@@ -205,7 +205,7 @@ function buildTaskCenterSnapshot() {
   }
 }
 
-const messageCenterSnapshot = {
+export const messageCenterSnapshot = {
   items: [
     {
       id: 'message-1',

@@ -7,11 +7,14 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('push', (event) => {
-  const payload = event.data ? event.data.json() : {}
+  let payload = {}
+  try { payload = event.data ? event.data.json() : {} } catch { payload = {} }
+  if (!payload || typeof payload !== 'object') payload = {}
   const title = payload.title || 'Project Filum'
   const options = {
     body: payload.body || '你有一条新的系统消息。',
     data: payload,
+    tag: payload.message_id ? `filum-message-${payload.message_id}` : undefined,
   }
 
   event.waitUntil(self.registration.showNotification(title, options))
@@ -19,14 +22,15 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const targetUrl = '/messages'
+  const id = event.notification.data?.message_id
+  const targetUrl = typeof id === 'string' ? `/messages?selected=${encodeURIComponent(id)}` : '/messages'
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
       for (const client of clients) {
         if ('focus' in client) {
-          client.navigate(targetUrl)
-          return client.focus()
+          const navigated = await client.navigate(targetUrl)
+          return (navigated || client).focus()
         }
       }
 

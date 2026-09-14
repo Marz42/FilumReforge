@@ -6,7 +6,7 @@ tags:
   - roadmap
   - milestones
   - tc-transform
-timestamp: 2026-09-12T20:22:28+08:00
+timestamp: 2026-09-13T21:47:10+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -173,6 +173,8 @@ paradigma:
 ---
 
 ## 🔥 当前执行顺序
+
+**2026-09-13 更新**：W01/W02（`791a3d5`）与 W07（`26e44fb`）已完成本地工程并提交。当前执行 W08 的站内消息中心/Web Push；Email、邀请邮件、WebSocket 接入延期。目标环境观察与生产批准仍独立跟踪。
 
 当前 Git 整合与验证边界见 [2026-09-12 统一开发基线](./manuals/2026-09-12-development-baseline.md)。
 

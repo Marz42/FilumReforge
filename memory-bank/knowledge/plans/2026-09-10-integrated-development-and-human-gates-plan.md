@@ -3,14 +3,14 @@ type: paradigma-plan
 title: "Filum 下一阶段开发与 Human Gates 整合方案"
 description: "统一 P0 修复、目标环境验证、RC/UAT、生产切流、P1/P2 开发与延期项目的依赖、实施步骤和人工闸门。"
 tags: [plan, release, human-gates, p0, integration, roadmap]
-timestamp: 2026-09-13T16:27:10+08:00
+timestamp: 2026-09-13T21:47:10+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
   lifecycle: evolving
   update_policy: agent-editable
-  epistemic_status: proposal
-  plan_status: proposed
+  epistemic_status: decision
+  plan_status: in-progress
   retrieval_hints:
     zh: [整合方案, 下一步开发, 人工闸门, P0 修复, 全部计划]
     en: [integrated development, human gates, release readiness, P0 remediation]
@@ -32,7 +32,7 @@ paradigma:
 
 ## 1. 文档用途与范围
 
-本方案将 2026-09-06 项目审查的 12 类问题、当前计划目录、实施计划 A–F 工作流和路线图积压整合为一个执行入口。用户本次授权是编写方案；本文件不代表代码修复、目标数据库写入、外部通知、业务签字或生产部署已经获批或完成。
+本方案将 2026-09-06 项目审查的 12 类问题、当前计划目录、实施计划 A–F 工作流和路线图积压整合为一个执行入口。初始授权为编写方案；随后 W01/W02（`791a3d5`）和 W07（`26e44fb`）已完成本地工程并提交。2026-09-13 用户进一步授权 W08 仅做站内消息中心与 Web Push，完成后提交；Email、邀请邮件和 WebSocket 延期。目标数据库写入、真实外发、业务签字与生产部署仍按具体 Gate 处理。
 
 本方案负责跨计划的顺序、责任、证据和 Human Gates；各专题计划继续负责精确契约。旧计划中的历史未勾选项不自动恢复排期。具体工程顺序为建议基线，既有数据安全、对象授权、人工验收和破坏性变更边界继续有效。
 
@@ -117,7 +117,7 @@ Human Gate 是对具体业务结论或变更范围的人工批准，不是每一
 
 | ID | 批准内容与责任人 | 提交前必须准备的材料 | 通过后允许做什么 | 当前状态 |
 |---|---|---|---|---|
-| HG-00 | 产品/技术负责人确认实施批次与候选范围 | W00 清单、优先级、估算、人员与范围 | 开始指定工程批次；用户后续明确要求开工即可记录范围授权，无需重复确认 | APPROVED（限定 W01/W02、后续 W07）：用户于本任务 2026-09-13 明确开工并要求提交后继续；其余批次另列范围 |
+| HG-00 | 产品/技术负责人确认实施批次与候选范围 | W00 清单、优先级、估算、人员与范围 | 开始指定工程批次；用户后续明确要求开工即可记录范围授权，无需重复确认 | APPROVED（W01/W02、W07、调整后的 W08）：用户明确要求 W08 仅优化站内/Web Push 并完成后提交；其余批次另列范围 |
 | HG-01 | 环境/数据负责人确认目标、样本和访问范围 | 环境标识、只读账号权限、样本代表性、敏感数据处理、证据保存位置 | 在指定环境只读取证；允许的数据准备范围另列 | OPEN |
 | HG-02 | 环境/数据库负责人批准预发写入和试用部署 | 精确 SHA、当前/目标 revision、逐段迁移顺序、Link dry-run、备份恢复、锁预算、回退预案 | 指定预发兼容部署、expand、Link 回填/其 contract、投影 rebuild；每个写操作列入范围 | OPEN |
 | HG-03 | 数据库/技术负责人批准 KI-014 Phase D | 完整周期、旧写入方清单、新写入小写/无 NULL、应用 UAT、精确 SQL、恢复兼容表 | 在明确环境执行该 contract；预发通过不自动授权生产执行 | OPEN |
@@ -286,18 +286,20 @@ expires_when: null
 
 **出口/回退：**KI-016 噪声和旧响应覆盖风险消除；HTTP API 不变，失败可按前端批次回退。其“下一轮 P1”是本方案建议排序，原 KI 的 P2 历史记录不改写。
 
-### W08 — 通知真实状态、Email/邀请和渠道深化（P1，扩展部分 P2）
+### W08 — 站内消息中心与 Web Push 优化（P1）
 
-**依赖：W00；负责人：后端/前端；真实外发范围需 HG-08 或已有明确授权。**
+**状态：2026-09-13 按用户要求调整范围并开始实施；负责人：后端/前端。** W01/W02 与 W07 已提交，详细执行记录见 [W08 范围与验证记录](../manuals/2026-09-13-w08-inapp-webpush.md)。
 
-1. 先修 `email.py`、`websocket.py` 返回本地 ID 却被 worker 标为 SENT 的行为。区分未配置、入队、适配器受理、送达、失败；新增状态若涉及 enum/check 必须加兼容迁移，不能只改 Python 枚举。
-2. 在未接渠道前使用显式禁用/不可用能力。同步 Notification Handler 的 completion policy，明确 enqueued 与 delivered 门槛，避免误成功或让原本可完成的工作流无期限卡住。
-3. 测 adapter 不可用、Redis 入队失败、重复消费、并发消费、部分渠道成功、崩溃后恢复；只在事实足够时写 SENT。外部调用与数据库无法单事务时采用幂等键/可对账状态，不宣称 exactly-once。
-4. 先接 Email 的测试网关/白名单，再获批真实外发；保存供应商 message ID，分类暂时失败/永久失败、退避上限和人工重试，校验回执来源与幂等。
-5. 邀请邮件继续复用现有一次性 token/有效期/撤销语义，发送失败不生成重复账号或替换有效邀请；不得在日志和常规事件中暴露 token。保留管理端复制链接兜底。
-6. 再完善消息中心渠道状态、失败原因、重试和过滤；复用已有附件与已读/确认能力。Web Push 测过期订阅处理；WebSocket 经产品确认需要实时到达后再接，明确断线/重连、跨进程路由与授权。
+1. 核对站内收件箱的本人可见性、已读/确认语义、筛选与投递状态展示；修复消息中心与头部通知/设置之间已确认的不一致。
+2. 核对 Web Push 配置、浏览器订阅/取消、重复订阅与失效端点处理；用户主动启用才申请权限，失败不得显示为成功订阅或成功投递。
+3. 修复当前 Web Push 适配器/worker 中已确认的结果与重试问题，区分推送服务受理、无可用订阅、部分失败及永久失效；不把受理称为用户已读。
+4. 站内回执独立于 Web Push 投递；一条推送失败不能抹掉用户可见的站内消息，也不能代写已读/确认。完成策略继续遵守现有 NotificationService/Handler 契约。
+5. 增加本人/越权、重复回执、订阅生命周期、部分失败、过期端点、重试、配置缺失和受控浏览器回归；真实推送到指定浏览器的人工验证另记，不以 mock 代替。
+6. 完成后更新 Memory-Bank、检查索引/运行记录与回归结果，按用户授权直接提交本批；不自动部署或推送远端。
 
-**出口：**未配置渠道不会伪造送达；通知失败与业务拒绝有区别；真实渠道验收包含指定收件人收到、回执/重试一致性。旧 mock SENT 不可伪造补成真实回执，历史纠偏单列评审。
+**本批不做：**Email 发送/邀请邮件/供应商回执、WebSocket 实时接入，以及这些占位适配器的专项改造；既有 Email/WebSocket 风险继续列为延期事项，不假称已修复。
+
+**出口：**站内状态与回执准确，Web Push 失败可解释且不会伪装为送达；本地工程证据、受控测试与真实浏览器送达证据分别记录。无需新 schema 的修复优先；如发现必须破坏既有 API/数据库契约，先形成具体方案再处理对应 Gate。
 
 ### W09 — 跨 worker 认证限流（P1）
 
@@ -463,7 +465,7 @@ Alembic autogenerate 只提供候选差异，SQL 必须人工复核；`alembic c
 
 | 原方案 | 处理方式 | 对应工作包 / 剩余实施步骤 |
 |---|---|---|
-| [implementation-plan.md](./implementation-plan.md) | 主线保留，路由本方案 | A→W01/02/07/09/12/13；B→W08 邀请邮件；C→W10；D→W08；E→W05/11/16；F→W04/06/15 |
+| [implementation-plan.md](./implementation-plan.md) | 主线保留，路由本方案 | A→W01/02/07/09/12/13；B→邀请邮件 Deferred；C→W10；D→W08；E→W05/11/16；F→W04/06/15 |
 | [plan-status-catalog.md](./plan-status-catalog.md) | 目录保留 | W02 状态与覆盖维护 |
 | [workflow-graph-engine-upgrade-iteration-plan.md](./workflow-graph-engine-upgrade-iteration-plan.md) | Active | I0–I4 工程保留；I3-F→W04；I5→W04/06；I6→W15 |
 | [2026-08-11-f05-iteration5-6-sequencing-plan.md](./2026-08-11-f05-iteration5-6-sequencing-plan.md) | Active | W04→W06 稳定观察→HG-07/W15 |
@@ -501,7 +503,7 @@ Alembic autogenerate 只提供候选差异，SQL 必须人工复核；`alembic c
 | [workflow-graph-engine-iteration4-handler-plan.md](./workflow-graph-engine-iteration4-handler-plan.md) | Completed + Residual | W05 Handler/决策语义验收；不恢复先前未实施状态 |
 | [workflow-refactor-implementation-plan.md](./workflow-refactor-implementation-plan.md) | Completed + Residual | 历史主干保留；迁移/归档→W15 |
 | [workflow-video-v1-w0-adr.md](./workflow-video-v1-w0-adr.md) | Completed | 视频作为 W05 黄金样本，现行边界用 ADR-018/019 |
-| [improvements-stage2-implementation-plan.md](./improvements-stage2-implementation-plan.md) | Legacy | 回滚→W06；生命周期→W10；通知/邀请→W08；E→W11/W15；公开注册排除 |
+| [improvements-stage2-implementation-plan.md](./improvements-stage2-implementation-plan.md) | Legacy | 回滚→W06；生命周期→W10；站内通知/Web Push→W08，邀请邮件 Deferred；E→W11/W15；公开注册排除 |
 | [workflow-video-v1-implementation-plan.md](./workflow-video-v1-implementation-plan.md) | Legacy | 领域中立主线取代；只保留 W05 兼容验证 |
 | [workflow-video-v1-ui-simplification-design.md](./workflow-video-v1-ui-simplification-design.md) | Legacy | 不复活视频特例 UI；W11/W14 按通用能力演进 |
 
@@ -512,7 +514,7 @@ Alembic autogenerate 只提供候选差异，SQL 必须人工复核；`alembic c
 | 1 CI/发布误放行 | W01 |
 | 2 KI-014 未闭环 | W00/W03 |
 | 3 生产投影切流/告警 | W04/W06 |
-| 4 通知伪 SENT | W08 |
+| 4 通知伪 SENT | W08 处理站内/Web Push；Email/WebSocket 延期 |
 | 5 请求竞态/换号 | W07 |
 | 6 单进程认证限流 | W09 |
 | 7 HR 图模板替代缺口 | W10 |
@@ -538,6 +540,6 @@ Alembic autogenerate 只提供候选差异，SQL 必须人工复核；`alembic c
 
 # Status
 
-Machine status: proposed.
+Machine status: in-progress.
 
 方案文档已编写；实施范围、负责人、目标环境和各 Human Gates 的实际批准仍待执行阶段记录。2026-09-10 未执行任何 P0 代码修复、数据迁移或生产变更。

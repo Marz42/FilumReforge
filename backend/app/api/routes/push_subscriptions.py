@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, status
 from app.api.dependencies import get_browser_push_service, get_current_user
 from app.api.dependencies import get_notification_service
 from app.core.config import Settings, get_settings
-from app.core.enums import NotificationChannel, PushSubscriptionStatus
+from app.core.enums import NotificationChannel, NotificationMessageStatus, PushSubscriptionStatus
 from app.core.exceptions import ConflictError
 from app.models import User
 from app.schemas.messages import NotificationMessage
@@ -30,11 +30,9 @@ async def get_push_subscription_config(
   _: Annotated[User, Depends(get_current_user)],
   settings: Annotated[Settings, Depends(get_settings)],
 ) -> PushSubscriptionConfigRead:
-  is_enabled = bool(
-    settings.web_push_public_key
-    and settings.web_push_private_key
-    and settings.web_push_subject
-  )
+  is_enabled = all(value and value.strip() for value in (
+    settings.web_push_public_key, settings.web_push_private_key, settings.web_push_subject,
+  ))
   return PushSubscriptionConfigRead(
     public_key=settings.web_push_public_key,
     is_enabled=is_enabled,
@@ -84,7 +82,12 @@ async def send_test_push_notification(
   actor: Annotated[User, Depends(get_current_user)],
   browser_push_service: Annotated[BrowserPushService, Depends(get_browser_push_service)],
   notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+  settings: Annotated[Settings, Depends(get_settings)],
 ) -> PushTestNotificationRead:
+  if not all(value and value.strip() for value in (
+    settings.web_push_public_key, settings.web_push_private_key, settings.web_push_subject,
+  )):
+    raise ConflictError("浏览器推送暂不可用，请联系管理员完成配置。")
   subscriptions = await browser_push_service.list_subscriptions(actor=actor)
   if not any(subscription.status == PushSubscriptionStatus.ACTIVE for subscription in subscriptions):
     raise ConflictError("当前账号没有活跃的浏览器推送订阅。")
@@ -97,7 +100,7 @@ async def send_test_push_notification(
       recipient_email=actor.email,
       message_type="web_push_test",
       title="浏览器推送测试",
-      body_text="如果你看到了这条通知，说明当前账号的 Web Push 链路已打通。",
+      body_text="这是一条浏览器推送测试。请确认浏览器系统通知是否出现；仅在站内看到本消息不代表推送已送达。",
       channels=[NotificationChannel.WEB_PUSH],
       payload=build_notification_source_payload(
         source_module="system",
@@ -113,5 +116,7 @@ async def send_test_push_notification(
   return PushTestNotificationRead(
     message_id=message.id,
     status=message.status,
-    detail="测试推送已入队，请留意浏览器通知。",
+    detail=("测试消息已保存，但推送入队失败，请在消息中心查看。"
+            if message.status == NotificationMessageStatus.FAILED
+            else "测试请求已提交，请留意浏览器通知；站内消息可查看处理状态。"),
   )

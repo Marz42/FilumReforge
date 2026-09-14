@@ -10,9 +10,10 @@ import type { MessageCenterSnapshot } from '@/types/api'
 vi.mock('@/api/messages', () => ({
   createMessageReceipt: vi.fn(),
   getMessageCenterSnapshot: vi.fn(),
+  retryMessageWebPush: vi.fn(),
 }))
 
-import { createMessageReceipt, getMessageCenterSnapshot } from '@/api/messages'
+import { createMessageReceipt, getMessageCenterSnapshot, retryMessageWebPush } from '@/api/messages'
 import MessagesView from '@/views/MessagesView.vue'
 
 type MessagesViewSetupState = {
@@ -207,7 +208,7 @@ describe('Messages view', () => {
     const createdFrom = new Date('2025-01-01T00:00:00Z')
     const createdTo = new Date('2025-01-02T00:00:00Z')
 
-    setupState.handleChannelFilterChange('websocket')
+    setupState.handleChannelFilterChange('web_push')
     await flushPromises()
     setupState.handleDeliveryStatusChange('failed')
     await flushPromises()
@@ -217,10 +218,49 @@ describe('Messages view', () => {
     expect(getMessageCenterSnapshot).toHaveBeenLastCalledWith({
       sourceType: undefined,
       state: 'all',
-      channel: 'websocket',
+      channel: 'web_push',
       deliveryStatus: 'failed',
       createdFrom: createdFrom.toISOString(),
       createdTo: createdTo.toISOString(),
-    })
+    }, expect.any(AbortSignal))
+  })
+
+  it('offers retry only for failed WebPush and retains partial acceptance warnings', async () => {
+    const current = structuredClone(mockSnapshot)
+    current.items[0]!.deliveries[0]!.channel = 'web_push'
+    vi.mocked(getMessageCenterSnapshot).mockResolvedValue(current)
+    const router = await createTestRouter()
+    const wrapper = mount(MessagesView, { global: { plugins: [ElementPlus, router] } })
+    await flushPromises()
+    await wrapper.get('[data-testid="retry-web-push"]').trigger('click')
+    await flushPromises()
+    expect(retryMessageWebPush).toHaveBeenCalledExactlyOnceWith('message-1')
+    wrapper.unmount()
+    current.items[0]!.deliveries[0]!.status = 'sent'
+    current.items[0]!.deliveries[0]!.error_message = '推送服务已受理 1/2 个设备'
+    const partial = mount(MessagesView, { global: { plugins: [ElementPlus, router] } })
+    await flushPromises()
+    expect(partial.find('[data-testid="retry-web-push"]').exists()).toBe(false)
+    expect(partial.text()).toContain('推送服务已受理 1/2 个设备')
+    partial.unmount()
+  })
+
+  it('ignores a stale snapshot after filters change', async () => {
+    let resolveOld!: (value: MessageCenterSnapshot) => void
+    vi.mocked(getMessageCenterSnapshot).mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve }))
+    const router = await createTestRouter()
+    const wrapper = mount(MessagesView, { global: { plugins: [ElementPlus, router] } })
+    await flushPromises()
+    const current = structuredClone(mockSnapshot)
+    current.items[0]!.title = '当前筛选结果标题'
+    vi.mocked(getMessageCenterSnapshot).mockResolvedValue(current)
+    const state = wrapper.vm.$.setupState as MessagesViewSetupState
+    state.handleChannelFilterChange('web_push')
+    await flushPromises()
+    resolveOld(mockSnapshot)
+    await flushPromises()
+    expect(wrapper.text()).toContain('当前筛选结果标题')
+    expect(wrapper.text()).not.toContain('待处理汇报：采购申请')
+    wrapper.unmount()
   })
 })

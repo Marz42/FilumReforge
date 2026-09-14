@@ -3,7 +3,7 @@ type: paradigma-contract
 title: "消息与推送 Schema"
 description: "通知消息、投递记录、回执、浏览器 Push 订阅。"
 tags: ["contract", "database", "schema", "messaging", "push"]
-timestamp: 2026-07-09T09:30:00+08:00
+timestamp: 2026-09-13T22:13:51+08:00
 paradigma:
   schema_version: 0.1
   temperature: warm
@@ -121,3 +121,12 @@ paradigma:
 - `idx_push_subscriptions_user_status (user_id, status)`
 
 
+
+## W08 增量语义（2026-09-13，无 DDL 变更）
+
+- WebPush delivery 的 sent 表示至少一个端点被推送服务受理；error_message 在部分失败时保存脱敏数量警告。external_message_id 为本地关联 ID，delivered_at 为处理受理时间，均非终端送达回执。全失败为 failed；404/410 订阅置 expired。
+- POST `/api/v1/messages/{id}/web-push/retry` 返回 202 + MessageRead，仅本人可调用；仅重试 WebPush failed 且 attempt_count < 5，需可用队列发布器及活跃订阅。其他渠道及已受理记录不重发；重复 retrying 请求不重新入队；缺前置条件返回业务错误，入队失败仍通过返回消息状态表达。
+- NotificationReceipt 的唯一键保持不变；创建前锁定消息行并校验收件人。回执与渠道状态独立，推送受理或通知点击不自动产生 read。
+- GET `/api/v1/messages` 的 channel + delivery_status 匹配同一 delivery；不指定 channel 时沿用全渠道聚合状态，统计未读数以本人全部站内消息为口径。
+- 订阅 endpoint 所有权不跨账号转移；关闭当前浏览器仅 revoke 对应订阅，其他设备不受影响。
+- 保持 migration head `20260827_01`。Email/WebSocket 适配器延期，以上受理证据语义不能反推其外发已实现。详见 [W08 手册](../../manuals/2026-09-13-w08-inapp-webpush.md)。

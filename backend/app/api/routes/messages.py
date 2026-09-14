@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.dependencies import get_current_user, get_message_center_service
+from app.api.dependencies import get_current_user, get_message_center_service, get_notification_service
 from app.core.enums import NotificationChannel, NotificationDeliveryStatus
 from app.models import User
 from app.schemas.message_center import (
@@ -17,8 +17,20 @@ from app.schemas.message_center import (
   NotificationReceiptRead,
 )
 from app.services.message_center_service import MessageCenterService
+from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/messages")
+
+
+@router.post("/{message_id}/web-push/retry", response_model=MessageRead, status_code=status.HTTP_202_ACCEPTED)
+async def retry_message_web_push(
+  message_id: UUID,
+  actor: Annotated[User, Depends(get_current_user)],
+  notification_service: Annotated[NotificationService, Depends(get_notification_service)],
+  message_center_service: Annotated[MessageCenterService, Depends(get_message_center_service)],
+) -> MessageRead:
+  await notification_service.retry_web_push(actor=actor, message_id=message_id)
+  return MessageRead.model_validate(await message_center_service.get_message_view(actor=actor, message_id=message_id))
 
 
 @router.get("", response_model=MessageCenterSnapshotRead)

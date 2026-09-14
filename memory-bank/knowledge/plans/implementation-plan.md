@@ -5,7 +5,7 @@ description: "FilumReforge 总体实施计划。"
 tags:
   - plan
   - 实施计划
-timestamp: 2026-09-12T20:27:00+08:00
+timestamp: 2026-09-13T21:47:10+08:00
 paradigma:
   schema_version: 0.5.0
   temperature: warm
@@ -181,13 +181,15 @@ paradigma:
 
 ### 6.4 工作流 D：消息中心深化
 
+**当前执行（2026-09-13）**：W01/W02 已提交 `791a3d5`，W07 已提交 `26e44fb`；本批 W08 按用户要求收敛为站内消息中心/Web Push，详情见 [范围与验证记录](../manuals/2026-09-13-w08-inapp-webpush.md)。
+
 **目标**
 
 在现有消息总线稳定的基础上，补齐真实业务使用深度。
 
 **重点方向**
 
-- Email / WebSocket 外部集成
+- 当前 W08：仅站内消息中心与 Web Push 优化；Email/邀请邮件/WebSocket 外部集成延期
 - Push 失败可观测性
 - 前端消息中心更细粒度筛选和状态展示
 - 更完整的消息生命周期观测与重试管理

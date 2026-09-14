@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { getSessionEpoch, isCurrentSession, onSessionChange } from '@/api/session'
 import { useLatestRequest } from './useLatestRequest'
+import { useMessageUpdates } from './useMessageUpdates'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
@@ -27,6 +28,7 @@ export function useMessagesInbox(initialQuery: InboxQuery = {}) {
 
   const requests = useLatestRequest(() => { snapshot.value = null; selectedMessageId.value = ''; loading.value = false })
   const unsubscribe = onSessionChange(stopPolling)
+  useMessageUpdates(() => loadInbox())
 
   const messages = computed(() => snapshot.value?.items ?? [])
   const unreadCount = computed(() => snapshot.value?.unread_count ?? 0)

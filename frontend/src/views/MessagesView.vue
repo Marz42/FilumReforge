@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
-import { createMessageReceipt, getMessageCenterSnapshot } from '@/api/messages'
+import { createMessageReceipt, getMessageCenterSnapshot, retryMessageWebPush } from '@/api/messages'
 import AttachmentActions from '@/components/attachments/AttachmentActions.vue'
 import FilumDateTimeRangePicker from '@/components/common/FilumDateTimeRangePicker.vue'
 import type {
@@ -14,14 +14,18 @@ import type {
   NotificationDelivery,
   NotificationDeliveryStatus,
 } from '@/types/api'
+import { useLatestRequest } from '@/composables/useLatestRequest'
+import { useMessageUpdates } from '@/composables/useMessageUpdates'
 import { showError } from '@/utils/errors'
 import { formatDateTime } from '@/utils/formatters'
 
 const router = useRouter()
+const route = useRoute()
 const loading = ref(false)
 const receiptSubmitting = ref(false)
 const snapshot = ref<MessageCenterSnapshot | null>(null)
 const selectedMessageId = ref('')
+let pendingSelectedId = typeof route.query.selected === 'string' ? route.query.selected : null
 const sourceFilter = ref('all')
 const stateFilter = ref<MessageStateFilter>('all')
 const channelFilter = ref<NotificationChannel | 'all'>('all')
@@ -29,16 +33,14 @@ const deliveryStatusFilter = ref<NotificationDeliveryStatus | 'all'>('all')
 const createdRange = ref<[Date, Date] | null>(null)
 
 const channelOptions: Array<{ label: string; value: NotificationChannel | 'all' }> = [
-  { label: '全部渠道', value: 'all' },
-  { label: '邮件', value: 'email' },
+  { label: '全部站内消息', value: 'all' },
   { label: '浏览器推送', value: 'web_push' },
-  { label: '站内消息', value: 'websocket' },
 ]
 
 const deliveryStatusOptions: Array<{ label: string; value: NotificationDeliveryStatus | 'all' }> = [
   { label: '全部投递态', value: 'all' },
   { label: '等待投递', value: 'pending' },
-  { label: '投递成功', value: 'sent' },
+  { label: '渠道已受理', value: 'sent' },
   { label: '投递失败', value: 'failed' },
   { label: '重试中', value: 'retrying' },
 ]
@@ -69,25 +71,53 @@ const selectedMessage = computed(
   () => messages.value.find((message) => message.id === selectedMessageId.value) ?? null,
 )
 
+const requests = useLatestRequest(() => { snapshot.value = null; selectedMessageId.value = ''; loading.value = false })
+const retrySubmitting = ref(false)
+const operations = useLatestRequest(() => { retrySubmitting.value = false; receiptSubmitting.value = false })
+useMessageUpdates(loadData)
+const canRetryPush = computed(() => selectedMessage.value?.deliveries.some((delivery) =>
+  delivery.channel === 'web_push' && delivery.status === 'failed' && delivery.attempt_count < 5) ?? false)
+async function retryPush(): Promise<void> {
+  if (!selectedMessage.value || retrySubmitting.value) return
+  const operation = operations.start()
+  retrySubmitting.value = true
+  try {
+    await retryMessageWebPush(selectedMessage.value.id)
+    if (!operation.isCurrent()) return
+    await loadData()
+    if (!operation.isCurrent()) return
+    if (selectedMessage.value?.deliveries.some((item) => item.channel === 'web_push' && item.status === 'failed')) {
+      ElMessage.warning('推送仍未进入队列，请查看投递说明')
+    } else ElMessage.success('已提交推送重试请求')
+  } catch (error) { if (operation.isCurrent()) showError(error) }
+  finally { if (operation.isCurrent()) retrySubmitting.value = false }
+}
+
 async function loadData(): Promise<void> {
+  const request = requests.start()
+  if (!request.isCurrent()) return
   loading.value = true
   try {
-    snapshot.value = await getMessageCenterSnapshot({
+    const next = await getMessageCenterSnapshot({
       sourceType: sourceFilter.value === 'all' ? undefined : sourceFilter.value,
       state: stateFilter.value,
       channel: channelFilter.value === 'all' ? undefined : channelFilter.value,
       deliveryStatus: deliveryStatusFilter.value === 'all' ? undefined : deliveryStatusFilter.value,
       createdFrom: createdRange.value?.[0]?.toISOString(),
       createdTo: createdRange.value?.[1]?.toISOString(),
-    })
+    }, request.signal)
+    if (!request.isCurrent()) return
+    snapshot.value = next
+    const target = pendingSelectedId
+    if (target && next.items.some((item) => item.id === target)) { selectedMessageId.value = target; pendingSelectedId = null }
     const stillSelected = messages.value.some((message) => message.id === selectedMessageId.value)
     if (!stillSelected) {
       selectedMessageId.value = messages.value[0]?.id ?? ''
     }
   } catch (error) {
-    showError(error)
+    if (request.isCurrent()) showError(error)
   } finally {
-    loading.value = false
+    if (request.isCurrent()) loading.value = false
   }
 }
 
@@ -113,6 +143,10 @@ function handleDeliveryStatusChange(value: NotificationDeliveryStatus | 'all'): 
 
 watch(createdRange, () => {
   void loadData()
+})
+watch(() => route.query.selected, (value) => {
+  pendingSelectedId = typeof value === 'string' ? value : null
+  if (pendingSelectedId) void loadData()
 })
 
 function resolveStateLabel(message: Message): string {
@@ -142,12 +176,12 @@ function formatChannelLabel(channel: NotificationChannel): string {
   if (channel === 'web_push') {
     return '浏览器推送'
   }
-  return '站内消息'
+  return 'WebSocket（待接入）'
 }
 
 function resolveDeliveryStateLabel(deliveryState: NotificationDeliveryStatus | null): string {
   if (deliveryState === 'sent') {
-    return '投递成功'
+    return '渠道已受理'
   }
   if (deliveryState === 'failed') {
     return '投递失败'
@@ -177,23 +211,27 @@ function resolveDeliveryStateTagType(
 }
 
 function resolveDeliveryTagType(delivery: NotificationDelivery): 'success' | 'warning' | 'danger' | 'info' {
+  if (delivery.status === 'sent' && delivery.error_message) return 'warning'
   return resolveDeliveryStateTagType(delivery.status)
 }
 
 async function handleReceipt(receiptType: 'read' | 'acknowledged'): Promise<void> {
+  if (receiptSubmitting.value || retrySubmitting.value) return
   if (!selectedMessage.value) {
     ElMessage.warning('请先选择消息')
     return
   }
   receiptSubmitting.value = true
+  const operation = operations.start()
   try {
     await createMessageReceipt(selectedMessage.value.id, receiptType)
+    if (!operation.isCurrent()) return
     ElMessage.success('消息回执已提交')
     await loadData()
   } catch (error) {
-    showError(error)
+    if (operation.isCurrent()) showError(error)
   } finally {
-    receiptSubmitting.value = false
+    if (operation.isCurrent()) receiptSubmitting.value = false
   }
 }
 
@@ -365,7 +403,7 @@ onMounted(() => {
               <el-descriptions-item label="来源模块">{{ selectedMessage.source.module_label }}</el-descriptions-item>
               <el-descriptions-item label="来源对象">{{ selectedMessage.source.object_label || '—' }}</el-descriptions-item>
               <el-descriptions-item label="类型">{{ selectedMessage.message_type }}</el-descriptions-item>
-              <el-descriptions-item label="当前状态">
+              <el-descriptions-item label="站内回执">
                 <el-tag :type="resolveStateTagType(selectedMessage)" effect="plain">
                   {{ resolveStateLabel(selectedMessage) }}
                 </el-tag>
@@ -409,7 +447,9 @@ onMounted(() => {
               </el-timeline-item>
             </el-timeline>
 
-            <el-divider>投递状态</el-divider>
+            <el-divider>推送与渠道记录</el-divider>
+            <p class="page__delivery-note">站内消息已保存。渠道受理不代表设备已展示，也不代表你已读；其他渠道历史记录不等同于站内回执。</p>
+            <el-button v-if="canRetryPush" data-testid="retry-web-push" :loading="retrySubmitting" @click="retryPush">重试浏览器推送</el-button>
             <el-empty v-if="selectedMessage.deliveries.length === 0" description="暂无投递记录" />
             <div v-else class="page__delivery-list">
               <div

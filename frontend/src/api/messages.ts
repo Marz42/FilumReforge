@@ -7,6 +7,7 @@ import type {
   NotificationReceiptType,
 } from '@/types/api'
 import { http } from './http'
+import { notifyMessageReceiptUpdated } from '@/composables/useMessageUpdates'
 
 type GetMessageCenterSnapshotParams = {
   sourceType?: string
@@ -49,5 +50,10 @@ export async function createMessageReceipt(
     receipt_type: receiptType,
     note: note ?? null,
   })
+  notifyMessageReceiptUpdated()
   return data
+}
+
+export async function retryMessageWebPush(messageId: string): Promise<void> {
+  await http.post(`/messages/${messageId}/web-push/retry`)
 }

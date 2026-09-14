@@ -40,7 +40,17 @@ export async function registerPwaServiceWorker(): Promise<ServiceWorkerRegistrat
     return null
   }
 
-  return navigator.serviceWorker.register('/sw.js')
+  const registration = await navigator.serviceWorker.register('/sw.js')
+  if (registration.active) return registration
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('浏览器通知服务尚未就绪，请稍后重试')), 10_000)
+      }),
+    ])
+  } finally { clearTimeout(timer) }
 }
 
 export function urlBase64ToUint8Array(base64String: string): ArrayBuffer {

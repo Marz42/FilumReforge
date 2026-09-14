@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
@@ -66,11 +66,13 @@ class MessageCenterService:
       selectinload(NotificationMessage.recipient_user),
     )
 
-  async def _get_message_or_raise(self, *, actor: User, message_id: UUID) -> NotificationMessage:
+  async def _get_message_or_raise(self, *, actor: User, message_id: UUID, lock: bool = False) -> NotificationMessage:
     statement = self._message_statement().where(
       NotificationMessage.id == message_id,
       NotificationMessage.recipient_user_id == actor.id,
     )
+    if lock:
+      statement = statement.with_for_update().execution_options(populate_existing=True)
     message = await self._session.scalar(statement)
     if message is None:
       raise NotFoundError("消息不存在。")
@@ -130,7 +132,7 @@ class MessageCenterService:
       if self._matches_source_type(item=item, source_type=source_type)
       and self._matches_state(item=item, state=state)
       and self._matches_channel(item=item, channel=channel)
-      and self._matches_delivery_status(item=item, delivery_status=delivery_status)
+      and self._matches_delivery_status(item=item, delivery_status=delivery_status, channel=channel)
       and self._matches_created_at(item=item, created_from=created_from, created_to=created_to)
     ]
     unread_count = sum(1 for item in items if not item["receipt_state"]["is_read"])
@@ -159,7 +161,7 @@ class MessageCenterService:
     note: str | None = None,
   ) -> NotificationReceipt:
     ensure_active_user(actor)
-    message = await self._get_message_or_raise(actor=actor, message_id=message_id)
+    message = await self._get_message_or_raise(actor=actor, message_id=message_id, lock=True)
     if message.recipient_user_id not in {None, actor.id}:
       raise AuthorizationError("当前账号不能回执该消息。")
 
@@ -171,6 +173,7 @@ class MessageCenterService:
       )
     )
     if existing_receipt is not None:
+      await self._session.commit()
       return existing_receipt
 
     receipt = NotificationReceipt(
@@ -423,9 +426,12 @@ class MessageCenterService:
     *,
     item: dict[str, Any],
     delivery_status: NotificationDeliveryStatus | None,
+    channel: NotificationChannel | None = None,
   ) -> bool:
     if delivery_status is None:
       return True
+    if channel is not None:
+      return any(delivery.channel == channel and delivery.status == delivery_status for delivery in item["deliveries"])
     return item["delivery_state"] == delivery_status
 
   def _matches_created_at(
@@ -435,10 +441,12 @@ class MessageCenterService:
     created_from: datetime | None,
     created_to: datetime | None,
   ) -> bool:
-    created_at = item["created_at"]
-    if created_from is not None and created_at < created_from:
+    def utc(value: datetime) -> datetime:
+      return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    created_at = utc(item["created_at"])
+    if created_from is not None and created_at < utc(created_from):
       return False
-    if created_to is not None and created_at > created_to:
+    if created_to is not None and created_at > utc(created_to):
       return False
     return True
 

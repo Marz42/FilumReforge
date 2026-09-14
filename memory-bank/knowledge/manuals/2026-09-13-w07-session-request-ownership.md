@@ -3,7 +3,7 @@ type: paradigma-manual
 title: "W07 会话与请求竞态修复"
 description: "记录会话代次、请求取消、最后一次响应生效、轮询清理及多账号浏览器回归的实现与证据边界。"
 tags: [w07, session, cancellation, task-center, frontend]
-timestamp: 2026-09-13T16:27:10+08:00
+timestamp: 2026-09-13T22:16:33+08:00
 paradigma:
   schema_version: "0.5.0"
   temperature: warm
@@ -49,4 +49,4 @@ paradigma:
 
 ## 后续
 
-W07 本地实现可审阅，后续可单独提交。KI-014 目标观察与 Phase D 仍保持原门禁；W08 通知真实状态、W09 共享限流可作为下一批本地工程方向，实际外发和生产操作仍需对应授权。
+W07 已提交为 `26e44fb`；原实现和测试记录保留。W08 已按用户要求收敛为站内消息中心/WebPush，Email/邀请邮件/WebSocket 延期，进展见 [W08 实施记录](2026-09-13-w08-inapp-webpush.md)。KI-014 目标观察与 Phase D 保持原门禁，W09 共享限流仍可作为下一独立工程方向。

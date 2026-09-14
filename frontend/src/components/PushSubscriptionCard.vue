@@ -20,9 +20,13 @@ import {
   requestNotificationPermission,
   urlBase64ToUint8Array,
 } from '@/utils/pwa'
+import { CanceledError } from 'axios'
+import { useLatestRequest } from '@/composables/useLatestRequest'
 import { showError } from '@/utils/errors'
 
 const loading = ref(false)
+const busy = ref(false)
+const currentEndpoint = ref('')
 const subscriptions = ref<PushSubscription[]>([])
 const permission = ref<NotificationPermission>(getNotificationPermission())
 const installPrompt = ref<BeforeInstallPromptEvent | null>(null)
@@ -37,14 +41,14 @@ const permissionLabelMap: Record<NotificationPermission, string> = {
 }
 
 const activeSubscription = computed(
-  () => subscriptions.value.find((item) => item.status === 'active') ?? null,
+  () => subscriptions.value.find((item) => item.status === 'active' && item.endpoint === currentEndpoint.value) ?? null,
 )
 const canInstall = computed(() => installPrompt.value !== null)
 const browserSupported = computed(() => isPushSupported())
 const resolvedPublicKey = computed(() => runtimePublicKey.value || getWebPushPublicKey())
 const publicKeyConfigured = computed(() => Boolean(resolvedPublicKey.value))
 const pushReady = computed(
-  () => (runtimeConfigLoaded.value ? runtimePushEnabled.value : publicKeyConfigured.value),
+  () => runtimeConfigLoaded.value && runtimePushEnabled.value && publicKeyConfigured.value,
 )
 
 function handleBeforeInstallPrompt(event: Event): void {
@@ -52,22 +56,31 @@ function handleBeforeInstallPrompt(event: Event): void {
   installPrompt.value = event as BeforeInstallPromptEvent
 }
 
+const otherDeviceCount = computed(() => subscriptions.value.filter((item) => item.status === 'active' && item.endpoint !== currentEndpoint.value).length)
+const reads = useLatestRequest(() => { subscriptions.value = []; currentEndpoint.value = ''; runtimeConfigLoaded.value = false; loading.value = false })
+const operations = useLatestRequest(() => { busy.value = false })
+
 async function loadData(): Promise<void> {
+  const request = reads.start()
   loading.value = true
   try {
-    const [nextSubscriptions, pushConfig] = await Promise.all([
+    const [nextSubscriptions, pushConfig, registration] = await Promise.all([
       listPushSubscriptions(),
-      getPushSubscriptionConfig(),
+      getPushSubscriptionConfig().catch(() => ({ public_key: null, is_enabled: false })),
+      browserSupported.value ? registerPwaServiceWorker() : Promise.resolve(null),
     ])
+    const local = registration ? await registration.pushManager.getSubscription() : null
+    if (!request.isCurrent()) return
     subscriptions.value = nextSubscriptions
+    currentEndpoint.value = local?.endpoint ?? ''
     runtimePublicKey.value = pushConfig.public_key?.trim() ?? ''
     runtimePushEnabled.value = pushConfig.is_enabled
     runtimeConfigLoaded.value = true
     permission.value = getNotificationPermission()
   } catch (error) {
-    showError(error)
+    if (request.isCurrent()) showError(error)
   } finally {
-    loading.value = false
+    if (request.isCurrent()) loading.value = false
   }
 }
 
@@ -83,99 +96,89 @@ async function handleInstall(): Promise<void> {
 }
 
 async function handleSubscribe(): Promise<void> {
-  if (!browserSupported.value) {
-    ElMessage.warning('当前浏览器不支持 Service Worker 或 Push API')
+  if (busy.value || loading.value) return
+  if (!browserSupported.value || !pushReady.value) {
+    ElMessage.warning('浏览器推送暂不可用，站内消息仍可正常使用')
     return
   }
-  if (!pushReady.value) {
-    ElMessage.warning('后端未完成 Web Push 配置，无法创建浏览器订阅')
-    return
-  }
-  if (!publicKeyConfigured.value) {
-    ElMessage.warning('未获取到可用的 Web Push 公钥，无法创建浏览器订阅')
-    return
-  }
-
-  let nextPermission = getNotificationPermission()
-  if (nextPermission === 'default') {
-    nextPermission = await requestNotificationPermission()
-  }
-  permission.value = nextPermission
-
-  if (nextPermission !== 'granted') {
-    ElMessage.warning('浏览器推送权限未授权')
-    return
-  }
-
-  loading.value = true
+  const operation = operations.start()
+  const current = () => { if (!operation.isCurrent()) throw new CanceledError('Session changed') }
+  let created: globalThis.PushSubscription | null = null
+  busy.value = true
   try {
+    let nextPermission = getNotificationPermission()
+    if (nextPermission === 'default') nextPermission = await requestNotificationPermission()
+    current()
+    permission.value = nextPermission
+    if (nextPermission !== 'granted') { ElMessage.warning('浏览器推送权限未授权'); return }
     const registration = await registerPwaServiceWorker()
-    if (!registration) {
-      throw new Error('Service worker 注册失败')
+    current()
+    if (!registration) throw new Error('浏览器通知服务尚未就绪，请稍后重试')
+    let local = await registration.pushManager.getSubscription()
+    current()
+    if (local && !subscriptions.value.some((item) => item.endpoint === local!.endpoint)) {
+      // Never transfer another account's endpoint on the server.
+      await local.unsubscribe()
+      current()
+      if (await registration.pushManager.getSubscription()) throw new Error('旧浏览器订阅尚未关闭，请重试')
+      local = null
     }
-
-    const publicKey = resolvedPublicKey.value
-    let browserSubscription = await registration.pushManager.getSubscription()
-    if (!browserSubscription) {
-      browserSubscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
-      })
+    if (!local) {
+      local = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(resolvedPublicKey.value) })
+      created = local
     }
-
-    const jsonValue = browserSubscription.toJSON()
-    await createPushSubscription({
-      endpoint: browserSubscription.endpoint,
-      p256dh_key: jsonValue.keys?.p256dh ?? encodeSubscriptionKey(browserSubscription.getKey('p256dh')),
-      auth_key: jsonValue.keys?.auth ?? encodeSubscriptionKey(browserSubscription.getKey('auth')),
-      user_agent: navigator.userAgent,
-    })
-
-    ElMessage.success('浏览器推送订阅已启用')
+    current()
+    const json = local.toJSON()
+    await createPushSubscription({ endpoint: local.endpoint,
+      p256dh_key: json.keys?.p256dh ?? encodeSubscriptionKey(local.getKey('p256dh')),
+      auth_key: json.keys?.auth ?? encodeSubscriptionKey(local.getKey('auth')),
+      user_agent: navigator.userAgent })
+    current()
+    created = null
+    ElMessage.success('本浏览器推送已启用')
     await loadData()
   } catch (error) {
-    showError(error)
-  } finally {
-    loading.value = false
-  }
+    if (created) await created.unsubscribe().catch(() => undefined)
+    if (operation.isCurrent()) showError(error)
+  } finally { if (operation.isCurrent()) busy.value = false }
 }
 
 async function handleUnsubscribe(): Promise<void> {
-  loading.value = true
+  if (busy.value || loading.value) return
+  const subscription = activeSubscription.value
+  if (!subscription) return
+  const operation = operations.start()
+  busy.value = true
   try {
+    // Server revocation first: even if browser cleanup fails, delivery stops for this device.
+    await revokePushSubscription(subscription.id)
+    if (!operation.isCurrent()) return
     const registration = await registerPwaServiceWorker()
-    const browserSubscription = registration
-      ? await registration.pushManager.getSubscription()
-      : null
-
-    if (browserSubscription) {
-      await browserSubscription.unsubscribe()
+    const local = registration ? await registration.pushManager.getSubscription() : null
+    if (!operation.isCurrent()) return
+    if (local?.endpoint === subscription.endpoint) {
+      await local.unsubscribe()
+      if (await registration!.pushManager.getSubscription()) throw new Error('服务端推送已停止，但浏览器订阅未能清理，请重试')
     }
-
-    await Promise.all(
-      subscriptions.value
-        .filter((item) => item.status === 'active')
-        .map((item) => revokePushSubscription(item.id)),
-    )
-    ElMessage.success('浏览器推送订阅已关闭')
+    if (!operation.isCurrent()) return
+    ElMessage.success('本浏览器推送已关闭，其他设备不受影响')
     await loadData()
   } catch (error) {
-    showError(error)
-  } finally {
-    loading.value = false
-  }
+    if (operation.isCurrent()) { showError(error); await loadData() }
+  } finally { if (operation.isCurrent()) busy.value = false }
 }
 
 async function handleSendTestPush(): Promise<void> {
-  loading.value = true
+  if (busy.value || loading.value || !activeSubscription.value || !pushReady.value) return
+  const operation = operations.start()
+  busy.value = true
   try {
     const result = await sendPushTestNotification()
-    ElMessage.success(result.detail)
-  } catch (error) {
-    showError(error)
-  } finally {
-    loading.value = false
-  }
+    if (!operation.isCurrent()) return
+    if (result.status === 'failed') ElMessage.error(result.detail)
+    else ElMessage.info(result.detail)
+  } catch (error) { if (operation.isCurrent()) showError(error) }
+  finally { if (operation.isCurrent()) busy.value = false }
 }
 
 onMounted(() => {
@@ -189,7 +192,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <el-card shadow="never" v-loading="loading">
+  <el-card shadow="never" v-loading="loading || busy">
     <template #header>
       <div class="push-card__header">
         <span>浏览器推送与 PWA</span>
@@ -201,6 +204,8 @@ onUnmounted(() => {
             v-if="activeSubscription"
             size="small"
             plain
+            :disabled="busy || loading || !pushReady"
+            data-testid="push-test"
             @click="handleSendTestPush"
           >
             发送测试推送
@@ -210,6 +215,8 @@ onUnmounted(() => {
             size="small"
             type="danger"
             plain
+            :disabled="busy || loading"
+            data-testid="push-disable"
             @click="handleUnsubscribe"
           >
             关闭推送
@@ -218,6 +225,8 @@ onUnmounted(() => {
             v-else
             size="small"
             type="primary"
+            :disabled="busy || loading || !pushReady || !browserSupported"
+            data-testid="push-enable"
             @click="handleSubscribe"
           >
             启用推送
@@ -233,11 +242,12 @@ onUnmounted(() => {
       <el-descriptions-item label="推送权限">
         {{ permissionLabelMap[permission] }}
       </el-descriptions-item>
-      <el-descriptions-item label="VAPID 公钥">
-        {{ publicKeyConfigured ? '已配置' : '未配置' }}
+      <el-descriptions-item label="通知服务">
+        {{ pushReady ? '可用' : '暂不可用' }}
       </el-descriptions-item>
       <el-descriptions-item label="当前订阅">
-        {{ activeSubscription?.endpoint ?? '暂无活跃订阅' }}
+        {{ activeSubscription ? '本浏览器已启用' : '本浏览器未启用' }}
+        <span v-if="otherDeviceCount">；其他设备 {{ otherDeviceCount }} 个已启用</span>
       </el-descriptions-item>
     </el-descriptions>
 
@@ -252,7 +262,7 @@ onUnmounted(() => {
 
     <el-alert
       v-if="runtimeConfigLoaded && !runtimePushEnabled"
-      title="后端尚未完成 Web Push 配置。请检查 WEB_PUSH_PUBLIC_KEY、WEB_PUSH_PRIVATE_KEY、WEB_PUSH_SUBJECT 与 worker 运行状态。"
+      title="浏览器推送暂不可用，请联系管理员。站内消息仍可正常使用。"
       type="warning"
       show-icon
       :closable="false"
@@ -260,7 +270,7 @@ onUnmounted(() => {
     />
 
     <el-alert
-      title="当前已接入的浏览器通知场景：任务指派、任务转派、任务抄送、逾期提醒、审批待办与审批提醒。需要先完成订阅，且后端 VAPID 配置与 worker 正常运行。"
+      title="当前已接入的浏览器通知场景：任务指派、任务转派、任务抄送、逾期提醒、审批待办与审批提醒。启用后可在此浏览器接收提醒。"
       type="info"
       show-icon
       :closable="false"
@@ -269,7 +279,7 @@ onUnmounted(() => {
 
     <el-alert
       v-if="activeSubscription"
-      title="可先点击“发送测试推送”验证当前登录账号的浏览器订阅、后端入队和 worker 投递链路。"
+      title="测试消息会发往此账号已启用推送的设备；提交请求不代表设备已收到，请检查实际通知。"
       type="success"
       show-icon
       :closable="false"

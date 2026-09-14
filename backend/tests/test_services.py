@@ -3783,7 +3783,7 @@ async def test_step4_report_service_keeps_report_creation_successful_when_notifi
   assert len(deliveries) == 2
   assert all(delivery.status == NotificationDeliveryStatus.FAILED for delivery in deliveries)
   assert all(delivery.attempt_count == 1 for delivery in deliveries)
-  assert all(delivery.error_message == "通知入队失败：redis unavailable" for delivery in deliveries)
+  assert all(delivery.error_message == "通知入队失败：队列暂不可用，请稍后重试。" for delivery in deliveries)
 
 
 @pytest.mark.asyncio
