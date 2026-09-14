@@ -1,0 +1,47 @@
+coding_runtime_schema_version: '0.1'
+kind: coding_checkpoint
+snapshot_revision: 1
+checkpoint:
+  checkpoint_id: CHECKPOINT-20260914-BASELINE-CLEAN
+  task_id: TASK-20260826-KI014-SCHEMA-AUDIT
+  session_id: SESSION-20260913-W08
+  created_at: '2026-09-14T11:31:39.751908+08:00'
+  task_status: active
+  git:
+    repository_id: FilumReforge
+    observed_at: '2026-09-14T11:31:39.751908+08:00'
+    head_commit: 9c5e2f5f9ac7a3549f43488d92549087e09b7c80
+    branch: main
+    dirty: true
+    worktree_paths:
+    - memory-bank/runtime/checkpoints/_narrative-20260914-baseline-clean.yaml
+  tests: []
+  builds: []
+  touched_paths:
+  - memory-bank/runtime/checkpoints/_narrative-20260914-baseline-clean.yaml
+  narrative:
+    summary: Cleaned the local working tree to origin/main@9c5e2f5 after pulling seven remote commits,
+      quarantined pre-baseline WIP on a local backup branch, and prepared KI-014 to remain blocked on
+      target observation. No production, Phase D, or fallback changes.
+    completed_work:
+    - Fast-forwarded main to 9c5e2f5 (W00 baseline sync through W08 in-app/Web Push).
+    - Backed up dirty local reliability WIP and orphaned staging-observation Task/Session YAML to branch
+      backup/local-wip-before-baseline-20260914 at commit 2a62a71 without pushing.
+    - Restored main worktree to a clean match with origin/main; removed conflict residue and the local
+      TASK-20260904 / SESSION-20260907 pointers from the active worktree.
+    - Confirmed active-task pointer returns to TASK-20260826-KI014-SCHEMA-AUDIT and closed this W08 session
+      after the W08 code was already present on HEAD.
+    remaining_work:
+    - Block KI-014 on target observation / Phase D contract gates after this checkpoint, then verify runtime
+      projections.
+    - Next independent engineering candidate remains W09; target-side work still waits on HG-01 access.
+    blockers:
+    - KI-014 representative target data, full observation cycle, and separately approved Phase D contract
+      remain pending (HG-01/HG-02/HG-03 OPEN).
+    - Human Gates HG-01 through HG-07 remain OPEN; local Docker evidence cannot substitute for staging
+      B/C checkboxes.
+    next_steps:
+    - Use memory-bank/knowledge/plans/2026-09-10-integrated-development-and-human-gates-plan.md as the
+      scheduling entry and 2026-09-12-development-baseline.md as the Git baseline.
+    - Keep backup/local-wip-before-baseline-20260914 local-only for recovery; do not merge reliability
+      WIP into main as part of baseline cleanup.
