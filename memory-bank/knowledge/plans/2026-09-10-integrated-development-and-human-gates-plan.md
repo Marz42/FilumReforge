@@ -305,6 +305,8 @@ expires_when: null
 
 **依赖：W01 测试 Redis；负责人：后端/运维。**
 
+**2026-09-14：本地实现与定向回归已完成。** `AUTH_RATE_LIMIT_BACKEND=redis` 使用 Lua 原子 INCR+EXPIRE 共享固定窗口；默认故障策略为 `reject`（503，不静默放行）；`memory` 仍为测试/单进程默认与紧急回退。生产 Compose 默认 redis。详见 [W09 实施记录](../manuals/2026-09-14-w09-auth-rate-limit.md)。真实多机 p95 / 灰度误伤监控仍待目标环境。
+
 1. 保留可信代理后的 client identity，定义 scope、窗口、阈值、key 前缀与 TTL；不读取未校验 XFF。
 2. 用 Redis 原子脚本/事务保证计数与 TTL 不分离，返回一致 Retry-After；不让历史客户端桶永久占用内存。参考 [Redis INCR 限流模式](https://redis.io/docs/latest/commands/incr/)。
 3. 明确 Redis 故障策略：认证入口是暂拒还是受限本地兜底，由负责人按可用性要求选定并在部署 Gate 记录；不能静默无限放行。

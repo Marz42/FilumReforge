@@ -1,14 +1,17 @@
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from uuid import uuid4
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
-from uuid import uuid4
 
 from app.api.error_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.database import get_session_factory
-from app.core.rate_limit import InMemoryRateLimiter
+from app.core.rate_limit import build_auth_rate_limiter
 from app.core.request_context import REQUEST_ID_HEADER, bind_request_context, reset_request_context
 
 
@@ -58,13 +61,22 @@ def _configure_cors(application: FastAPI) -> None:
 
 def create_app() -> FastAPI:
   settings = get_settings()
+  auth_rate_limiter = build_auth_rate_limiter(settings)
+
+  @asynccontextmanager
+  async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    yield
+    closer = getattr(application.state.auth_rate_limiter, "aclose", None)
+    if closer is not None:
+      await closer()
 
   application = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
+    lifespan=lifespan,
   )
   application.state.error_tracking_session_factory = get_session_factory()
-  application.state.auth_rate_limiter = InMemoryRateLimiter()
+  application.state.auth_rate_limiter = auth_rate_limiter
   application.add_middleware(RequestContextMiddleware)
   _configure_cors(application)
   register_exception_handlers(application)

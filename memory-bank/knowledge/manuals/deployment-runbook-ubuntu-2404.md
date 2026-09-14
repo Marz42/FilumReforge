@@ -391,7 +391,17 @@ python -m app.scripts.rollback_legacy_task_migration --batch-id <same-batch-id>
 
 ## 12. 先手工验证后端启动
 
-先手工启动一次后端，确认数据库、Redis、配置没有问题：
+先手工启动一次后端，确认数据库、Redis、配置没有问题。
+
+多 worker / 多副本时认证限流必须使用 Redis 共享后端：
+
+```bash
+# /srv/filum/backend/.env
+AUTH_RATE_LIMIT_BACKEND=redis
+AUTH_RATE_LIMIT_REDIS_FAIL_MODE=reject
+```
+
+`reject` 表示 Redis 不可用时认证入口返回 503（不静默放行）。紧急回退可改 `AUTH_RATE_LIMIT_BACKEND=memory` 并滚动重启，但多进程额度将不再共享。细节见 [W09 认证限流](./2026-09-14-w09-auth-rate-limit.md)。
 
 ```bash
 sudo -u "$FILUM_USER" -H bash -lc '

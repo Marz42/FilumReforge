@@ -75,6 +75,12 @@ class Settings(BaseSettings):
   auth_login_rate_limit: int = 10
   auth_refresh_rate_limit: int = 20
   auth_bootstrap_rate_limit: int = 5
+  # memory: process-local (default for tests/dev). redis: shared across workers.
+  auth_rate_limit_backend: str = "memory"
+  auth_rate_limit_key_prefix: str = "filum:auth_rl:"
+  # reject: fail closed with HTTP 503 when Redis is down. memory: local fallback.
+  # Never silently disable auth rate limiting.
+  auth_rate_limit_redis_fail_mode: str = "reject"
   redis_notification_queue: str = "notification:outbox"
   workflow_graph_engine_enabled: bool = True
   workflow_standalone_manual_tasks_enabled: bool = True
@@ -136,6 +142,18 @@ class Settings(BaseSettings):
     self.auth_refresh_cookie_samesite = normalized_samesite
     if self.auth_refresh_cookie_secure is None:
       self.auth_refresh_cookie_secure = self.app_env != "development"
+    backend = self.auth_rate_limit_backend.strip().lower()
+    if backend not in {"memory", "redis"}:
+      raise ValueError("AUTH_RATE_LIMIT_BACKEND 仅支持 memory 或 redis。")
+    self.auth_rate_limit_backend = backend
+    fail_mode = self.auth_rate_limit_redis_fail_mode.strip().lower()
+    if fail_mode not in {"reject", "memory"}:
+      raise ValueError("AUTH_RATE_LIMIT_REDIS_FAIL_MODE 仅支持 reject 或 memory。")
+    self.auth_rate_limit_redis_fail_mode = fail_mode
+    prefix = self.auth_rate_limit_key_prefix.strip()
+    if not prefix:
+      raise ValueError("AUTH_RATE_LIMIT_KEY_PREFIX 不能为空。")
+    self.auth_rate_limit_key_prefix = prefix
     if self.auth_refresh_cookie_samesite == "none" and not self.auth_refresh_cookie_secure:
       raise ValueError("SameSite=None 的 refresh cookie 必须启用 Secure。")
     if self.auth_invitation_expiry_hours <= 0:

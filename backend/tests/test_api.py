@@ -914,6 +914,8 @@ async def test_auth_login_rate_limit_returns_429(api_client) -> None:
   assert last_response is not None
   assert last_response.status_code == 429
   assert last_response.json()["detail"] == "请求过于频繁，请稍后再试。"
+  assert last_response.headers.get("Retry-After") is not None
+  assert int(last_response.headers["Retry-After"]) >= 1
 
 
 @pytest.mark.asyncio
@@ -929,6 +931,8 @@ async def test_auth_refresh_rate_limit_returns_429(api_client) -> None:
   assert last_response is not None
   assert last_response.status_code == 429
   assert last_response.json()["detail"] == "请求过于频繁，请稍后再试。"
+  assert last_response.headers.get("Retry-After") is not None
+  assert int(last_response.headers["Retry-After"]) >= 1
 
 
 @pytest.mark.asyncio

@@ -29,7 +29,7 @@ paradigma:
 
 | 计划 | 当前用途 |
 |---|---|
-| `2026-09-10-integrated-development-and-human-gates-plan.md` | in-progress：W01/W02 与 W07 已提交；W08 当前仅站内消息中心/Web Push，Email/邀请邮件/WebSocket 延期；外部门禁继续独立 |
+| `2026-09-10-integrated-development-and-human-gates-plan.md` | in-progress：W01/W02、W07、W08 已提交；W09 本地 Redis 认证限流已落地；外部门禁继续独立 |
 | `implementation-plan.md` | 总体实施主线 |
 | `workflow-graph-engine-upgrade-iteration-plan.md` | 图引擎 Iteration 0～6 总计划；当前指向 I5/I6 |
 | `2026-08-11-f05-iteration5-6-sequencing-plan.md` | F-05 → I5 → 稳定观察 → I6 的正式顺序 |

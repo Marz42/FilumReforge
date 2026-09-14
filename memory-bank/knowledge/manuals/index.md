@@ -1,7 +1,7 @@
 # Manuals Index
 
 <!-- BEGIN PARADIGMA AUTO-INDEX -->
-<!-- checksum: c8e2d9e4501a4ebe -->
+<!-- checksum: 9bdcbe14678f72a5 -->
 <!-- generated_by: pd-index.py -->
 
 | Path | Type | Title | Hints | Symbols | Relations |
@@ -13,6 +13,7 @@
 | [2026-09-13-w01-w02-checks.md](2026-09-13-w01-w02-checks.md) | `paradigma-manual` | W01/W02 开发、隔离 CI 与发布检查 | 发布检查<br>隔离CI<br>版本适配 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../known-issues/ki-013-paradigma-product-version-collision.md<br>related_to:./2026-09-12-development-baseline.md |
 | [2026-09-13-w07-session-request-ownership.md](2026-09-13-w07-session-request-ownership.md) | `paradigma-manual` | W07 会话与请求竞态修复 | 会话代次<br>旧响应<br>退出登录 ... | - | related_to:../known-issues/ki-016-logout-inflight-request-401-noise.md<br>related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/architecture/frontend-architecture.md |
 | [2026-09-13-w08-inapp-webpush.md](2026-09-13-w08-inapp-webpush.md) | `paradigma-manual` | W08 站内消息中心与 Web Push | 站内消息中心<br>Web Push<br>W08范围 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:../domains/messaging.md<br>related_to:../contracts/database/messaging-schema.md |
+| [2026-09-14-w09-auth-rate-limit.md](2026-09-14-w09-auth-rate-limit.md) | `paradigma-manual` | W09 跨 worker 认证限流 | 认证限流<br>Redis限流<br>W09 ... | - | related_to:../plans/2026-09-10-integrated-development-and-human-gates-plan.md<br>related_to:./deployment-runbook-ubuntu-2404.md |
 | [deployment-runbook-ubuntu-2404.md](deployment-runbook-ubuntu-2404.md) | `paradigma-manual` | 部署手册 (Ubuntu 24.04) | 部署<br>deployment | - | related_to:2026-08-09-production-release-checklist.md |
 | [e2e-gui-verification-automation-runbook.md](e2e-gui-verification-automation-runbook.md) | `paradigma-manual` | E2E GUI 验证手册 | E2E<br>e2e | - | related_to:workflow-video-v1-multi-account-e2e-guide.md |
 | [manual-database-operations.md](manual-database-operations.md) | `paradigma-manual` | 数据库操作手册 | 数据库<br>database | - | related_to:2026-09-04-ki014-phase-c-observation-checklist.md<br>related_to:../architecture.md |
