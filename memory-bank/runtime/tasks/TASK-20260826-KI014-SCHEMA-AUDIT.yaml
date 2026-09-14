@@ -1,6 +1,6 @@
 coding_runtime_schema_version: '0.1'
 kind: coding_task
-snapshot_revision: 14
+snapshot_revision: 22
 task:
   task_id: TASK-20260826-KI014-SCHEMA-AUDIT
   repository:
@@ -13,6 +13,6 @@ task:
     safe expand-contract remediation without applying database mutations
   status: blocked
   created_at: '2026-08-26T00:20:29.759530+08:00'
-  updated_at: '2026-09-14T13:03:02.137401+08:00'
+  updated_at: '2026-09-14T13:13:52.253689+08:00'
   status_reason: 目标预发观察与 Phase D contract 等待 HG-01/HG-02/HG-03
   parent_task_id: null

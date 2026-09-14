@@ -18,6 +18,8 @@ import {
   updateProfile,
 } from '@/api/profiles'
 import { createUser, deleteUser, updateUser } from '@/api/users'
+import { listGraphTemplates } from '@/api/workflow-graph'
+import { listWorkflowDefinitions } from '@/api/workflows'
 import type {
   Delegation,
   DelegationScopeType,
@@ -34,7 +36,9 @@ import type {
   UserRole,
   UserInvitation,
   UserStatus,
+  WorkflowDefinition,
 } from '@/types/api'
+import type { GraphTemplateSummary } from '@/types/workflowVideo'
 import FilumDateTimePicker from '@/components/common/FilumDateTimePicker.vue'
 import PeopleDetailDrawer from '@/components/people/PeopleDetailDrawer.vue'
 import type { PeopleAnchorId } from '@/components/people/PeopleAnchorNav.vue'
@@ -147,6 +151,8 @@ const workspace = ref<PeopleManagementSnapshot | null>(null)
 const selectedDetail = ref<PeopleManagementDetail | null>(null)
 const departments = ref<Department[]>([])
 const positions = ref<Position[]>([])
+const workflowDefinitions = ref<WorkflowDefinition[]>([])
+const graphTemplates = ref<GraphTemplateSummary[]>([])
 
 const keyword = ref('')
 const roleFilter = ref<'all' | UserRole>('all')
@@ -226,7 +232,17 @@ const eventForm = reactive({
   title: '',
   summary: '',
   payload_text: '{\n  "job_title": ""\n}',
+  workflow_definition_id: '' as string,
+  workflow_graph_template_id: '' as string,
 })
+
+const activeWorkflowDefinitions = computed(() =>
+  workflowDefinitions.value.filter((item) => item.status === 'active'),
+)
+
+const activeGraphTemplates = computed(() =>
+  graphTemplates.value.filter((item) => item.status === 'active'),
+)
 
 const delegationForm = reactive({
   delegate_user_id: '',
@@ -455,6 +471,21 @@ function resetEventForm(): void {
   eventForm.title = ''
   eventForm.summary = ''
   eventForm.payload_text = '{\n  "job_title": ""\n}'
+  eventForm.workflow_definition_id = ''
+  eventForm.workflow_graph_template_id = ''
+}
+
+function triggerStatusLabel(status: string | null | undefined): string {
+  if (!status) {
+    return '—'
+  }
+  const labels: Record<string, string> = {
+    pending: '待触发',
+    triggered: '已触发',
+    failed: '失败',
+    skipped: '已跳过',
+  }
+  return labels[status] ?? status
 }
 
 function resetDelegationForm(): void {
@@ -517,9 +548,16 @@ function hydrateForms(detail: PeopleManagementDetail): void {
 async function loadSupportingData(): Promise<void> {
   positionsLoading.value = true
   try {
-    const [departmentList, positionList] = await Promise.all([listDepartments(), listPositions()])
+    const [departmentList, positionList, definitionList, templateList] = await Promise.all([
+      listDepartments(),
+      listPositions(),
+      listWorkflowDefinitions().catch(() => [] as WorkflowDefinition[]),
+      listGraphTemplates({ status: ['active'] }).catch(() => [] as GraphTemplateSummary[]),
+    ])
     departments.value = departmentList
     positions.value = positionList
+    workflowDefinitions.value = definitionList
+    graphTemplates.value = templateList
   } finally {
     positionsLoading.value = false
   }
@@ -851,12 +889,18 @@ async function handleCreateEvent(): Promise<void> {
   lifecycleSubmitting.value = true
   try {
     const payload = parseJsonObject(eventForm.payload_text, '事件载荷')
+    const selectedTemplate = activeGraphTemplates.value.find(
+      (item) => item.id === eventForm.workflow_graph_template_id,
+    )
     await createProfileEvent(selectedProfile.value.user_id, {
       event_type: eventForm.event_type,
       effective_date: eventForm.effective_date,
       title: eventForm.title.trim(),
       summary: eventForm.summary.trim() || undefined,
       payload,
+      workflow_definition_id: eventForm.workflow_definition_id || null,
+      workflow_graph_template_id: eventForm.workflow_graph_template_id || null,
+      workflow_graph_template_version: selectedTemplate?.version ?? null,
     })
     ElMessage.success('生命周期事件已记录')
     resetEventForm()
@@ -1494,8 +1538,27 @@ watch(
                                 {{ formatDate(row.effective_date) }}
                               </template>
                             </el-table-column>
-                            <el-table-column prop="title" label="标题" min-width="220" />
-                            <el-table-column prop="summary" label="摘要" min-width="200" />
+                            <el-table-column prop="title" label="标题" min-width="180" />
+                            <el-table-column label="触发状态" min-width="110">
+                              <template #default="{ row }">
+                                {{ triggerStatusLabel(row.trigger_status) }}
+                              </template>
+                            </el-table-column>
+                            <el-table-column label="图 Run" min-width="160">
+                              <template #default="{ row }">
+                                {{ row.triggered_workflow_graph_instance_id ?? '—' }}
+                              </template>
+                            </el-table-column>
+                            <el-table-column label="审批实例" min-width="160">
+                              <template #default="{ row }">
+                                {{ row.triggered_workflow_instance_id ?? '—' }}
+                              </template>
+                            </el-table-column>
+                            <el-table-column label="触发错误" min-width="180" show-overflow-tooltip>
+                              <template #default="{ row }">
+                                {{ row.trigger_error ?? '—' }}
+                              </template>
+                            </el-table-column>
                           </el-table>
                         </el-card>
 
@@ -1524,6 +1587,36 @@ watch(
                             </el-form-item>
                             <el-form-item label="摘要">
                               <el-input v-model="eventForm.summary" type="textarea" :rows="3" />
+                            </el-form-item>
+                            <el-form-item label="图模板（可选）">
+                              <el-select
+                                v-model="eventForm.workflow_graph_template_id"
+                                clearable
+                                filterable
+                                placeholder="不绑定图模板"
+                              >
+                                <el-option
+                                  v-for="template in activeGraphTemplates"
+                                  :key="template.id"
+                                  :label="`${template.name} (v${template.version})`"
+                                  :value="template.id"
+                                />
+                              </el-select>
+                            </el-form-item>
+                            <el-form-item label="审批流程（可选）">
+                              <el-select
+                                v-model="eventForm.workflow_definition_id"
+                                clearable
+                                filterable
+                                placeholder="不挂接审批"
+                              >
+                                <el-option
+                                  v-for="definition in activeWorkflowDefinitions"
+                                  :key="definition.id"
+                                  :label="definition.name"
+                                  :value="definition.id"
+                                />
+                              </el-select>
                             </el-form-item>
                             <el-form-item label="扩展载荷(JSON)">
                               <el-input v-model="eventForm.payload_text" type="textarea" :rows="8" />

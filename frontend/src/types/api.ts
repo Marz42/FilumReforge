@@ -165,6 +165,17 @@ export interface EmploymentEvent {
   title: string
   summary: string | null
   payload: Record<string, unknown>
+  task_template_id?: string | null
+  workflow_definition_id?: string | null
+  workflow_graph_template_id?: string | null
+  workflow_graph_template_version?: number | null
+  trigger_status?: string | null
+  triggered_at?: string | null
+  trigger_error?: string | null
+  trigger_attempt_count?: number
+  triggered_template_instance_id?: string | null
+  triggered_workflow_instance_id?: string | null
+  triggered_workflow_graph_instance_id?: string | null
   created_by: string
   created_at: string
 }

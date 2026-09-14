@@ -68,6 +68,9 @@ export interface CreateEmploymentEventPayload {
   title: string
   summary?: string | null
   payload?: Record<string, unknown>
+  workflow_definition_id?: string | null
+  workflow_graph_template_id?: string | null
+  workflow_graph_template_version?: number | null
 }
 
 export interface CreateDelegationPayload {

@@ -44,15 +44,26 @@ vi.mock('@/api/users', () => ({
   updateUser: vi.fn(),
 }))
 
+vi.mock('@/api/workflows', () => ({
+  listWorkflowDefinitions: vi.fn(),
+}))
+
+vi.mock('@/api/workflow-graph', () => ({
+  listGraphTemplates: vi.fn(),
+}))
+
 import { listDepartments } from '@/api/departments'
 import { createInvitation } from '@/api/auth'
 import { getPeopleManagement, getPeopleManagementDetail } from '@/api/people-management'
 import {
   createProfile,
+  createProfileEvent,
   listPositions,
   updateProfile,
 } from '@/api/profiles'
 import { createUser, deleteUser, updateUser } from '@/api/users'
+import { listGraphTemplates } from '@/api/workflow-graph'
+import { listWorkflowDefinitions } from '@/api/workflows'
 import PeopleManagementView from '@/views/PeopleManagementView.vue'
 import PeopleDetailDrawer from '@/components/people/PeopleDetailDrawer.vue'
 
@@ -109,6 +120,16 @@ type PeopleManagementViewSetupState = {
   handleDeleteUser: () => Promise<void>
   handleCreateProfile: () => Promise<void>
   handleCreateUser: () => Promise<void>
+  handleCreateEvent: () => Promise<void>
+  eventForm: {
+    event_type: string
+    effective_date: string
+    title: string
+    summary: string
+    payload_text: string
+    workflow_definition_id: string
+    workflow_graph_template_id: string
+  }
 }
 
 const mockDepartment: Department = {
@@ -214,7 +235,28 @@ const profiledDetail: PeopleManagementDetail = {
     ],
     positions: [],
     reporting_lines: [],
-    employment_events: [],
+    employment_events: [
+      {
+        id: 'event-1',
+        user_id: 'user-1',
+        event_type: 'onboard',
+        effective_date: '2025-01-01',
+        title: '入职办理',
+        summary: '完成入职',
+        payload: {},
+        workflow_graph_template_id: 'tpl-1',
+        workflow_graph_template_version: 2,
+        trigger_status: 'triggered',
+        triggered_at: '2025-01-01T01:00:00Z',
+        trigger_error: null,
+        trigger_attempt_count: 1,
+        triggered_template_instance_id: null,
+        triggered_workflow_instance_id: null,
+        triggered_workflow_graph_instance_id: 'graph-run-1',
+        created_by: 'admin-1',
+        created_at: '2025-01-01T00:00:00Z',
+      },
+    ],
     delegations: [],
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
@@ -271,6 +313,52 @@ describe('PeopleManagementView', () => {
     })
     vi.mocked(listDepartments).mockResolvedValue([mockDepartment])
     vi.mocked(listPositions).mockResolvedValue([mockPosition])
+    vi.mocked(listWorkflowDefinitions).mockResolvedValue([
+      {
+        id: 'wf-def-1',
+        code: 'hr-approval',
+        name: '人事审批',
+        scope_type: 'global',
+        status: 'active',
+        version: 1,
+        config: {},
+        created_by: 'admin-1',
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+        steps: [],
+      },
+    ])
+    vi.mocked(listGraphTemplates).mockResolvedValue([
+      {
+        id: 'tpl-1',
+        code: 'onboard-flow',
+        name: '入职流程',
+        status: 'active',
+        version: 3,
+        config: {},
+      },
+    ])
+    vi.mocked(createProfileEvent).mockResolvedValue({
+      id: 'event-2',
+      user_id: 'user-1',
+      event_type: 'promotion',
+      effective_date: '2025-02-01',
+      title: '晋升',
+      summary: null,
+      payload: {},
+      workflow_definition_id: 'wf-def-1',
+      workflow_graph_template_id: 'tpl-1',
+      workflow_graph_template_version: 3,
+      trigger_status: 'pending',
+      triggered_at: null,
+      trigger_error: null,
+      trigger_attempt_count: 0,
+      triggered_template_instance_id: null,
+      triggered_workflow_instance_id: null,
+      triggered_workflow_graph_instance_id: null,
+      created_by: 'admin-1',
+      created_at: '2025-02-01T00:00:00Z',
+    })
     vi.mocked(updateUser).mockResolvedValue(profiledDetail.account)
     vi.mocked(deleteUser).mockResolvedValue(undefined)
     vi.mocked(createUser).mockResolvedValue({
@@ -448,5 +536,35 @@ describe('PeopleManagementView', () => {
 
     expect(ElMessageBox.confirm).toHaveBeenCalled()
     expect(deleteUser).toHaveBeenCalledWith('user-2')
+  })
+
+  it('records a lifecycle event with graph template and approval bind', async () => {
+    const { wrapper } = await mountView('/people?selected=user-1&detailTab=lifecycle')
+
+    expect(wrapper.text()).toContain('已触发')
+    expect(wrapper.text()).toContain('graph-run-1')
+
+    const setupState = wrapper.vm.$.setupState as unknown as PeopleManagementViewSetupState
+    setupState.eventForm.event_type = 'promotion'
+    setupState.eventForm.effective_date = '2025-02-01'
+    setupState.eventForm.title = '晋升'
+    setupState.eventForm.summary = ''
+    setupState.eventForm.payload_text = '{\n  "job_title": "高级工程师"\n}'
+    setupState.eventForm.workflow_definition_id = 'wf-def-1'
+    setupState.eventForm.workflow_graph_template_id = 'tpl-1'
+
+    await setupState.handleCreateEvent()
+    await flushPromises()
+
+    expect(createProfileEvent).toHaveBeenCalledWith('user-1', {
+      event_type: 'promotion',
+      effective_date: '2025-02-01',
+      title: '晋升',
+      summary: undefined,
+      payload: { job_title: '高级工程师' },
+      workflow_definition_id: 'wf-def-1',
+      workflow_graph_template_id: 'tpl-1',
+      workflow_graph_template_version: 3,
+    })
   })
 })

@@ -317,7 +317,7 @@ expires_when: null
 
 **依赖：W03 schema 基线稳定、W04 图命令验证；负责人：后端/前端/HR；HG-08 确认规则。**
 
-**2026-09-14：首片（显式图模板绑定）本地工程完成。** 加法列与 worker→`instantiate_graph_template` 幂等路径已落地；审批联动兼容；规则 UI / 前端选择器仍待 HG-08。详见 [W10 首片记录](../manuals/2026-09-14-w10-hr-graph-template-bind.md)。
+**2026-09-14：显式绑定工程完成（后端 + 人员管理前端）。** 加法列与 worker→`instantiate_graph_template` 幂等路径已落地；审批联动兼容；人员管理生命周期页可选绑定图模板/审批并展示触发状态。规则匹配 / 优先级 / dry-run UI 仍待 HG-08。详见 [W10 记录](../manuals/2026-09-14-w10-hr-graph-template-bind.md)。
 
 1. 固定事件到图模板的契约：模板版本、发起部门、参与人、发起主体、payload schema、权限、幂等键和结果 Run ID；旧 `task_template_id` 明确废弃，旧审批绑定继续兼容。
 2. 加法迁移事件触发目标/结果与状态，API 暴露图模板字段；版本不可变，在途事件不随模板最新版本漂移。
